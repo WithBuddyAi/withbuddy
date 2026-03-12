@@ -1,0 +1,26 @@
+# CODEOWNERS 파일
+# 이 파일은 PR 생성 시 자동으로 리뷰어를 지정합니다
+
+# 기본: 모든 파일은 admins가 리뷰
+* @WithBuddyAi/admins
+
+# 백엔드 코드는 백엔드 팀이 리뷰
+/backend/** @WithBuddyAi/backend-developers
+/api/** @WithBuddyAi/backend-developers
+
+# 프론트엔드 코드는 프론트 팀이 리뷰
+/frontend/** @WithBuddyAi/frontend
+/src/components/** @WithBuddyAi/frontend
+
+# AI 관련 코드
+/ai/** @WithBuddyAi/AI
+/ml/** @WithBuddyAi/AI
+/models/** @WithBuddyAi/AI
+
+# 문서는 모두가 리뷰 가능
+*.md @WithBuddyAi/admins
+
+# 설정 파일은 admins만
+/.github/** @WithBuddyAi/admins
+/config/** @WithBuddyAi/admins
+package.json @WithBuddyAi/admins
