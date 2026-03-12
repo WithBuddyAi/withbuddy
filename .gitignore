@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Environment Variables (매우 중요!)
+.env
+.env.local
+.env.production
+*.env
+
+# API Keys & Secrets
+config/secrets.yml
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+*.log
+
+# Database
+*.sqlite
+*.db
+
+# AI/ML
+*.h5
+*.pkl
+*.pt
+datasets/
