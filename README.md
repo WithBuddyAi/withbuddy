@@ -46,7 +46,7 @@
 
 | 분야 | 기술 |
 |------|------|
-| **Backend** | Java 21, Spring Boot 3.5, MySQL 8.0, JWT |
+| **Backend** | Java 21, Spring Boot 3.5.11, MySQL 8.0, JWT |
 | **Frontend** | React 18, TypeScript, Vite, Tailwind CSS |
 | **AI** | Python 3.11, FastAPI, LangChain, Pinecone, OpenAI GPT-4o |
 | **배포** | Oracle Cloud (Backend/AI/MySQL), Cloudflare Pages (Frontend) |
@@ -59,7 +59,7 @@
 ### 필수 요구사항
 - Java 21, Node.js 20+, Python 3.11+, MySQL 8.0
 
-### 3분 만에 로컬 실행
+### 로컬 실행
 
 **1. Repository 클론**
 ```bash
@@ -150,23 +150,6 @@ withbuddy/
 - **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
 
 ---
-
-## 📈 개발 현황
-
-### MVP 진행 상황
-```
-✅ User 인증/인가              100%
-✅ Checklist 시스템            100%
-✅ FAQ 관리                    100%
-🚧 AI Q&A (RAG)                85%
-🚧 데일리 기록 + AI 요약        75%
-⬜ 진행률 관리                  30%
-⬜ AI 주간 리포트              20%
-⬜ 문서함                       10%
-```
-
-**현재**: Week 5-6 (Checklist, FAQ, Q&A)  
-**다음**: Week 7-8 (AI 연동 및 통합)
 
 > 📊 [전체 로드맵 보기](./docs/ROADMAP.md)
 
