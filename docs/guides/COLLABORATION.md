@@ -64,3 +64,5 @@ main (운영 배포)
 ```
 
 ## 라이센스
+
+**Copyright © 2026 WithBuddy Team. All Rights Reserved.**
