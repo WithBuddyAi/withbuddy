@@ -319,7 +319,7 @@ Cookie: refresh_token=eyJhbGciOiJIUzI1NiIs...
   "path": "/api/v1/auth/refresh"
 }
 ```
-
+- **[토큰 발급](./AUTH_GUIDE.md)** - API 인증 및 토큰 가이드
 ---
 
 ### 로그아웃
