@@ -2,7 +2,7 @@
 
 > WithBuddy REST API 전체 엔드포인트 문서
 
-**버전**: 1.0.0  
+**버전**: 2.0.0  
 **최종 업데이트**: 2026-03-17
 
 ---
@@ -10,13 +10,16 @@
 ## 📋 목차
 
 - [API 개요](#api-개요)
+- [멀티 테넌시](#멀티-테넌시)
 - [인증 (Authentication)](#인증-authentication)
+- [회사 관리 (Company)](#회사-관리-company)
 - [사용자 관리 (User)](#사용자-관리-user)
 - [AI 도우미 (AI Assistant)](#ai-도우미-ai-assistant)
 - [체크리스트 (Checklist)](#체크리스트-checklist)
 - [기록 (Records)](#기록-records)
 - [리포트 (Reports)](#리포트-reports)
 - [문서 관리 (Documents)](#문서-관리-documents)
+- [진행률 (Progress)](#진행률-progress)
 
 ---
 
@@ -37,6 +40,7 @@ Production:  https://api.withbuddy.com
 /api/v1/auth/login
 /api/v1/users/me
 /api/v1/ai/chat
+/api/v1/companies/me
 ```
 
 ### 공통 헤더
@@ -52,8 +56,10 @@ Authorization: Bearer {access_token}
 ```json
 {
   "id": "uuid-string",
-  "name": "홍길동",
-  "employeeNumber": "2024001"
+  "companyCode": 1001,
+  "companyName": "테크 주식회사",
+  "name": "김지원",
+  "employeeNumber": "20260001"
 }
 ```
 
@@ -63,7 +69,7 @@ Authorization: Bearer {access_token}
   "timestamp": "2026-03-17T10:30:00Z",
   "status": 400,
   "error": "Bad Request",
-  "message": "사원번호는 7자리 숫자여야 합니다",
+  "message": "사원번호는 8자리 숫자여야 합니다",
   "path": "/api/v1/auth/login"
 }
 ```
@@ -83,6 +89,81 @@ Authorization: Bearer {access_token}
 
 ---
 
+## 멀티 테넌시
+
+### 개요
+
+WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다.
+
+#### 핵심 개념
+- 🏢 각 회사는 고유한 `companyCode`로 식별
+- 🔒 회사별 데이터 완전 격리
+- 👥 같은 사원번호를 다른 회사에서 사용 가능
+- 📊 모든 API 요청은 자동으로 로그인한 회사의 데이터만 조회/수정
+
+### JWT 토큰 구조
+
+```json
+{
+  "sub": "user-uuid-123",
+  "companyCode": 1001,
+  "companyId": 1,
+  "employeeNumber": "20260001",
+  "name": "김지원",
+  "role": "EMPLOYEE",
+  "iat": 1234567890,
+  "exp": 1234574890
+}
+```
+
+**필드 설명**:
+- `sub`: 사용자 고유 ID (UUID)
+- `companyCode`: 회사 코드
+- `companyId`: 회사 내부 ID (데이터베이스 FK)
+- `employeeNumber`: 사원번호
+- `name`: 사용자 이름
+- `role`: 역할 (EMPLOYEE, MENTOR, MANAGER, HR, ADMIN)
+- `iat`: 발급 시간 (Unix timestamp)
+- `exp`: 만료 시간 (Unix timestamp)
+
+### 데이터 격리
+
+모든 API는 JWT 토큰에서 `companyId`를 추출하여 자동으로 필터링합니다.
+
+**예시 1: 체크리스트 조회**
+```http
+GET /api/v1/checklists
+Authorization: Bearer {token}  # companyId=1 포함
+
+→ companyId=1인 체크리스트만 반환
+```
+
+**예시 2: 기록 작성**
+```http
+POST /api/v1/records
+Authorization: Bearer {token}  # companyId=1 포함
+Content-Type: application/json
+
+{
+  "title": "첫 주 회고",
+  "content": "..."
+}
+
+→ 자동으로 companyId=1로 설정되어 저장
+```
+
+### 회사 구분 예시
+
+| 회사 A (companyCode: 1001) | 회사 B (companyCode: 1002) |
+|---------------------------|---------------------------|
+| 사원번호: 20260001 (김지원) | 사원번호: 20260001 (박민수) |
+| 체크리스트: 10개 | 체크리스트: 8개 |
+| 기록: 25개 | 기록: 30개 |
+
+→ 같은 사원번호지만 **완전히 별도의 사용자**
+
+---
+
 ## 인증 (Authentication)
 
 ### 로그인
@@ -95,10 +176,16 @@ Content-Type: application/json
 **Request Body**
 ```json
 {
-  "employeeNumber": "2024001",
-  "password": "password123!"
+  "companyCode": 1001,
+  "employeeNumber": "20260001",
+  "name": "김지원"
 }
 ```
+
+**필드 설명**:
+- `companyCode`: 회사 고유 코드 (4자리 숫자)
+- `employeeNumber`: 사원번호 (8자리 숫자)
+- `name`: 사용자 이름 (추가 검증용)
 
 **Response (200 OK)**
 ```json
@@ -107,8 +194,10 @@ Content-Type: application/json
   "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
     "id": "uuid",
-    "employeeNumber": "2024001",
-    "name": "홍길동",
+    "companyCode": 1001,
+    "companyName": "테크 주식회사",
+    "employeeNumber": "20260001",
+    "name": "김지원",
     "department": "개발팀",
     "position": "사원",
     "role": "EMPLOYEE"
@@ -122,7 +211,18 @@ Content-Type: application/json
   "timestamp": "2026-03-17T10:30:00Z",
   "status": 401,
   "error": "Unauthorized",
-  "message": "사원번호 또는 비밀번호가 올바르지 않습니다",
+  "message": "회사코드, 사원번호 또는 이름이 올바르지 않습니다",
+  "path": "/api/v1/auth/login"
+}
+```
+
+**Error Response (404 Not Found) - 잘못된 회사코드**
+```json
+{
+  "timestamp": "2026-03-17T10:30:00Z",
+  "status": 404,
+  "error": "Not Found",
+  "message": "존재하지 않는 회사입니다",
   "path": "/api/v1/auth/login"
 }
 ```
@@ -139,34 +239,55 @@ Content-Type: application/json
 **Request Body**
 ```json
 {
-  "employeeNumber": "2024001",
-  "password": "password123!",
-  "name": "홍길동",
+  "companyCode": 1001,
+  "employeeNumber": "20260001",
+  "name": "김지원",
   "department": "개발팀",
   "position": "사원",
-  "joinDate": "2024-03-01"
+  "joinDate": "2026-03-01"
 }
 ```
+
+**필드 설명**:
+- `companyCode`: 회사 고유 코드 (필수)
+- `employeeNumber`: 사원번호 (필수, 회사 내에서 고유)
+- `name`: 이름 (필수)
+- `department`: 부서 (선택)
+- `position`: 직급 (선택)
+- `joinDate`: 입사일 (선택)
 
 **Response (201 Created)**
 ```json
 {
   "id": "uuid",
-  "employeeNumber": "2024001",
-  "name": "홍길동",
+  "companyCode": 1001,
+  "companyName": "테크 주식회사",
+  "employeeNumber": "20260001",
+  "name": "김지원",
   "department": "개발팀",
   "position": "사원",
-  "joinDate": "2024-03-01"
+  "joinDate": "2026-03-01"
 }
 ```
 
-**Error Response (409 Conflict)**
+**Error Response (404 Not Found) - 잘못된 회사코드**
+```json
+{
+  "timestamp": "2026-03-17T10:30:00Z",
+  "status": 404,
+  "error": "Not Found",
+  "message": "존재하지 않는 회사입니다",
+  "path": "/api/v1/auth/signup"
+}
+```
+
+**Error Response (409 Conflict) - 사원번호 중복**
 ```json
 {
   "timestamp": "2026-03-17T10:30:00Z",
   "status": 409,
   "error": "Conflict",
-  "message": "이미 가입된 사원번호입니다",
+  "message": "해당 회사에 이미 등록된 사원번호입니다",
   "path": "/api/v1/auth/signup"
 }
 ```
@@ -212,6 +333,69 @@ Authorization: Bearer {token}
 
 ---
 
+## 회사 관리 (Company)
+
+### 내 회사 정보 조회
+
+```http
+GET /api/v1/companies/me
+Authorization: Bearer {token}
+```
+
+**Response (200 OK)**
+```json
+{
+  "id": 1,
+  "companyCode": 1001,
+  "companyName": "테크 주식회사",
+  "industry": "IT",
+  "active": true,
+  "settings": {
+    "onboardingWeeks": 12,
+    "aiEnabled": true,
+    "logoUrl": "https://storage.../logo.png",
+    "primaryColor": "#3B82F6",
+    "reportGenerationInterval": 1
+  },
+  "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+---
+
+### 회사 설정 수정
+
+```http
+PATCH /api/v1/companies/me/settings
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**권한**: HR, ADMIN만 가능
+
+**Request Body**
+```json
+{
+  "onboardingWeeks": 12,
+  "aiEnabled": true,
+  "logoUrl": "https://storage.../new-logo.png",
+  "primaryColor": "#10B981"
+}
+```
+
+**Response (200 OK)**
+```json
+{
+  "onboardingWeeks": 12,
+  "aiEnabled": true,
+  "logoUrl": "https://storage.../new-logo.png",
+  "primaryColor": "#10B981",
+  "updatedAt": "2026-03-17T10:30:00Z"
+}
+```
+
+---
+
 ## 사용자 관리 (User)
 
 ### 내 정보 조회
@@ -225,16 +409,19 @@ Authorization: Bearer {token}
 ```json
 {
   "id": "uuid",
-  "employeeNumber": "2024001",
-  "name": "홍길동",
+  "companyCode": 1001,
+  "companyName": "테크 주식회사",
+  "employeeNumber": "20260001",
+  "name": "김지원",
   "department": "개발팀",
   "position": "사원",
-  "joinDate": "2024-03-01",
+  "role": "EMPLOYEE",
+  "joinDate": "2026-03-01",
   "profileImage": "https://storage.../profile.jpg",
   "onboardingProgress": 45.5,
   "mentor": {
     "id": "mentor-uuid",
-    "name": "김멘토",
+    "name": "이멘토",
     "department": "개발팀",
     "position": "시니어"
   }
@@ -254,7 +441,7 @@ Content-Type: application/json
 **Request Body**
 ```json
 {
-  "name": "홍길동",
+  "name": "김지원",
   "profileImage": "https://storage.../new-profile.jpg"
 }
 ```
@@ -263,7 +450,7 @@ Content-Type: application/json
 ```json
 {
   "id": "uuid",
-  "name": "홍길동",
+  "name": "김지원",
   "profileImage": "https://storage.../new-profile.jpg",
   "updatedAt": "2026-03-17T10:30:00Z"
 }
@@ -271,34 +458,44 @@ Content-Type: application/json
 
 ---
 
-### 비밀번호 변경
+### 회사 내 사용자 목록 조회
 
 ```http
-PUT /api/v1/users/me/password
+GET /api/v1/users
 Authorization: Bearer {token}
-Content-Type: application/json
+Query: department=개발팀&page=0&size=20
 ```
 
-**Request Body**
+**권한**: MENTOR, MANAGER, HR, ADMIN
+
+**Query Parameters**
+- `department`: 부서 필터 (선택)
+- `role`: 역할 필터 (선택)
+- `page`: 페이지 번호 (default: 0)
+- `size`: 페이지 크기 (default: 20)
+
+**Response (200 OK)**
 ```json
 {
-  "currentPassword": "oldPassword123!",
-  "newPassword": "newPassword456!"
+  "content": [
+    {
+      "id": "uuid",
+      "employeeNumber": "20260001",
+      "name": "김지원",
+      "department": "개발팀",
+      "position": "사원",
+      "role": "EMPLOYEE",
+      "joinDate": "2026-03-01"
+    }
+  ],
+  "totalElements": 45,
+  "totalPages": 3,
+  "size": 20,
+  "number": 0
 }
 ```
 
-**Response (204 No Content)**
-
-**Error Response (400 Bad Request)**
-```json
-{
-  "timestamp": "2026-03-17T10:30:00Z",
-  "status": 400,
-  "error": "Bad Request",
-  "message": "현재 비밀번호가 일치하지 않습니다",
-  "path": "/api/v1/users/me/password"
-}
-```
+**중요**: 자동으로 **로그인한 사용자의 회사(companyId)** 데이터만 반환됩니다.
 
 ---
 
@@ -338,16 +535,7 @@ Content-Type: application/json
 }
 ```
 
-**Error Response (503 Service Unavailable)**
-```json
-{
-  "timestamp": "2026-03-17T10:30:00Z",
-  "status": 503,
-  "error": "Service Unavailable",
-  "message": "AI 서비스에 연결할 수 없습니다",
-  "path": "/api/v1/ai/chat"
-}
-```
+**중요**: AI는 자동으로 **로그인한 사용자의 회사 문서**만 검색합니다.
 
 ---
 
@@ -358,10 +546,6 @@ GET /api/v1/ai/conversations
 Authorization: Bearer {token}
 Query: page=0&size=20
 ```
-
-**Query Parameters**
-- `page`: 페이지 번호 (default: 0)
-- `size`: 페이지 크기 (default: 20)
 
 **Response (200 OK)**
 ```json
@@ -408,17 +592,6 @@ Authorization: Bearer {token}
     }
   ],
   "createdAt": "2026-03-17T10:30:00Z"
-}
-```
-
-**Error Response (404 Not Found)**
-```json
-{
-  "timestamp": "2026-03-17T10:30:00Z",
-  "status": 404,
-  "error": "Not Found",
-  "message": "대화를 찾을 수 없습니다",
-  "path": "/api/v1/ai/conversations/{conversationId}"
 }
 ```
 
@@ -476,6 +649,8 @@ Authorization: Bearer {token}
 }
 ```
 
+**중요**: 로그인한 사용자의 체크리스트만 반환됩니다.
+
 ---
 
 ### 주차별 체크리스트 조회
@@ -484,9 +659,6 @@ Authorization: Bearer {token}
 GET /api/v1/checklists?week=1
 Authorization: Bearer {token}
 ```
-
-**Query Parameters**
-- `week`: 주차 번호 (1-12)
 
 **Response (200 OK)**
 ```json
@@ -579,6 +751,8 @@ Content-Type: application/json
 }
 ```
 
+**중요**: 자동으로 **로그인한 사용자의 companyId**로 저장됩니다.
+
 ---
 
 ### 기록 목록 조회
@@ -617,6 +791,8 @@ Query: type=WEEKLY_REVIEW&page=0&size=10
 }
 ```
 
+**중요**: 로그인한 사용자의 기록만 반환됩니다.
+
 ---
 
 ### 기록 상세 조회
@@ -637,17 +813,6 @@ Authorization: Bearer {token}
   "tags": ["회고", "1주차"],
   "createdAt": "2026-03-17T10:30:00Z",
   "updatedAt": "2026-03-17T10:35:00Z"
-}
-```
-
-**Error Response (404 Not Found)**
-```json
-{
-  "timestamp": "2026-03-17T10:30:00Z",
-  "status": 404,
-  "error": "Not Found",
-  "message": "기록을 찾을 수 없습니다",
-  "path": "/api/v1/records/{recordId}"
 }
 ```
 
@@ -707,17 +872,6 @@ Authorization: Bearer {token}
   "id": "record-001",
   "aiSummary": "새로운 AI 요약 내용...",
   "generatedAt": "2026-03-17T11:00:00Z"
-}
-```
-
-**Error Response (500 Internal Server Error)**
-```json
-{
-  "timestamp": "2026-03-17T11:00:00Z",
-  "status": 500,
-  "error": "Internal Server Error",
-  "message": "AI 요약 생성에 실패했습니다",
-  "path": "/api/v1/records/{recordId}/summary"
 }
 ```
 
@@ -813,17 +967,6 @@ Content-Type: application/json
 }
 ```
 
-**Error Response (400 Bad Request)**
-```json
-{
-  "timestamp": "2026-03-17T11:00:00Z",
-  "status": 400,
-  "error": "Bad Request",
-  "message": "해당 주차의 기록이 없습니다",
-  "path": "/api/v1/reports/generate"
-}
-```
-
 ---
 
 ### 리포트 PDF 다운로드
@@ -876,7 +1019,7 @@ Query: category=HR&page=0&size=20
       "title": "복지카드 신청 가이드",
       "category": "HR",
       "description": "복지카드 신청 방법 및 사용 안내",
-      "fileUrl": "https://storage.../doc-001.pdf",
+      "fileUrl": "https://storage.../company_1001/doc-001.pdf",
       "fileType": "PDF",
       "fileSize": 1024000,
       "uploadedAt": "2024-01-15T09:00:00Z"
@@ -888,6 +1031,8 @@ Query: category=HR&page=0&size=20
   "number": 0
 }
 ```
+
+**중요**: 자동으로 **로그인한 사용자의 회사 문서**만 반환됩니다.
 
 ---
 
@@ -906,7 +1051,7 @@ Authorization: Bearer {token}
   "category": "HR",
   "description": "복지카드 신청 방법 및 사용 안내",
   "content": "1. 복지카드란? ...",
-  "fileUrl": "https://storage.../doc-001.pdf",
+  "fileUrl": "https://storage.../company_1001/doc-001.pdf",
   "fileType": "PDF",
   "fileSize": 1024000,
   "relatedDocuments": [
@@ -952,6 +1097,8 @@ Query: q=연차&category=HR
 }
 ```
 
+**중요**: 자동으로 **로그인한 사용자의 회사 문서**만 검색합니다.
+
 ---
 
 ### 문서 업로드
@@ -961,6 +1108,8 @@ POST /api/v1/documents/upload
 Authorization: Bearer {token}
 Content-Type: multipart/form-data
 ```
+
+**권한**: HR, ADMIN만 가능
 
 **Request (multipart/form-data)**
 - `file`: (binary) - 업로드할 파일
@@ -974,11 +1123,13 @@ Content-Type: multipart/form-data
   "id": "doc-new",
   "title": "신규 문서",
   "category": "HR",
-  "fileUrl": "https://storage.../doc-new.pdf",
+  "fileUrl": "https://storage.../company_1001/doc-new.pdf",
   "fileSize": 2048000,
   "uploadedAt": "2026-03-17T11:00:00Z"
 }
 ```
+
+**중요**: 자동으로 **로그인한 사용자의 companyId**로 저장됩니다.
 
 ---
 
@@ -1006,18 +1157,9 @@ DELETE /api/v1/documents/{documentId}
 Authorization: Bearer {token}
 ```
 
-**Response (204 No Content)**
+**권한**: HR, ADMIN만 가능
 
-**Error Response (403 Forbidden)**
-```json
-{
-  "timestamp": "2026-03-17T11:00:00Z",
-  "status": 403,
-  "error": "Forbidden",
-  "message": "문서 삭제 권한이 없습니다",
-  "path": "/api/v1/documents/{documentId}"
-}
-```
+**Response (204 No Content)**
 
 ---
 
@@ -1034,8 +1176,9 @@ Authorization: Bearer {token}
 ```json
 {
   "userId": "uuid",
-  "userName": "홍길동",
-  "joinDate": "2024-03-01",
+  "userName": "김지원",
+  "companyName": "테크 주식회사",
+  "joinDate": "2026-03-01",
   "currentWeek": 1,
   "totalWeeks": 12,
   "overallProgress": 8.5,
@@ -1148,12 +1291,14 @@ GET /api/v1/records?page=0&size=10&sort=createdAt,desc
 - `AUTH_001`: 토큰이 없습니다
 - `AUTH_002`: 토큰이 만료되었습니다
 - `AUTH_003`: 유효하지 않은 토큰입니다
-- `AUTH_004`: 사원번호 또는 비밀번호가 올바르지 않습니다
+- `AUTH_004`: 회사코드, 사원번호 또는 이름이 올바르지 않습니다
+- `AUTH_005`: 존재하지 않는 회사입니다
 
 ### 리소스 관련
 - `RESOURCE_001`: 리소스를 찾을 수 없습니다
 - `RESOURCE_002`: 이미 존재하는 리소스입니다
 - `RESOURCE_003`: 리소스 접근 권한이 없습니다
+- `RESOURCE_004`: 다른 회사의 리소스에 접근할 수 없습니다
 
 ### AI 서비스 관련
 - `AI_001`: AI 서비스에 연결할 수 없습니다
@@ -1170,12 +1315,27 @@ GET /api/v1/records?page=0&size=10&sort=createdAt,desc
 ## 참고 자료
 
 - [아키텍처 문서](./ARCHITECTURE.md)
+- [멀티 테넌시 문서](./MULTI_TENANCY.md)
+- [보안 설계 문서](./SECURITY.md)
 - [환경변수 가이드](./ENV.md)
-- [개발 가이드](./DEVELOPMENT.md)
 - [Swagger UI](http://localhost:8080/swagger-ui.html)
 
 ---
 
-**문서 버전**: 1.0.1  
+**문서 버전**: 2.0.0  
 **작성일**: 2026-03-17  
 **다음 리뷰 예정**: 2026-04-17
+
+## 변경 이력
+
+### v2.0.0 (2026-03-17)
+- ✅ 멀티 테넌시 구조 적용
+- ✅ 로그인 API 변경 (companyCode + employeeNumber + name)
+- ✅ 모든 응답에 companyCode, companyName 추가
+- ✅ 회사 관리 API 추가
+- ✅ 데이터 격리 설명 추가
+- ✅ JWT 페이로드 구조 업데이트
+- ✅ 비밀번호 제거 (사내 전용)
+
+### v1.0.0 (2026-03-10)
+- 초기 버전
