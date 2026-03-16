@@ -3,8 +3,38 @@ name: CI
 on:
   pull_request:
     branches: [ main, develop ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - '!.github/workflows/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '**.txt'
+      - '**.rst'
+      - 'README*'
+      - 'CHANGELOG*'
+      - 'CONTRIBUTING*'
+      - 'AUTHORS*'
+      - '.vscode/**'
+      - '.idea/**'
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - '!.github/workflows/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '**.txt'
+      - '**.rst'
+      - 'README*'
+      - 'CHANGELOG*'
+      - 'CONTRIBUTING*'
+      - 'AUTHORS*'
+      - '.vscode/**'
+      - '.idea/**'
 
 jobs:
   backend-test:
