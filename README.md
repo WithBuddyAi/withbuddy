@@ -138,7 +138,7 @@ withbuddy/
 - **[환경변수 관리](./docs/guides/ENV.md)** - application.yml, .env 설정
 
 ### 아키텍처
-- **[시스템 구조](./docs/architecture/SYSTEM.md)** - 인프라, 서버 구성
+- **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
 - **[데이터베이스](./docs/database/SCHEMA.md)** - ERD, 테이블 설계
 
 ### API
