@@ -241,4 +241,4 @@ Resolves #123
 ## 다음 단계
 
 - [코딩 컨벤션](../conventions/CODING.md) - Java, TypeScript, Python 규칙
-- [개발 환경 설정](../guides/SETUP.md) - 로컬 개발 환경 구축
+- [개발 환경 설정](../docs/guides/SETUP.md) - 로컬 개발 환경 구축
