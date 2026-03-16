@@ -333,7 +333,7 @@ DELETE /api/v1/records/{id}               # 삭제
 POST   /api/v1/records/{id}/summary       # AI 요약 생성
 ```
 
-**상세 문서**: [API.md](./api/API.md)
+**상세 문서**: [API.md](../api/API.md)
 
 ---
 
@@ -353,7 +353,7 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 
 | 문서 | 설명 |
 |------|------|
-| [API.md](.api/API.md) | 전체 API 명세서 |
+| [API.md](../api/API.md) | 전체 API 명세서 |
 | [ENV.md](./ENV.md) | 환경변수 가이드 |
 
 ### 🚀 개발 가이드
