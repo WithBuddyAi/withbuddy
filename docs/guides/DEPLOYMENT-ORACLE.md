@@ -670,4 +670,4 @@ Cloudflare Pages:
 ## 다음 단계
 
 - [개발 환경 설정](./SETUP.md) - 로컬 개발 환경 구축
-- [API 문서](../api/API.md) - API 엔드포인트
+- [API 문서](../PLANNED_API.md) - API 엔드포인트

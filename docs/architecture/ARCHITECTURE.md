@@ -235,7 +235,7 @@ WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다
 - 회사별 데이터 완전 격리
 - 같은 사원번호를 다른 회사에서 사용 가능
 
-**상세 문서**: [MULTI_TENANCY.md](./MULTI_TENANCY.md)
+**상세 문서**: [MULTI_TENANCY.md](../MULTI_TENANCY.md)
 
 ---
 
@@ -333,7 +333,7 @@ DELETE /api/v1/records/{id}               # 삭제
 POST   /api/v1/records/{id}/summary       # AI 요약 생성
 ```
 
-**상세 문서**: [API.md](../api/API.md)
+**상세 문서**: [API.md](../PLANNED_API.md)
 
 ---
 
@@ -343,17 +343,17 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 
 | 문서 | 설명 |
 |------|------|
-| [MULTI_TENANCY.md](./MULTI_TENANCY.md) | 멀티 테넌시 아키텍처 상세 |
+| [MULTI_TENANCY.md](../MULTI_TENANCY.md) | 멀티 테넌시 아키텍처 상세 |
 | [AI_ARCHITECTURE.md](./AI_ARCHITECTURE.md) | AI 시스템 아키텍처 |
 | [INFRASTRUCTURE.md](./INFRASTRUCTURE.md) | 인프라 구성 및 네트워크 |
-| [SECURITY.md](./SECURITY.md) | 보안 설계 및 인증/인가 |
+| [SECURITY.md](../SECURITY.md) | 보안 설계 및 인증/인가 |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | 배포 전략 및 CI/CD |
 
 ### 📋 API 및 환경 설정
 
 | 문서 | 설명 |
 |------|------|
-| [API.md](../api/API.md) | 전체 API 명세서 |
+| [API.md](../PLANNED_API.md) | 전체 API 명세서 |
 | [ENV.md](./ENV.md) | 환경변수 가이드 |
 
 ### 🚀 개발 가이드
