@@ -92,6 +92,17 @@
 위 항목들은 추후 기능 확장 단계에서 추가 설계할 수 있다.  
   
 ---  
+
+## ERD 수정 로그
+- 2026-03-16: ERD 초안 작성
+- 2026-03-17: users, documents, questions 테이블에 시간 관련 컬럼(created_at, updated_at, answered_at) 반영
+
+---  
+
+## ERD 원본 링크
+- dbdiagram: https://dbdiagram.io/d/69b7a6f0fb2db18e3b896ae2
+
+---  
   
 ## 한 줄 정리  
 본 ERD는 로그인 및 문서 기반 Q&A 기능 구현에 필요한 최소 데이터 구조로, `users`, `documents`, `questions` 테이블을 중심으로 설계하였다.
