@@ -142,7 +142,7 @@ withbuddy/
 - **[데이터베이스](./docs/database/SCHEMA.md)** - ERD, 테이블 설계
 
 ### API
-- **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
+- **[API 명세서](docs/API.md)** - 전체 엔드포인트
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
 ### 협업
