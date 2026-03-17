@@ -1,17 +1,18 @@
-# WithBuddy API 명세서
+# WithBuddy Planned API
 
-> WithBuddy REST API 전체 엔드포인트 문서
+> MVP 이후 검토하거나 추후 구현 예정인 API/정책 초안 문서
 
-**버전**: 2.0.0  
+**버전**: 2.1.0  
 **최종 업데이트**: 2026-03-17
 
 ---
 
 ## 📋 목차
 
-- [API 개요](#api-개요)
-- [멀티 테넌시](#멀티-테넌시)
+- [문서 목적](#문서-목적)
+- [범위 밖 기능 목록](#범위-밖-기능-목록)
 - [인증 (Authentication)](#인증-authentication)
+- [권한 분할](#권한-분할)
 - [회사 관리 (Company)](#회사-관리-company)
 - [사용자 관리 (User)](#사용자-관리-user)
 - [AI 도우미 (AI Assistant)](#ai-도우미-ai-assistant)
@@ -20,214 +21,49 @@
 - [리포트 (Reports)](#리포트-reports)
 - [문서 관리 (Documents)](#문서-관리-documents)
 - [진행률 (Progress)](#진행률-progress)
+- [Rate Limiting](#rate-limiting)
+- [페이지네이션](#페이지네이션)
+- [커스텀 에러 코드](#커스텀-에러-코드)
 
 ---
 
-## API 개요
+## 문서 목적
 
-### Base URL
+이 문서는 다음 항목을 관리합니다.
 
-```
-Development: http://localhost:8080
-Production:  https://api.withbuddy.com
-```
+- 현재 MVP 구현 범위에서 제외된 API
+- 추후 변경 가능성이 큰 기능 초안
+- 실제 응답 스펙에는 아직 포함되지 않은 공통 정책
 
-### API 버전 관리
-
-모든 API는 버전 관리를 위해 `/api/v1/` prefix를 사용합니다.
-
-```
-/api/v1/auth/login
-/api/v1/users/me
-/api/v1/ai/chat
-/api/v1/companies/me
-```
-
-### 공통 헤더
-
-```http
-Content-Type: application/json
-Authorization: Bearer {access_token}
-```
-
-### 표준 응답 형식
-
-**성공 응답**:
-```json
-{
-  "id": "uuid-string",
-  "companyCode": 1001,
-  "companyName": "테크 주식회사",
-  "name": "김지원",
-  "employeeNumber": "20260001"
-}
-```
-
-**에러 응답**:
-```json
-{
-  "timestamp": "2026-03-17T10:30:00Z",
-  "status": 400,
-  "error": "Bad Request",
-  "message": "사원번호는 8자리 숫자여야 합니다",
-  "path": "/api/v1/auth/login"
-}
-```
-
-### HTTP 상태 코드
-
-- `200 OK`: 성공
-- `201 Created`: 리소스 생성 성공
-- `204 No Content`: 성공 (응답 본문 없음)
-- `400 Bad Request`: 잘못된 요청
-- `401 Unauthorized`: 인증 실패
-- `403 Forbidden`: 권한 없음
-- `404 Not Found`: 리소스 없음
-- `409 Conflict`: 리소스 충돌
-- `429 Too Many Requests`: Rate Limit 초과
-- `500 Internal Server Error`: 서버 오류
+`docs/API.md`에는 현재 구현 범위만 유지하고, 이 문서는 참고용 초안으로 계속 보완합니다.
 
 ---
 
-## 멀티 테넌시
+## 범위 밖 기능 목록
 
-### 개요
+현재 `docs/API.md`에서 제외하고 이 문서에서 관리하는 항목은 다음과 같습니다.
 
-WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다.
-
-#### 핵심 개념
-- 🏢 각 회사는 고유한 `companyCode`로 식별
-- 🔒 회사별 데이터 완전 격리
-- 👥 같은 사원번호를 다른 회사에서 사용 가능
-- 📊 모든 API 요청은 자동으로 로그인한 회사의 데이터만 조회/수정
-
-### JWT 토큰 구조
-
-```json
-{
-  "sub": "user-uuid-123",
-  "companyCode": 1001,
-  "companyId": 1,
-  "employeeNumber": "20260001",
-  "name": "김지원",
-  "role": "EMPLOYEE",
-  "iat": 1234567890,
-  "exp": 1234574890
-}
-```
-
-**필드 설명**:
-- `sub`: 사용자 고유 ID (UUID)
-- `companyCode`: 회사 코드
-- `companyId`: 회사 내부 ID (데이터베이스 FK)
-- `employeeNumber`: 사원번호
-- `name`: 사용자 이름
-- `role`: 역할 (EMPLOYEE, MENTOR, MANAGER, HR, ADMIN)
-- `iat`: 발급 시간 (Unix timestamp)
-- `exp`: 만료 시간 (Unix timestamp)
-
-### 데이터 격리
-
-모든 API는 JWT 토큰에서 `companyId`를 추출하여 자동으로 필터링합니다.
-
-**예시 1: 체크리스트 조회**
-```http
-GET /api/v1/checklists
-Authorization: Bearer {token}  # companyId=1 포함
-
-→ companyId=1인 체크리스트만 반환
-```
-
-**예시 2: 기록 작성**
-```http
-POST /api/v1/records
-Authorization: Bearer {token}  # companyId=1 포함
-Content-Type: application/json
-
-{
-  "title": "첫 주 회고",
-  "content": "..."
-}
-
-→ 자동으로 companyId=1로 설정되어 저장
-```
-
-### 회사 구분 예시
-
-| 회사 A (companyCode: 1001) | 회사 B (companyCode: 1002) |
-|---------------------------|---------------------------|
-| 사원번호: 20260001 (김지원) | 사원번호: 20260001 (박민수) |
-| 체크리스트: 10개 | 체크리스트: 8개 |
-| 기록: 25개 | 기록: 30개 |
-
-→ 같은 사원번호지만 **완전히 별도의 사용자**
+- 회원가입
+- 권한 분할
+- 로그아웃
+- 회사 관리
+- 사용자 관리 중 `내 정보 수정`
+- 사용자 관리 중 `회사 내 사용자 목록 조회`
+- AI 대화 히스토리 조회
+- AI 특정 대화 조회
+- AI 대화 삭제
+- 체크리스트 전체 조회
+- 기록 전체
+- 리포트 전체
+- 문서 관리 전체
+- 진행률 전체
+- Rate Limiting
+- 페이지네이션
+- 커스텀 에러 코드
 
 ---
 
 ## 인증 (Authentication)
-
-### 로그인
-
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
-```
-
-**Request Body**
-```json
-{
-  "companyCode": 1001,
-  "employeeNumber": "20260001",
-  "name": "김지원"
-}
-```
-
-**필드 설명**:
-- `companyCode`: 회사 고유 코드 (4자리 숫자)
-- `employeeNumber`: 사원번호 (8자리 숫자)
-- `name`: 사용자 이름 (추가 검증용)
-
-**Response (200 OK)**
-```json
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": "uuid",
-    "companyCode": 1001,
-    "companyName": "테크 주식회사",
-    "employeeNumber": "20260001",
-    "name": "김지원",
-    "department": "개발팀",
-    "position": "사원",
-    "role": "EMPLOYEE"
-  }
-}
-```
-
-**Error Response (401 Unauthorized)**
-```json
-{
-  "timestamp": "2026-03-17T10:30:00Z",
-  "status": 401,
-  "error": "Unauthorized",
-  "message": "회사코드, 사원번호 또는 이름이 올바르지 않습니다",
-  "path": "/api/v1/auth/login"
-}
-```
-
-**Error Response (404 Not Found) - 잘못된 회사코드**
-```json
-{
-  "timestamp": "2026-03-17T10:30:00Z",
-  "status": 404,
-  "error": "Not Found",
-  "message": "존재하지 않는 회사입니다",
-  "path": "/api/v1/auth/login"
-}
-```
-
----
 
 ### 회원가입
 
@@ -294,34 +130,6 @@ Content-Type: application/json
 
 ---
 
-### 토큰 재발급
-
-```http
-POST /api/v1/auth/refresh
-Cookie: refresh_token=eyJhbGciOiJIUzI1NiIs...
-```
-
-**Response (200 OK)**
-```json
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
-}
-```
-
-**Error Response (401 Unauthorized)**
-```json
-{
-  "timestamp": "2026-03-17T10:30:00Z",
-  "status": 401,
-  "error": "Unauthorized",
-  "message": "토큰이 만료되었습니다",
-  "path": "/api/v1/auth/refresh"
-}
-```
-- **[토큰 발급](./AUTH_GUIDE.md)** - API 인증 및 토큰 가이드
----
-
 ### 로그아웃
 
 ```http
@@ -330,6 +138,28 @@ Authorization: Bearer {token}
 ```
 
 **Response (204 No Content)**
+
+---
+
+## 권한 분할
+
+세부 역할 기반 권한 모델은 MVP 이후에 확정합니다.
+
+### 후보 역할
+
+- `EMPLOYEE`
+- `MENTOR`
+- `MANAGER`
+- `HR`
+- `ADMIN`
+
+### 적용 후보 정책
+
+- 회사 설정 수정: `HR`, `ADMIN`
+- 회사 내 사용자 목록 조회: `MENTOR`, `MANAGER`, `HR`, `ADMIN`
+- 문서 업로드/삭제: `HR`, `ADMIN`
+
+> 실제 권한 체크가 구현되고 응답/오류 정책이 확정되면 `docs/API.md`에 반영합니다.
 
 ---
 
@@ -397,38 +227,6 @@ Content-Type: application/json
 ---
 
 ## 사용자 관리 (User)
-
-### 내 정보 조회
-
-```http
-GET /api/v1/users/me
-Authorization: Bearer {token}
-```
-
-**Response (200 OK)**
-```json
-{
-  "id": "uuid",
-  "companyCode": 1001,
-  "companyName": "테크 주식회사",
-  "employeeNumber": "20260001",
-  "name": "김지원",
-  "department": "개발팀",
-  "position": "사원",
-  "role": "EMPLOYEE",
-  "joinDate": "2026-03-01",
-  "profileImage": "https://storage.../profile.jpg",
-  "onboardingProgress": 45.5,
-  "mentor": {
-    "id": "mentor-uuid",
-    "name": "이멘토",
-    "department": "개발팀",
-    "position": "시니어"
-  }
-}
-```
-
----
 
 ### 내 정보 수정
 
@@ -499,45 +297,7 @@ Query: department=개발팀&page=0&size=20
 
 ---
 
-## AI 도우미 (AI Assistant)
-
-### 질문하기 (AI 채팅)
-
-```http
-POST /api/v1/ai/chat
-Authorization: Bearer {token}
-Content-Type: application/json
-```
-
-**Request Body**
-```json
-{
-  "message": "복지카드는 어떻게 신청하나요?",
-  "conversationId": "uuid"
-}
-```
-
-- `conversationId`: 선택 사항. 기존 대화를 이어가려면 전달, 새 대화는 null
-
-**Response (200 OK)**
-```json
-{
-  "conversationId": "uuid",
-  "answer": "복지카드는 인사팀 포털에서 신청할 수 있습니다. 1. 인사 포털 로그인 2. 복지카드 메뉴 클릭...",
-  "relatedDocuments": [
-    {
-      "id": "doc-001",
-      "title": "복지카드 신청 가이드",
-      "url": "/api/v1/documents/doc-001"
-    }
-  ],
-  "timestamp": "2026-03-17T10:30:00Z"
-}
-```
-
-**중요**: AI는 자동으로 **로그인한 사용자의 회사 문서**만 검색합니다.
-
----
+## AI 에이젼트 (AI Agent)
 
 ### 대화 히스토리 조회
 
@@ -653,71 +413,6 @@ Authorization: Bearer {token}
 
 ---
 
-### 주차별 체크리스트 조회
-
-```http
-GET /api/v1/checklists?week=1
-Authorization: Bearer {token}
-```
-
-**Response (200 OK)**
-```json
-{
-  "week": 1,
-  "title": "1주차 온보딩",
-  "description": "첫 주에는 회사와 팀에 적응하는 시간입니다",
-  "items": [
-    {
-      "id": "check-001",
-      "title": "복지카드 신청",
-      "description": "인사팀 포털에서 복지카드를 신청하세요",
-      "category": "행정",
-      "completed": true,
-      "completedAt": "2026-03-02T14:00:00Z"
-    }
-  ],
-  "progress": 50.0
-}
-```
-
----
-
-### 체크리스트 항목 완료
-
-```http
-POST /api/v1/checklists/{checklistId}/complete
-Authorization: Bearer {token}
-```
-
-**Response (200 OK)**
-```json
-{
-  "id": "check-001",
-  "completed": true,
-  "completedAt": "2026-03-17T10:30:00Z"
-}
-```
-
----
-
-### 체크리스트 항목 미완료
-
-```http
-POST /api/v1/checklists/{checklistId}/incomplete
-Authorization: Bearer {token}
-```
-
-**Response (200 OK)**
-```json
-{
-  "id": "check-001",
-  "completed": false,
-  "completedAt": null
-}
-```
-
----
-
 ## 기록 (Records)
 
 ### 기록 작성
@@ -750,8 +445,6 @@ Content-Type: application/json
   "createdAt": "2026-03-17T10:30:00Z"
 }
 ```
-
-**중요**: 자동으로 **로그인한 사용자의 companyId**로 저장됩니다.
 
 ---
 
@@ -790,8 +483,6 @@ Query: type=WEEKLY_REVIEW&page=0&size=10
   "number": 0
 }
 ```
-
-**중요**: 로그인한 사용자의 기록만 반환됩니다.
 
 ---
 
@@ -1032,8 +723,6 @@ Query: category=HR&page=0&size=20
 }
 ```
 
-**중요**: 자동으로 **로그인한 사용자의 회사 문서**만 반환됩니다.
-
 ---
 
 ### 문서 상세 조회
@@ -1097,8 +786,6 @@ Query: q=연차&category=HR
 }
 ```
 
-**중요**: 자동으로 **로그인한 사용자의 회사 문서**만 검색합니다.
-
 ---
 
 ### 문서 업로드
@@ -1128,8 +815,6 @@ Content-Type: multipart/form-data
   "uploadedAt": "2026-03-17T11:00:00Z"
 }
 ```
-
-**중요**: 자동으로 **로그인한 사용자의 companyId**로 저장됩니다.
 
 ---
 
@@ -1237,7 +922,7 @@ Authorization: Bearer {token}
 
 ## Rate Limiting
 
-API 호출 제한:
+다음 정책은 참고용 초안입니다. 실제 제한이 서버에 적용되기 전까지 `docs/API.md`에는 반영하지 않습니다.
 
 | 엔드포인트 | 제한 |
 |-----------|------|
@@ -1246,7 +931,7 @@ API 호출 제한:
 | `/api/v1/documents/upload` | 10회/시간 |
 | 기타 모든 API | 100회/분 |
 
-Rate Limit 초과 시:
+Rate Limit 초과 시 응답 예시:
 
 ```json
 {
@@ -1262,7 +947,7 @@ Rate Limit 초과 시:
 
 ## 페이지네이션
 
-페이지네이션을 사용하는 모든 API는 다음 형식을 따릅니다:
+다음 형식은 참고용 공통 포맷 초안입니다. 실제 적용 시점에 `docs/API.md`와 개별 엔드포인트 명세에 반영합니다.
 
 **Request**
 ```
@@ -1272,7 +957,7 @@ GET /api/v1/records?page=0&size=10&sort=createdAt,desc
 **Response**
 ```json
 {
-  "content": [...],
+  "content": [],
   "totalElements": 100,
   "totalPages": 10,
   "size": 10,
@@ -1285,9 +970,12 @@ GET /api/v1/records?page=0&size=10&sort=createdAt,desc
 
 ---
 
-## 에러 코드 상세
+## 커스텀 에러 코드
+
+HTTP 상태 코드는 `docs/API.md` 기준을 따르고, 커스텀 에러코드는 실제 응답에 포함되기 전까지 여기서 관리합니다.
 
 ### 인증 관련
+
 - `AUTH_001`: 토큰이 없습니다
 - `AUTH_002`: 토큰이 만료되었습니다
 - `AUTH_003`: 유효하지 않은 토큰입니다
@@ -1295,47 +983,36 @@ GET /api/v1/records?page=0&size=10&sort=createdAt,desc
 - `AUTH_005`: 존재하지 않는 회사입니다
 
 ### 리소스 관련
+
 - `RESOURCE_001`: 리소스를 찾을 수 없습니다
 - `RESOURCE_002`: 이미 존재하는 리소스입니다
 - `RESOURCE_003`: 리소스 접근 권한이 없습니다
 - `RESOURCE_004`: 다른 회사의 리소스에 접근할 수 없습니다
 
 ### AI 서비스 관련
+
 - `AI_001`: AI 서비스에 연결할 수 없습니다
 - `AI_002`: AI 응답 생성에 실패했습니다
 - `AI_003`: AI 서비스 요청 제한 초과
 
 ### 파일 관련
+
 - `FILE_001`: 파일 크기가 너무 큽니다 (최대 10MB)
 - `FILE_002`: 지원하지 않는 파일 형식입니다
 - `FILE_003`: 파일 업로드에 실패했습니다
 
 ---
 
-## 참고 자료
-
-- [아키텍처 문서](./ARCHITECTURE.md)
-- [멀티 테넌시 문서](./MULTI_TENANCY.md)
-- [보안 설계 문서](./SECURITY.md)
-- [환경변수 가이드](./ENV.md)
-- [Swagger UI](http://localhost:8080/swagger-ui.html)
-
----
-
-**문서 버전**: 2.0.0  
+**문서 버전**: 2.1.0  
 **작성일**: 2026-03-17  
 **다음 리뷰 예정**: 2026-04-17
 
 ## 변경 이력
 
-### v2.0.0 (2026-03-17)
-- ✅ 멀티 테넌시 구조 적용
-- ✅ 로그인 API 변경 (companyCode + employeeNumber + name)
-- ✅ 모든 응답에 companyCode, companyName 추가
-- ✅ 회사 관리 API 추가
-- ✅ 데이터 격리 설명 추가
-- ✅ JWT 페이로드 구조 업데이트
-- ✅ 비밀번호 제거 (사내 전용)
+### v2.1.0 (2026-03-17)
+- MVP 범위 밖 API만 별도 계획 문서로 재구성
+- `docs/API.md`에서 이동한 항목을 주제별로 정리
+- 커스텀 에러코드, Rate Limiting, 페이지네이션을 참고용 정책으로 명시
 
-### v1.0.0 (2026-03-10)
-- 초기 버전
+### v2.0.0 (2026-03-17)
+- 초기 초안 작성
