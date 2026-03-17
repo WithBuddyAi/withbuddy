@@ -320,5 +320,5 @@ uvicorn app.main:app --reload --log-level debug
 ## 다음 단계
 
 - [배포 가이드](./DEPLOYMENT.md) - 실제 서버 배포
-- [API 문서](../api/API.md) - API 엔드포인트
-- [기여 가이드](../CONTRIBUTING.md) - 개발 참여 방법
+- [API 문서](../PLANNED_API.md) - API 엔드포인트
+- [기여 가이드](CONTRIBUTING.md) - 개발 참여 방법

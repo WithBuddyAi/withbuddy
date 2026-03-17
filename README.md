@@ -142,12 +142,12 @@ withbuddy/
 - **[데이터베이스](./docs/database/SCHEMA.md)** - ERD, 테이블 설계
 
 ### API
-- **[API 명세서](./docs/api/API.md)** - 전체 엔드포인트
+- **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
-- **[기여 가이드](./docs/CONTRIBUTING.md)** - 브랜치, 커밋, PR
+- **[기여 가이드](docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
 - **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
 
 ---
@@ -172,7 +172,7 @@ withbuddy/
 5. **코드 리뷰** → 최소 1 approve
 6. **Merge** → Squash and Merge
 
-> 📖 [기여 가이드 자세히 보기](./docs/CONTRIBUTING.md)
+> 📖 [기여 가이드 자세히 보기](docs/guides/CONTRIBUTING.md)
 
 ---
 
