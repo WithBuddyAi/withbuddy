@@ -24,52 +24,16 @@ jobs:
         with:
           filters: |
             backend:
-              - 'backend/src/**'
-              - 'backend/build.gradle'
-              - 'backend/settings.gradle'
-              - 'backend/gradle.properties'
-              - 'backend/gradle/**'
-              - 'backend/gradlew'
-              - 'backend/gradlew.bat'
+              - 'backend/**'
             frontend:
-              - 'frontend/src/**'
-              - 'frontend/public/**'
-              - 'frontend/package.json'
-              - 'frontend/package-lock.json'
-              - 'frontend/vite.config.*'
-              - 'frontend/tsconfig*.json'
-              - 'frontend/eslint.config.*'
-              - 'frontend/.eslintrc*'
+              - 'frontend/**'
             ai:
-              - 'ai/app/**'
-              - 'ai/tests/**'
-              - 'ai/requirements.txt'
-              - 'ai/pyproject.toml'
-              - 'ai/poetry.lock'
-              - 'ai/uv.lock'
+              - 'ai/**'
             code_quality:
               - '.github/workflows/**'
-              - 'backend/src/**'
-              - 'backend/build.gradle'
-              - 'backend/settings.gradle'
-              - 'backend/gradle.properties'
-              - 'backend/gradle/**'
-              - 'backend/gradlew'
-              - 'backend/gradlew.bat'
-              - 'frontend/src/**'
-              - 'frontend/public/**'
-              - 'frontend/package.json'
-              - 'frontend/package-lock.json'
-              - 'frontend/vite.config.*'
-              - 'frontend/tsconfig*.json'
-              - 'frontend/eslint.config.*'
-              - 'frontend/.eslintrc*'
-              - 'ai/app/**'
-              - 'ai/tests/**'
-              - 'ai/requirements.txt'
-              - 'ai/pyproject.toml'
-              - 'ai/poetry.lock'
-              - 'ai/uv.lock'
+              - 'backend/**'
+              - 'frontend/**'
+              - 'ai/**'
 
   backend-test:
     name: Backend Tests
@@ -82,23 +46,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-
-      - name: Check backend Gradle files
-        id: gradle_check
-        shell: bash
-        run: |
-          if [[ -f "backend/gradlew" && -f "backend/build.gradle" ]]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Skip backend tests (missing Gradle)
-        if: steps.gradle_check.outputs.present != 'true'
-        run: echo "Backend Gradle files not found; skipping backend tests."
       
       - name: Set up JDK 21
-        if: steps.gradle_check.outputs.present == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -106,19 +55,16 @@ jobs:
           cache: 'gradle'
           
       - name: Grant execute permission for gradlew
-        if: steps.gradle_check.outputs.present == 'true'
         run: chmod +x gradlew
         
       - name: Build with Gradle
-        if: steps.gradle_check.outputs.present == 'true'
         run: ./gradlew build
         
       - name: Run tests
-        if: steps.gradle_check.outputs.present == 'true'
         run: ./gradlew test
         
       - name: Upload test results
-        if: always() && steps.gradle_check.outputs.present == 'true'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-results
