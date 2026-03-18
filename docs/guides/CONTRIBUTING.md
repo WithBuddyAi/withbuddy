@@ -66,6 +66,17 @@ PR 생성 기준:
 - `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` 의 base 브랜치는 `develop`
 - `release/*`, `hotfix/*` 의 base 브랜치는 `main`
 
+### PR 생성 화면 예시
+
+아래 예시처럼 기능 또는 문서 작업 브랜치는 `base: develop`, `compare: feature/...` 형태로 Pull Request를 생성한다.
+
+![PR base branch example](./images/branch.png)
+
+- `base`: 변경사항이 병합될 대상 브랜치
+- `compare`: 현재 작업한 브랜치
+- 기능, 문서, 리팩토링 작업은 보통 `develop` 으로 PR 생성
+- `release/*`, `hotfix/*` 는 예외적으로 `main` 으로 PR 생성
+
 ### 6. 리뷰 반영 및 merge
 
 - 최소 1명 이상의 승인을 받는다.
