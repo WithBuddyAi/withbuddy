@@ -122,8 +122,14 @@ main (프로덕션)
   └── develop (개발)
        ├── feature/user-auth       # 사용자 인증
        ├── feature/buddy-service   # AI 버디 기능
-       └── feature/chat-system     # 채팅 시스템
+       ├── feature/chat-system     # 채팅 시스템
+       ├── release/1.0.0           # 배포 준비
+       └── hotfix/1.0.1-fix-login  # 긴급 수정
 ```
+
+- 기능 브랜치는 `develop`에서 분기
+- 긴급 수정은 `main`에서 `hotfix/*`로 분기
+- 운영 반영 후 `main` 변경은 반드시 `develop`에도 동기화
 
 ### 커밋 컨벤션
 ```
