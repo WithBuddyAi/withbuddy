@@ -3,43 +3,43 @@ name: CI
 on:
   pull_request:
     branches: [ main, develop ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
-      - '!.github/workflows/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '**.txt'
-      - '**.rst'
-      - 'README*'
-      - 'CHANGELOG*'
-      - 'CONTRIBUTING*'
-      - 'AUTHORS*'
-      - '.vscode/**'
-      - '.idea/**'
   push:
     branches: [ main, develop ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
-      - '!.github/workflows/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '**.txt'
-      - '**.rst'
-      - 'README*'
-      - 'CHANGELOG*'
-      - 'CONTRIBUTING*'
-      - 'AUTHORS*'
-      - '.vscode/**'
-      - '.idea/**'
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      ai: ${{ steps.filter.outputs.ai }}
+      code_quality: ${{ steps.filter.outputs.code_quality }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            ai:
+              - 'ai/**'
+            code_quality:
+              - '.github/workflows/**'
+              - 'backend/**'
+              - 'frontend/**'
+              - 'ai/**'
+
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     defaults:
       run:
         working-directory: ./backend
@@ -73,6 +73,8 @@ jobs:
   frontend-test:
     name: Frontend Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     defaults:
       run:
         working-directory: ./frontend
@@ -104,6 +106,8 @@ jobs:
   ai-test:
     name: AI Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.ai == 'true'
     defaults:
       run:
         working-directory: ./ai
@@ -135,6 +139,8 @@ jobs:
   lint-and-format:
     name: Code Quality Check
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code_quality == 'true'
     
     steps:
       - uses: actions/checkout@v4
