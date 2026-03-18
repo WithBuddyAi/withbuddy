@@ -1,94 +1,105 @@
 # 기여 가이드
 
-> WithBuddy 프로젝트에 기여하는 방법
+이 문서는 실제 작업자가 브랜치를 만들고, 커밋하고, PR을 올릴 때 따라야 하는 절차를 설명한다.
 
-## 📋 목차
-- [기여 프로세스](#기여-프로세스)
-- [브랜치 전략](#브랜치-전략)
-- [커밋 메시지 컨벤션](#커밋-메시지-컨벤션)
-- [Pull Request 가이드](#pull-request-가이드)
-- [코드 리뷰](#코드-리뷰)
-
----
+- 협업 규칙 요약: [COLLABORATION.md](./COLLABORATION.md)
+- 저장소 관리자 설정: [GIT-FLOW-SETUP.md](./GIT-FLOW-SETUP.md)
 
 ## 기여 프로세스
 
-### 1. Issue 확인 및 할당
-```
-1. GitHub Issues에서 작업할 태스크 선택
-2. 본인에게 할당 (Assignees 설정)
-3. 라벨 확인 (bug, feature, enhancement 등)
-```
+### 1. 작업 시작 전 확인
+
+1. GitHub Issue 또는 작업 범위를 확인한다.
+2. 관련 라벨과 담당자를 확인한다.
+3. 작업 기준 브랜치가 `develop` 인지 확인한다.
 
 ### 2. 브랜치 생성
-```bash
-# 최신 main 브랜치로 업데이트
-git checkout main
-git pull origin main
 
-# 새 브랜치 생성
+```bash
+# 기능 개발은 최신 develop 브랜치에서 시작
+git checkout develop
+git pull origin develop
+
+# 새 작업 브랜치 생성
 git checkout -b feature/123-add-feature
 ```
 
-### 3. 개발
-```bash
-# 코드 작성
-# 테스트 작성
-# 로컬 테스트 실행
-```
-
-### 4. 커밋
-```bash
-git add .
-git commit -m "feat: Add weekly report generation feature"
-```
-
-### 5. Push & Pull Request
-```bash
-git push origin feature/123-add-feature
-
-# GitHub에서 Pull Request 생성
-```
-
-### 6. 코드 리뷰 & Merge
-```
-- 최소 1명의 approve 필요
-- CI/CD 통과 확인
-- Squash and Merge 권장
-```
-
----
-
-## 브랜치 전략
-
-### 브랜치 명명 규칙
-```
-feature/이슈번호-간단한-설명
-fix/이슈번호-버그-설명
-docs/문서-수정-내용
-refactor/리팩토링-내용
-test/테스트-추가-내용
-chore/빌드-설정-변경
-```
-
-### 예시
-```bash
+브랜치 예시:
+```text
 feature/123-add-weekly-report
 fix/456-login-error
 docs/update-readme
 refactor/improve-service-logic
 test/add-unit-tests
 chore/update-dependencies
+release/1.0.0
+hotfix/1.0.1-fix-login
 ```
 
-### 브랜치 수명
-```
-- feature/* : PR merge 후 삭제
-- fix/* : PR merge 후 삭제
-- main : 영구 유지
+### 3. 개발
+
+- 코드를 수정한다.
+- 필요한 테스트를 추가하거나 수정한다.
+- 로컬에서 테스트와 빌드를 먼저 확인한다.
+
+### 4. 커밋
+
+```bash
+git add .
+git commit -m "feat: Add weekly report generation feature"
 ```
 
----
+커밋 전에 확인:
+```text
+- 불필요한 파일이 stage 되지 않았는가?
+- 커밋 메시지가 컨벤션에 맞는가?
+- 변경 의도가 한 커밋 안에서 일관적인가?
+```
+
+### 5. Push 및 Pull Request 생성
+
+```bash
+git push origin feature/123-add-feature
+```
+
+PR 생성 기준:
+- `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` 의 base 브랜치는 `develop`
+- `release/*`, `hotfix/*` 의 base 브랜치는 `main`
+
+### 6. 리뷰 반영 및 merge
+
+- 최소 1명 이상의 승인을 받는다.
+- CI/CD 통과 여부를 확인한다.
+- 리뷰 요청 사항을 반영한 뒤 다시 push 한다.
+- 기본 merge 방식은 `Squash and merge` 를 사용한다.
+- merge 후 작업 브랜치를 삭제한다.
+- `release/*`, `hotfix/*` 는 `main` 반영 후 반드시 `develop` 에도 동기화한다.
+
+## 빠른 체크리스트
+
+PR 생성 전에 아래 항목을 확인한다.
+
+```text
+브랜치명이 규칙에 맞는가?
+PR 대상 브랜치가 맞는가?
+로컬 테스트가 통과하는가?
+불필요한 변경 파일이 없는가?
+리뷰어와 라벨을 지정했는가?
+관련 이슈를 연결했는가?
+```
+
+## 브랜치 명명 규칙
+
+```text
+feature/이슈번호-간단한-설명
+fix/이슈번호-버그-설명
+docs/문서-수정-내용
+refactor/리팩토링-내용
+test/테스트-추가-내용
+chore/빌드-설정-변경
+release/버전
+hotfix/버전-간단한-설명
+```
 
 ## 커밋 메시지 컨벤션
 
@@ -156,10 +167,13 @@ test(user): Add unit tests for UserService
 ## Pull Request 가이드
 
 ### PR 제목 컨벤션
-```
+
+```text
 [TYPE] Brief description
+```
 
 예시:
+```text
 [FEAT] Add weekly report generation
 [FIX] Resolve login authentication error
 [DOCS] Update API documentation
@@ -187,58 +201,48 @@ Resolves #123
 ```
 
 ### PR 생성 시 확인사항
-```
-✅ 브랜치명이 규칙에 맞는가?
-✅ 커밋 메시지가 규칙에 맞는가?
-✅ 로컬에서 테스트가 통과하는가?
-✅ 충돌(Conflict)이 없는가?
-✅ 리뷰어가 지정되어 있는가?
-✅ 라벨이 추가되어 있는가?
-✅ 관련 Issue가 링크되어 있는가?
-```
 
----
+```text
+브랜치명이 규칙에 맞는가?
+PR 대상 브랜치가 맞는가?
+커밋 메시지가 규칙에 맞는가?
+로컬에서 테스트가 통과하는가?
+충돌이 없는가?
+리뷰어가 지정되어 있는가?
+라벨이 추가되어 있는가?
+관련 Issue가 링크되어 있는가?
+```
 
 ## 코드 리뷰
 
-### 리뷰어 역할
-```
-1. 코드 품질 확인
-2. 버그 가능성 체크
-3. 가독성 검토
-4. 테스트 충분성 확인
-5. 컨벤션 준수 확인
+### 리뷰어가 보는 항목
+
+```text
+코드 품질
+버그 가능성
+가독성
+테스트 충분성
+컨벤션 준수 여부
 ```
 
-### 리뷰 가이드
-```
-- 건설적인 피드백 제공
-- 코드뿐만 아니라 설계도 검토
-- 질문은 명확하게
-- 긍정적인 부분도 언급
+### 좋은 리뷰 코멘트 예시
+
+```text
+이 부분은 Optional을 사용하면 더 안전할 것 같습니다. 어떻게 생각하시나요?
 ```
 
-### 리뷰 코멘트 예시
-```
-✅ Good:
-"이 부분은 Optional을 사용하면 더 안전할 것 같습니다. 어떻게 생각하시나요?"
+### approve 기준
 
-❌ Bad:
-"이 코드는 잘못되었습니다."
+```text
+로직이 올바른가?
+테스트가 충분한가?
+컨벤션을 지켰는가?
+문서가 필요 시 업데이트 되었는가?
+CI/CD가 통과했는가?
 ```
-
-### Approve 기준
-```
-- 로직이 올바른가?
-- 테스트가 충분한가?
-- 컨벤션을 지켰는가?
-- 문서가 업데이트 되었는가? (필요 시)
-- CI/CD가 통과했는가?
-```
-
----
 
 ## 다음 단계
 
 - [코딩 컨벤션](../conventions/CODING.md) - Java, TypeScript, Python 규칙
 - [개발 환경 설정](SETUP.md) - 로컬 개발 환경 구축
+- [Git Flow 설정 체크리스트](GIT-FLOW-SETUP.md) - GitHub 저장소 보호 규칙
