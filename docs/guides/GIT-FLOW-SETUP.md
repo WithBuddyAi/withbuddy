@@ -65,6 +65,8 @@ GitHub Repository -> Settings -> Branches 에서 다음 규칙을 추가한다.
 - `Code Quality Check`
 
 주의:
+- required status check로 사용할 workflow는 `paths-ignore` 나 branch filter로 전체 workflow가 skip되지 않도록 구성한다
+- 문서 전용 PR도 workflow 자체는 실행되고, 관련 없는 job만 `skipped` 처리되게 만드는 것이 안전하다
 - 현재 workflow 안에는 `continue-on-error: true`가 들어간 step이 있어 일부 실패가 merge blocker가 되지 않을 수 있다
 - required check로 쓰려면 lint/test 실패가 실제 job 실패로 이어지도록 조정하는 것이 안전하다
 
