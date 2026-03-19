@@ -28,7 +28,7 @@
 - 아직 개발 범위에 포함되지 않은 기능
 - 응답 스키마에 아직 반영되지 않은 커스텀 에러코드
 
-위 항목은 [`docs/api/PLANNED_API.md`](./api/PLANNED_API.md)에서 별도로 관리합니다.
+위 항목은 [`docs/api/PLANNED_API.md`](PLANNED_API.md)에서 별도로 관리합니다.
 
 ---
 
@@ -96,7 +96,7 @@ Authorization: Bearer {access_token}
 - `409 Conflict`: 리소스 충돌
 - `500 Internal Server Error`: 서버 오류
 
-> 커스텀 에러코드는 실제 응답에 포함되기 전까지 [`docs/api/PLANNED_API.md`](./api/PLANNED_API.md)에서 관리합니다.
+> 커스텀 에러코드는 실제 응답에 포함되기 전까지 [`docs/api/PLANNED_API.md`](PLANNED_API.md)에서 관리합니다.
 
 ---
 
@@ -137,7 +137,7 @@ WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다
 - `iat`: 발급 시간 (Unix timestamp)
 - `exp`: 만료 시간 (Unix timestamp)
 
-> 세부 권한 분할 정책은 [`docs/api/PLANNED_API.md`](./api/PLANNED_API.md)에서 관리합니다.
+> 세부 권한 분할 정책은 [`docs/api/PLANNED_API.md`](PLANNED_API.md)에서 관리합니다.
 
 ### 데이터 격리
 
@@ -251,7 +251,7 @@ Cookie: refresh_token=eyJhbGciOiJIUzI1NiIs...
 
 - **[토큰 발급](./AUTH_GUIDE.md)** - API 인증 및 토큰 가이드
 
-> 회원가입, 로그아웃은 [`docs/api/PLANNED_API.md`](./api/PLANNED_API.md)에서 관리합니다.
+> 회원가입, 로그아웃은 [`docs/api/PLANNED_API.md`](PLANNED_API.md)에서 관리합니다.
 
 ---
 
@@ -287,7 +287,7 @@ Authorization: Bearer {token}
 }
 ```
 
-> 내 정보 수정, 회사 내 사용자 목록 조회는 [`docs/api/PLANNED_API.md`](./api/PLANNED_API.md)에서 관리합니다.
+> 내 정보 수정, 회사 내 사용자 목록 조회는 [`docs/api/PLANNED_API.md`](PLANNED_API.md)에서 관리합니다.
 
 ---
 
@@ -329,7 +329,7 @@ Content-Type: application/json
 
 **중요**: AI는 자동으로 **로그인한 사용자의 회사 문서**만 검색합니다.
 
-> 대화 히스토리 조회, 특정 대화 조회, 대화 삭제는 [`docs/api/PLANNED_API.md`](./api/PLANNED_API.md)에서 관리합니다.
+> 대화 히스토리 조회, 특정 대화 조회, 대화 삭제는 [`docs/api/PLANNED_API.md`](PLANNED_API.md)에서 관리합니다.
 
 ---
 
@@ -398,13 +398,13 @@ Authorization: Bearer {token}
 }
 ```
 
-> 전체 체크리스트 조회는 [`docs/api/PLANNED_API.md`](./api/PLANNED_API.md)에서 관리합니다.
+> 전체 체크리스트 조회는 [`docs/api/PLANNED_API.md`](PLANNED_API.md)에서 관리합니다.
 
 ---
 
 ## 참고 자료
 
-- [계획 API 문서](./api/PLANNED_API.md)
+- [계획 API 문서](PLANNED_API.md)
 - [아키텍처 문서](./architecture/ARCHITECTURE.md)
 - [멀티 테넌시 문서](./MULTI_TENANCY.md)
 - [환경변수 가이드](./ENV.md)
