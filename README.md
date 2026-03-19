@@ -141,12 +141,20 @@ withbuddy/
 - **[데이터베이스](./docs/database/SCHEMA.md)** - ERD, 테이블 설계
 
 ### API
+<<<<<<< HEAD
 - **[API 명세서](docs/API.md)** - 전체 엔드포인트
+=======
+- **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
+>>>>>>> e8f1093 ([DOCS] Align collaboration guides with Git Flow (#4))
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
 - **[기여 가이드](docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
+<<<<<<< HEAD
+=======
+- **[Git Flow 설정 체크리스트](./docs/guides/GIT-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS
+>>>>>>> e8f1093 ([DOCS] Align collaboration guides with Git Flow (#4))
 - **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
 
 ---
@@ -165,9 +173,9 @@ withbuddy/
 
 ### 기여 프로세스
 1. **Issue 확인** → 작업 선택 및 할당
-2. **브랜치 생성** → `feature/123-add-feature`
+2. **브랜치 생성** → `develop`에서 `feature/123-add-feature`
 3. **개발 & 커밋** → `feat: Add feature`
-4. **Pull Request** → 리뷰 요청
+4. **Pull Request** → `develop` 대상으로 리뷰 요청
 5. **코드 리뷰** → 최소 1 approve
 6. **Merge** → Squash and Merge
 
