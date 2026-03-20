@@ -120,10 +120,11 @@ withbuddy/
 ├── backend/          # Spring Boot (Java 21)
 ├── frontend/         # React + TypeScript
 ├── ai/               # FastAPI (Python 3.11)
-├── docs/             # 📚 모든 문서는 여기에!
-│   ├── guides/       # 개발 규칙, 기여 가이드, 환경 변수, GitHub SSH키 설정, 개발 환경 설정 가이드
-│   ├── erd           # ERD
-│   └── architecture/ # AI 아키텍처, 시스템 아키텍쳐, 배포 가이드, 인프라 구조
+├── docs/             # 📚 모든 문서가 여기에!
+│   ├── guides/       # 설치, 배포, 환경설정
+│   ├── api/          # API 명세서
+│   ├── architecture/ # 시스템 설계
+│   └── conventions/  # 코딩 규칙
 └── .github/workflows/ # CI/CD
 ```
 
@@ -141,12 +142,12 @@ withbuddy/
 - **[데이터베이스](./docs/database/SCHEMA.md)** - ERD, 테이블 설계
 
 ### API
-- **[API 명세서](docs/API.md)** - 전체 엔드포인트
+- **[API 명세서](./docs/api/API.md)** - 전체 엔드포인트
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
-- **[기여 가이드](docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
+- **[기여 가이드](./docs/CONTRIBUTING.md)** - 브랜치, 커밋, PR
 - **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
 
 ---
@@ -171,7 +172,7 @@ withbuddy/
 5. **코드 리뷰** → 최소 1 approve
 6. **Merge** → Squash and Merge
 
-> 📖 [기여 가이드 자세히 보기](docs/guides/CONTRIBUTING.md)
+> 📖 [기여 가이드 자세히 보기](./docs/CONTRIBUTING.md)
 
 ---
 
