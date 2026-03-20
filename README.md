@@ -120,11 +120,10 @@ withbuddy/
 ├── backend/          # Spring Boot (Java 21)
 ├── frontend/         # React + TypeScript
 ├── ai/               # FastAPI (Python 3.11)
-├── docs/             # 📚 모든 문서가 여기에!
-│   ├── guides/       # 설치, 배포, 환경설정
-│   ├── api/          # API 명세서
-│   ├── architecture/ # 시스템 설계
-│   └── conventions/  # 코딩 규칙
+├── docs/             # 📚 모든 문서는 여기에!
+│   ├── guides/       # 개발 규칙, 기여 가이드, 환경 변수, GitHub SSH키 설정, 개발 환경 설정 가이드
+│   ├── erd           # ERD
+│   └── architecture/ # AI 아키텍처, 시스템 아키텍쳐, 배포 가이드, 인프라 구조
 └── .github/workflows/ # CI/CD
 ```
 
