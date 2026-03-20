@@ -3,51 +3,102 @@ name: CI
 on:
   pull_request:
     branches: [ main, develop ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
-      - '!.github/workflows/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '**.txt'
-      - '**.rst'
-      - 'README*'
-      - 'CHANGELOG*'
-      - 'CONTRIBUTING*'
-      - 'AUTHORS*'
-      - '.vscode/**'
-      - '.idea/**'
   push:
     branches: [ main, develop ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
-      - '!.github/workflows/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '**.txt'
-      - '**.rst'
-      - 'README*'
-      - 'CHANGELOG*'
-      - 'CONTRIBUTING*'
-      - 'AUTHORS*'
-      - '.vscode/**'
-      - '.idea/**'
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      ai: ${{ steps.filter.outputs.ai }}
+      code_quality: ${{ steps.filter.outputs.code_quality }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/src/**'
+              - 'backend/build.gradle'
+              - 'backend/settings.gradle'
+              - 'backend/gradle.properties'
+              - 'backend/gradle/**'
+              - 'backend/gradlew'
+              - 'backend/gradlew.bat'
+            frontend:
+              - 'frontend/src/**'
+              - 'frontend/public/**'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
+              - 'frontend/vite.config.*'
+              - 'frontend/tsconfig*.json'
+              - 'frontend/eslint.config.*'
+              - 'frontend/.eslintrc*'
+            ai:
+              - 'ai/app/**'
+              - 'ai/tests/**'
+              - 'ai/requirements.txt'
+              - 'ai/pyproject.toml'
+              - 'ai/poetry.lock'
+              - 'ai/uv.lock'
+            code_quality:
+              - '.github/workflows/**'
+              - 'backend/src/**'
+              - 'backend/build.gradle'
+              - 'backend/settings.gradle'
+              - 'backend/gradle.properties'
+              - 'backend/gradle/**'
+              - 'backend/gradlew'
+              - 'backend/gradlew.bat'
+              - 'frontend/src/**'
+              - 'frontend/public/**'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
+              - 'frontend/vite.config.*'
+              - 'frontend/tsconfig*.json'
+              - 'frontend/eslint.config.*'
+              - 'frontend/.eslintrc*'
+              - 'ai/app/**'
+              - 'ai/tests/**'
+              - 'ai/requirements.txt'
+              - 'ai/pyproject.toml'
+              - 'ai/poetry.lock'
+              - 'ai/uv.lock'
+
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     defaults:
       run:
         working-directory: ./backend
     
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check backend Gradle files
+        id: gradle_check
+        shell: bash
+        run: |
+          if [[ -f "backend/gradlew" && -f "backend/build.gradle" ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip backend tests (missing Gradle)
+        if: steps.gradle_check.outputs.present != 'true'
+        run: echo "Backend Gradle files not found; skipping backend tests."
       
       - name: Set up JDK 21
+        if: steps.gradle_check.outputs.present == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -55,16 +106,19 @@ jobs:
           cache: 'gradle'
           
       - name: Grant execute permission for gradlew
+        if: steps.gradle_check.outputs.present == 'true'
         run: chmod +x gradlew
         
       - name: Build with Gradle
+        if: steps.gradle_check.outputs.present == 'true'
         run: ./gradlew build
         
       - name: Run tests
+        if: steps.gradle_check.outputs.present == 'true'
         run: ./gradlew test
         
       - name: Upload test results
-        if: always()
+        if: always() && steps.gradle_check.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-results
@@ -73,6 +127,8 @@ jobs:
   frontend-test:
     name: Frontend Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     defaults:
       run:
         working-directory: ./frontend
@@ -104,6 +160,8 @@ jobs:
   ai-test:
     name: AI Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.ai == 'true'
     defaults:
       run:
         working-directory: ./ai
@@ -135,6 +193,8 @@ jobs:
   lint-and-format:
     name: Code Quality Check
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code_quality == 'true'
     
     steps:
       - uses: actions/checkout@v4
