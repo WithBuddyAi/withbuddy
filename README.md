@@ -2,6 +2,9 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.1.0
+
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
 [![Copyright](https://img.shields.io/badge/Copyright-WithBuddy_Team-blue.svg)](https://github.com/WithBuddyAi/withbuddy)
@@ -47,9 +50,9 @@
 | 분야 | 기술 |
 |------|------|
 | **Backend** | Java 21, Spring Boot 3.5.11, MySQL 8.0, JWT |
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS |
-| **AI** | Python 3.11, FastAPI, LangChain, Pinecone, OpenAI GPT-4o |
-| **배포** | Oracle Cloud (Backend/AI/MySQL), Cloudflare Pages (Frontend) |
+| **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
+| **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
+| **배포** | Oracle Cloud (Backend/AI/MySQL), Vercel (Frontend) |
 | **CI/CD** | GitHub Actions |
 
 ---
@@ -102,8 +105,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # .env 파일 생성
-echo "OPENAI_API_KEY=your_key" > .env
-echo "PINECONE_API_KEY=your_key" >> .env
+echo "ANTHROPIC_API_KEY=your_key" > .env
+echo "CHROMA_PERSIST_DIR=./chroma_db" >> .env
 
 uvicorn app.main:app --reload
 # http://localhost:8000/docs
@@ -297,15 +300,15 @@ withbuddy/
 
 **Frontend**
 - React (MIT)
-- TypeScript (Apache 2.0)
 - Tailwind CSS (MIT)
 - Vite (MIT)
 
 **AI/ML**
 - FastAPI (MIT)
 - LangChain (MIT)
-- OpenAI Python SDK (MIT)
-- Pinecone Client (Apache 2.0)
+- LangGraph (MIT)
+- Anthropic SDK (MIT)
+- ChromaDB (Apache 2.0)
 
 각 라이브러리의 라이선스는 해당 프로젝트의 원본 라이선스를 따릅니다.
 
