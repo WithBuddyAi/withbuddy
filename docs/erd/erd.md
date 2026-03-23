@@ -1,5 +1,9 @@
 # ERD
 
+**현재 버전: v1.0**  
+**최종 수정일: 2026-03-23**
+
+
 ## 개요
 **MVP 기준 ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
 
@@ -130,10 +134,10 @@
 ---  
 
 ## ERD 수정 로그
-- 2026-03-16: ERD 초안 작성
-- 2026-03-17: users, documents, questions 테이블에 시간 관련 컬럼(created_at, updated_at, answered_at) 반영
-- 2026-03-20: `questions` 테이블을 `chat_messages` 구조로 변경하고, `onboarding_suggestions` 테이블 추가
-- 2026-03-23: `companies` 테이블 추가, 회사 식별 구조를 `company_id` 기준으로 정리, 회사 공통 문서/회사별 문서 구분 구조 반영
+- v0.1 (2026-03-16): ERD 초안 작성
+- v0.2 (2026-03-17): `users`, `documents`, `questions` 테이블에 시간 관련 컬럼(`created_at`, `updated_at`, `answered_at`) 반영
+- v0.3 (2026-03-20): `questions` 테이블을 `chat_messages` 구조로 변경하고, `onboarding_suggestions` 테이블 추가
+- v1.0 (2026-03-23): `companies` 테이블 추가, 회사 식별 구조를 `company_id` 기준으로 정리, 회사 공통 문서/회사별 문서 구분 구조 반영 및 MVP 기준 ERD 확정
 
 ---  
 
