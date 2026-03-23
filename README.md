@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.0
+**최종 업데이트**: 2026-03-24  
+**버전**: 1.1.1
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
@@ -54,6 +54,16 @@
 | **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
 | **배포** | Oracle Cloud (Backend/AI/MySQL), Vercel (Frontend) |
 | **CI/CD** | GitHub Actions |
+
+---
+
+## 🧭 프로젝트 표준
+
+| 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
+|------|----------|------------|---------------|-----------|
+| Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
+| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
 
 ---
 

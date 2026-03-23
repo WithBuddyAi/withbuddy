@@ -17,6 +17,16 @@
 
 ---
 
+## 프로젝트 표준
+
+| 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
+|------|----------|------------|---------------|-----------|
+| Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
+| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
+
+---
+
 ## 인프라 개요
 
 ```
@@ -386,10 +396,10 @@ Root directory: frontend
 Settings > Environment Variables
 
 Production:
-  VITE_API_BASE_URL=http://<BACKEND_PUBLIC_IP>:8080
+  VITE_API_BASE_URL=http://<BACKEND_PUBLIC_IP>:8080/api
 
 Preview:
-  VITE_API_BASE_URL=http://<BACKEND_PUBLIC_IP>:8080
+  VITE_API_BASE_URL=http://<BACKEND_PUBLIC_IP>:8080/api
 ```
 
 ### 4. 커스텀 도메인 (선택)

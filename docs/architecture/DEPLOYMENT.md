@@ -2,8 +2,8 @@
 
 > CI/CD 파이프라인, 배포 전략 및 운영 가이드
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.0
+**최종 업데이트**: 2026-03-24  
+**버전**: 1.1.1
 
 ---
 
@@ -29,6 +29,14 @@
 | **Development** | 개발자 로컬 환경 | localhost |
 | **Staging** | QA/테스트 환경 | staging.withbuddy.com |
 | **Production** | 실제 서비스 환경 | withbuddy.com |
+
+### 1.2 프로젝트 식별자
+
+| 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
+|------|----------|------------|---------------|-----------|
+| Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
+| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
 
 ### 1.2 배포 아키텍처
 
@@ -1158,5 +1166,3 @@ echo "✅ Deployment complete!"
 
 ---
 
-**문서 버전**: 1.1.0  
-**작성일**: 2026-03-17
