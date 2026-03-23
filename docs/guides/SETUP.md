@@ -2,6 +2,9 @@
 
 > WithBuddy 로컬 개발 환경 구축 완벽 가이드
 
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.1.0
+
 ## 📋 목차
 - [필수 요구사항](#필수-요구사항)
 - [MySQL 설치 및 설정](#mysql-설치-및-설정)
@@ -93,6 +96,8 @@ FLUSH PRIVILEGES;
 
 DB_PASSWORD=your_password
 JWT_SECRET=your-jwt-secret-key-at-least-32-characters-long
+JWT_ACCESS_EXPIRATION=7200000
+JWT_REFRESH_EXPIRATION=604800000
 AI_API_URL=http://localhost:8000
 ```
 
@@ -101,6 +106,8 @@ AI_API_URL=http://localhost:8000
 # ~/.bashrc 또는 /etc/environment에 추가
 export DB_PASSWORD=your_password
 export JWT_SECRET=your-jwt-secret-key
+export JWT_ACCESS_EXPIRATION=7200000
+export JWT_REFRESH_EXPIRATION=604800000
 export AI_API_URL=http://localhost:8000
 
 # 적용
@@ -128,7 +135,8 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 86400000  # 24시간
+  access-expiration: ${JWT_ACCESS_EXPIRATION}   # 2시간 (7200000ms)
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION} # 7일 (604800000ms)
 
 ai:
   api:
@@ -222,10 +230,8 @@ pip install -r requirements.txt
 **.env 파일 생성**
 ```bash
 # ai/.env
-OPENAI_API_KEY=your_openai_api_key
-PINECONE_API_KEY=your_pinecone_api_key
-PINECONE_ENVIRONMENT=your_pinecone_environment
-PINECONE_INDEX_NAME=withbuddy-documents
+ANTHROPIC_API_KEY=your_anthropic_api_key
+CHROMA_PERSIST_DIR=./chroma_db
 ```
 
 ### 4. 실행
@@ -311,7 +317,7 @@ uvicorn app.main:app --reload --log-level debug
 # 에러: ModuleNotFoundError
 → pip install -r requirements.txt 재실행
 
-# 에러: OpenAI API key not found
+# 에러: Anthropic API key not found
 → .env 파일 확인
 ```
 

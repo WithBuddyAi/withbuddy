@@ -2,6 +2,9 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.1.0
+
 ## 📋 목차
 - [인프라 개요](#인프라-개요)
 - [Oracle Cloud 리소스 생성](#oracle-cloud-리소스-생성)
@@ -9,7 +12,7 @@
 - [Backend 배포](#backend-배포-oracle-compute)
 - [AI 서버 배포](#ai-서버-배포-oracle-compute)
 - [MySQL 배포](#mysql-배포-oracle-compute)
-- [Frontend 배포](#frontend-배포-cloudflare-pages)
+- [Frontend 배포](#frontend-배포-vercel)
 - [GitHub Actions 설정](#github-actions-설정)
 
 ---
@@ -25,8 +28,8 @@
         │                 │                 │
         ▼                 ▼                 ▼
    ┌──────────┐    ┌──────────┐      ┌──────────┐
-   │Cloudflare│    │  Oracle  │      │  Oracle  │
-   │  Pages   │    │ Compute  │      │ Compute  │
+   │  Vercel  │    │  Oracle  │      │  Oracle  │
+   │Frontend  │    │ Compute  │      │ Compute  │
    └──────────┘    └──────────┘      └──────────┘
    Frontend         Backend            AI Server
    (React)         Spring Boot         FastAPI
@@ -43,9 +46,9 @@
 ### 리소스 구성
 ```yaml
 Frontend:
-  - Platform: Cloudflare Pages
-  - Domain: withbuddy.pages.dev (또는 커스텀 도메인)
-  - CDN: 자동 제공
+  - Platform: Vercel
+  - Domain: withbuddy.vercel.app (또는 커스텀 도메인)
+  - CDN: Vercel Edge Network
   - HTTPS: 자동 제공
 
 Backend:
@@ -58,7 +61,7 @@ Backend:
 AI Server:
   - Provider: Oracle Cloud Compute
   - OS: Ubuntu 22.04
-  - Shape: VM.Standard.E2.1.Micro (Always Free)
+  - Shape: VM.Standard.E4.Flex (2 OCPU / 4GB RAM)
   - IP: 공인 IP 할당 (또는 Private IP)
   - Port: 8000 (FastAPI)
 
@@ -89,7 +92,7 @@ Boot Volume: 50GB
 ```
 Name: withbuddy-ai
 Image: Canonical Ubuntu 22.04
-Shape: VM.Standard.E2.1.Micro (Always Free)
+Shape: VM.Standard.E4.Flex (2 OCPU / 4GB RAM)
 Network: 공인 IP 할당
 Boot Volume: 50GB
 ```
@@ -276,10 +279,8 @@ ExecStart=/home/ubuntu/withbuddy/ai/venv/bin/uvicorn app.main:app --host 0.0.0.0
 Restart=on-failure
 RestartSec=10
 
-Environment="OPENAI_API_KEY=your_api_key"
-Environment="PINECONE_API_KEY=your_api_key"
-Environment="PINECONE_ENVIRONMENT=your_env"
-Environment="PINECONE_INDEX_NAME=withbuddy-documents"
+Environment="ANTHROPIC_API_KEY=your_api_key"
+Environment="CHROMA_PERSIST_DIR=/home/ubuntu/withbuddy/ai/chroma_db"
 
 [Install]
 WantedBy=multi-user.target
@@ -362,21 +363,21 @@ crontab -e
 
 ---
 
-## Frontend 배포 (Cloudflare Pages)
+## Frontend 배포 (Vercel)
 
-### 1. Cloudflare 계정 생성
-https://pages.cloudflare.com
+### 1. Vercel 계정 생성
+https://vercel.com
 
 ### 2. GitHub 연동
 ```
-1. Cloudflare Pages > Create a project
-2. Connect to Git
+1. Vercel > Add New Project
+2. Import Git Repository
 3. WithBuddyAi/withbuddy 선택
 4. 설정:
 
 Framework preset: Vite
 Build command: npm run build
-Build output directory: dist
+Output directory: dist
 Root directory: frontend
 ```
 
@@ -412,8 +413,7 @@ SERVER_USER=ubuntu
 DB_PASSWORD=<MySQL 비밀번호>
 JWT_SECRET=<JWT Secret>
 AI_API_URL=http://10.0.1.20:8000
-OPENAI_API_KEY=<OpenAI API Key>
-PINECONE_API_KEY=<Pinecone API Key>
+ANTHROPIC_API_KEY=<Anthropic API Key>
 ```
 
 ### 2. Backend 배포 워크플로우
@@ -560,8 +560,7 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_IP: ${{ secrets.AI_SERVER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
@@ -576,7 +575,7 @@ jobs:
           
           echo "=== Starting AI Server ==="
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
-            "OPENAI_API_KEY='$OPENAI_API_KEY' PINECONE_API_KEY='$PINECONE_API_KEY' bash -s" << 'ENDSSH'
+            "ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY' bash -s" << 'ENDSSH'
           
           cd /home/ubuntu/withbuddy/ai
           
@@ -594,10 +593,8 @@ jobs:
           
           # .env 파일 생성
           cat > .env << EOF
-OPENAI_API_KEY=${OPENAI_API_KEY}
-PINECONE_API_KEY=${PINECONE_API_KEY}
-PINECONE_ENVIRONMENT=gcp-starter
-PINECONE_INDEX_NAME=withbuddy-documents
+ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+CHROMA_PERSIST_DIR=/home/ubuntu/withbuddy/ai/chroma_db
 EOF
           
           # 애플리케이션 시작
@@ -635,7 +632,7 @@ curl http://<BACKEND_PUBLIC_IP>:8080/actuator/health
 curl http://<AI_PUBLIC_IP>:8000/health
 
 # Frontend
-# 브라우저에서 Cloudflare Pages URL 접속
+# 브라우저에서 Vercel URL 접속
 ```
 
 ### 로그 확인
@@ -658,12 +655,14 @@ Oracle Cloud Always Free Tier 활용:
 - ✅ 총 200GB 블록 볼륨 무료
 - ✅ 10TB 아웃바운드 트래픽 무료
 
-Cloudflare Pages:
-- ✅ 무제한 요청 무료
-- ✅ 무제한 대역폭 무료
-- ✅ CDN 무료
+**MVP 최소 사양(2 OCPU/4GB) AI 서버**는 Always Free 범위를 초과할 수 있으므로 별도 비용을 고려한다.
 
-**총 비용: $0** (무료!)
+Vercel (Hobby):
+- ✅ 무료 배포 가능 (정적 사이트 기준)
+- ✅ CDN 제공
+- ✅ HTTPS 자동 제공
+
+**총 비용**: AI 서버 사양에 따라 변동
 
 ---
 

@@ -2,6 +2,9 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.1.0
+
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
 [![Copyright](https://img.shields.io/badge/Copyright-WithBuddy_Team-blue.svg)](https://github.com/WithBuddyAi/withbuddy)
@@ -47,9 +50,9 @@
 | 분야 | 기술 |
 |------|------|
 | **Backend** | Java 21, Spring Boot 3.5.11, MySQL 8.0, JWT |
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS |
-| **AI** | Python 3.11, FastAPI, LangChain, Pinecone, OpenAI GPT-4o |
-| **배포** | Oracle Cloud (Backend/AI/MySQL), Cloudflare Pages (Frontend) |
+| **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
+| **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
+| **배포** | Oracle Cloud (Backend/AI/MySQL), Vercel (Frontend) |
 | **CI/CD** | GitHub Actions |
 
 ---
@@ -102,8 +105,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # .env 파일 생성
-echo "OPENAI_API_KEY=your_key" > .env
-echo "PINECONE_API_KEY=your_key" >> .env
+echo "ANTHROPIC_API_KEY=your_key" > .env
+echo "CHROMA_PERSIST_DIR=./chroma_db" >> .env
 
 uvicorn app.main:app --reload
 # http://localhost:8000/docs
@@ -113,18 +116,49 @@ uvicorn app.main:app --reload
 
 ---
 
-## 📂 프로젝트 구조
+## 📂 withBuddy 디렉토리 구조
 
 ```
 withbuddy/
-├── backend/          # Spring Boot (Java 21)
-├── frontend/         # React + TypeScript
-├── ai/               # FastAPI (Python 3.11)
-├── docs/             # 📚 모든 문서는 여기에!
-│   ├── guides/       # 개발 규칙, 기여 가이드, 환경 변수, GitHub SSH키 설정, 개발 환경 설정 가이드
-│   ├── erd           # ERD
-│   └── architecture/ # AI 아키텍처, 시스템 아키텍쳐, 배포 가이드, 인프라 구조
-└── .github/workflows/ # CI/CD
+├─ .github/
+│  ├─ ISSUE_TEMPLATE/           # BE/CI  (Issue 템플릿 관리)
+│  │  ├─ bug_report.md          # BE/CI  (New Issue 생성시 제공되는 버그 리포트 관리 템플릿)
+│  │  └─ config.yml             # BE/CI  (New Issue 생성시 안내되는 기여 가이드 링크) 
+│  └─ workflows/               
+│     └─ ci.yml                 # BE/CI  (ci.yml 테스트 목적은 “푸시/PR에서 변경된 코드가 정상 빌드되고 기본 품질 기준을 만족하는지”를 자동으로 확인하는 겁니다. 이 워크플로에서는 변경된 영역만 골라서, 해당 영역의 빌드와 테스트(백엔드/프론트/AI)를 돌려서 기능 회귀나 빌드 실패를 조기에 잡는 데 목적이 있습니다. 예외)모든 문서 파일들은 테스트에서 제외 처리하도록 설정되어 있습니다)
+│ 
+├─ ai/                          # AI (기능 구현 시작 후 이 폴더에서 관리)
+│ 
+├─ backend/                     # BE (기능 구현 시작 후 이 폴더에서 관리)
+│ 
+├─ docs/
+│  ├─ architecture/
+│  │  ├─ AI_ARCHITECTURE.md     # AI  (초안 - AI 아키텍처)
+│  │  ├─ ARCHITECTURE.md        # BE/CI  (초안 - 시스템 아키텍처)
+│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - Oracle Cloud 배포 가이드)
+│  │  ├─ DEPLOYMENT.md          # BE/CI  (초안 - 배포 가이드)
+│  │  └─ INFRASTRUCTURE.md      # BE/CI  (초안 - 인프라 구조)
+│  │
+│  ├─ erd/                      # BE (MVP 단계에서 진행)
+│  │
+│  ├─ guides/ 
+│  │  ├─ COLLABORATION.md       # BE/CI  (초안 - 협업 규칙 📚 필독)
+│  │  ├─ CONTRIBUTING.md        # BE/CI  (초안 - 기여 가이드 📚 필독)
+│  │  ├─ ENV.md                 # BE/CI  (초안 - 환경변수)
+│  │  ├─ GIT-FLOW-SETUP.md      # BE/CI  (초안 - Git Flow 설정 체크리스트)
+│  │  ├─ GITHUB-SSH.md          # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
+│  │  └─ SETUP.md               # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
+│  │
+│  ├─ API.md                    # BE  (초안 - API 명세서)
+│  ├─ MULTI_TENANCY.md          # BE  (초안 - 멀티 테넌시 아키텍처)
+│  ├─ PLANNED_API.md            # BE  (초안 - Planned API)
+│  └─ SECURITY.md               # BE/CI  (보안 설계)
+│                               
+├─ frontend/                    # FE  (기능 구현 시작 후 이 폴더에서 관리)
+├─ .gitignore                   # BE/FE/AI/CI  (지속 관리)
+└─ README.md                    # PM/BE/CI (MVP 설계 단계 이후 관리)
+
+*** BE - Backend | FE - Frontend | PM - Project Manager | CI - Cloud Infrastructure
 ```
 
 ---
@@ -133,22 +167,21 @@ withbuddy/
 
 ### 시작하기
 - **[개발 환경 설정](./docs/guides/SETUP.md)** - MySQL, 환경변수, 실행 방법
-- **[배포 가이드 (Oracle Cloud)](./docs/guides/DEPLOYMENT-ORACLE.md)** - Oracle Cloud + Cloudflare 배포
+- **[GitHub SSH 키 설정 가이드](./docs/guides/GIT-FLOW-SETUP.md)** - MySQL, 환경변수, 실행 방법
 - **[환경변수 관리](./docs/guides/ENV.md)** - application.yml, .env 설정
-
-### 아키텍처
-- **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
-- **[데이터베이스](./docs/database/SCHEMA.md)** - ERD, 테이블 설계
-
-### API
-- **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
-- **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
-- **[기여 가이드](docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
-- **[Git Flow 설정 체크리스트](./docs/guides/GIT-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS
+- **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
 - **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
+
+### 아키텍처
+- **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
+- **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
+
+### API
+- **[API 명세서](./docs/API.md)** - API 전체 엔드포인트
+- **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
 ---
 
@@ -267,15 +300,15 @@ withbuddy/
 
 **Frontend**
 - React (MIT)
-- TypeScript (Apache 2.0)
 - Tailwind CSS (MIT)
 - Vite (MIT)
 
 **AI/ML**
 - FastAPI (MIT)
 - LangChain (MIT)
-- OpenAI Python SDK (MIT)
-- Pinecone Client (Apache 2.0)
+- LangGraph (MIT)
+- Anthropic SDK (MIT)
+- ChromaDB (Apache 2.0)
 
 각 라이브러리의 라이선스는 해당 프로젝트의 원본 라이선스를 따릅니다.
 
