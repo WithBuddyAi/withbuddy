@@ -135,7 +135,7 @@ withbuddy/
 │  ├─ architecture/
 │  │  ├─ AI_ARCHITECTURE.md     # AI  (초안 - AI 아키텍처)
 │  │  ├─ ARCHITECTURE.md        # BE/CI  (초안 - 시스템 아키텍처)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - Oracle Cloud 배포 가이드)
+│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - OCI 배포 가이드)
 │  │  ├─ DEPLOYMENT.md          # BE/CI  (초안 - 배포 가이드)
 │  │  └─ INFRASTRUCTURE.md      # BE/CI  (초안 - 인프라 구조)
 │  │
