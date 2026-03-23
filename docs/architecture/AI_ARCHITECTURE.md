@@ -2,8 +2,8 @@
 
 > LLM 기반 지능형 온보딩 비서 시스템
 
-**최종 업데이트**: 2026-03-17  
-**버전**: 1.0.0
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.1.0
 
 ---
 
@@ -40,24 +40,29 @@
 │  └─────────┼───────────────────┼────────────────────┘  │
 │            ↓                   ↓                        │
 │  ┌─────────────────┐  ┌─────────────────┐              │
-│  │  Vector Store   │  │  LLM Provider   │              │
-│  │  (ChromaDB)     │  │  (OpenAI/Llama) │              │
-│  └─────────────────┘  └─────────────────┘              │
+│  │  Vector Store   │  │  LLM Provider       │          │
+│  │  (ChromaDB)     │  │  (Claude API)       │          │
+│  └─────────────────┘  └────────────────────┘          │
 └────────┬────────────────────────┬───────────────────────┘
          │                        │
          ↓                        ↓
-┌─────────────────┐      ┌─────────────────┐
-│  MySQL          │      │  OpenAI API     │
-│  (Metadata)     │      │  (GPT-4)        │
-└─────────────────┘      └─────────────────┘
+┌─────────────────┐      ┌────────────────────┐
+│  MySQL          │      │  Anthropic Claude  │
+│  (Metadata)     │      │       API          │
+└─────────────────┘      └────────────────────┘
 ```
+
+**MVP 전제**:
+- AI 서버 1대에서 FastAPI + LangGraph + ChromaDB를 함께 운영한다.
+- ChromaDB는 파일 기반으로 동작하며 별도 서버가 필요 없다.
+- 최소 사양: CPU 2코어 / RAM 4GB, GPU 미사용.
 
 ### 1.2 주요 기능
 
 | 기능 | 설명 | 기술 |
 |------|------|------|
-| **Q&A** | 사내 문서 기반 질문 응답 | RAG + GPT-4 |
-| **요약** | 기록/리포트 자동 요약 | GPT-4 Summarization |
+| **Q&A** | 사내 문서 기반 질문 응답 | RAG + Claude API |
+| **요약** | 기록/리포트 자동 요약 | Claude Summarization |
 | **추천** | 개인화된 체크리스트 추천 | Collaborative Filtering |
 | **검색** | 문서 의미 기반 검색 | Vector Similarity Search |
 
@@ -80,37 +85,23 @@ LangGraph: 0.0.20+
   - 상태 관리
   - 조건부 라우팅
 
-# LLM 추론 엔진
-vLLM: 0.3.0+
-  - 고성능 추론
-  - 배치 처리
-  - GPU 최적화
+# Server
+Uvicorn: 최신
+  - FastAPI ASGI 서버
+
+# Vector Store (Embedded)
+ChromaDB: 0.4.0+
+  - 파일 기반 저장
+  - 별도 서버 없이 동작 (MVP)
 ```
 
 ### 2.2 AI Models
 
 ```yaml
-# 상용 LLM
-OpenAI GPT-4 Turbo
-  - 용도: 복잡한 질문, 높은 품질
-  - API: chat.completions
-
-OpenAI GPT-3.5 Turbo
-  - 용도: 간단한 질문, 비용 절감
-  - API: chat.completions
-
-# 오픈소스 LLM
-Llama 3 (8B/70B)
-  - 용도: 자체 호스팅, 비용 0원
-  - 배포: vLLM
-
-Qwen 2 (7B/72B)
-  - 용도: 다국어 지원
-  - 배포: vLLM
-
-# Vision-Language Models
-GPT-4 Vision
-  - 용도: 이미지 기반 질문 (향후)
+# MVP: Anthropic Claude API
+Claude (예: Sonnet 계열)
+  - 용도: Q&A, 요약
+  - API: messages
 ```
 
 ### 2.3 Vector Database
@@ -121,11 +112,7 @@ ChromaDB: 0.4.0+
   - 용도: 중소규모 (<100만 문서)
   - 장점: 설치 쉬움, 관리 간편
   - 회사별 컬렉션 분리
-
-FAISS: 1.7.0+
-  - 용도: 대규모 (>100만 문서)
-  - 장점: 초고속 검색
-  - Meta 오픈소스
+  - MVP: AI 서버 내장 (파일 기반 저장)
 
 # 그래프 데이터베이스 (선택)
 Neo4j: 5.0+
@@ -167,7 +154,7 @@ Scikit-learn: 1.3+
 ```python
 from langchain.document_loaders import PDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import Chroma
 
 # 1. 문서 로드
@@ -182,7 +169,7 @@ splitter = RecursiveCharacterTextSplitter(
 chunks = splitter.split_documents(documents)
 
 # 3. 임베딩 생성 & 벡터 저장
-embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 vectorstore = Chroma.from_documents(
     documents=chunks,
     embedding=embeddings,
@@ -200,7 +187,7 @@ PDF/Markdown 문서
   ↓
 [Text Splitter] 청크 분할 (1000자, 200자 오버랩)
   ↓
-[Embedding Model] 벡터 변환 (1536차원)
+[Embedding Model] 벡터 변환 (모델별 차원)
   ↓
 [Vector Store] ChromaDB 저장
   ↓
@@ -211,7 +198,7 @@ company_1001_docs 컬렉션
 
 ```python
 from langchain.chains import RetrievalQA
-from langchain.llms import OpenAI
+from langchain_anthropic import ChatAnthropic
 
 # 1. Retriever 설정
 retriever = vectorstore.as_retriever(
@@ -221,7 +208,7 @@ retriever = vectorstore.as_retriever(
 
 # 2. QA Chain 구성
 qa_chain = RetrievalQA.from_chain_type(
-    llm=OpenAI(model="gpt-4-turbo-preview", temperature=0.7),
+    llm=ChatAnthropic(model="claude-3-5-sonnet", temperature=0.7),
     chain_type="stuff",  # 모든 문서를 컨텍스트에 포함
     retriever=retriever,
     return_source_documents=True
@@ -250,7 +237,7 @@ result = qa_chain({
   ↓
 [LLM Prompt] 컨텍스트 + 질문 구성
   ↓
-[GPT-4] 답변 생성
+[Claude] 답변 생성
   ↓
 답변 + 출처 문서 반환
 ```
@@ -459,143 +446,27 @@ docs = vectorstore.similarity_search("연차 신청", k=5)
 
 ## 6. LLM 전략
 
-### 6.1 OpenAI API (기본)
+### 6.1 Claude API (MVP 고정)
 
 ```python
-from langchain.llms import OpenAI
+from langchain_anthropic import ChatAnthropic
 
-llm = OpenAI(
-    model="gpt-4-turbo-preview",
+llm = ChatAnthropic(
+    model="claude-3-5-sonnet",
     temperature=0.7,
-    max_tokens=1000,
-    top_p=0.9
+    max_tokens=1000
 )
 
 response = llm.invoke("복지카드 신청 방법 설명")
 ```
 
-### 6.2 오픈소스 LLM (vLLM)
-
-```python
-from vllm import LLM, SamplingParams
-
-# vLLM 서버 시작
-llm = LLM(
-    model="meta-llama/Meta-Llama-3-8B-Instruct",
-    tensor_parallel_size=2,
-    gpu_memory_utilization=0.9
-)
-
-# 추론
-sampling_params = SamplingParams(
-    temperature=0.7,
-    top_p=0.9,
-    max_tokens=1000
-)
-
-outputs = llm.generate(
-    prompts=["복지카드 신청 방법은?"],
-    sampling_params=sampling_params
-)
-```
-
-### 6.3 하이브리드 전략
-
-```python
-def select_llm(query: str, complexity: float):
-    """질문 복잡도에 따라 LLM 선택"""
-    
-    if complexity < 0.3:
-        # 간단한 질문 → Llama3 (비용 0원)
-        return llm_llama3
-    
-    elif complexity < 0.7:
-        # 중간 복잡도 → GPT-3.5 ($0.002/1K tokens)
-        return llm_gpt35
-    
-    else:
-        # 복잡한 질문 → GPT-4 ($0.03/1K tokens)
-        return llm_gpt4
-
-# 복잡도 계산
-complexity = calculate_complexity(query)
-llm = select_llm(query, complexity)
-```
-
-#### 비용 절감 효과
-
-```
-전체 질문 분포:
-- 간단 (70%): Llama3 → $0
-- 중간 (20%): GPT-3.5 → $0.002/1K
-- 복잡 (10%): GPT-4 → $0.03/1K
-
-→ 약 85% 비용 절감
-```
+**메모**: MVP에서는 단일 모델로 운영하고, 필요 시 모델 라우팅/오픈소스 도입은 후속 과제로 둔다.
 
 ---
 
 ## 7. Fine-tuning
 
-### 7.1 LoRA Fine-tuning
-
-```python
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import LoraConfig, get_peft_model, TaskType
-
-# 베이스 모델 로드
-model = AutoModelForCausalLM.from_pretrained(
-    "meta-llama/Llama-2-7b-hf",
-    load_in_8bit=True,  # 메모리 절약
-    device_map="auto"
-)
-
-# LoRA 설정
-lora_config = LoraConfig(
-    task_type=TaskType.CAUSAL_LM,
-    r=16,  # Low-rank dimension
-    lora_alpha=32,
-    lora_dropout=0.05,
-    target_modules=["q_proj", "v_proj"]  # 어텐션 레이어만
-)
-
-# LoRA 모델 생성
-model = get_peft_model(model, lora_config)
-
-# 학습 가능한 파라미터 확인
-model.print_trainable_parameters()
-# trainable params: 4,194,304 || all params: 6,742,609,920 || trainable%: 0.06%
-```
-
-### 7.2 회사별 맞춤 학습
-
-```python
-from datasets import load_dataset
-
-# 회사 A 데이터로 학습
-company_a_dataset = load_dataset(
-    "json",
-    data_files=f"training_data/company_{company_id}.jsonl"
-)
-
-# 학습
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=company_a_dataset
-)
-trainer.train()
-
-# 저장
-model.save_pretrained(f"./models/company_{company_id}_lora")
-```
-
-### 7.3 LoRA 장점
-
-- ✅ **메모리 효율**: 전체 모델의 0.1%만 학습
-- ✅ **빠른 학습**: 학습 시간 단축
-- ✅ **회사별 특화**: 각 회사 용어/문화 반영
-- ✅ **쉬운 배포**: 베이스 모델 + LoRA 가중치
+MVP 범위에서는 파인튜닝을 진행하지 않는다. 필요 시 후속 단계에서 검토한다.
 
 ---
 
@@ -648,9 +519,7 @@ def get_cached_answer(query: str, company_id: int):
 class CostTracker:
     def __init__(self):
         self.costs = {
-            "gpt-4": 0.03 / 1000,      # $0.03 per 1K tokens
-            "gpt-3.5": 0.002 / 1000,   # $0.002 per 1K tokens
-            "llama3": 0.0              # 자체 호스팅
+            "claude": 0.0  # 실제 단가는 과금 정책에 따라 설정
         }
     
     def calculate_cost(self, model: str, tokens: int):
@@ -700,22 +569,16 @@ with client.trace(
 
 ### A. 성능 벤치마크
 
-| 모델 | 응답 시간 | 비용/1K tokens | 품질 점수 |
-|------|-----------|---------------|----------|
-| GPT-4 | 2.5s | $0.03 | 9.2/10 |
-| GPT-3.5 | 1.2s | $0.002 | 7.8/10 |
-| Llama3-8B | 0.8s | $0 | 7.5/10 |
-| Llama3-70B | 1.5s | $0 | 8.5/10 |
+MVP에서는 Claude API 기준으로 응답 시간/비용을 측정해 기록한다.
 
 ### B. 참고 자료
 
 - [LangChain Documentation](https://python.langchain.com/)
 - [LangGraph Guide](https://langchain-ai.github.io/langgraph/)
-- [vLLM Documentation](https://docs.vllm.ai/)
 - [ChromaDB Guide](https://docs.trychroma.com/)
 - [LoRA Paper](https://arxiv.org/abs/2106.09685)
 
 ---
 
-**문서 버전**: 1.0.0  
+**문서 버전**: 1.1.0  
 **작성일**: 2026-03-17

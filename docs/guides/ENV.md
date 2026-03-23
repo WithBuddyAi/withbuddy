@@ -2,6 +2,9 @@
 
 WithBuddy 프로젝트의 환경변수 설정 가이드입니다.
 
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.1.0
+
 ## 📋 목차
 
 - [Backend (Java/Spring)](#backend-javaspring)
@@ -142,13 +145,14 @@ VITE_ENABLE_ANALYTICS=true
 
 ```bash
 # AI 모델 설정
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
-MODEL_NAME=gpt-4
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+MODEL_NAME=claude
 MODEL_TEMPERATURE=0.7
 
 # 서버 설정
-AI_SERVER_PORT=5000
+AI_SERVER_PORT=8000
 AI_SERVER_HOST=0.0.0.0
+CHROMA_PERSIST_DIR=./chroma_db
 ```
 
 ### 선택 환경변수
@@ -169,7 +173,6 @@ LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
 LOG_FORMAT=json
 
 # 외부 서비스
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxx  # Claude API (선택)
 HUGGINGFACE_TOKEN=hf_xxxxxx  # Hugging Face (선택)
 ```
 
@@ -177,10 +180,11 @@ HUGGINGFACE_TOKEN=hf_xxxxxx  # Hugging Face (선택)
 
 ```env
 # .env
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
-MODEL_NAME=gpt-4-turbo-preview
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+MODEL_NAME=claude
 MODEL_TEMPERATURE=0.7
-AI_SERVER_PORT=5000
+AI_SERVER_PORT=8000
+CHROMA_PERSIST_DIR=./chroma_db
 
 # Redis (선택)
 REDIS_URL=redis://localhost:6379
@@ -202,7 +206,7 @@ Settings → Secrets and variables → Actions → New repository secret
 **필수 Secrets:**
 - `DB_PASSWORD` - 데이터베이스 비밀번호
 - `JWT_SECRET` - JWT 서명 키
-- `OPENAI_API_KEY` - OpenAI API 키
+- `ANTHROPIC_API_KEY` - Anthropic Claude API 키
 
 **선택 Secrets:**
 - `SENTRY_DSN` - 에러 트래킹 DSN
@@ -263,9 +267,9 @@ VITE_API_BASE_URL=http://localhost:8080/api
 VITE_APP_ENV=development
 
 # ai/.env.example
-OPENAI_API_KEY=
-MODEL_NAME=gpt-4
-AI_SERVER_PORT=5000
+ANTHROPIC_API_KEY=
+MODEL_NAME=claude
+AI_SERVER_PORT=8000
 ```
 
 ---
