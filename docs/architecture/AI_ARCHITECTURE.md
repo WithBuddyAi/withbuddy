@@ -40,16 +40,16 @@
 │  └─────────┼───────────────────┼────────────────────┘  │
 │            ↓                   ↓                        │
 │  ┌─────────────────┐  ┌─────────────────┐              │
-│  │  Vector Store   │  │  LLM Provider       │          │
-│  │  (ChromaDB)     │  │  (Claude API)       │          │
-│  └─────────────────┘  └────────────────────┘          │
+│  │  Vector Store   │  │  LLM Provider   │              │
+│  │  (ChromaDB)     │  │  (OpenAI/Llama) │              │
+│  └─────────────────┘  └─────────────────┘              │
 └────────┬────────────────────────┬───────────────────────┘
          │                        │
          ↓                        ↓
-┌─────────────────┐      ┌────────────────────┐
-│  MySQL          │      │  Anthropic Claude  │
-│  (Metadata)     │      │       API          │
-└─────────────────┘      └────────────────────┘
+┌─────────────────┐      ┌─────────────────┐
+│  MySQL          │      │  OpenAI API     │
+│  (Metadata)     │      │  (GPT-4)        │
+└─────────────────┘      └─────────────────┘
 ```
 
 **MVP 전제**:
@@ -67,8 +67,8 @@
 
 | 기능 | 설명 | 기술 |
 |------|------|------|
-| **Q&A** | 사내 문서 기반 질문 응답 | RAG + Claude API |
-| **요약** | 기록/리포트 자동 요약 | Claude Summarization |
+| **Q&A** | 사내 문서 기반 질문 응답 | RAG + GPT-4 |
+| **요약** | 기록/리포트 자동 요약 | GPT-4 Summarization |
 | **추천** | 개인화된 체크리스트 추천 | Collaborative Filtering |
 | **검색** | 문서 의미 기반 검색 | Vector Similarity Search |
 
@@ -91,23 +91,37 @@ LangGraph: 0.0.20+
   - 상태 관리
   - 조건부 라우팅
 
-# Server
-Uvicorn: 최신
-  - FastAPI ASGI 서버
-
-# Vector Store (Embedded)
-ChromaDB: 0.4.0+
-  - 파일 기반 저장
-  - 별도 서버 없이 동작 (MVP)
+# LLM 추론 엔진
+vLLM: 0.3.0+
+  - 고성능 추론
+  - 배치 처리
+  - GPU 최적화
 ```
 
 ### 2.2 AI Models
 
 ```yaml
-# MVP: Anthropic Claude API
-Claude (예: Sonnet 계열)
-  - 용도: Q&A, 요약
-  - API: messages
+# 상용 LLM
+OpenAI GPT-4 Turbo
+  - 용도: 복잡한 질문, 높은 품질
+  - API: chat.completions
+
+OpenAI GPT-3.5 Turbo
+  - 용도: 간단한 질문, 비용 절감
+  - API: chat.completions
+
+# 오픈소스 LLM
+Llama 3 (8B/70B)
+  - 용도: 자체 호스팅, 비용 0원
+  - 배포: vLLM
+
+Qwen 2 (7B/72B)
+  - 용도: 다국어 지원
+  - 배포: vLLM
+
+# Vision-Language Models
+GPT-4 Vision
+  - 용도: 이미지 기반 질문 (향후)
 ```
 
 ### 2.3 Vector Database
@@ -118,7 +132,11 @@ ChromaDB: 0.4.0+
   - 용도: 중소규모 (<100만 문서)
   - 장점: 설치 쉬움, 관리 간편
   - 회사별 컬렉션 분리
-  - MVP: AI 서버 내장 (파일 기반 저장)
+
+FAISS: 1.7.0+
+  - 용도: 대규모 (>100만 문서)
+  - 장점: 초고속 검색
+  - Meta 오픈소스
 
 # 그래프 데이터베이스 (선택)
 Neo4j: 5.0+
@@ -160,7 +178,7 @@ Scikit-learn: 1.3+
 ```python
 from langchain.document_loaders import PDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
 
 # 1. 문서 로드
@@ -175,7 +193,7 @@ splitter = RecursiveCharacterTextSplitter(
 chunks = splitter.split_documents(documents)
 
 # 3. 임베딩 생성 & 벡터 저장
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 vectorstore = Chroma.from_documents(
     documents=chunks,
     embedding=embeddings,
@@ -193,7 +211,7 @@ PDF/Markdown 문서
   ↓
 [Text Splitter] 청크 분할 (1000자, 200자 오버랩)
   ↓
-[Embedding Model] 벡터 변환 (모델별 차원)
+[Embedding Model] 벡터 변환 (1536차원)
   ↓
 [Vector Store] ChromaDB 저장
   ↓
@@ -204,7 +222,7 @@ company_1001_docs 컬렉션
 
 ```python
 from langchain.chains import RetrievalQA
-from langchain_anthropic import ChatAnthropic
+from langchain.llms import OpenAI
 
 # 1. Retriever 설정
 retriever = vectorstore.as_retriever(
@@ -214,7 +232,7 @@ retriever = vectorstore.as_retriever(
 
 # 2. QA Chain 구성
 qa_chain = RetrievalQA.from_chain_type(
-    llm=ChatAnthropic(model="claude-3-5-sonnet", temperature=0.7),
+    llm=OpenAI(model="gpt-4-turbo-preview", temperature=0.7),
     chain_type="stuff",  # 모든 문서를 컨텍스트에 포함
     retriever=retriever,
     return_source_documents=True
@@ -243,7 +261,7 @@ result = qa_chain({
   ↓
 [LLM Prompt] 컨텍스트 + 질문 구성
   ↓
-[Claude] 답변 생성
+[GPT-4] 답변 생성
   ↓
 답변 + 출처 문서 반환
 ```
@@ -452,15 +470,16 @@ docs = vectorstore.similarity_search("연차 신청", k=5)
 
 ## 6. LLM 전략
 
-### 6.1 Claude API (MVP 고정)
+### 6.1 OpenAI API (기본)
 
 ```python
-from langchain_anthropic import ChatAnthropic
+from langchain.llms import OpenAI
 
-llm = ChatAnthropic(
-    model="claude-3-5-sonnet",
+llm = OpenAI(
+    model="gpt-4-turbo-preview",
     temperature=0.7,
-    max_tokens=1000
+    max_tokens=1000,
+    top_p=0.9
 )
 
 response = llm.invoke("복지카드 신청 방법 설명")
