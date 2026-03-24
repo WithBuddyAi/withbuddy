@@ -2,6 +2,9 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
+**최종 업데이트**: 2026-03-24  
+**버전**: 1.1.1
+
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
 [![Copyright](https://img.shields.io/badge/Copyright-WithBuddy_Team-blue.svg)](https://github.com/WithBuddyAi/withbuddy)
@@ -47,10 +50,20 @@
 | 분야 | 기술 |
 |------|------|
 | **Backend** | Java 21, Spring Boot 3.5.11, MySQL 8.0, JWT |
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS |
-| **AI** | Python 3.11, FastAPI, LangChain, Pinecone, OpenAI GPT-4o |
-| **배포** | Oracle Cloud (Backend/AI/MySQL), Cloudflare Pages (Frontend) |
+| **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
+| **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
+| **배포** | Oracle Cloud (Backend/AI/MySQL), Vercel (Frontend) |
 | **CI/CD** | GitHub Actions |
+
+---
+
+## 🧭 프로젝트 표준
+
+| 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
+|------|----------|------------|---------------|-----------|
+| Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
+| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
 
 ---
 
@@ -102,8 +115,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # .env 파일 생성
-echo "OPENAI_API_KEY=your_key" > .env
-echo "PINECONE_API_KEY=your_key" >> .env
+echo "ANTHROPIC_API_KEY=your_key" > .env
+echo "CHROMA_PERSIST_DIR=./chroma_db" >> .env
 
 uvicorn app.main:app --reload
 # http://localhost:8000/docs
@@ -132,6 +145,7 @@ withbuddy/
 │  ├─ architecture/
 │  │  ├─ AI_ARCHITECTURE.md     # AI  (초안 - AI 아키텍처)
 │  │  ├─ ARCHITECTURE.md        # BE/CI  (초안 - 시스템 아키텍처)
+│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - OCI 배포 가이드)
 │  │  ├─ DEPLOYMENT.md          # BE/CI  (초안 - 배포 가이드)
 │  │  └─ INFRASTRUCTURE.md      # BE/CI  (초안 - 인프라 구조)
 │  │
@@ -140,7 +154,6 @@ withbuddy/
 │  ├─ guides/ 
 │  │  ├─ COLLABORATION.md       # BE/CI  (초안 - 협업 규칙 📚 필독)
 │  │  ├─ CONTRIBUTING.md        # BE/CI  (초안 - 기여 가이드 📚 필독)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - Oracle Cloud 배포 가이드)
 │  │  ├─ ENV.md                 # BE/CI  (초안 - 환경변수)
 │  │  ├─ GIT-FLOW-SETUP.md      # BE/CI  (초안 - Git Flow 설정 체크리스트)
 │  │  ├─ GITHUB-SSH.md          # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
@@ -196,9 +209,9 @@ withbuddy/
 
 ### 기여 프로세스
 1. **Issue 확인** → 작업 선택 및 할당
-2. **브랜치 생성** → `feature/123-add-feature`
+2. **브랜치 생성** → `develop`에서 `feature/123-add-feature`
 3. **개발 & 커밋** → `feat: Add feature`
-4. **Pull Request** → 리뷰 요청
+4. **Pull Request** → `develop` 대상으로 리뷰 요청
 5. **코드 리뷰** → 최소 1 approve
 6. **Merge** → Squash and Merge
 
@@ -297,15 +310,15 @@ withbuddy/
 
 **Frontend**
 - React (MIT)
-- TypeScript (Apache 2.0)
 - Tailwind CSS (MIT)
 - Vite (MIT)
 
 **AI/ML**
 - FastAPI (MIT)
 - LangChain (MIT)
-- OpenAI Python SDK (MIT)
-- Pinecone Client (Apache 2.0)
+- LangGraph (MIT)
+- Anthropic SDK (MIT)
+- ChromaDB (Apache 2.0)
 
 각 라이브러리의 라이선스는 해당 프로젝트의 원본 라이선스를 따릅니다.
 

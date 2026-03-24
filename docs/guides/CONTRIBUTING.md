@@ -1,7 +1,11 @@
 # 기여 가이드
 
-<<<<<<< HEAD
 > WithBuddy 프로젝트에 기여하는 방법
+> 이 문서는 실제 작업자가 브랜치를 만들고, 커밋하고, PR을 올릴 때 따라야 하는 절차를 설명한다.
+
+
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.0.0
 
 ## 📋 목차
 - [기여 프로세스](#기여-프로세스)
@@ -9,76 +13,9 @@
 - [커밋 메시지 컨벤션](#커밋-메시지-컨벤션)
 - [Pull Request 가이드](#pull-request-가이드)
 - [코드 리뷰](#코드-리뷰)
+- [다음 단계](#다음-단계)
 
 ---
-
-## 기여 프로세스
-
-### 1. Issue 확인 및 할당
-```
-1. GitHub Issues에서 작업할 태스크 선택
-2. 본인에게 할당 (Assignees 설정)
-3. 라벨 확인 (bug, feature, enhancement 등)
-```
-
-### 2. 브랜치 생성
-```bash
-# 최신 main 브랜치로 업데이트
-git checkout main
-git pull origin main
-
-# 새 브랜치 생성
-git checkout -b feature/123-add-feature
-```
-
-### 3. 개발
-```bash
-# 코드 작성
-# 테스트 작성
-# 로컬 테스트 실행
-```
-
-### 4. 커밋
-```bash
-git add .
-git commit -m "feat: Add weekly report generation feature"
-```
-
-### 5. Push & Pull Request
-```bash
-git push origin feature/123-add-feature
-
-# GitHub에서 Pull Request 생성
-```
-
-### 6. 코드 리뷰 & Merge
-```
-- 최소 1명의 approve 필요
-- CI/CD 통과 확인
-- Squash and Merge 권장
-```
-
----
-
-## 브랜치 전략
-
-### 브랜치 명명 규칙
-```
-feature/이슈번호-간단한-설명
-fix/이슈번호-버그-설명
-docs/문서-수정-내용
-refactor/리팩토링-내용
-test/테스트-추가-내용
-chore/빌드-설정-변경
-```
-
-### 예시
-```bash
-=======
-이 문서는 실제 작업자가 브랜치를 만들고, 커밋하고, PR을 올릴 때 따라야 하는 절차를 설명한다.
-
-- 협업 규칙 요약: [COLLABORATION.md](./COLLABORATION.md)
-- 저장소 관리자 설정: [GIT-FLOW-SETUP.md](./GIT-FLOW-SETUP.md)
 
 ## 기여 프로세스
 
@@ -101,25 +38,12 @@ git checkout -b feature/123-add-feature
 
 브랜치 예시:
 ```text
->>>>>>> origin/develop
 feature/123-add-weekly-report
 fix/456-login-error
 docs/update-readme
 refactor/improve-service-logic
 test/add-unit-tests
 chore/update-dependencies
-<<<<<<< HEAD
-```
-
-### 브랜치 수명
-```
-- feature/* : PR merge 후 삭제
-- fix/* : PR merge 후 삭제
-- main : 영구 유지
-```
-
----
-=======
 release/1.0.0
 hotfix/1.0.1-fix-login
 ```
@@ -154,10 +78,7 @@ PR 생성 기준:
 - `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` 의 base 브랜치는 `develop`
 - `release/*`, `hotfix/*` 의 base 브랜치는 `main`
 
-### PR 생성 화면 예시
-
-아래 예시처럼 기능 또는 문서 작업 브랜치는 `base: develop`, `compare: feature/...` 형태로 Pull Request를 생성한다.
-
+### 6. 리뷰 반영 및 merge
 ![PR base branch example](./images/branch.png)
 
 - `base`: 변경사항이 병합될 대상 브랜치
@@ -174,9 +95,9 @@ PR 생성 기준:
 - merge 후 작업 브랜치를 삭제한다.
 - `release/*`, `hotfix/*` 는 `main` 반영 후 반드시 `develop` 에도 동기화한다.
 
-## 빠른 체크리스트
+---
 
-PR 생성 전에 아래 항목을 확인한다.
+## 브랜치 전략
 
 ```text
 브랜치명이 규칙에 맞는가?
@@ -198,8 +119,30 @@ test/테스트-추가-내용
 chore/빌드-설정-변경
 release/버전
 hotfix/버전-간단한-설명
+release/버전
+hotfix/버전-간단한-설명
 ```
->>>>>>> origin/develop
+
+### 예시
+```text
+feature/123-add-weekly-report
+fix/456-login-error
+docs/update-readme
+refactor/improve-service-logic
+test/add-unit-tests
+chore/update-dependencies
+release/1.0.0
+hotfix/1.0.1-fix-login
+```
+
+### 브랜치 수명
+```
+- feature/* : PR merge 후 삭제
+- fix/* : PR merge 후 삭제
+- main : 영구 유지
+```
+
+---
 
 ## 커밋 메시지 컨벤션
 
@@ -267,12 +210,6 @@ test(user): Add unit tests for UserService
 ## Pull Request 가이드
 
 ### PR 제목 컨벤션
-<<<<<<< HEAD
-```
-[TYPE] Brief description
-
-예시:
-=======
 
 ```text
 [TYPE] Brief description
@@ -280,7 +217,6 @@ test(user): Add unit tests for UserService
 
 예시:
 ```text
->>>>>>> origin/develop
 [FEAT] Add weekly report generation
 [FIX] Resolve login authentication error
 [DOCS] Update API documentation
@@ -317,15 +253,15 @@ test(user): Add unit tests for UserService
 ```
 
 ### PR 생성 시 확인사항
-<<<<<<< HEAD
-```
-✅ 브랜치명이 규칙에 맞는가?
-✅ 커밋 메시지가 규칙에 맞는가?
-✅ 로컬에서 테스트가 통과하는가?
-✅ 충돌(Conflict)이 없는가?
-✅ 리뷰어가 지정되어 있는가?
-✅ 라벨이 추가되어 있는가?
-✅ 관련 Issue가 링크되어 있는가?
+```text
+브랜치명이 규칙에 맞는가?
+PR 대상 브랜치가 맞는가?
+커밋 메시지가 규칙에 맞는가?
+로컬에서 테스트가 통과하는가?
+충돌이 없는가?
+리뷰어가 지정되어 있는가?
+라벨이 추가되어 있는가?
+관련 Issue가 링크되어 있는가?
 ```
 
 ---
@@ -341,51 +277,6 @@ test(user): Add unit tests for UserService
 5. 컨벤션 준수 확인
 ```
 
-### 리뷰 가이드
-```
-- 건설적인 피드백 제공
-- 코드뿐만 아니라 설계도 검토
-- 질문은 명확하게
-- 긍정적인 부분도 언급
-```
-
-### 리뷰 코멘트 예시
-```
-✅ Good:
-"이 부분은 Optional을 사용하면 더 안전할 것 같습니다. 어떻게 생각하시나요?"
-
-❌ Bad:
-"이 코드는 잘못되었습니다."
-```
-
-### Approve 기준
-```
-- 로직이 올바른가?
-- 테스트가 충분한가?
-- 컨벤션을 지켰는가?
-- 문서가 업데이트 되었는가? (필요 시)
-- CI/CD가 통과했는가?
-```
-
----
-
-=======
-
-```text
-브랜치명이 규칙에 맞는가?
-PR 대상 브랜치가 맞는가?
-커밋 메시지가 규칙에 맞는가?
-로컬에서 테스트가 통과하는가?
-충돌이 없는가?
-리뷰어가 지정되어 있는가?
-라벨이 추가되어 있는가?
-관련 Issue가 링크되어 있는가?
-```
-
-## 코드 리뷰
-
-### 리뷰어가 보는 항목
-
 ```text
 코드 품질
 버그 가능성
@@ -400,22 +291,19 @@ PR 대상 브랜치가 맞는가?
 이 부분은 Optional을 사용하면 더 안전할 것 같습니다. 어떻게 생각하시나요?
 ```
 
-### approve 기준
-
-```text
-로직이 올바른가?
-테스트가 충분한가?
-컨벤션을 지켰는가?
-문서가 필요 시 업데이트 되었는가?
-CI/CD가 통과했는가?
+### Approve 기준
+```
+- 로직이 올바른가?
+- 테스트가 충분한가?
+- 컨벤션을 지켰는가?
+- 문서가 업데이트 되었는가? (필요 시)
+- CI/CD가 통과했는가?
 ```
 
->>>>>>> origin/develop
+---
+
 ## 다음 단계
 
-- [코딩 컨벤션](../conventions/CODING.md) - Java, TypeScript, Python 규칙
+- [코딩 컨벤션](../conventions/CODING.md) - Java, JavaScript, Python 규칙
 - [개발 환경 설정](SETUP.md) - 로컬 개발 환경 구축
-<<<<<<< HEAD
-=======
 - [Git Flow 설정 체크리스트](GIT-FLOW-SETUP.md) - GitHub 저장소 보호 규칙
->>>>>>> origin/develop

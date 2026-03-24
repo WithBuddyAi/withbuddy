@@ -2,8 +2,8 @@
 
 > 클라우드 인프라 및 네트워크 구성
 
-**최종 업데이트**: 2026-03-17  
-**버전**: 1.0.0
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.1.0
 
 ---
 
@@ -102,7 +102,7 @@ Destination         Target
 | 리소스 | 포트 | 접근 |
 |-------|------|------|
 | Backend (Spring Boot) | 8080 | Load Balancer, Vercel |
-| AI Server (FastAPI) | 5000 | Backend only |
+| AI Server (FastAPI) | 8000 | Backend only |
 | Redis | 6379 | Backend, AI Server |
 
 **라우팅 테이블**:
@@ -185,7 +185,7 @@ Outbound Rules:
     
   - Type: Custom TCP
     Protocol: TCP
-    Port: 5000
+    Port: 8000
     Destination: sg-withbuddy-ai
     Description: To AI Server
     
@@ -199,7 +199,7 @@ Outbound Rules:
     Protocol: TCP
     Port: 443
     Destination: 0.0.0.0/0
-    Description: OpenAI API, Object Storage
+    Description: Anthropic Claude API, Object Storage
 ```
 
 ### 3.3 AI Server Security Group
@@ -211,7 +211,7 @@ Description: AI Server (FastAPI) security group
 Inbound Rules:
   - Type: Custom TCP
     Protocol: TCP
-    Port: 5000
+    Port: 8000
     Source: sg-withbuddy-backend
     Description: From Backend ONLY
 
@@ -232,7 +232,7 @@ Outbound Rules:
     Protocol: TCP
     Port: 443
     Destination: 0.0.0.0/0
-    Description: OpenAI API
+    Description: Anthropic Claude API
 ```
 
 ### 3.4 MySQL Security Group
@@ -309,10 +309,6 @@ withbuddy-storage/
 │   ├── company_1001/
 │   │   └── user_uuid_123.jpg
 │   └── company_1002/
-├── embeddings/            # 문서 임베딩 벡터
-│   ├── company_1001/
-│   │   └── chroma_db/
-│   └── company_1002/
 └── backups/               # 백업 파일
     ├── db/
     │   ├── daily/
@@ -320,6 +316,8 @@ withbuddy-storage/
     │   └── monthly/
     └── logs/
 ```
+
+**MVP 메모**: ChromaDB 임베딩 파일은 AI 서버 로컬 디스크에 저장하며, 별도 Object Storage로 분리하지 않는다.
 
 #### 접근 권한 정책
 
@@ -412,7 +410,7 @@ Instance Type: t3.small
 CPU: 2 vCPU
 RAM: 2 GB
 Storage: 20 GB SSD
-OS: Ubuntu 24.04 LTS
+OS: Ubuntu 22.04/24.04 LTS
 ```
 
 #### 프로덕션 환경
@@ -421,7 +419,7 @@ Instance Type: t3.medium
 CPU: 2 vCPU
 RAM: 4 GB
 Storage: 50 GB SSD
-OS: Ubuntu 24.04 LTS
+OS: Ubuntu 22.04/24.04 LTS
 Auto Scaling: 2-4 instances
 ```
 
@@ -433,17 +431,17 @@ Instance Type: t3.medium
 CPU: 2 vCPU
 RAM: 4 GB
 Storage: 30 GB SSD
-OS: Ubuntu 24.04 LTS
+OS: Ubuntu 22.04/24.04 LTS
 ```
 
-#### 프로덕션 환경 (Llama3 자체 호스팅 시)
+#### 프로덕션 환경 (MVP)
 ```yaml
-Instance Type: g5.xlarge (GPU)
-GPU: NVIDIA A10G (24GB)
-CPU: 4 vCPU
-RAM: 16 GB
-Storage: 100 GB SSD
-OS: Ubuntu 24.04 LTS with CUDA
+Instance Type: t3.medium
+CPU: 2 vCPU
+RAM: 4 GB
+Storage: 50 GB SSD
+OS: Ubuntu 22.04/24.04 LTS
+GPU: 없음
 ```
 
 ### 5.3 Database Server
@@ -728,5 +726,5 @@ Total:                        $260/month
 
 ---
 
-**문서 버전**: 1.0.0  
+**문서 버전**: 1.1.0  
 **작성일**: 2026-03-17
