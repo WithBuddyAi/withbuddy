@@ -8,7 +8,24 @@
 - 실무 절차: [CONTRIBUTING.md](./CONTRIBUTING.md)
 - 저장소 설정: [GIT-FLOW-SETUP.md](./GIT-FLOW-SETUP.md)
 
-## 한눈에 보기
+### Github 브랜치 전략
+```
+main (프로덕션)
+  ↑
+develop (개발)
+  ↑
+feature/* (기능 개발)
+```
+```
+main (운영 배포)
+  └── develop (개발)
+      ├── feature/auth (A)
+      ├── feature/user (A)
+      ├── feature/record (A)
+      ├── feature/ai-integration (B)
+      ├── feature/conversation (B)
+      └── feature/slack (B)
+```
 
 ```text
 기능 개발: develop -> feature/* -> develop
@@ -63,22 +80,27 @@
 
 ## merge 방식
 
-- 기본 merge 방식은 `Squash and merge`
-- `release/*`, `hotfix/*` 는 이력 보존이 필요하면 일반 merge 허용
-- self-merge는 예외 상황이 아니면 금지
+1. main 직접 푸시 = 커피 3잔
+2. 리뷰 없이 머지 = 커피 2잔
+3. 테스트 안 하고 푸시 = 커피 1잔
 
-## 커밋 메시지 기본 규칙
+기술적 보호가 없으니 서로 책임감 갖고!
 
-- `feat`: 새로운 기능
-- `fix`: 버그 수정
-- `refactor`: 리팩토링
-- `test`: 테스트 코드
-- `docs`: 문서 수정
-- `chore`: 설정 및 빌드 변경
+### 커밋 컨벤션
+- feat: 새로운 기능
+- fix: 버그 수정
+- refactor: 리팩토링
+- test: 테스트 코드
+- docs: 문서 수정
+- chore: 빌드, 설정 변경
 
 예시:
-```text
-feat: Add weekly report generation
-fix: Resolve login authentication error
-docs: Update collaboration guide
 ```
+ feat: User 회원가입 API 구현
+ fix: JWT 토큰 만료 시간 오류 수정
+ refactor: Record Service 쿼리 최적화
+```
+
+## 라이센스
+
+**Copyright © 2026 WithBuddy Team. All Rights Reserved.**

@@ -1,6 +1,8 @@
 # 기여 가이드
 
 > WithBuddy 프로젝트에 기여하는 방법
+> 이 문서는 실제 작업자가 브랜치를 만들고, 커밋하고, PR을 올릴 때 따라야 하는 절차를 설명한다.
+
 
 **최종 업데이트**: 2026-03-23  
 **버전**: 1.0.0
@@ -34,6 +36,18 @@ git pull origin develop
 git checkout -b feature/123-add-feature
 ```
 
+브랜치 예시:
+```text
+feature/123-add-weekly-report
+fix/456-login-error
+docs/update-readme
+refactor/improve-service-logic
+test/add-unit-tests
+chore/update-dependencies
+release/1.0.0
+hotfix/1.0.1-fix-login
+```
+
 ### 3. 개발
 
 - 코드를 수정한다.
@@ -65,6 +79,14 @@ PR 생성 기준:
 - `release/*`, `hotfix/*` 의 base 브랜치는 `main`
 
 ### 6. 리뷰 반영 및 merge
+![PR base branch example](./images/branch.png)
+
+- `base`: 변경사항이 병합될 대상 브랜치
+- `compare`: 현재 작업한 브랜치
+- 기능, 문서, 리팩토링 작업은 보통 `develop` 으로 PR 생성
+- `release/*`, `hotfix/*` 는 예외적으로 `main` 으로 PR 생성
+
+### 6. 리뷰 반영 및 merge
 
 - 최소 1명 이상의 승인을 받는다.
 - CI/CD 통과 여부를 확인한다.
@@ -77,14 +99,26 @@ PR 생성 기준:
 
 ## 브랜치 전략
 
-### 브랜치 명명 규칙
+```text
+브랜치명이 규칙에 맞는가?
+PR 대상 브랜치가 맞는가?
+로컬 테스트가 통과하는가?
+불필요한 변경 파일이 없는가?
+리뷰어와 라벨을 지정했는가?
+관련 이슈를 연결했는가?
 ```
+
+## 브랜치 명명 규칙
+
+```text
 feature/이슈번호-간단한-설명
 fix/이슈번호-버그-설명
 docs/문서-수정-내용
 refactor/리팩토링-내용
 test/테스트-추가-내용
 chore/빌드-설정-변경
+release/버전
+hotfix/버전-간단한-설명
 release/버전
 hotfix/버전-간단한-설명
 ```
@@ -234,7 +268,14 @@ PR 대상 브랜치가 맞는가?
 
 ## 코드 리뷰
 
-### 리뷰어가 보는 항목
+### 리뷰어 역할
+```
+1. 코드 품질 확인
+2. 버그 가능성 체크
+3. 가독성 검토
+4. 테스트 충분성 확인
+5. 컨벤션 준수 확인
+```
 
 ```text
 코드 품질
@@ -250,14 +291,13 @@ PR 대상 브랜치가 맞는가?
 이 부분은 Optional을 사용하면 더 안전할 것 같습니다. 어떻게 생각하시나요?
 ```
 
-### approve 기준
-
-```text
-로직이 올바른가?
-테스트가 충분한가?
-컨벤션을 지켰는가?
-문서가 필요 시 업데이트 되었는가?
-CI/CD가 통과했는가?
+### Approve 기준
+```
+- 로직이 올바른가?
+- 테스트가 충분한가?
+- 컨벤션을 지켰는가?
+- 문서가 업데이트 되었는가? (필요 시)
+- CI/CD가 통과했는가?
 ```
 
 ---

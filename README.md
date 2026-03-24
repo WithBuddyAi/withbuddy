@@ -135,6 +135,7 @@ withbuddy/
 │  ├─ architecture/
 │  │  ├─ AI_ARCHITECTURE.md     # AI  (초안 - AI 아키텍처)
 │  │  ├─ ARCHITECTURE.md        # BE/CI  (초안 - 시스템 아키텍처)
+│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - OCI 배포 가이드)
 │  │  ├─ DEPLOYMENT.md          # BE/CI  (초안 - 배포 가이드)
 │  │  └─ INFRASTRUCTURE.md      # BE/CI  (초안 - 인프라 구조)
 │  │
@@ -143,7 +144,6 @@ withbuddy/
 │  ├─ guides/ 
 │  │  ├─ COLLABORATION.md       # BE/CI  (초안 - 협업 규칙 📚 필독)
 │  │  ├─ CONTRIBUTING.md        # BE/CI  (초안 - 기여 가이드 📚 필독)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - Oracle Cloud 배포 가이드)
 │  │  ├─ ENV.md                 # BE/CI  (초안 - 환경변수)
 │  │  ├─ GIT-FLOW-SETUP.md      # BE/CI  (초안 - Git Flow 설정 체크리스트)
 │  │  ├─ GITHUB-SSH.md          # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
@@ -199,9 +199,9 @@ withbuddy/
 
 ### 기여 프로세스
 1. **Issue 확인** → 작업 선택 및 할당
-2. **브랜치 생성** → `feature/123-add-feature`
+2. **브랜치 생성** → `develop`에서 `feature/123-add-feature`
 3. **개발 & 커밋** → `feat: Add feature`
-4. **Pull Request** → 리뷰 요청
+4. **Pull Request** → `develop` 대상으로 리뷰 요청
 5. **코드 리뷰** → 최소 1 approve
 6. **Merge** → Squash and Merge
 
