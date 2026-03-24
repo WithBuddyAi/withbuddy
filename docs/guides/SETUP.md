@@ -2,8 +2,8 @@
 
 > WithBuddy 로컬 개발 환경 구축 완벽 가이드
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.0
+**최종 업데이트**: 2026-03-24  
+**버전**: 1.1.1
 
 ## 📋 목차
 - [필수 요구사항](#필수-요구사항)
@@ -28,6 +28,22 @@
 - IntelliJ IDEA / VS Code
 - Postman / Insomnia (API 테스트)
 - MySQL Workbench / DBeaver (DB 관리)
+
+---
+
+## 프로젝트 표준
+
+| 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
+|------|----------|------------|---------------|-----------|
+| Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
+| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
+
+**Backend 생성 기준**:
+- Project name / Artifact: `withbuddy`
+- Group / Package: `com.withbuddy`
+- Build: Gradle (Groovy)
+- Java: 21
 
 ---
 
@@ -180,12 +196,12 @@ yarn install
 
 **.env.local (로컬 개발용)**
 ```bash
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=http://localhost:8080/api
 ```
 
 **.env.production (배포용)**
 ```bash
-VITE_API_BASE_URL=https://api.withbuddy.com
+VITE_API_BASE_URL=https://api.withbuddy.com/api
 ```
 
 ### 3. 실행

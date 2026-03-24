@@ -38,6 +38,17 @@
 ### External Communication
 - **FastAPI (AI 서버)**: REST API 통신 (팀장 준수님과 추가 논의 필요)
 
+## 🧭 프로젝트 표준
+
+| 항목 | 값 |
+|------|-----|
+| 디렉토리 | `backend/` |
+| 프로젝트명 | `withbuddy` |
+| Group/Package | `com.withbuddy` |
+| Build | Gradle (Groovy) |
+| Java | 21 |
+| 기본 포트 | 8080 |
+
 ## 📁 프로젝트 구조
 
 ```
@@ -254,4 +265,4 @@ server:
 
 ---
 
-**Last Updated**: 2026-03-12
+**Last Updated**: 2026-03-24
