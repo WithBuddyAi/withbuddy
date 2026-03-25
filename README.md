@@ -152,12 +152,14 @@ withbuddy/
 │  ├─ erd/                      # BE (MVP 단계에서 진행)
 │  │
 │  ├─ guides/ 
-│  │  ├─ COLLABORATION.md       # BE/CI  (초안 - 협업 규칙 📚 필독)
-│  │  ├─ CONTRIBUTING.md        # BE/CI  (초안 - 기여 가이드 📚 필독)
-│  │  ├─ ENV.md                 # BE/CI  (초안 - 환경변수)
-│  │  ├─ GIT-FLOW-SETUP.md      # BE/CI  (초안 - Git Flow 설정 체크리스트)
-│  │  ├─ GITHUB-SSH.md          # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
-│  │  └─ SETUP.md               # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
+│  │  ├─ COLLABORATION.md         # BE/CI  (초안 - 협업 규칙 📚 필독)
+│  │  ├─ CONTRIBUTING.md          # BE/CI  (초안 - 기여 가이드 📚 필독)
+│  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼)
+│  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼)
+│  │  ├─ ENV.md                   # BE/CI  (초안 - 환경변수)
+│  │  ├─ GIT-FLOW-SETUP.md        # BE/CI  (초안 - Git Flow 설정 체크리스트)
+│  │  ├─ GITHUB-SSH.md            # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
+│  │  └─ SETUP.md                 # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
 │  │
 │  ├─ API.md                    # BE  (초안 - API 명세서)
 │  ├─ MULTI_TENANCY.md          # BE  (초안 - 멀티 테넌시 아키텍처)
