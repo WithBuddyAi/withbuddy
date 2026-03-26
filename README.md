@@ -193,8 +193,14 @@ withbuddy/
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
 
 ### API
-- **[API 명세서](./docs/API.md)** - API 전체 엔드포인트
+- **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
+
+### 협업
+- **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
+- **[기여 가이드](docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
+- **[Git Flow 설정 체크리스트](./docs/guides/GIT-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS
+- **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
 
 ---
 
