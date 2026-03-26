@@ -1,8 +1,8 @@
 # WithBuddy API 명세서
 
 > WithBuddy MVP 기준 REST API 문서
-> 
-**버전**: 1.5.0  
+>
+**버전**: 1.5.1
 **최종 업데이트**: 2026-03-26
 
 ---
@@ -567,6 +567,15 @@ Content-Type: application/json
   "documentId": 10
 }
 ```
+#### Response (200 OK) - out_of_scope
+
+```json
+{
+  "answer": "이 내용은 담당 사수님과 직접 이야기 나누는 게 가장 정확해요. 사내 규정·복지·IT 환경 관련 궁금한 건 제가 언제든지 답해드릴게요!",
+  "messageType": "out_of_scope",
+  "documentId": null
+}
+```
 
 #### 설명
 
@@ -596,3 +605,5 @@ Content-Type: application/json
   - 로그인 기준과 인증 흐름을 수정된 ERD에 맞게 정리, `companyCode` 반영, 토큰 만료 처리, 프론트 개발 서버 주소 추가, 백엔드 서버와 생성형 AI 서버 간 연동 흐름 추가
 - **v1.5.0 (2026-03-26)**:
   - 빠른 질문 목록 조회 API 추가, 문서 양식 및 정합성 정리
+- **v1.5.1 (2026-03-26)**:
+  - `out_of_scope` 예시 추가
