@@ -1,12 +1,12 @@
 # ERD
 
-**현재 버전: v1.1**  
+**현재 버전: v1.2**  
 **최종 수정일: 2026-03-26**
 
 ## 개요
 **MVP 기준 ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
 
-현재 MVP에서는 **로그인 사용자 관리**, **사내 문서 기반 Q&A**, **입사 시점별 온보딩 가이드 제공**, **채팅형 메시지 기록 저장**을 중심으로 최소한의 데이터 구조를 설계한다.
+현재 MVP에서는 **로그인 사용자 관리**, **사내 문서 기반 Q&A**, **입사 시점별 온보딩 가이드 제공**, **채팅형 메시지 기록 저장**, **사용자 활동 로그 저장**을 중심으로 최소한의 데이터 구조를 설계한다.
 
 ---
 
@@ -106,11 +106,11 @@
 - 사용자의 질문, 챗봇의 답변, 챗봇의 선제 제안 메시지를 모두 저장한다.
 - `sender_type`은 메시지 발신 주체를 구분하며, `USER`, `BOT` 값을 사용한다.
 - `message_type`은 메시지 유형을 구분하며, 아래 값을 기준으로 통일해서 사용한다.
-    - `user_question` : 신입 사용자가 입력한 질문
-    - `rag_answer` : 문서 기반으로 답변이 생성된 메시지
-    - `no_result` : 질문 범위는 맞지만 근거 문서나 정보가 없어 답변하지 못한 메시지
-    - `out_of_scope` : 서비스 범위를 벗어난 질문에 대한 안내 메시지
-    - `suggestion` : 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
+  - `user_question` : 신입 사용자가 입력한 질문
+  - `rag_answer` : 문서 기반으로 답변이 생성된 메시지
+  - `no_result` : 질문 범위는 맞지만 근거 문서나 정보가 없어 답변하지 못한 메시지
+  - `out_of_scope` : 서비스 범위를 벗어난 질문에 대한 안내 메시지
+  - `suggestion` : 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
 - `rag_answer`는 답변이 생성된 경우로 간주한다.
 - `no_result`는 질문 범위는 맞지만 답변 가능한 정보가 없는 경우로 간주한다.
 - 문서 기반 답변인 경우 어떤 문서를 근거로 답변했는지 `document_id`로 연결할 수 있다.
@@ -131,16 +131,19 @@
 
 ### 설명
 - 사용자의 서비스 접속 시작 기록과 버튼 클릭 기록을 저장한다.
-- `event_type`으로 이벤트 종류를 구분한다. `SESSION_START`, `BUTTON_CLICK`
-- 접속 기록은 `SESSION_START`, 버튼 클릭 기록은 `BUTTON_CLICK` 값으로 저장할 수 있다.
-- 버튼 클릭 로그의 경우 어떤 버튼이 눌렸는지 `event_target`에 저장한다.
+- `event_type`은 아래 표준값으로 구분한다.
+  - `SESSION_START` : 사용자가 로그인에 성공하여 세션이 시작된 시점
+  - `BUTTON_CLICK` : 사용자가 특정 버튼 또는 UI 요소를 클릭한 시점
+- `SESSION_START` 로그는 로그인 성공 시 서버 내부 로직에서 자동 저장할 수 있다.
+- `BUTTON_CLICK` 로그는 프론트엔드 이벤트 수집 또는 별도 로그 수집 API 호출을 통해 저장할 수 있다.
+- `event_target`은 `BUTTON_CLICK`인 경우 클릭된 버튼 또는 UI 요소를 저장하며, `SESSION_START`인 경우 `null`일 수 있다.
 
 ---
 
 ## 테이블 관계
 #### 관계 요약
 - `companies` 1 : N `users`
-- `companies` 1 : N `documents`
+- `companies` 1 : N `documents` _(회사별 문서 기준)_
 - `users` 1 : N `chat_messages`
 - `documents` 1 : N `chat_messages` _(선택적 연결)_
 - `onboarding_suggestions` 1 : N `chat_messages` _(선택적 연결)_
@@ -165,7 +168,7 @@
 - v0.3 (2026-03-20): `questions` 테이블을 `chat_messages` 구조로 변경하고, `onboarding_suggestions` 테이블 추가
 - v1.0 (2026-03-23): `companies` 테이블 추가, 회사 식별 구조를 `company_id` 기준으로 정리, 회사 공통 문서/회사별 문서 구분 구조 반영 및 MVP 기준 ERD 확정
 - v1.1 (2026-03-26): `companies` 테이블에 `company_code` 컬럼 추가 및 로그인 식별 기준 반영, `user_activity_logs` 테이블 추가, `chat_messages.message_type` 표준값 정의 및 답변 여부 해석 기준 반영
-
+- v1.2 (2026-03-26): `user_activity_logs`의 이벤트 유형 및 로그 수집 방식 설명 보강
 
 ---
 
@@ -175,4 +178,4 @@
 ---
 
 ## 한 줄 정리
-본 ERD는 로그인 사용자 관리, 사내 문서 기반 Q&A, 입사 시점별 온보딩 가이드 제공, 채팅형 메시지 기록 저장에 필요한 최소 데이터 구조를 중심으로 설계하였다.
+본 ERD는 로그인 사용자 관리, 사내 문서 기반 Q&A, 입사 시점별 온보딩 가이드 제공, 채팅형 메시지 기록 저장, 사용자 활동 로그 저장에 필요한 최소 데이터 구조를 중심으로 설계하였다.
