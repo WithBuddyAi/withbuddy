@@ -2,8 +2,8 @@
 
 > CI/CD 파이프라인, 배포 전략 및 운영 가이드
 
-**최종 업데이트**: 2026-03-17  
-**버전**: 1.0.0
+**최종 업데이트**: 2026-03-24  
+**버전**: 1.1.1
 
 ---
 
@@ -29,6 +29,14 @@
 | **Development** | 개발자 로컬 환경 | localhost |
 | **Staging** | QA/테스트 환경 | staging.withbuddy.com |
 | **Production** | 실제 서비스 환경 | withbuddy.com |
+
+### 1.2 프로젝트 식별자
+
+| 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
+|------|----------|------------|---------------|-----------|
+| Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
+| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
 
 ### 1.2 배포 아키텍처
 
@@ -130,7 +138,7 @@ jobs:
         working-directory: ./frontend
         run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
       
       - name: Deploy to Vercel (Production)
         if: github.ref == 'refs/heads/main'
@@ -284,7 +292,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
           cache: 'pip'
       
       - name: Install dependencies
@@ -364,7 +372,7 @@ ENTRYPOINT ["java", "-jar", "-Dspring.profiles.active=prod", "app.jar"]
 
 ```dockerfile
 # ai/Dockerfile
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -382,11 +390,11 @@ COPY . .
 
 # 헬스체크
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:5000/health || exit 1
+  CMD curl -f http://localhost:8000/health || exit 1
 
 # 실행
-EXPOSE 5000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 #### docker-compose.yml
@@ -425,9 +433,10 @@ services:
     container_name: withbuddy-ai
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "8000:8000"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CHROMA_PERSIST_DIR=/app/chroma_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - DB_URL=${DB_URL}
@@ -661,7 +670,8 @@ DB_URL=jdbc:mysql://localhost:3306/withbuddy
 DB_USER=root
 DB_PASSWORD=root
 JWT_SECRET=your-secret-key-change-in-production
-OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-...
+CHROMA_PERSIST_DIR=./chroma_db
 REDIS_HOST=localhost
 REDIS_PORT=6379
 ```
@@ -684,7 +694,7 @@ Secrets:
 - DB_USER
 - DB_PASSWORD
 - JWT_SECRET
-- OPENAI_API_KEY
+- ANTHROPIC_API_KEY
 - SLACK_WEBHOOK
 ```
 
@@ -696,7 +706,8 @@ DB_URL=jdbc:mysql://mysql.internal:3306/withbuddy_prod
 DB_USER=withbuddy_user
 DB_PASSWORD=strong-password-here
 JWT_SECRET=production-jwt-secret-key
-OPENAI_API_KEY=sk-prod-...
+ANTHROPIC_API_KEY=sk-prod-...
+CHROMA_PERSIST_DIR=/opt/withbuddy/ai/chroma_db
 REDIS_HOST=redis
 REDIS_PORT=6379
 ```
@@ -1155,5 +1166,3 @@ echo "✅ Deployment complete!"
 
 ---
 
-**문서 버전**: 1.0.0  
-**작성일**: 2026-03-17

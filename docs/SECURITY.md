@@ -2,8 +2,8 @@
 
 > 인증, 인가, 데이터 보호 및 보안 모범 사례
 
-**최종 업데이트**: 2026-03-17  
-**버전**: 1.0.0
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.1.2
 
 ---
 
@@ -17,6 +17,7 @@
 - [6. 네트워크 보안](#6-네트워크-보안)
 - [7. 애플리케이션 보안](#7-애플리케이션-보안)
 - [8. 보안 모니터링](#8-보안-모니터링)
+- [9. Cloudflare/HTTPS/SSL 보안 설정](#9-cloudflarehttpsssl-보안-설정)
 
 ---
 
@@ -519,6 +520,8 @@ public class StringEncryptionConverter implements AttributeConverter<String, Str
 
 ### 4.2 비밀번호 보안
 
+**MVP 메모**: 현재 로그인은 회사코드+사번+이름 기반이며, 비밀번호 인증을 도입할 경우 아래 항목을 적용한다.
+
 #### 해싱 (BCrypt)
 
 ```java
@@ -736,6 +739,7 @@ MySQL Security Group:
     - None (완전 차단)
 ```
 
+
 ---
 
 ## 7. 애플리케이션 보안
@@ -837,6 +841,37 @@ Warning Alerts:
 
 ---
 
+## 9. Cloudflare/HTTPS/SSL 보안 설정
+
+### 9.1 Cloudflare 보안 설정 (권장)
+
+- **SSL/TLS 모드**: `Full (strict)` 사용 (원본 서버에 유효한 인증서 필수)
+- **Always Use HTTPS**: HTTP → HTTPS 강제 리다이렉트
+- **HSTS**: `max-age=31536000; includeSubDomains; preload` 적용
+- **Minimum TLS Version**: `TLS 1.2` 이상 (가능하면 1.3 우선)
+- **WAF**: OWASP Core Ruleset 활성화
+- **DDoS 방어**: L3/L4/L7 자동 보호 활성화, 대규모 공격 시 Under Attack Mode 사용
+- **Rate Limiting**: 로그인/민감 API에 제한 정책 적용
+- **Bot Fight Mode**: 기본 활성화 (트래픽 상황에 따라 튜닝)
+- **Firewall Rules**: 국가/ASN/IP 기반 차단, 관리자 경로 접근 제한
+- **Authenticated Origin Pulls**: 원본 인증 강화 (가능 시)
+
+### 9.2 HTTPS/SSL 보안 설정 (서버/로드밸런서)
+
+- **TLS 1.2/1.3만 허용**, 취약한 프로토콜/암호군 비활성화
+- **HTTP/2 또는 HTTP/3** 활성화
+- **OCSP Stapling** 활성화 (가능 시)
+- **HSTS 헤더** 서버에서 중복 적용
+- **80 → 443 리다이렉트** 필수
+- **인증서 교체 자동화** (ACME/Cloudflare Origin Cert 등)
+
+### 9.3 인증서 관리 원칙
+
+- **개발/스테이징/운영 분리 인증서** 사용
+- **키 접근 제한** (권한 최소화, 비밀관리 도구에 보관)
+- **만료 30일 전 교체 알림** 설정 및 자동 갱신 설정
+---
+
 ## 부록
 
 ### A. 보안 체크리스트
@@ -865,6 +900,3 @@ Warning Alerts:
 - [ ] NAT Gateway 아웃바운드만
 
 ---
-
-**문서 버전**: 1.0.0  
-**작성일**: 2026-03-17
