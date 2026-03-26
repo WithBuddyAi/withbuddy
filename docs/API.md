@@ -1,9 +1,9 @@
 # WithBuddy API 명세서
 
 > WithBuddy MVP 기준 REST API 문서
->
-**버전**: 1.5.1
-**최종 업데이트**: 2026-03-26
+
+**버전**: 2.1.0  
+**최종 업데이트**: 2026-03-17
 
 ---
 
@@ -557,6 +557,16 @@ Content-Type: application/json
 | `content` | `String` | Y | `"복지카드는 관련 안내 문서를 기준으로 신청한다."` | 문서 본문 | 길이: 1~5000자 / 공백만 입력 불가 / 특수문자 허용 |
 | `documentType` | `String` | Y | `"HR"` | 문서 유형 | 길이: 1~50자 / 허용 문자: 영문 대문자 + 숫자 + 밑줄(`_`) / 공백·기타 특수문자 불가 |
 | `department` | `String` | Y | `"인사팀"` | 관련 부서 | 길이: 1~50자 / 허용 문자: 한글 + 영문 대소문자 + 공백 / 특수문자·숫자 불가 |
+
+#### Response (200 OK)
+
+```json
+{
+  "answer": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
+  "messageType": "rag_answer",
+  "documentId": 10
+}
+```
 
 #### Response (200 OK)
 
