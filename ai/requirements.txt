@@ -1,0 +1,42 @@
+# ── 웹 프레임워크 ────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
+# ── LangChain 코어 및 확장 ───────────────────
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-text-splitters>=0.3.0
+langchain-community>=0.3.0
+langchain-anthropic>=0.3.0        # Claude API 연동
+langchain-huggingface>=0.1.0      # HuggingFace 임베딩
+langchain-chroma>=0.1.4           # ChromaDB LangChain 어댑터
+
+# ── 벡터 저장소 ──────────────────────────────
+chromadb>=0.5.0
+
+# ── 임베딩 모델 ──────────────────────────────
+sentence-transformers>=3.0.0      # jhgan/ko-sroberta-multitask
+
+# ── 문서 로더 (ingest.py 용) ─────────────────
+pypdf>=4.0.0                      # PDF 파일 로드
+pymupdf>=1.24.0                   # PDF→Markdown 변환 (폰트 크기 기반 제목 감지)
+python-multipart>=0.0.9           # FastAPI 파일 업로드 (multipart/form-data)
+docx2txt>=0.8                     # DOCX 파일 로드
+requests>=2.31.0                  # 사규 PDF 다운로드 (ingest_regulations.py 용)
+beautifulsoup4>=4.12.0            # HTML 파싱 (kdn.com 사규 크롤링용)
+
+# ── Slack 연동 ───────────────────────────────
+slack_sdk>=3.27.0                 # Slack Web API 클라이언트
+slack_bolt>=1.21.0                # Slack 인터랙션(버튼·모달) 수신용
+
+# ── 스케줄러 ─────────────────────────────────
+apscheduler>=3.10.0               # 평일 자동 리포트 발송
+
+# ── 환경변수 관리 ────────────────────────────
+python-dotenv>=1.0.0
+
+# ── 한국어 형태소 분석 ───────────────────────
+kiwipiepy>=0.17.0                 # 한국어 형태소 분석 (관련 문서 추천용)
+
+# ── 데이터 유효성 검사 ───────────────────────
+pydantic>=2.8.0

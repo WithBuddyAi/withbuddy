@@ -154,6 +154,7 @@ withbuddy/
 │  ├─ guides/ 
 │  │  ├─ COLLABORATION.md         # BE/CI  (초안 - 협업 규칙 📚 필독)
 │  │  ├─ CONTRIBUTING.md          # BE/CI  (초안 - 기여 가이드 📚 필독)
+│  │  ├─ AI-DEPENDENCIES.md       # BE/AI  (AI 의존성 파일 관리 가이드)
 │  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼)
 │  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼)
 │  │  ├─ ENV.md                   # BE/CI  (초안 - 환경변수)
