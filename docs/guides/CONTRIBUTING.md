@@ -80,14 +80,6 @@ PR 생성 기준:
 - `release/*`, `hotfix/*` 의 base 브랜치는 `main`
 
 ### 6. 리뷰 반영 및 merge
-![PR base branch example](./images/branch.png)
-
-- `base`: 변경사항이 병합될 대상 브랜치
-- `compare`: 현재 작업한 브랜치
-- 기능, 문서, 리팩토링 작업은 보통 `develop` 으로 PR 생성
-- `release/*`, `hotfix/*` 는 예외적으로 `main` 으로 PR 생성
-
-### 6. 리뷰 반영 및 merge
 
 - 최소 1명 이상의 승인을 받는다.
 - CI/CD 통과 여부를 확인한다.
