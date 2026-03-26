@@ -1,9 +1,22 @@
 # 기여 가이드
 
-이 문서는 실제 작업자가 브랜치를 만들고, 커밋하고, PR을 올릴 때 따라야 하는 절차를 설명한다.
 
-- 협업 규칙 요약: [COLLABORATION.md](./COLLABORATION.md)
-- 저장소 관리자 설정: [GIT-FLOW-SETUP.md](./GIT-FLOW-SETUP.md)
+> WithBuddy 프로젝트에 기여하는 방법
+> 이 문서는 실제 작업자가 브랜치를 만들고, 커밋하고, PR을 올릴 때 따라야 하는 절차를 설명한다.
+
+
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.0.0
+
+## 📋 목차
+- [기여 프로세스](#기여-프로세스)
+- [브랜치 전략](#브랜치-전략)
+- [커밋 메시지 컨벤션](#커밋-메시지-컨벤션)
+- [Pull Request 가이드](#pull-request-가이드)
+- [코드 리뷰](#코드-리뷰)
+- [다음 단계](#다음-단계)
+
+---
 
 ## 기여 프로세스
 
@@ -66,6 +79,23 @@ PR 생성 기준:
 - `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` 의 base 브랜치는 `develop`
 - `release/*`, `hotfix/*` 의 base 브랜치는 `main`
 
+### 6. 리뷰 반영 및 merge
+![PR base branch example](./images/branch.png)
+
+- `base`: 변경사항이 병합될 대상 브랜치
+- `compare`: 현재 작업한 브랜치
+- 기능, 문서, 리팩토링 작업은 보통 `develop` 으로 PR 생성
+- `release/*`, `hotfix/*` 는 예외적으로 `main` 으로 PR 생성
+
+### 6. 리뷰 반영 및 merge
+
+- 최소 1명 이상의 승인을 받는다.
+- CI/CD 통과 여부를 확인한다.
+- 리뷰 요청 사항을 반영한 뒤 다시 push 한다.
+- 기본 merge 방식은 `Squash and merge` 를 사용한다.
+- merge 후 작업 브랜치를 삭제한다.
+- `release/*`, `hotfix/*` 는 `main` 반영 후 반드시 `develop` 에도 동기화한다.
+
 ### PR 생성 화면 예시
 
 아래 예시처럼 기능 또는 문서 작업 브랜치는 `base: develop`, `compare: feature/...` 형태로 Pull Request를 생성한다.
@@ -110,7 +140,31 @@ test/테스트-추가-내용
 chore/빌드-설정-변경
 release/버전
 hotfix/버전-간단한-설명
+release/버전
+hotfix/버전-간단한-설명
 ```
+
+### 예시
+```text
+feature/123-add-weekly-report
+fix/456-login-error
+docs/update-readme
+refactor/improve-service-logic
+test/add-unit-tests
+chore/update-dependencies
+release/1.0.0
+hotfix/1.0.1-fix-login
+```
+
+### 브랜치 수명
+```
+- feature/* : PR merge 후 삭제
+- fix/* : PR merge 후 삭제
+- main : 영구 유지
+```
+
+---
+
 
 ## 커밋 메시지 컨벤션
 
@@ -193,25 +247,45 @@ test(user): Add unit tests for UserService
 
 ### PR 템플릿
 ```markdown
-## 📋 작업 내용
-<!-- 어떤 기능을 추가/수정했는지 -->
+## 요약
+- 무엇을, 왜 변경했는지 한두 줄로 간단히 작성해주세요.
 
-## 🔗 관련 이슈
-Resolves #123
+## 문서 버전 (문서 변경 시)
+- 업데이트된 문서 버전을 적어주세요.
+- 예시: `1.2.0`
 
-## ✅ 체크리스트
-- [ ] 로컬 테스트 완료
-- [ ] 코드 리뷰 준비 완료
-- [ ] 문서 업데이트 (필요 시)
+## 변경 사항
+- 변경된 동작/기능을 항목별로 적어주세요.
+- (예) 로그인 실패 시 오류 메시지 개선
 
-## 📸 스크린샷 (선택)
-<!-- UI 변경이 있는 경우 -->
+## 스크린샷/영상 (UI 변경 시)
+- 전/후 비교가 가능하도록 첨부해주세요.
+
+## 관련 이슈
+- `Closes #이슈번호` 형식으로 연결해주세요.
+- 예시: `Closes #123`
+
+## 체크리스트
+- [ ] 변경 의도와 범위를 이해할 수 있게 작성했다
+- [ ] 로컬 테스트를 수행했다 (또는 테스트 불가 사유를 기록했다)
+- [ ] 문서/가이드 업데이트가 필요한 경우 반영했다
 
 ## 💬 리뷰어에게
 <!-- 특별히 확인해주었으면 하는 부분 -->
 ```
 
 ### PR 생성 시 확인사항
+
+```text
+브랜치명이 규칙에 맞는가?
+PR 대상 브랜치가 맞는가?
+커밋 메시지가 규칙에 맞는가?
+로컬에서 테스트가 통과하는가?
+충돌이 없는가?
+리뷰어가 지정되어 있는가?
+라벨이 추가되어 있는가?
+관련 Issue가 링크되어 있는가?
+```
 
 ```text
 브랜치명이 규칙에 맞는가?
@@ -254,6 +328,6 @@ CI/CD가 통과했는가?
 
 ## 다음 단계
 
-- [코딩 컨벤션](../conventions/CODING.md) - Java, TypeScript, Python 규칙
+- [코딩 컨벤션](../conventions/CODING.md) - Java, JavaScript, Python 규칙
 - [개발 환경 설정](SETUP.md) - 로컬 개발 환경 구축
 - [Git Flow 설정 체크리스트](GIT-FLOW-SETUP.md) - GitHub 저장소 보호 규칙

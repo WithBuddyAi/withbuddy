@@ -2,6 +2,10 @@
 
 이 문서는 저장소 관리자나 어드민이 Git Flow 규칙을 GitHub 설정으로 강제할 때 사용하는 문서다.
 
+
+**최종 업데이트**: 2026-03-23  
+**버전**: 1.0.0
+
 - 팀원용 규칙 요약: [COLLABORATION.md](./COLLABORATION.md)
 - 작업자용 절차: [CONTRIBUTING.md](./CONTRIBUTING.md)
 

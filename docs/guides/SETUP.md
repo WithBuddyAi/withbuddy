@@ -2,6 +2,9 @@
 
 > WithBuddy 로컬 개발 환경 구축 완벽 가이드
 
+**최종 업데이트**: 2026-03-24  
+**버전**: 1.1.1
+
 ## 📋 목차
 - [필수 요구사항](#필수-요구사항)
 - [MySQL 설치 및 설정](#mysql-설치-및-설정)
@@ -25,6 +28,22 @@
 - IntelliJ IDEA / VS Code
 - Postman / Insomnia (API 테스트)
 - MySQL Workbench / DBeaver (DB 관리)
+
+---
+
+## 프로젝트 표준
+
+| 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
+|------|----------|------------|---------------|-----------|
+| Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
+| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
+
+**Backend 생성 기준**:
+- Project name / Artifact: `withbuddy`
+- Group / Package: `com.withbuddy`
+- Build: Gradle (Groovy)
+- Java: 21
 
 ---
 
@@ -93,6 +112,8 @@ FLUSH PRIVILEGES;
 
 DB_PASSWORD=your_password
 JWT_SECRET=your-jwt-secret-key-at-least-32-characters-long
+JWT_ACCESS_EXPIRATION=7200000
+JWT_REFRESH_EXPIRATION=604800000
 AI_API_URL=http://localhost:8000
 ```
 
@@ -101,6 +122,8 @@ AI_API_URL=http://localhost:8000
 # ~/.bashrc 또는 /etc/environment에 추가
 export DB_PASSWORD=your_password
 export JWT_SECRET=your-jwt-secret-key
+export JWT_ACCESS_EXPIRATION=7200000
+export JWT_REFRESH_EXPIRATION=604800000
 export AI_API_URL=http://localhost:8000
 
 # 적용
@@ -128,7 +151,8 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 86400000  # 24시간
+  access-expiration: ${JWT_ACCESS_EXPIRATION}   # 2시간 (7200000ms)
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION} # 7일 (604800000ms)
 
 ai:
   api:
@@ -172,12 +196,12 @@ yarn install
 
 **.env.local (로컬 개발용)**
 ```bash
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=http://localhost:8080/api
 ```
 
 **.env.production (배포용)**
 ```bash
-VITE_API_BASE_URL=https://api.withbuddy.com
+VITE_API_BASE_URL=https://api.withbuddy.com/api
 ```
 
 ### 3. 실행
@@ -222,10 +246,8 @@ pip install -r requirements.txt
 **.env 파일 생성**
 ```bash
 # ai/.env
-OPENAI_API_KEY=your_openai_api_key
-PINECONE_API_KEY=your_pinecone_api_key
-PINECONE_ENVIRONMENT=your_pinecone_environment
-PINECONE_INDEX_NAME=withbuddy-documents
+ANTHROPIC_API_KEY=your_anthropic_api_key
+CHROMA_PERSIST_DIR=./chroma_db
 ```
 
 ### 4. 실행
@@ -311,7 +333,7 @@ uvicorn app.main:app --reload --log-level debug
 # 에러: ModuleNotFoundError
 → pip install -r requirements.txt 재실행
 
-# 에러: OpenAI API key not found
+# 에러: Anthropic API key not found
 → .env 파일 확인
 ```
 
