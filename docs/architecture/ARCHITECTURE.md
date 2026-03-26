@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩 AI 통합 비서 서비스
 
-**최종 업데이트**: 2026-03-17  
-**버전**: 1.0.0
+**최종 업데이트**: 2026-03-24  
+**버전**: 1.1.1
 
 ---
 
@@ -24,49 +24,49 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         사용자 (신입사원)                      │
+│                         사용자 (신입사원)                     │
 └───────────────────────┬─────────────────────────────────────┘
                         │ HTTPS
                         ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                  Frontend (React + Vite)                     │
-│                     Vercel 호스팅                             │
+│                  Frontend (React + Vite)                    │
+│                     Vercel 호스팅                            │
 │                  (Cloudflare 도메인 관리)                     │
 └───────────────────────┬─────────────────────────────────────┘
                         │ HTTPS/CORS
                         │ API 요청
                         ↓
 ┌─────────────────────────────────────────────────────────────┐
-│              Cloud Provider (AWS/GCP/Oracle)                 │
+│              Cloud Provider (AWS/GCP/Oracle)                │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │                    VCN (Private Network)              │   │
-│  │                                                        │   │
+│  │                    VCN (Private Network)             │   │
+│  │                                                      │   │
 │  │  ┌─────────────┐      ┌─────────────┐      ┌───────┐ │   │
 │  │  │   Backend   │◄────►│   AI Server │◄────►│ Redis │ │   │
 │  │  │ Spring Boot │      │  FastAPI    │      │ Cache │ │   │
-│  │  │   (8080)    │      │   (5000)    │      │       │ │   │
+│  │  │   (8080)    │      │   (8000)    │      │       │ │   │
 │  │  └──────┬──────┘      └──────┬──────┘      └───────┘ │   │
-│  │         │                     │                        │   │
-│  │         │                     │                        │   │
-│  │         └─────────┬───────────┘                        │   │
-│  │                   ↓                                    │   │
-│  │         ┌──────────────────┐                          │   │
-│  │         │   MySQL 8.0      │                          │   │
-│  │         │   Database       │                          │   │
-│  │         └──────────────────┘                          │   │
-│  │                                                        │   │
-│  │         ┌──────────────────┐                          │   │
-│  │         │ Object Storage   │◄─── 파일 업로드/다운로드  │   │
-│  │         │  (S3/GCS/OCI)    │                          │   │
-│  │         └──────────────────┘                          │   │
+│  │         │                     │                      │   │
+│  │         │                     │                      │   │
+│  │         └─────────┬───────────┘                      │   │
+│  │                   ↓                                  │   │
+│  │         ┌──────────────────┐                         │   │
+│  │         │   MySQL 8.0      │                         │   │
+│  │         │   Database       │                         │   │
+│  │         └──────────────────┘                         │   │
+│  │                                                      │   │
+│  │         ┌──────────────────┐                         │   │
+│  │         │ Object Storage   │◄─── 파일 업로드/다운로드   │   │
+│  │         │  (S3/GCS/OCI)    │                         │   │
+│  │         └──────────────────┘                         │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                         │
                         ↓
-                 ┌─────────────┐
-                 │  OpenAI API │
-                 │  (GPT-4)    │
-                 └─────────────┘
+                 ┌────────────────────┐
+                 │  Anthropic Claude  │
+                 │       API          │
+                 └────────────────────┘
 ```
 
 ### 1.2 서버 구성
@@ -85,7 +85,7 @@
 
 #### AI Server (VCN 내부)
 - **위치**: Backend와 동일 VCN
-- **포트**: 5000
+- **포트**: 8000
 - **프로토콜**: HTTP (내부 전용)
 - **통신**: Backend ↔ AI 내부 통신
 
@@ -100,6 +100,14 @@
 - **용도**: 세션, API 응답 캐싱
 - **포트**: 6379
 
+### 1.3 프로젝트 식별자
+
+| 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
+|------|----------|------------|---------------|-----------|
+| Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
+| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
+
 ---
 
 ## 2. 기술 스택
@@ -110,7 +118,7 @@
 Framework: React 18
 Build Tool: Vite
 Language: JavaScript (ES6+)
-State Management: Context API
+State Management: Context API (JWT는 localStorage 저장, MVP)
 Routing: React Router v6
 HTTP Client: Axios
 Styling: Tailwind CSS
@@ -142,28 +150,28 @@ Logging: SLF4J + Logback
 
 ```yaml
 Framework: FastAPI
-Language: Python 3.10+
+Language: Python 3.11+
 
 # AI / LLM Framework
 LLM Framework: 
-  - LangChain (LLM 애플리케이션 개발)
-  - LangGraph (Agent 워크플로우)
-  - vLLM (고성능 LLM 추론)
+  - LangChain (RAG)
+  - LangGraph (오케스트레이터)
+  - ChromaDB (임베딩 저장, 서버 내장)
+Server:
+  - Uvicorn
 
 # AI Models
-AI Provider: OpenAI API (GPT-4)
-Open-source LLMs:
-  - Llama 3 (Meta)
-  - Qwen 2 (Alibaba)
-Vision Models: VLM (Vision-Language Models)
+AI Provider: Anthropic Claude API (MVP)
 
 # Database
 Vector DB: 
-  - ChromaDB (문서 임베딩 검색)
-  - FAISS (고속 유사도 검색)
+  - ChromaDB (서버 내장, 파일 기반)
 Graph DB: Neo4j (지식 그래프, 선택)
 RDBMS: MySQL 8.0 (메타데이터)
 NoSQL: Redis (캐싱)
+
+MVP:
+  - AI 서버 1대 + ChromaDB 내장 (별도 Chroma 서버 없음)
 
 # Data & Prototyping
 Data Processing: pandas, numpy
@@ -270,7 +278,7 @@ WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다
 [AI Server] 
    - 해당 회사의 Vector DB에서 문서 검색
    - LLM에 컨텍스트 + 질문 전달
-   - OpenAI GPT-4 답변 생성
+   - Claude API 답변 생성
    ↓
 [Backend] 응답 저장 & 캐싱
    ↓
@@ -333,7 +341,7 @@ DELETE /api/v1/records/{id}               # 삭제
 POST   /api/v1/records/{id}/summary       # AI 요약 생성
 ```
 
-**상세 문서**: [API.md](../PLANNED_API.md)
+**상세 문서**: [API.md](../API.md)
 
 ---
 
@@ -353,7 +361,7 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 
 | 문서 | 설명 |
 |------|------|
-| [API.md](../PLANNED_API.md) | 전체 API 명세서 |
+| [API.md](../API.md) | 전체 API 명세서 |
 | [ENV.md](./ENV.md) | 환경변수 가이드 |
 
 ### 🚀 개발 가이드
@@ -376,7 +384,7 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 | | MySQL | 8.0 |
 | Frontend | React | 18+ |
 | | Vite | 최신 |
-| AI | Python | 3.10+ |
+| AI | Python | 3.11+ |
 | | FastAPI | 최신 |
 | Infrastructure | Redis | 7+ |
 
@@ -392,6 +400,3 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 
 ---
 
-**문서 버전**: 1.0.0  
-**작성일**: 2026-03-17  
-**다음 리뷰 예정**: 2026-04-17
