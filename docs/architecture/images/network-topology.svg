@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="520" viewBox="0 0 1000 520">
+  <rect x="0" y="0" width="1000" height="520" fill="#ffffff"/>
+  <g stroke="#111111" stroke-width="2" fill="none">
+    <rect x="40" y="40" width="420" height="440"/>
+    <rect x="540" y="40" width="420" height="440"/>
+    <rect x="80" y="90" width="340" height="140"/>
+    <rect x="80" y="270" width="340" height="140"/>
+    <rect x="580" y="90" width="340" height="90"/>
+    <rect x="580" y="210" width="340" height="90"/>
+    <rect x="580" y="330" width="340" height="90"/>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="16" fill="#111111">
+    <text x="250" y="70" text-anchor="middle">Tenancy A (AI)</text>
+    <text x="750" y="70" text-anchor="middle">Tenancy B (Core)</text>
+    <text x="250" y="120" text-anchor="middle">VCN-A 10.1.0.0/16</text>
+    <text x="250" y="160" text-anchor="middle">Private Subnet (AI)</text>
+    <text x="250" y="190" text-anchor="middle">AI Server :8000</text>
+    <text x="250" y="300" text-anchor="middle">Admin Subnet (Optional)</text>
+    <text x="250" y="340" text-anchor="middle">Bastion / Mgmt</text>
+    <text x="750" y="120" text-anchor="middle">VCN-B 10.0.0.0/16</text>
+    <text x="750" y="150" text-anchor="middle">Public Subnet</text>
+    <text x="750" y="175" text-anchor="middle">Backend :8080</text>
+    <text x="750" y="240" text-anchor="middle">Private App Subnet</text>
+    <text x="750" y="265" text-anchor="middle">Redis :6379</text>
+    <text x="750" y="360" text-anchor="middle">Private DB Subnet</text>
+    <text x="750" y="385" text-anchor="middle">MySQL :3306</text>
+    <text x="500" y="260" text-anchor="middle">LPG (Local VCN Peering)</text>
+  </g>
+  <g stroke="#111111" stroke-width="2" fill="none">
+    <line x1="460" y1="260" x2="540" y2="260"/>
+  </g>
+</svg>

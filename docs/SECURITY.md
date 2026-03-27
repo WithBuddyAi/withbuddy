@@ -2,8 +2,9 @@
 
 > 인증, 인가, 데이터 보호 및 보안 모범 사례
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.2
+**최종 업데이트**: 2026-03-27  
+**버전**: 1.2.0  
+**작성일**: 2026-03-27
 
 ---
 
@@ -711,30 +712,30 @@ public class CspFilter implements Filter {
 
 ## 6. 네트워크 보안
 
-### 6.1 VCN 격리
+### 6.1 VCN 격리 (Cross-Tenancy)
 
 ```
 Internet
   ↓ (HTTPS only)
-Load Balancer (Public Subnet)
-  ↓ (HTTP 8080)
-Backend/AI Server (Private Subnet)
-  ↓ (MySQL 3306)
-Database (Private Subnet - 완전 격리)
+Backend (Tenancy B, Public Subnet)
+  ↓ (LPG, Private)
+AI Server (Tenancy A, Private Subnet)
+  ↓ (LPG, Private)
+Database/Redis (Tenancy B, Private Subnet)
 ```
 
 **규칙**:
-- ✅ Database는 인터넷 접근 불가
-- ✅ Backend/AI는 NAT Gateway 통해서만 아웃바운드
-- ✅ Load Balancer만 Public IP
+- ✅ Database/Redis는 인터넷 접근 불가
+- ✅ AI 서버는 VCN-A 내부 Private IP만 사용
+- ✅ Backend ↔ AI 통신은 LPG로만 허용
 
 ### 6.2 보안 그룹 최소 권한
 
 ```yaml
-MySQL Security Group:
+MySQL Security List/NSG:
   Inbound:
-    - Port 3306 from Backend SG only
-    - Port 3306 from AI Server SG only
+    - Port 3306 from VCN-B CIDR (Backend)
+    - Port 3306 from VCN-A CIDR (AI via LPG)
   Outbound:
     - None (완전 차단)
 ```
@@ -762,6 +763,12 @@ public class UserRequest {
     private String email;
 }
 ```
+
+---
+
+## 변경 이력
+
+- 2026-03-27: VCN 격리/보안 규칙을 테넌시 분리 및 LPG 통신 구조에 맞게 업데이트.
 
 ### 7.2 SQL Injection 방지
 

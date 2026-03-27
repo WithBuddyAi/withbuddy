@@ -2,8 +2,9 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.0
+**최종 업데이트**: 2026-03-27  
+**버전**: 1.2.0  
+**작성일**: 2026-03-27
 
 ## 📋 목차
 - [인프라 개요](#인프라-개요)
@@ -29,29 +30,7 @@
 
 ## 인프라 개요
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    인터넷 사용자                          │
-└─────────────────────────────────────────────────────────┘
-                          │
-        ┌─────────────────┼─────────────────┐
-        │                 │                 │
-        ▼                 ▼                 ▼
-   ┌──────────┐    ┌──────────┐      ┌──────────┐
-   │  Vercel  │    │  Oracle  │      │  Oracle  │
-   │Frontend  │    │ Compute  │      │ Compute  │
-   └──────────┘    └──────────┘      └──────────┘
-   Frontend         Backend            AI Server
-   (React)         Spring Boot         FastAPI
-                        │
-                        │ VCN Private Network
-                        ▼
-                   ┌──────────┐
-                   │  Oracle  │
-                   │ Compute  │
-                   └──────────┘
-                   MySQL 8.0
-```
+![Deployment Overview](./images/deployment-overview.svg)
 
 ### 리소스 구성
 ```yaml
@@ -61,57 +40,61 @@ Frontend:
   - CDN: Vercel Edge Network
   - HTTPS: 자동 제공
 
-Backend:
-  - Provider: Oracle Cloud Compute (Always Free Tier 가능)
+Backend (Tenancy B):
+  - Provider: Oracle Cloud Compute
   - OS: Ubuntu 22.04
-  - Shape: VM.Standard.E2.1.Micro (Always Free)
+  - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
   - IP: 공인 IP 할당
   - Port: 8080 (Spring Boot)
 
-AI Server:
+AI Server (Tenancy A):
   - Provider: Oracle Cloud Compute
   - OS: Ubuntu 22.04
-  - Shape: VM.Standard.E4.Flex (2 OCPU / 4GB RAM)
-  - IP: 공인 IP 할당 (또는 Private IP)
+  - Shape: VM.Standard.A1.Flex (4 OCPU / 24GB RAM)
+  - IP: Private IP 권장
   - Port: 8000 (FastAPI)
 
-MySQL:
+MySQL (Tenancy B):
   - Provider: Oracle Cloud Compute
   - OS: Ubuntu 22.04
-  - Shape: VM.Standard.E2.1.Micro (Always Free)
+  - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
   - IP: Private IP만 사용 (VCN 내부)
   - Port: 3306
+
+Redis (Tenancy B):
+  - Provider: Oracle Cloud Compute 또는 Backend 서버 내 운영
+  - Port: 6379
 ```
 
 ---
 
 ## Oracle Cloud 리소스 생성
 
-### 1. 컴퓨트 인스턴스 생성 (3개)
+### 1. 컴퓨트 인스턴스 생성 (3개, 테넌시 분리)
 
-**Backend 인스턴스**
+**Backend 인스턴스 (Tenancy B)**
 ```
 Name: withbuddy-backend
 Image: Canonical Ubuntu 22.04
-Shape: VM.Standard.E2.1.Micro (Always Free)
+Shape: VM.Standard.A1.Flex (2 OCPU / 12GB)
 Network: 공인 IP 할당
 Boot Volume: 50GB
 ```
 
-**AI 서버 인스턴스**
+**AI 서버 인스턴스 (Tenancy A)**
 ```
 Name: withbuddy-ai
 Image: Canonical Ubuntu 22.04
-Shape: VM.Standard.E4.Flex (2 OCPU / 4GB RAM)
-Network: 공인 IP 할당
+Shape: VM.Standard.A1.Flex (4 OCPU / 24GB)
+Network: Private IP 권장 (Public IP는 운영자만 제한)
 Boot Volume: 50GB
 ```
 
-**MySQL 인스턴스**
+**MySQL 인스턴스 (Tenancy B)**
 ```
 Name: withbuddy-mysql
 Image: Canonical Ubuntu 22.04
-Shape: VM.Standard.E2.1.Micro (Always Free)
+Shape: VM.Standard.A1.Flex (2 OCPU / 12GB)
 Network: Private IP만 (공인 IP 미할당)
 Boot Volume: 50GB
 ```
@@ -132,58 +115,100 @@ cat ~/.ssh/withbuddy_oracle.pub
 ## VCN 및 네트워크 설정
 
 ### 1. VCN (Virtual Cloud Network) 생성
+**Tenancy A (AI)**
 ```
-Name: withbuddy-vcn
+Name: withbuddy-vcn-ai
+CIDR Block: 10.1.0.0/16
+```
+
+**Tenancy B (Backend/DB/Redis)**
+```
+Name: withbuddy-vcn-core
 CIDR Block: 10.0.0.0/16
 ```
 
+**중요**: 두 VCN CIDR은 반드시 겹치지 않아야 한다.
+
 ### 2. 서브넷 생성
 ```
-Public Subnet:
+VCN-B Public Subnet:
   Name: withbuddy-public-subnet
   CIDR: 10.0.1.0/24
-  Purpose: Backend, AI 서버
+  Purpose: Backend
 
-Private Subnet:
-  Name: withbuddy-private-subnet
+VCN-B Private App Subnet:
+  Name: withbuddy-app-subnet
   CIDR: 10.0.2.0/24
+  Purpose: Redis
+
+VCN-B Private DB Subnet:
+  Name: withbuddy-private-subnet
+  CIDR: 10.0.3.0/24
   Purpose: MySQL
+
+VCN-A Private AI Subnet:
+  Name: withbuddy-ai-subnet
+  CIDR: 10.1.2.0/24
+  Purpose: AI Server
 ```
 
-### 3. 보안 목록 (Security List) 설정
+### 3. Local VCN Peering (LPG) 설정
 
-**Public Subnet 보안 규칙**
+1. 각 테넌시에서 LPG 생성  
+2. 서로 LPG OCID 교환  
+3. Requestor가 `peer-id`로 연결  
+4. 라우트 테이블에 상대 VCN CIDR → LPG 추가
+
+### 4. 보안 목록 (Security List) 설정
+
+**VCN-B Public Subnet 보안 규칙 (Backend)**
 ```
 Ingress Rules:
   - 22 (SSH) from 0.0.0.0/0
   - 8080 (Backend) from 0.0.0.0/0
-  - 8000 (AI) from 0.0.0.0/0
   - 443 (HTTPS) from 0.0.0.0/0
 
 Egress Rules:
   - All traffic to 0.0.0.0/0
 ```
 
-**Private Subnet 보안 규칙**
+**VCN-A Private AI Subnet 보안 규칙**
 ```
 Ingress Rules:
-  - 3306 (MySQL) from 10.0.1.0/24 (Public Subnet만)
+  - 8000 (AI) from 10.0.0.0/16 (VCN-B only)
+Egress Rules:
+  - All traffic to 0.0.0.0/0 (필요 시 제한)
+```
+
+**VCN-B Private DB Subnet 보안 규칙**
+```
+Ingress Rules:
+  - 3306 (MySQL) from 10.0.0.0/16 (VCN-B)
+  - 3306 (MySQL) from 10.1.0.0/16 (VCN-A, LPG)
 
 Egress Rules:
   - All traffic to 0.0.0.0/0
 ```
 
-### 4. 인터넷 게이트웨이 설정
+### 5. 인터넷 게이트웨이 설정 (VCN-B)
 ```
 Name: withbuddy-internet-gateway
-Attached to: withbuddy-vcn
+Attached to: withbuddy-vcn-core
 ```
 
-### 5. 라우팅 테이블
+### 6. 라우팅 테이블
 ```
-Public Subnet Route Table:
+VCN-B Public Subnet Route Table:
   Destination: 0.0.0.0/0
   Target: Internet Gateway
+
+VCN-B Route Table (LPG):
+  Destination: 10.1.0.0/16
+  Target: LPG-B
+
+VCN-A Route Table (LPG):
+  Destination: 10.0.0.0/16
+  Target: LPG-A
 ```
 
 ---
@@ -226,7 +251,7 @@ User=ubuntu
 WorkingDirectory=/home/ubuntu/withbuddy
 ExecStart=/usr/bin/java -jar /home/ubuntu/withbuddy/app.jar \
   --spring.profiles.active=prod \
-  --spring.datasource.url="jdbc:mysql://10.0.2.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
+  --spring.datasource.url="jdbc:mysql://10.0.3.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
   --spring.datasource.username=withbuddy \
   --spring.datasource.password="${DB_PASSWORD}" \
   --ai.api.url="${AI_API_URL}"
@@ -238,7 +263,7 @@ StandardError=journal
 
 Environment="DB_PASSWORD=your_password"
 Environment="JWT_SECRET=your_jwt_secret"
-Environment="AI_API_URL=http://10.0.1.20:8000"
+Environment="AI_API_URL=http://10.1.2.10:8000"
 
 [Install]
 WantedBy=multi-user.target
@@ -299,7 +324,7 @@ WantedBy=multi-user.target
 ### 5. 방화벽 설정
 ```bash
 sudo ufw allow 22
-sudo ufw allow 8000
+sudo ufw allow from 10.0.0.0/16 to any port 8000
 sudo ufw enable
 ```
 
@@ -422,7 +447,7 @@ AI_SERVER_IP=<AI 서버 공인 IP>
 SERVER_USER=ubuntu
 DB_PASSWORD=<MySQL 비밀번호>
 JWT_SECRET=<JWT Secret>
-AI_API_URL=http://10.0.1.20:8000
+AI_API_URL=http://10.1.2.10:8000
 ANTHROPIC_API_KEY=<Anthropic API Key>
 ```
 
@@ -511,7 +536,7 @@ jobs:
           # 애플리케이션 시작
           nohup java -jar /home/ubuntu/withbuddy/app.jar \
             --spring.profiles.active=prod \
-            --spring.datasource.url="jdbc:mysql://10.0.2.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
+            --spring.datasource.url="jdbc:mysql://10.0.3.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
             --spring.datasource.username=withbuddy \
             --spring.datasource.password="${DB_PASSWORD}" \
             --jwt.secret="${JWT_SECRET}" \
@@ -680,3 +705,9 @@ Vercel (Hobby):
 
 - [개발 환경 설정](./SETUP.md) - 로컬 개발 환경 구축
 - [API 문서](../PLANNED_API.md) - API 엔드포인트
+
+---
+
+## 변경 이력
+
+- 2026-03-27: 테넌시 분리(Backend/DB/Redis vs AI) 반영, LPG 구성 단계 추가, VCN/서브넷/보안 규칙과 IP 예시 업데이트, OCI A1.Flex 스펙 적용, 인프라 다이어그램 이미지 추가.
