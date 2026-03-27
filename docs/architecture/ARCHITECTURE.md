@@ -2,8 +2,9 @@
 
 > 신입사원 온보딩 AI 통합 비서 서비스
 
-**최종 업데이트**: 2026-03-24  
-**버전**: 1.1.1
+**최종 업데이트**: 2026-03-27  
+**버전**: 1.2.0  
+**작성일**: 2026-03-27
 
 ---
 
@@ -22,52 +23,7 @@
 
 ### 1.1 전체 구조도
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         사용자 (신입사원)                     │
-└───────────────────────┬─────────────────────────────────────┘
-                        │ HTTPS
-                        ↓
-┌─────────────────────────────────────────────────────────────┐
-│                  Frontend (React + Vite)                    │
-│                     Vercel 호스팅                            │
-│                  (Cloudflare 도메인 관리)                     │
-└───────────────────────┬─────────────────────────────────────┘
-                        │ HTTPS/CORS
-                        │ API 요청
-                        ↓
-┌─────────────────────────────────────────────────────────────┐
-│              Cloud Provider (AWS/GCP/Oracle)                │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │                    VCN (Private Network)             │   │
-│  │                                                      │   │
-│  │  ┌─────────────┐      ┌─────────────┐      ┌───────┐ │   │
-│  │  │   Backend   │◄────►│   AI Server │◄────►│ Redis │ │   │
-│  │  │ Spring Boot │      │  FastAPI    │      │ Cache │ │   │
-│  │  │   (8080)    │      │   (8000)    │      │       │ │   │
-│  │  └──────┬──────┘      └──────┬──────┘      └───────┘ │   │
-│  │         │                     │                      │   │
-│  │         │                     │                      │   │
-│  │         └─────────┬───────────┘                      │   │
-│  │                   ↓                                  │   │
-│  │         ┌──────────────────┐                         │   │
-│  │         │   MySQL 8.0      │                         │   │
-│  │         │   Database       │                         │   │
-│  │         └──────────────────┘                         │   │
-│  │                                                      │   │
-│  │         ┌──────────────────┐                         │   │
-│  │         │ Object Storage   │◄─── 파일 업로드/다운로드   │   │
-│  │         │  (S3/GCS/OCI)    │                         │   │
-│  │         └──────────────────┘                         │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                        │
-                        ↓
-                 ┌────────────────────┐
-                 │  Anthropic Claude  │
-                 │       API          │
-                 └────────────────────┘
-```
+![Architecture Overview](./images/architecture-overview.svg)
 
 ### 1.2 서버 구성
 
@@ -77,25 +33,25 @@
 - **프로토콜**: HTTPS
 - **CDN**: Vercel Edge Network
 
-#### Backend Server (VCN 내부)
-- **위치**: Cloud Provider Private Network
+#### Backend Server (VCN-B 내부)
+- **위치**: Tenancy B VCN-B
 - **포트**: 8080
 - **프로토콜**: HTTP (내부), HTTPS (외부)
 - **스케일링**: 수평 확장 가능
 
-#### AI Server (VCN 내부)
-- **위치**: Backend와 동일 VCN
+#### AI Server (VCN-A 내부)
+- **위치**: Tenancy A VCN-A (다른 테넌시)
 - **포트**: 8000
 - **프로토콜**: HTTP (내부 전용)
-- **통신**: Backend ↔ AI 내부 통신
+- **통신**: Backend ↔ AI (LPG 기반 Private 통신)
 
-#### Database Server (VCN 내부)
-- **위치**: 별도 서버, VCN 연결
+#### Database Server (VCN-B 내부)
+- **위치**: Tenancy B VCN-B
 - **포트**: 3306
 - **접근**: Private IP만 허용
 - **백업**: 자동 백업 스케줄링
 
-#### Cache Server (VCN 내부)
+#### Cache Server (VCN-B 내부)
 - **서비스**: Redis
 - **용도**: 세션, API 응답 캐싱
 - **포트**: 6379
@@ -194,8 +150,8 @@ Cache: Redis
 ### 2.4 Infrastructure
 
 ```yaml
-Cloud Provider: AWS / GCP / Oracle Cloud (선택 예정)
-Network: VCN (Virtual Cloud Network)
+Cloud Provider: Oracle Cloud
+Network: VCN x2 (Tenancy 분리) + Local VCN Peering (LPG)
 Storage: S3 / Google Cloud Storage / OCI Object Storage
 Cache: Redis
 Domain: Cloudflare
@@ -399,4 +355,8 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 - **LoRA**: Low-Rank Adaptation, 경량 모델 파인튜닝
 
 ---
+
+## 변경 이력
+
+- 2026-03-27: 오사카 리전 기준 테넌시 분리 구조 반영, LPG 통신 경로 및 다이어그램 업데이트, Infrastructure 항목 최신화, 구조도 이미지 추가.
 
