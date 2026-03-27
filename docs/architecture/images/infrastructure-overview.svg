@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="420" viewBox="0 0 1000 420">
+  <rect x="0" y="0" width="1000" height="420" fill="#ffffff"/>
+  <g stroke="#111111" stroke-width="2" fill="none">
+    <rect x="40" y="30" width="920" height="90"/>
+    <rect x="80" y="150" width="340" height="220"/>
+    <rect x="580" y="150" width="340" height="220"/>
+    <rect x="120" y="200" width="260" height="50"/>
+    <rect x="120" y="270" width="260" height="50"/>
+    <rect x="620" y="200" width="260" height="50"/>
+    <rect x="620" y="270" width="260" height="50"/>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="16" fill="#111111">
+    <text x="500" y="80" text-anchor="middle">Cloudflare (DNS/CDN)</text>
+    <text x="250" y="175" text-anchor="middle">Vercel (Frontend)</text>
+    <text x="750" y="175" text-anchor="middle">OCI (Backend/AI/DB)</text>
+    <text x="250" y="232" text-anchor="middle">Frontend</text>
+    <text x="250" y="302" text-anchor="middle">Public API</text>
+    <text x="750" y="232" text-anchor="middle">Backend</text>
+    <text x="750" y="302" text-anchor="middle">AI / DB / Redis</text>
+  </g>
+  <g stroke="#111111" stroke-width="2" fill="none">
+    <line x1="500" y1="120" x2="250" y2="150"/>
+    <line x1="500" y1="120" x2="750" y2="150"/>
+  </g>
+</svg>
