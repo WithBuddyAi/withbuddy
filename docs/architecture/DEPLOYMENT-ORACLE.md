@@ -451,6 +451,47 @@ AI_API_URL=http://10.1.2.10:8000
 ANTHROPIC_API_KEY=<Anthropic API Key>
 ```
 
+### 1-1. 현재 AI 배포 워크플로우 기준 필수 Secrets (2026-03-29)
+
+현재 저장소의 [`ai-deploy.yml`](../../.github/workflows/ai-deploy.yml)은 아래 시크릿을 사용한다.
+
+```
+AI_SERVER_HOST=<예: 217.142.242.239>
+AI_SERVER_USER=ubuntu
+AI_SERVER_SSH_KEY=<AI 서버 접속 개인키 전체>
+AI_APP_DIR=/home/ubuntu/withbuddy/ai
+AI_SERVICE_NAME=withbuddy-ai
+```
+
+주의:
+- 위 5개 시크릿 중 하나라도 누락되면 배포가 실패한다.
+- 기존 `AI_SERVER_IP`, `SERVER_USER`, `SSH_PRIVATE_KEY` 기반 예시와 혼용하지 않는다.
+
+### 1-2. AI 자동배포 선행 조건 (서버 측)
+
+`ai-deploy.yml`은 원격 서버에서 `git pull`, `venv activate`, `pip install`, `systemctl restart`를 수행한다.
+따라서 서버는 아래 조건을 만족해야 한다.
+
+1. `AI_APP_DIR` 경로가 git repository여야 한다.
+2. `AI_APP_DIR/venv`가 존재해야 한다.
+3. `AI_SERVICE_NAME` 서비스 파일이 systemd에 등록되어 있어야 한다.
+4. 배포 계정이 아래 명령을 sudo 비밀번호 없이 실행 가능해야 한다.
+   - `systemctl restart <AI_SERVICE_NAME>`
+   - `systemctl status <AI_SERVICE_NAME>`
+5. 서비스 재시작 후 `127.0.0.1:8000/health`가 정상 응답해야 한다.
+
+### 1-3. AI 서버 사전 점검 명령어
+
+```bash
+ssh -i ~/.ssh/ssh-withbuddy.key ubuntu@217.142.242.239
+
+cd /home/ubuntu/withbuddy/ai
+test -d .git && echo "git repo ok"
+test -d venv && echo "venv ok"
+sudo systemctl status --no-pager withbuddy-ai
+curl -i http://127.0.0.1:8000/health
+```
+
 ### 2. Backend 배포 워크플로우
 
 **.github/workflows/backend-deploy.yml**
@@ -711,3 +752,11 @@ Vercel (Hobby):
 ## 변경 이력
 
 - 2026-03-27: 테넌시 분리(Backend/DB/Redis vs AI) 반영, LPG 구성 단계 추가, VCN/서브넷/보안 규칙과 IP 예시 업데이트, OCI A1.Flex 스펙 적용, 인프라 다이어그램 이미지 추가.
+- 2026-03-29: 실제 `ai-deploy.yml` 시크릿 명세와 자동배포 선행조건(systemd/venv/sudoers/health-check) 추가.
+
+## 개발 일지
+
+### 2026-03-29
+
+- 문서 내 AI 배포 시크릿 체계를 실제 워크플로우 기준으로 정리.
+- 자동배포 실패를 방지하기 위해 서버 선행조건과 점검 명령어를 명문화.

@@ -4,6 +4,23 @@
 
 ---
 
+## 2026.03.29
+
+### 운영/배포 문서 정비
+- AI 서버 기준 문서를 "노트북 + 터널" 운영 방식에서 "실서버 + systemd + GitHub Actions" 기준으로 업데이트
+- AI 자동배포 전에 필요한 서버 선행조건을 문서에 명시
+  - `AI_APP_DIR` git repository
+  - `venv` 존재
+  - `withbuddy-ai.service` 등록
+  - `sudo systemctl restart/status` 권한
+  - `127.0.0.1:8000/health` 정상 응답
+
+### 점검 결과 기록
+- 실서버(`217.142.242.239`) 점검 시점에 `uvicorn`, `nginx`, `withbuddy-ai.service` 미구성 상태 확인
+- 배포 준비 상태를 "미완료"로 판정하고, 문서에 미충족 항목을 체크리스트 형태로 반영
+
+---
+
 ## 2026.03.22
 
 ### 기능 개선
