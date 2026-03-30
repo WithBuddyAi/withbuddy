@@ -2,8 +2,8 @@
 
 WithBuddy 프로젝트의 환경변수 설정 가이드입니다.
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.0
+**최종 업데이트**: 2026-03-30  
+**버전**: 1.1.1
 
 ## 📋 목차
 
@@ -151,7 +151,7 @@ MODEL_TEMPERATURE=0.7
 
 # 서버 설정
 AI_SERVER_PORT=8000
-AI_SERVER_HOST=0.0.0.0
+AI_BIND_HOST=0.0.0.0
 CHROMA_PERSIST_DIR=./chroma_db
 ```
 
@@ -207,6 +207,25 @@ Settings → Secrets and variables → Actions → New repository secret
 - `DB_PASSWORD` - 데이터베이스 비밀번호
 - `JWT_SECRET` - JWT 서명 키
 - `ANTHROPIC_API_KEY` - Anthropic Claude API 키
+
+### AI 배포용 Environment Secrets (production)
+
+`Deploy AI Server` 워크플로우(`.github/workflows/ai-deploy.yml`)는 아래 `production` 환경 시크릿을 사용한다.
+
+```bash
+${{ secrets.AI_SERVER_HOST }}=217.142.242.239
+${{ secrets.AI_SERVER_USER }}=ubuntu
+${{ secrets.AI_SERVER_SSH_KEY }}=<AI 서버 접속 개인키 전체>
+${{ secrets.AI_APP_DIR }}=/home/ubuntu/withbuddy/ai
+${{ secrets.AI_SERVICE_NAME }}=withbuddy-ai
+```
+
+등록 상태:
+- 위 5개 시크릿은 GitHub Actions `Environment: production`에 등록 완료됨 (확인일: 2026-03-30).
+
+주의:
+- 위 값은 Repository secrets가 아니라 **Environment secrets (production)** 기준이다.
+- `${{ secrets.AI_SERVER_HOST }}`는 서버 주소이며, `AI_BIND_HOST=0.0.0.0` 같은 애플리케이션 바인딩 값과 의미가 다르다.
 
 **선택 Secrets:**
 - `SENTRY_DSN` - 에러 트래킹 DSN
@@ -339,4 +358,11 @@ VITE_API_URL=xxx
 
 ---
 
-**마지막 업데이트**: 2026-03-16
+## 변경 이력
+
+- 2026-03-30: AI 배포용 `production` Environment Secrets 등록 상태를 추가하고 `${{ secrets.* }}` 표기로 통일.
+- 2026-03-23: AI/Backend/Frontend 환경변수 구조 정리.
+
+---
+
+**마지막 업데이트**: 2026-03-30
