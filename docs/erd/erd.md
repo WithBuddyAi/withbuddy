@@ -1,7 +1,7 @@
 # ERD
 
-**현재 버전: v1.2**  
-**최종 수정일: 2026-03-26**
+**현재 버전: v1.3**  
+**최종 수정일: 2026-03-30**
 
 ## 개요
 **MVP 기준 ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
@@ -55,7 +55,7 @@
 - `id` : PK, bigint
 - `company_id` : FK → `companies.id`, nullable
 - `title` : 문서 제목, varchar
-- `content` : 문서 내용, text
+- `content` : 문서 내용, mediumtext
 - `document_type` : 문서 유형, varchar
 - `department` : 관련 부서, varchar
 - `is_active` : 사용 여부, boolean
@@ -169,6 +169,7 @@
 - v1.0 (2026-03-23): `companies` 테이블 추가, 회사 식별 구조를 `company_id` 기준으로 정리, 회사 공통 문서/회사별 문서 구분 구조 반영 및 MVP 기준 ERD 확정
 - v1.1 (2026-03-26): `companies` 테이블에 `company_code` 컬럼 추가 및 로그인 식별 기준 반영, `user_activity_logs` 테이블 추가, `chat_messages.message_type` 표준값 정의 및 답변 여부 해석 기준 반영
 - v1.2 (2026-03-26): `user_activity_logs`의 이벤트 유형 및 로그 수집 방식 설명 보강
+- v1.3 (2026-03-30): `documents` 테이블 `content` 수정
 
 ---
 
