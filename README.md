@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-03-24  
-**버전**: 1.1.1
+**최종 업데이트**: 2026-03-30  
+**버전**: 1.1.3
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
@@ -135,7 +135,9 @@ withbuddy/
 │  │  ├─ bug_report.md          # BE/CI  (New Issue 생성시 제공되는 버그 리포트 관리 템플릿)
 │  │  └─ config.yml             # BE/CI  (New Issue 생성시 안내되는 기여 가이드 링크) 
 │  └─ workflows/               
-│     └─ ci.yml                 # BE/CI  (ci.yml 테스트 목적은 “푸시/PR에서 변경된 코드가 정상 빌드되고 기본 품질 기준을 만족하는지”를 자동으로 확인하는 겁니다. 이 워크플로에서는 변경된 영역만 골라서, 해당 영역의 빌드와 테스트(백엔드/프론트/AI)를 돌려서 기능 회귀나 빌드 실패를 조기에 잡는 데 목적이 있습니다. 예외)모든 문서 파일들은 테스트에서 제외 처리하도록 설정되어 있습니다)
+│     ├─ ci.yml                 # BE/CI  (변경 영역 빌드/테스트 자동 검증)
+│     ├─ ai-deploy.yml          # AI/CI  (AI 서버 자동 배포 워크플로우)
+│     └─ pr-autofill.yml        # BE/CI  (PR 본문 자동 생성 워크플로우)
 │ 
 ├─ ai/                          # AI (기능 구현 시작 후 이 폴더에서 관리)
 │ 
@@ -143,28 +145,29 @@ withbuddy/
 │ 
 ├─ docs/
 │  ├─ architecture/
-│  │  ├─ AI_ARCHITECTURE.md     # AI  (초안 - AI 아키텍처)
-│  │  ├─ ARCHITECTURE.md        # BE/CI  (초안 - 시스템 아키텍처)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - OCI 배포 가이드)
-│  │  ├─ DEPLOYMENT.md          # BE/CI  (초안 - 배포 가이드)
-│  │  └─ INFRASTRUCTURE.md      # BE/CI  (초안 - 인프라 구조)
+│  │  ├─ AI_ARCHITECTURE.md     # AI  (AI 아키텍처)
+│  │  ├─ ARCHITECTURE.md        # BE/CI  (시스템 아키텍처)
+│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (OCI 배포 가이드)
+│  │  ├─ DEPLOYMENT.md          # BE/CI  (배포 가이드)
+│  │  ├─ INFRASTRUCTURE.md      # BE/CI  (인프라 구조)
+│  │  └─ SERVER_GUIDE.md        # AI/CI  (AI 서버 운영/배포 점검 가이드)
 │  │
 │  ├─ erd/                      # BE (MVP 단계에서 진행)
 │  │
 │  ├─ guides/ 
-│  │  ├─ COLLABORATION.md         # BE/CI  (초안 - 협업 규칙 📚 필독)
-│  │  ├─ CONTRIBUTING.md          # BE/CI  (초안 - 기여 가이드 📚 필독)
+│  │  ├─ COLLABORATION.md         # BE/CI  (협업 규칙 📚 필독)
+│  │  ├─ CONTRIBUTING.md          # BE/CI  (기여 가이드 📚 필독)
 │  │  ├─ AI-DEPENDENCIES.md       # BE/AI  (AI 의존성 파일 관리 가이드)
-│  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼)
-│  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼)
-│  │  ├─ ENV.md                   # BE/CI  (초안 - 환경변수)
-│  │  ├─ GIT-FLOW-SETUP.md        # BE/CI  (초안 - Git Flow 설정 체크리스트)
+│  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼 📚 필독)
+│  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼📚 필독)
+│  │  ├─ ENV.md                   # BE/CI  (환경변수 및 GitHub Secrets 가이드)
+│  │  ├─ GIT-FLOW-SETUP.md        # BE/CI  (Git Flow 설정 체크리스트)
 │  │  ├─ GITHUB-SSH.md            # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
-│  │  └─ SETUP.md                 # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
+│  │  └─ SETUP.md                 # BE/CI  (개발 환경 설정 가이드 📚 필독)
 │  │
-│  ├─ API.md                    # BE  (초안 - API 명세서)
-│  ├─ MULTI_TENANCY.md          # BE  (초안 - 멀티 테넌시 아키텍처)
-│  ├─ PLANNED_API.md            # BE  (초안 - Planned API)
+│  ├─ API.md                    # BE  (API 명세서)
+│  ├─ MULTI_TENANCY.md          # BE  (멀티 테넌시 아키텍처)
+│  ├─ PLANNED_API.md            # BE  (Planned API)
 │  └─ SECURITY.md               # BE/CI  (보안 설계)
 │                               
 ├─ frontend/                    # FE  (기능 구현 시작 후 이 폴더에서 관리)
@@ -180,29 +183,24 @@ withbuddy/
 
 ### 시작하기
 - **[개발 환경 설정](./docs/guides/SETUP.md)** - MySQL, 환경변수, 실행 방법
-- **[GitHub SSH 키 설정 가이드](./docs/guides/GIT-FLOW-SETUP.md)** - MySQL, 환경변수, 실행 방법
-- **[환경변수 관리](./docs/guides/ENV.md)** - application.yml, .env 설정
+- **[GitHub SSH 키 설정 가이드](./docs/guides/GITHUB-SSH.md)** - GitHub 연동용 SSH 설정
+- **[환경변수 관리](./docs/guides/ENV.md)** - 서비스 환경변수 + GitHub Actions `Environment: production` 시크릿 설정
 
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
 - **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
+- **[Git Flow 설정 체크리스트](./docs/guides/GIT-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS, PR 자동 본문 설정
 - **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
 
 ### 아키텍처
 - **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
+- **[AI 서버 운영 가이드](./docs/architecture/SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
+- **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
 
 ### API
 - **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
-
-### 협업
-- **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
-- **[기여 가이드](docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
-- **[Git Flow 설정 체크리스트](./docs/guides/GIT-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS
-- **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
-
----
 
 > 📊 [전체 로드맵 보기](./docs/ROADMAP.md)
 
@@ -346,3 +344,9 @@ withbuddy/
 [🏠 홈페이지](https://withbuddy.com) • [📖 문서](./docs) • [💬 논의](https://github.com/WithBuddyAi/withbuddy/discussions)
 
 </div>
+
+---
+
+## 변경 이력
+
+- 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
