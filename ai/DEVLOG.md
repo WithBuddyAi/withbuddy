@@ -4,12 +4,20 @@
 
 ---
 
+## 2026.03.30
+
+### 문서 메타데이터 정비
+- AI 서버/배포/환경변수 관련 문서의 최종 업데이트일, 버전, 변경 이력을 최신 상태로 동기화
+- GitHub Actions 시크릿 표기를 `${{ secrets.* }}` 형식으로 통일
+
+---
+
 ## 2026.03.29
 
 ### 운영/배포 문서 정비
 - AI 서버 기준 문서를 "노트북 + 터널" 운영 방식에서 "실서버 + systemd + GitHub Actions" 기준으로 업데이트
 - AI 자동배포 전에 필요한 서버 선행조건을 문서에 명시
-  - `AI_APP_DIR` git repository
+  - `${{ secrets.AI_APP_DIR }}` git repository
   - `venv` 존재
   - `withbuddy-ai.service` 등록
   - `sudo systemctl restart/status` 권한
