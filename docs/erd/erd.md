@@ -55,7 +55,7 @@
 - `id` : PK, bigint
 - `company_id` : FK → `companies.id`, nullable
 - `title` : 문서 제목, varchar
-- `content` : 문서 내용, text
+- `content` : 문서 내용, mediumtext
 - `document_type` : 문서 유형, varchar
 - `department` : 관련 부서, varchar
 - `is_active` : 사용 여부, boolean
