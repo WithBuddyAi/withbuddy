@@ -3,8 +3,8 @@
 이 문서는 저장소 관리자나 어드민이 Git Flow 규칙을 GitHub 설정으로 강제할 때 사용하는 문서다.
 
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.0.0
+**최종 업데이트**: 2026-03-30  
+**버전**: 1.0.1
 
 - 팀원용 규칙 요약: [COLLABORATION.md](./COLLABORATION.md)
 - 작업자용 절차: [CONTRIBUTING.md](./CONTRIBUTING.md)
@@ -147,3 +147,22 @@ git push origin v1.0.0
 - `main`, `develop` direct push가 기술적으로 차단된다
 - PR approval과 CI 통과가 merge 조건으로 강제된다
 - `main` 변경이 `develop`으로 역반영되는 절차가 문서화된다
+
+## 10. PR 자동 본문 생성 설정
+
+대상 파일: `.github/workflows/pr-autofill.yml`
+
+설정 목적:
+- PR 생성 시 커밋 메시지를 기반으로 PR 본문을 자동 작성한다.
+- PR 본문 템플릿 형식은 `.github/pull_request_template.md`를 따른다.
+
+운영 규칙:
+- 트리거: `pull_request` `opened`, `reopened`, `synchronize`
+- 본문 잠금: `<!-- AUTO_FILL_LOCK -->`가 본문에 있으면 자동 갱신 중단
+
+권한 확인:
+- workflow permissions에 `pull-requests: write` 필요
+
+## 변경 이력
+
+- 2026-03-30: `pr-autofill.yml` 운영 규칙 및 권한 요구사항 추가.
