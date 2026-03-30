@@ -1,6 +1,10 @@
 # With Buddy AI 서버 가이드
 
-> 2026-03-29 기준 정리 (실서버 운영 기준)
+> 2026-03-30 기준 정리 (실서버 운영 기준)
+
+**최종 업데이트**: 2026-03-30  
+**버전**: 1.0.1  
+**작성일**: 2026-03-24
 
 ---
 
@@ -68,16 +72,25 @@ AI 서버 → answer + sourceDocumentId 반환
 - `8000`은 외부 공개하지 않는다.
 - CORS는 운영 도메인으로 제한한다 (`*` 금지).
 
----
+- 프로세스는 `systemd` 서비스(`withbuddy-ai.service`)로 관리한다.
+- 앱은 `uvicorn app.main:app`로 실행한다.
+- `--host 127.0.0.1 --port 8000`을 기본값으로 사용하고 외부 노출은 리버스 프록시에서 처리한다.
+
+### 4.2 필수 파일/경로
+
+- 앱 경로: `/home/ubuntu/withbuddy/ai`
+- 가상환경: `/home/ubuntu/withbuddy/ai/venv`
+- 환경변수 파일: `/etc/withbuddy/ai.env` (권장)
+- Chroma 저장 경로: `/home/ubuntu/withbuddy/ai/chroma_db`
 
 ## 5. CI/CD 배포 전 필수 점검
 
 `/.github/workflows/ai-deploy.yml`가 실패 없이 동작하려면 아래가 선행되어야 한다.
 
-1. `AI_APP_DIR`가 git repository 경로여야 한다.
-2. `AI_APP_DIR` 하위에 `venv`가 존재해야 한다.
-3. `AI_SERVICE_NAME`에 해당하는 `systemd` 서비스가 존재해야 한다.
-4. 배포 사용자(`ubuntu`)가 `sudo systemctl restart/status <AI_SERVICE_NAME>`를 비밀번호 없이 수행할 수 있어야 한다.
+1. `${{ secrets.AI_APP_DIR }}`가 git repository 경로여야 한다.
+2. `${{ secrets.AI_APP_DIR }}` 하위에 `venv`가 존재해야 한다.
+3. `${{ secrets.AI_SERVICE_NAME }}`에 해당하는 `systemd` 서비스가 존재해야 한다.
+4. 배포 사용자(`ubuntu`)가 `sudo systemctl restart/status <${{ secrets.AI_SERVICE_NAME }}>`를 비밀번호 없이 수행할 수 있어야 한다.
 5. 서비스 재기동 후 `http://127.0.0.1:8000/health`가 `200`을 반환해야 한다.
 
 ---
@@ -98,7 +111,14 @@ AI 서버 → answer + sourceDocumentId 반환
 
 ---
 
-## 7. 개발 일지
+## 7. 변경 이력
+
+- 2026-03-30: GitHub Actions 시크릿 표기를 `${{ secrets.* }}` 형식으로 통일.
+- 2026-03-29: 운영 기준을 실서버/CI 기반으로 개편하고 CI/CD 선행조건을 추가.
+
+---
+
+## 8. 개발 일지
 
 ### 2026-03-29
 

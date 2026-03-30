@@ -6,26 +6,79 @@ on:
     paths:
       - "ai/**"
       - ".github/workflows/ai-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ai-deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   deploy:
     name: Deploy to WithBuddy AI Server
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 20
     steps:
+      - name: Validate required environment secrets
+        env:
+          AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+          AI_SERVER_USER: ${{ secrets.AI_SERVER_USER }}
+          AI_SERVER_SSH_KEY: ${{ secrets.AI_SERVER_SSH_KEY }}
+          AI_APP_DIR: ${{ secrets.AI_APP_DIR }}
+          AI_SERVICE_NAME: ${{ secrets.AI_SERVICE_NAME }}
+        run: |
+          set -euo pipefail
+          required_vars=(
+            AI_SERVER_HOST
+            AI_SERVER_USER
+            AI_SERVER_SSH_KEY
+            AI_APP_DIR
+            AI_SERVICE_NAME
+          )
+          for v in "${required_vars[@]}"; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret: $v"
+              exit 1
+            fi
+          done
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AI_SERVER_HOST }}
           username: ${{ secrets.AI_SERVER_USER }}
           key: ${{ secrets.AI_SERVER_SSH_KEY }}
+          command_timeout: 20m
           script: |
-            set -e
+            set -Eeuo pipefail
             cd "${{ secrets.AI_APP_DIR }}"
+            if [ ! -d .git ]; then
+              echo "AI_APP_DIR is not a git repository: $(pwd)"
+              exit 1
+            fi
             git fetch origin
             git checkout main
             git pull origin main
+            if ! command -v python3 >/dev/null 2>&1; then
+              echo "python3 is required on server"
+              exit 1
+            fi
+            if [ ! -d venv ]; then
+              python3 -m venv venv
+            fi
             . venv/bin/activate
+            python -m pip install --upgrade pip
             pip install -r requirements.txt
             sudo systemctl restart "${{ secrets.AI_SERVICE_NAME }}"
+            sudo systemctl is-active --quiet "${{ secrets.AI_SERVICE_NAME }}"
             sudo systemctl status --no-pager "${{ secrets.AI_SERVICE_NAME }}"
+            for i in 1 2 3 4 5; do
+              if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8000/health >/dev/null; then
+                break
+              fi
+              if [ "$i" -eq 5 ]; then
+                echo "Health check failed after retries"
+                exit 1
+              fi
+              sleep 2
+            done
