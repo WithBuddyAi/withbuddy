@@ -72,7 +72,16 @@ AI 서버 → answer + sourceDocumentId 반환
 - `8000`은 외부 공개하지 않는다.
 - CORS는 운영 도메인으로 제한한다 (`*` 금지).
 
----
+- 프로세스는 `systemd` 서비스(`withbuddy-ai.service`)로 관리한다.
+- 앱은 `uvicorn app.main:app`로 실행한다.
+- `--host 127.0.0.1 --port 8000`을 기본값으로 사용하고 외부 노출은 리버스 프록시에서 처리한다.
+
+### 4.2 필수 파일/경로
+
+- 앱 경로: `/home/ubuntu/withbuddy/ai`
+- 가상환경: `/home/ubuntu/withbuddy/ai/venv`
+- 환경변수 파일: `/etc/withbuddy/ai.env` (권장)
+- Chroma 저장 경로: `/home/ubuntu/withbuddy/ai/chroma_db`
 
 ## 5. CI/CD 배포 전 필수 점검
 
