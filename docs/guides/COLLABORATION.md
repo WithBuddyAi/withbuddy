@@ -1,20 +1,14 @@
 # WithBuddy 협업 규칙
 
-이 문서는 팀원이 반드시 지켜야 하는 협업 원칙만 빠르게 확인할 수 있도록 정리한 요약본이다.
+팀원이 빠르게 확인해야 하는 Git Flow 협업 규칙 요약 문서다.
 
-
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.0.0
+**최종 업데이트**: 2026-03-30  
+**버전**: 1.0.1
 
 - 실무 절차: [CONTRIBUTING.md](./CONTRIBUTING.md)
-- 저장소 설정: [GIT-FLOW-SETUP.md](./GIT-FLOW-SETUP.md)
+- 관리자 설정: [GIT-FLOW-SETUP.md](./GIT-FLOW-SETUP.md)
 
-```text
-기능 개발: develop -> feature/* -> develop
-릴리스 준비: develop -> release/* -> main -> develop
-긴급 수정: main -> hotfix/* -> main -> develop
-```
-
+## 브랜치 흐름
 
 ```text
 기능 개발: develop -> feature/* -> develop
@@ -24,98 +18,43 @@
 
 ## 반드시 지킬 규칙
 
-1. `main` 브랜치에 직접 push 하지 않는다.
-2. `develop` 브랜치에 직접 push 하지 않는다.
-3. 모든 변경사항은 Pull Request로만 병합한다.
-4. 최소 1명 이상의 승인 없이 merge 하지 않는다.
-5. 필수 CI check가 실패하면 merge 하지 않는다.
+1. `main` 직접 push 금지
+2. `develop` 직접 push 금지
+3. 모든 변경은 PR로만 병합
+4. 최소 1명 승인 후 병합
+5. 필수 CI check 통과 후 병합
+6. `main` 반영 후 `develop` 역반영 필수 (`release/*`, `hotfix/*`)
 
 ## 브랜치 역할
 
 - `main`: 운영 배포 브랜치
-- `develop`: 다음 배포를 준비하는 통합 브랜치
-- `docs/*`: 개발 문서. `develop`에서 분기
-- `feature/*`: 기능 개발 브랜치. `develop`에서 분기
-- `fix/*`: 버그 수정 브랜치. `develop`에서 분기
-- `refactor/*`: 리팩토링 브랜치. `develop`에서 분기
-- `test/*`: 테스트 추가/수정 브랜치. `develop`에서 분기
-- `chore/*`: 설정 및 빌드 변경 브랜치. `develop`에서 분기
-- `release/*`: 배포 준비 브랜치. `develop`에서 분기
-- `hotfix/*`: 긴급 수정 브랜치. `main`에서 분기
+- `develop`: 다음 배포 준비 통합 브랜치
+- `feature/*`: 기능 개발
+- `fix/*`: 버그 수정
+- `docs/*`: 문서 수정
+- `refactor/*`: 리팩토링
+- `test/*`: 테스트
+- `chore/*`: 설정/빌드 변경
+- `release/*`: 릴리스 준비
+- `hotfix/*`: 운영 긴급 수정
 
 ## PR 대상 브랜치
 
-- `feature/*` -> `develop`
-- `fix/*` -> `develop`
-- `docs/*` -> `develop`
-- `refactor/*` -> `develop`
-- `test/*` -> `develop`
-- `chore/*` -> `develop`
-- `release/*` -> `main`
-- `hotfix/*` -> `main`
+- `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` -> `develop`
+- `release/*`, `hotfix/*` -> `main`
 
-## merge 후 후속 작업
+## PR 작성 규칙
 
-- `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` 는 merge 후 브랜치 삭제
-- `release/*`, `hotfix/*` 는 `main` 반영 후 반드시 `develop`에도 변경사항 동기화
-- 운영 배포 시 Git tag 생성 권장: `v1.0.0`
+- 기본 PR 템플릿은 `.github/pull_request_template.md`를 사용
+- PR 생성 시 `.github/workflows/pr-autofill.yml`이 커밋 메시지 기반으로 본문을 자동 작성
+- 자동 작성 잠금이 필요하면 PR 본문에 `<!-- AUTO_FILL_LOCK -->` 추가
 
-## 리뷰어 기준
+## 리뷰/병합 규칙
 
-- 백엔드 코드: `@WithBuddyAi/backend-developers`
-- 프론트 코드: `@WithBuddyAi/frontend`
-- AI 코드: `@WithBuddyAi/AI`
-- 공통 설정, GitHub 설정, 긴급 이슈: `@WithBuddyAi/admins`
+- 기본 병합 방식: `Squash and merge`
+- 필요 시 `release/*`, `hotfix/*`는 이력 보존 merge 허용
+- self-merge는 예외 상황 외 금지
 
-## merge 방식
-- `main`: 운영 배포 브랜치
-- `develop`: 다음 배포를 준비하는 통합 브랜치
-- `feature/*`: 기능 개발 브랜치. `develop`에서 분기
-- `release/*`: 배포 준비 브랜치. `develop`에서 분기
-- `hotfix/*`: 긴급 수정 브랜치. `main`에서 분기
+## 변경 이력
 
-## PR 대상 브랜치
-
-- `feature/*` -> `develop`
-- `fix/*` -> `develop`
-- `docs/*` -> `develop`
-- `refactor/*` -> `develop`
-- `test/*` -> `develop`
-- `chore/*` -> `develop`
-- `release/*` -> `main`
-- `hotfix/*` -> `main`
-
-## merge 후 후속 작업
-
-- `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` 는 merge 후 브랜치 삭제
-- `release/*`, `hotfix/*` 는 `main` 반영 후 반드시 `develop`에도 변경사항 동기화
-- 운영 배포 시 Git tag 생성 권장: `v1.0.0`
-
-## 리뷰어 기준
-
-- 백엔드 코드: `@WithBuddyAi/backend-developers`
-- 프론트 코드: `@WithBuddyAi/frontend`
-- AI 코드: `@WithBuddyAi/AI`
-- 공통 설정, GitHub 설정, 긴급 이슈: `@WithBuddyAi/admins`
-
-## merge 방식
-
-- 기본 merge 방식은 `Squash and merge`
-- `release/*`, `hotfix/*` 는 이력 보존이 필요하면 일반 merge 허용
-- self-merge는 예외 상황이 아니면 금지
-
-## 커밋 메시지 기본 규칙
-
-- `feat`: 새로운 기능
-- `fix`: 버그 수정
-- `refactor`: 리팩토링
-- `test`: 테스트 코드
-- `docs`: 문서 수정
-- `chore`: 설정 및 빌드 변경
-
-예시:
-```text
-feat: Add weekly report generation
-fix: Resolve login authentication error
-docs: Update collaboration guide
-```
+- 2026-03-30: 문서 중복 내용을 정리하고 `pr-autofill.yml` 기반 PR 자동 본문 규칙 추가.
