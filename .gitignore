@@ -51,3 +51,7 @@ datasets/
 .ruff_cache/
 .coverage
 coverage/
+
+# Frontend
+frontend/.claude
+frontend/node_modules
