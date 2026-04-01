@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import char from '../assets/favicon.svg'
+import char from '../assets/Favicon.svg'
 import withbuddy from '../assets/WithBuddy.svg'
 import { useNavigate } from "react-router-dom";
 import { differenceInDays } from 'date-fns';
