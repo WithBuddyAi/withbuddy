@@ -1,7 +1,7 @@
 # ERD
 
-**현재 버전: v1.3**  
-**최종 수정일: 2026-03-30**
+**현재 버전: v1.4**  
+**최종 수정일: 2026-04-01**
 
 ## 개요
 **MVP 기준 ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
@@ -15,7 +15,7 @@
 회사의 기본 정보를 저장하는 테이블이다.
 
 ### 컬럼
-- `id` : PK, int
+- `id` : PK, bigint
 - `company_code` : 회사코드, varchar, UNIQUE
 - `name` : 회사명, varchar
 - `created_at` : 생성 일시, datetime
@@ -33,7 +33,7 @@
 
 ### 컬럼
 - `id` : PK, bigint
-- `company_id` : FK → `companies.id`
+- `company_code` : FK → `companies.company_code`
 - `name` : 사용자 이름, varchar
 - `employee_number` : 사번, varchar
 - `hire_date` : 입사일, date
@@ -43,7 +43,7 @@
 ### 설명
 - 사용자를 식별하기 위한 기본 정보를 저장한다.
 - 사용자는 로그인 시 회사코드, 이름, 사번을 입력한다.
-- 서버는 입력된 회사코드로 회사를 조회한 뒤, 해당 회사의 `id`와 사용자 이름, 사번을 기준으로 사용자를 확인한다.
+- 서버는 입력된 회사코드로 회사를 조회한 뒤, 해당 회사의 `company_code`와 사용자 이름, 사번을 기준으로 사용자를 확인한다.
 
 ---
 
@@ -53,7 +53,7 @@
 
 ### 컬럼
 - `id` : PK, bigint
-- `company_id` : FK → `companies.id`, nullable
+- `company_id` : FK → `companies.company_code`, nullable
 - `title` : 문서 제목, varchar
 - `content` : 문서 내용, mediumtext
 - `document_type` : 문서 유형, varchar
@@ -64,8 +64,8 @@
 
 ### 설명
 - 인사, 행정, 정책, 사규 등 사내 문서 데이터를 저장한다.
-- `company_id`가 `null`인 경우 회사 공통 문서로 사용한다.
-- `company_id`에 특정 회사 ID가 들어 있는 경우 해당 회사 전용 문서로 사용한다.
+- `company_code`가 `null`인 경우 회사 공통 문서로 사용한다.
+- `company_code`에 특정 회사코드가 들어 있는 경우 해당 회사 전용 문서로 사용한다.
 - 사용자의 질문에 대해 어떤 문서를 근거로 답변했는지 연결할 수 있다.
 
 ---
@@ -156,7 +156,7 @@
 - 문서 1개는 여러 답변 메시지의 근거로 사용될 수 있다.
 - 온보딩 가이드 1개는 여러 제안 메시지의 원본으로 사용될 수 있다.
 - 각 채팅 메시지는 1명의 사용자와 연결되며, 상황에 따라 1개의 문서 또는 1개의 온보딩 가이드와 연결될 수 있다.
-- 문서는 `company_id`를 기준으로 회사별 문서로 구분할 수 있으며, `company_id`가 없는 경우 공통 문서로 간주한다.
+- 문서는 `company_code`를 기준으로 회사별 문서로 구분할 수 있으며, `company_code`가 없는 경우 공통 문서로 간주한다.
 - 사용자 1명은 여러 개의 활동 로그를 가질 수 있다.
 - 활동 로그는 서비스 접속 기록과 버튼 클릭 기록을 포함할 수 있다.
 
@@ -170,6 +170,7 @@
 - v1.1 (2026-03-26): `companies` 테이블에 `company_code` 컬럼 추가 및 로그인 식별 기준 반영, `user_activity_logs` 테이블 추가, `chat_messages.message_type` 표준값 정의 및 답변 여부 해석 기준 반영
 - v1.2 (2026-03-26): `user_activity_logs`의 이벤트 유형 및 로그 수집 방식 설명 보강
 - v1.3 (2026-03-30): `documents` 테이블 `content` 수정
+- v1.4 (2026-04-01): `users`와 `documents`의 회사 참조 기준을 `company_code`로 통일하고, 관련 설명 및 관계 문구를 정리
 
 ---
 
