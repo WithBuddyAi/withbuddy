@@ -89,43 +89,52 @@ function Login () {
   }
 
   return (
-    <div className='min-h-screen bg-[#FFFFFF] flex items-center justify-center'>
+    <div className='min-h-screen bg-[#FFFFFF] flex items-center justify-center gap-[200px]'>
       <div>
         <img src={char} alt="위드버디"/>
         <p className='text-center text-[34px] font-bold'>With Buddy</p>
         <p className='text-center text-[16px] font-semibold text-[#4A5565]'>AI Onboarding Assistant</p>
       </div>
 
-      <div>
+      <div className='flex flex-col gap-5'>
         {/* 회사코드 입력칸 */}
-        <label>회사코드 *</label>
-        <input 
-        value={companyCode} 
-        ref={companyCodeRef}
-        onChange={handleCompanyCodeChange}
-        type="text" 
-        placeholder="회사 코드를 입력하세요."/>
-        {companyCodeError && <p style={{color : 'red'}}>{companyCodeError}</p>}
+        <div>
+          <label>회사코드 *</label>
+          <input 
+          className= 'w-[430px]'
+          value={companyCode} 
+          ref={companyCodeRef}
+          onChange={handleCompanyCodeChange}
+          type="text" 
+          placeholder="회사 코드를 입력하세요."/>
+          {companyCodeError && <p style={{color : 'red'}}>{companyCodeError}</p>}
+        </div>
         
         {/* 이름 입력칸 */}
-        <label>사원명 *</label>
-        <input 
-        value={name} 
-        ref={nameRef}
-        onChange={handleNameChange}  
-        type="text" 
-        placeholder="이름을 입력하세요"/>
-        {nameError && <p style={{color : 'red'}}>{nameError}</p>}
+        <div>
+          <label>사원명 <span className='red'>*</span></label>
+          <input 
+          className= 'w-[430px] '
+          value={name} 
+          ref={nameRef}
+          onChange={handleNameChange}  
+          type="text" 
+          placeholder="이름을 입력하세요"/>
+          {nameError && <p style={{color : 'red'}}>{nameError}</p>}
+        </div>
 
         {/* 사원번호 입력칸 */}
-        <label>사원번호 *</label>
-        <input 
-        value={employeeNumber} 
-        ref={employeeNumberRef}
-        onChange={handleEmployeeNumberChange}
-        type="text" 
-        placeholder="사원번호를 입력하세요."/>
-        {employeeNumberError && <p style={{color : 'red'}}>{employeeNumberError}</p>}
+        <div>
+          <label>사원번호 *</label>
+          <input 
+          className= 'w-[430px]'
+          value={employeeNumber} 
+          ref={employeeNumberRef}
+          onChange={handleEmployeeNumberChange}
+          type="text" 
+          placeholder="사원번호를 입력하세요."/>
+          {employeeNumberError && <p style={{color : 'red'}}>{employeeNumberError}</p>}
+        </div>
 
         <button type="submit" onClick={handleLogin}>로그인</button>
         {errorMessage && <p style={{color : 'red'}}>{errorMessage}</p>}
