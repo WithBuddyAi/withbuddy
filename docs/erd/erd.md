@@ -53,7 +53,7 @@
 
 ### 컬럼
 - `id` : PK, bigint
-- `company_id` : FK → `companies.company_code`, nullable
+- `company_code` : FK → `companies.company_code`, nullable
 - `title` : 문서 제목, varchar
 - `content` : 문서 내용, mediumtext
 - `document_type` : 문서 유형, varchar
