@@ -54,4 +54,7 @@ coverage/
 
 # Frontend
 frontend/.claude
+
+# Local AI tooling
+.ai/
 frontend/node_modules
