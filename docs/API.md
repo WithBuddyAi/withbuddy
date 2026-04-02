@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.5.0  
-**최종 업데이트**: 2026-03-26
+**버전**: 1.6.0
+**최종 업데이트**: 2026-04-02
 
 ---
 
@@ -71,7 +71,7 @@ Frontend Development: http://localhost:5173
 ### 데이터 범위
 
 모든 데이터 조회 및 저장은 로그인한 사용자의 회사 기준으로 처리한다.  
-문서 기반 Q&A는 로그인한 사용자의 회사 문서와 공통 문서(`company_id = null`)를 함께 대상으로 처리한다.
+문서 기반 Q&A는 로그인한 사용자의 회사 문서와 공통 문서(`company_code = null`)를 함께 대상으로 처리한다.
 
 ### 공통 헤더
 
@@ -81,6 +81,20 @@ Authorization: Bearer {accessToken}
 ```
 
 로그인 API는 `Authorization` 헤더가 필요하지 않다.
+
+### Swagger (OpenAPI)
+
+본 프로젝트의 REST API는 Swagger(OpenAPI) 기반으로 확인할 수 있다.  
+실행 중인 백엔드 서버에서 Swagger UI를 통해 요청/응답 스키마와 엔드포인트를 확인한다.
+
+```text
+Local Swagger UI: http://localhost:8080/swagger-ui/index.html
+OpenAPI Docs:     http://localhost:8080/v3/api-docs
+```
+
+- Swagger UI는 현재 구현된 API 기준으로 동작한다.
+- 본 문서는 MVP 범위, 정책, 동작 규칙, 내부 연동 기준을 함께 설명하기 위한 문서다.
+- 상세 요청/응답 스키마 및 테스트는 Swagger UI를 우선 확인한다.
 
 ---
 
@@ -157,14 +171,8 @@ Content-Type: application/json
 
 #### 동작 규칙
 - 사용자는 로그인 시 회사코드, 사번, 이름을 입력한다.
-- 서버는 `companyCode`로 `companies`를 조회한다.
-- 조회된 회사의 `id`를 기준으로 `users`에서 사용자를 확인한다.
-- 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
-
-#### 동작 규칙
-- 사용자는 로그인 시 회사코드, 사번, 이름을 입력한다.
-- 서버는 `companyCode`로 `companies`를 조회한다.
-- 조회된 회사의 `id`를 기준으로 `users`에서 사용자를 확인한다.
+- 서버는 입력된 `companyCode`로 `companies`를 조회한다.
+- 서버는 조회된 `company_code`와 사용자 이름, 사번을 기준으로 `users`에서 사용자를 확인한다.
 - 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
 
 #### Response (200 OK)
@@ -174,7 +182,6 @@ Content-Type: application/json
   "accessToken": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
     "id": 1,
-    "companyId": 1,
     "companyCode": "1001",
     "companyName": "테크 주식회사",
     "employeeNumber": "20260001",
@@ -491,7 +498,6 @@ Content-Type: application/json
 {
   "user": {
     "id": 1,
-    "companyId": 1,
     "companyCode": "1001",
     "name": "김지원",
     "hireDate": "2026-03-01"
@@ -535,7 +541,6 @@ Content-Type: application/json
 | 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
 |------|------|------|--------|------|-----------|
 | `id` | `Long` | Y | `1` | 사용자 ID | 양의 정수 |
-| `companyId` | `Integer` | Y | `1` | 사용자 소속 회사 ID | 양의 정수 |
 | `companyCode` | `String` | Y | `"1001"` | 사용자 소속 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 | `name` | `String` | Y | `"김지원"` | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
 | `hireDate` | `String` | Y | `"2026-03-01"` | 사용자 입사일 (`YYYY-MM-DD`) | 길이: 10자 / 형식: `YYYY-MM-DD` / 특수문자는 하이픈(`-`)만 허용 |
@@ -596,3 +601,5 @@ Content-Type: application/json
   - 로그인 기준과 인증 흐름을 수정된 ERD에 맞게 정리, `companyCode` 반영, 토큰 만료 처리, 프론트 개발 서버 주소 추가, 백엔드 서버와 생성형 AI 서버 간 연동 흐름 추가
 - **v1.5.0 (2026-03-26)**:
   - 빠른 질문 목록 조회 API 추가, 문서 양식 및 정합성 정리
+- **v1.6.0 (2026-04-02)**:
+  - `company_id` 제거, 로그인/내부 AI 연동 관련 요청·응답 예시 및 동작 규칙 수정, Swagger(OpenAPI) 기반 API 문서 확인 경로 추가
