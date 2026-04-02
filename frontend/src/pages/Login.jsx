@@ -1,9 +1,14 @@
 import { useState, useRef } from 'react';
-import char from '../assets/캐릭터.png'
+import char from '../assets/Favicon.svg'
+import withbuddy from '../assets/WithBuddy.svg'
 import { useNavigate } from "react-router-dom";
+import { differenceInDays } from 'date-fns';
 
 
 function Login () {
+  // 로딩 스피너
+const [isLoading, setIsLoading] = useState(false)
+
   // 로그인 시 필요한 정보에 대한 State
   const [companyCode, setCompanyCode] = useState('')
   const [companyCodeError, setCompanyCodeError] = useState('')
@@ -32,6 +37,9 @@ function Login () {
       employeeNumberRef.current.focus()
       return
     } 
+
+  setIsLoading(true)
+  try {
     // 서버에 데이터 전송
     const response = await fetch(`${BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
@@ -47,17 +55,32 @@ function Login () {
     // 성공 시
     if(response.ok) {
       localStorage.setItem('accessToken', data.accessToken)
+      localStorage.setItem('hireDate', data.user.hireDate)
+
+      const today = new Date()
+      const hireDate = new Date(data.user.hireDate)
+      const dayCount = differenceInDays(today, hireDate) + 1
+      localStorage.setItem('dayCount', dayCount)
+
       navigate('/mybuddy')
     } 
     // 실패 시
     else {
       setErrorMessage(data.message)
-    }
+    } 
+  } 
+  finally {
+    setIsLoading(false)
+  }
   }
 
   // 회사 코드 정규식
   const handleCompanyCodeChange = (e) => {
     setCompanyCode(e.target.value)
+    if(e.target.value === '') {
+      setCompanyCodeError('')
+      return
+    }
     const regex = /^[A-Za-z0-9]{1,20}$/;
     if(!regex.test(e.target.value)) {
       setCompanyCodeError('1 ~ 20자, 영문 대소문자, 숫자로만 입력해주세요.')
@@ -69,6 +92,10 @@ function Login () {
   // 이름 정규식
   const handleNameChange = (e) => {
     setName(e.target.value)
+    if(e.target.value === '') {
+      setNameError('')
+      return
+    }
     const regex = /^[A-Za-zㄱ-힣]{1,20}$/;
     if(!regex.test(e.target.value)) {
       setNameError('1 ~ 20자 , 한글 및 영문 대소문자로만 입력해주세요.')
@@ -80,6 +107,10 @@ function Login () {
   // 사원 번호 정규식
   const handleEmployeeNumberChange = (e) => {
     setEmployeeNumber(e.target.value)
+    if(e.target.value === '') {
+      setEmployeeNumberError('')
+      return
+    }
     const regex = /^[A-Za-z0-9]{1,20}$/;
     if(!regex.test(e.target.value)) {
       setEmployeeNumberError('1 ~ 20자, 영문 대소문자, 숫자로만 입력해주세요.')
@@ -88,61 +119,106 @@ function Login () {
     }
   }
 
+  // class 정리
+  const inputClass = 
+    `w-[430px]
+    h-[50px]
+    p-[12px]
+    rounded-[8px]
+    border-[1px]
+    focus:outline-none`
+
+  const buttonClass = 
+    `w-[430px] bg-[#F1F3F5]
+    border-[1px]
+    border-[#F1F3F5]
+    hover:bg-[#E9ECEF] 
+    hover:border-[0.5px] 
+    hover:border-[#DEE2E6] 
+    hover:text-[#495057]
+    active:bg-[#E9ECEF] 
+    active:border-[0.5px]
+    active:border-[#DEE2E6]
+    active:text-[#495057]
+    mt-[36px]
+    py-3
+    rounded-[8px]
+    text-[16px]
+    text-[#101113]
+    font-semibold`
+
   return (
-    <div className='min-h-screen bg-[#FFFFFF] flex items-center justify-center gap-[200px]'>
-      <div>
-        <img src={char} alt="위드버디"/>
-        <p className='text-center text-[34px] font-bold'>With Buddy</p>
-        <p className='text-center text-[16px] font-semibold text-[#4A5565]'>AI Onboarding Assistant</p>
-      </div>
-
-      <div className='flex flex-col gap-5'>
-        {/* 회사코드 입력칸 */}
-        <div>
-          <label>회사코드 *</label>
-          <input 
-          className= 'w-[430px]'
-          value={companyCode} 
-          ref={companyCodeRef}
-          onChange={handleCompanyCodeChange}
-          type="text" 
-          placeholder="회사 코드를 입력하세요."/>
-          {companyCodeError && <p style={{color : 'red'}}>{companyCodeError}</p>}
-        </div>
-        
-        {/* 이름 입력칸 */}
-        <div>
-          <label>사원명 <span className='red'>*</span></label>
-          <input 
-          className= 'w-[430px] '
-          value={name} 
-          ref={nameRef}
-          onChange={handleNameChange}  
-          type="text" 
-          placeholder="이름을 입력하세요"/>
-          {nameError && <p style={{color : 'red'}}>{nameError}</p>}
+    <div className='h-screen bg-[#FFFFFF] flex flex-col overflow-hidden'>
+      <div className='flex-1 flex items-center justify-center gap-[64px]'>
+        <div className='flex flex-col items-center justify-center mr-[200px]'>
+          <img className='w-[138px] h-[120px] mb-[30px]' src={char} alt="위드버디 캐릭터"/>
+          <img className='w-[291px] h-[69px]' src={withbuddy} alt="위드버디 로고"/>
         </div>
 
-        {/* 사원번호 입력칸 */}
-        <div>
-          <label>사원번호 *</label>
-          <input 
-          className= 'w-[430px]'
-          value={employeeNumber} 
-          ref={employeeNumberRef}
-          onChange={handleEmployeeNumberChange}
-          type="text" 
-          placeholder="사원번호를 입력하세요."/>
-          {employeeNumberError && <p style={{color : 'red'}}>{employeeNumberError}</p>}
-        </div>
+        <div className='flex flex-col items-center gap-5'>
+          {/* 회사코드 입력칸 */}
+          <div className='flex flex-col gap-[10px] rounded-[8px]'>
+            <label className='font-semibold text-[14px]'>회사코드 <span className='text-red-500'>*</span></label>
+            <input 
+            className={`${inputClass} ${companyCodeError ?
+              'border-[#F03E3E] focus:border-[#F03E3E]' : 'border-[#CED4DA] focus:border-[#339AF0]'}`}
+            value={companyCode} 
+            ref={companyCodeRef}
+            onChange={handleCompanyCodeChange}
+            type="text" 
+            placeholder="회사 코드를 입력하세요."/>
+            {companyCodeError && <p className='text-[#F03E3E] text-[14px]'>{companyCodeError}</p>}
+          </div>
+          
+          {/* 이름 입력칸 */}
+          <div className='flex flex-col gap-[10px] rounded-[8px]'>
+            <label className='font-semibold text-[14px]'>사원명 <span className='text-red-500'>*</span></label>
+            <input 
+            className={`${inputClass} ${nameError ? 
+              'border-[#F03E3E] focus:border-[#F03E3E]' : 'border-[#CED4DA] focus:border-[#339AF0]'}`}
+            value={name} 
+            ref={nameRef}
+            onChange={handleNameChange}  
+            type="text" 
+            placeholder="이름을 입력하세요"/>
+            {nameError && <p className='text-[#F03E3E] text-[14px]'>{nameError}</p>}
+          </div>
 
-        <button type="submit" onClick={handleLogin}>로그인</button>
-        {errorMessage && <p style={{color : 'red'}}>{errorMessage}</p>}
-      </div>
+          {/* 사원번호 입력칸 */}
+          <div className='flex flex-col gap-[10px] rounded-[8px]'>
+            <label className='font-semibold text-[14px]'>사원번호 <span className='text-red-500'>*</span></label>
+            <input 
+            className={`${inputClass} ${employeeNumberError ? 
+              'border-[#F03E3E] focus:border-[#F03E3E]' : 'border-[#CED4DA] focus:border-[#339AF0]'}`}
+            value={employeeNumber} 
+            ref={employeeNumberRef}
+            onChange={handleEmployeeNumberChange}
+            type="text" 
+            placeholder="사원번호를 입력하세요."/>
+            {employeeNumberError && <p className='text-[#F03E3E] text-[14px]'>{employeeNumberError}</p>}
+          </div>
+
+            <button 
+            disabled={isLoading}
+            className={`${buttonClass} ${isLoading ? 'opacity-50' : ''}`}
+            type="submit" 
+            onClick={handleLogin}>
+              <div className='flex items-center justify-center gap-3'>
+                <span>로그인</span>
+                {isLoading && (
+              <div className='w-6 h-6 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin'/>
+            )}
+              </div>
+            </button>
+            
+            {errorMessage && <p className='text-[#F03E3E] text-[14px]'>{errorMessage}</p>}
+          </div>
+        </div>
+      
+      <footer className='text-[12px] text-[#6A7282] text-center pb-6'>© 2026 WithBuddy. A Builders League Project.</footer>
     </div>
   )
 }
-
 
 
 
