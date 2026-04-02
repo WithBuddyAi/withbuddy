@@ -2,8 +2,8 @@
 
 > 2026-03-30 기준 정리 (실서버 운영 기준)
 
-**최종 업데이트**: 2026-04-01  
-**버전**: 1.1.0  
+**최종 업데이트**: 2026-04-02  
+**버전**: 1.1.1  
 **작성일**: 2026-03-24
 
 ---
@@ -11,7 +11,7 @@
 ## 1. 서버 구조
 
 ```
-Oracle Compute (AI 서버: 217.142.242.239)
+Oracle Compute (AI 서버: <AI_SERVER_PUBLIC_IP>)
 ├── FastAPI (uvicorn, systemd)
 ├── LangChain/LangGraph
 └── ChromaDB (로컬 디스크 저장)
@@ -122,7 +122,7 @@ sudo rabbitmqctl list_queues name messages consumers
 
 ---
 
-## 6. 2026-03-29 실서버 점검 결과 (217.142.242.239)
+## 6. 2026-03-29 실서버 점검 결과 (<AI_SERVER_PUBLIC_IP>)
 
 ### 확인된 상태
 
@@ -142,5 +142,5 @@ sudo rabbitmqctl list_queues name messages consumers
 
 - 2026-03-30: GitHub Actions 시크릿 표기를 `${{ secrets.* }}` 형식으로 통일.
 - 2026-03-29: 운영 기준을 실서버/CI 기반으로 개편하고 CI/CD 선행조건을 추가.
-- 2026-04-01: Redis(캐시)와 RabbitMQ(메시징)의 역할 분리 운영 기준을 추가.
-- 2026-04-01: DB 서버 공용 Redis/RabbitMQ 구축 시 보안/신뢰성 기준과 운영 점검 명령을 추가.
+- 2026-04-01: Redis(캐시)·RabbitMQ(메시징) 역할 분리 운영 기준을 정리하고, DB 서버 공용 구축 시 보안/신뢰성 기준 및 운영 점검 명령을 추가.
+- 2026-04-02: 변경 이력 중복 항목을 통합 정리.
