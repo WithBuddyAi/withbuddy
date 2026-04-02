@@ -49,7 +49,7 @@
 
 | 분야 | 기술 |
 |------|------|
-| **Backend** | Java 21, Spring Boot 3.5.11, MySQL 8.0, JWT |
+| **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, JWT |
 | **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
 | **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
 | **배포** | Oracle Cloud (Backend/AI/MySQL), Vercel (Frontend) |
@@ -137,6 +137,7 @@ withbuddy/
 │  └─ workflows/               
 │     ├─ ci.yml                 # BE/CI  (변경 영역 빌드/테스트 자동 검증)
 │     ├─ ai-deploy.yml          # AI/CI  (AI 서버 자동 배포 워크플로우)
+│     ├─ backend-deploy.yml     # BE/CI  (Backend 자동 배포 워크플로우)
 │     └─ pr-autofill.yml        # BE/CI  (PR 본문 자동 생성 워크플로우)
 │ 
 ├─ ai/                          # AI (기능 구현 시작 후 이 폴더에서 관리)
@@ -150,7 +151,7 @@ withbuddy/
 │  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (OCI 배포 가이드)
 │  │  ├─ DEPLOYMENT.md          # BE/CI  (배포 가이드)
 │  │  ├─ INFRASTRUCTURE.md      # BE/CI  (인프라 구조)
-│  │  └─ SERVER_GUIDE.md        # AI/CI  (AI 서버 운영/배포 점검 가이드)
+│  │  └─ AI_SERVER_GUIDE.md     # AI/CI  (AI 서버 운영/배포 점검 가이드)
 │  │
 │  ├─ erd/                      # BE (MVP 단계에서 진행)
 │  │
@@ -190,11 +191,11 @@ withbuddy/
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
 - **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
 - **[Git Flow 설정 체크리스트](./docs/guides/GIT-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS, PR 자동 본문 설정
-- **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
+- **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR, 코드 작성 기준
 
 ### 아키텍처
 - **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
-- **[AI 서버 운영 가이드](./docs/architecture/SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
+- **[AI 서버 운영 가이드](docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
 - **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
 
@@ -202,7 +203,7 @@ withbuddy/
 - **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
-> 📊 [전체 로드맵 보기](./docs/ROADMAP.md)
+> 📊 프로젝트 문서는 `docs/` 디렉토리에서 주제별로 확인할 수 있습니다.
 
 ---
 
@@ -216,7 +217,7 @@ withbuddy/
 
 ### 기여 프로세스
 1. **Issue 확인** → 작업 선택 및 할당
-2. **브랜치 생성** → `develop`에서 `feature/123-add-feature`
+2. **브랜치 생성** → `develop`에서 `feature/SCRUM-68-add-feature`
 3. **개발 & 커밋** → `feat: Add feature`
 4. **Pull Request** → `develop` 대상으로 리뷰 요청
 5. **코드 리뷰** → 최소 1 approve
@@ -350,3 +351,4 @@ withbuddy/
 ## 변경 이력
 
 - 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
+- 2026-04-02: 브랜치 예시의 Jira 서브태스크 키 표기를 `SCRUM-##` 대문자로 통일.
