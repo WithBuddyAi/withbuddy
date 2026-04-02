@@ -7,10 +7,8 @@ FastAPI 메인 애플리케이션 진입점
   - /report  : 주간 온보딩 리포트 생성
   - /recommend: 담당자 추천
 
-실행 방법 (운영):
-    uvicorn app.main:app --host 127.0.0.1 --port 8000
-실행 방법 (로컬):
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+실행 방법:
+    uvicorn main:app --reload --host 0.0.0.0 --port 8000
 """
 
 import asyncio
@@ -74,16 +72,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS 설정 ────────────────────────────────
-# 운영: CORS_ALLOWED_ORIGINS 환경변수에 도메인 지정 (예: https://withbuddy.com)
-# 로컬: .env 에 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
-
-_raw_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
-ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+# ── CORS 설정 (프론트엔드 연동 허용) ────────
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"],       # 운영환경에서는 도메인을 명시할 것
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -123,8 +116,8 @@ async def health_check():
 
 if __name__ == "__main__":
     uvicorn.run(
-        "app.main:app",
-        host=os.getenv("AI_BIND_HOST", "0.0.0.0"),
-        port=int(os.getenv("AI_SERVER_PORT", "8000")),
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
         reload=True,   # 파일 변경 시 자동 재시작 (개발용)
     )
