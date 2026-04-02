@@ -11,7 +11,7 @@
 
 ### Core
 - **Language**: Java 21
-- **Framework**: Spring Boot 3.5.11
+- **Framework**: Spring Boot 3.5+
 - **Build Tool**: Gradle (Groovy)
 - **Configuration**: YAML
 
@@ -131,15 +131,15 @@ http://localhost:8080/swagger-ui.html
 ```
 main (프로덕션)
   └── develop (개발)
-       ├── feature/user-auth       # 사용자 인증
-       ├── feature/buddy-service   # AI 버디 기능
-       ├── feature/chat-system     # 채팅 시스템
-       ├── release/1.0.0           # 배포 준비
-       └── hotfix/1.0.1-fix-login  # 긴급 수정
+       ├── feature/SCRUM-68-user-auth      # 사용자 인증
+       ├── feature/SCRUM-72-buddy-service  # AI 버디 기능
+       ├── feature/SCRUM-75-chat-system    # 채팅 시스템
+       └── hotfix/SCRUM-91-fix-login       # 긴급 수정
 ```
 
 - 기능 브랜치는 `develop`에서 분기
 - 긴급 수정은 `main`에서 `hotfix/*`로 분기
+- 브랜치 이름은 `type/SCRUM-##-description` 형식을 사용
 - 운영 반영 후 `main` 변경은 반드시 `develop`에도 동기화
 
 ### 커밋 컨벤션
@@ -226,9 +226,35 @@ application-prod.yml    # 프로덕션 (gitignore)
 2. Environment 변수 설정 (baseUrl, token 등)
 3. 테스트 실행
 
+## 🚢 Backend CI/CD 자동배포
+
+백엔드 자동배포 워크플로우는 `.github/workflows/backend-deploy.yml`을 사용한다.
+
+### 1. GitHub Secrets (Environment: production) 등록
+- `BACKEND_SERVER_HOST` - Backend 서버 공인 IP/DNS
+- `BACKEND_SERVER_USER` - SSH 사용자 (예: `ubuntu`)
+- `BACKEND_SERVER_SSH_KEY` - SSH 개인키
+- `BACKEND_APP_DIR` - 배포 경로 (예: `/home/ubuntu/withbuddy`)
+- `BACKEND_HEALTH_URL` - 헬스체크 URL (선택, 기본값: `http://127.0.0.1:8080/actuator/health`)
+- `DB_PASSWORD` - DB 비밀번호(선택, `SPRING_DATASOURCE_PASSWORD` 없을 때 사용)
+- `JWT_SECRET` - JWT 시크릿(선택)
+- `AI_API_URL` - AI 서버 URL(선택)
+- `SPRING_DATASOURCE_URL` - JDBC URL(선택)
+- `SPRING_DATASOURCE_USERNAME` - DB 계정(선택)
+- `SPRING_DATASOURCE_PASSWORD` - DB 비밀번호(선택, 설정 시 최우선 사용)
+
+### 2. 서버 선행 조건
+- `${BACKEND_APP_DIR}` 경로에 쓰기 권한이 있어야 한다.
+- 배포 계정이 `pkill`, `nohup`, `curl` 명령을 실행할 수 있어야 한다.
+
+### 3. 배포 방법
+1. `main` 브랜치에 `backend/**` 변경을 push한다.
+2. GitHub Actions `Deploy Backend`가 자동 실행된다.
+3. 빌드 성공 시 JAR 업로드 → 서비스 재시작 → 헬스체크까지 수행된다.
+
 ## 📚 참고 문서
 
-- [Spring Boot Documentation](https://docs.spring.io/spring-boot/docs/3.5.11/reference/html/)
+- [Spring Boot Documentation](https://docs.spring.io/spring-boot/reference/)
 - [Spring Security + JWT Guide](https://spring.io/guides/tutorials/spring-boot-oauth2/)
 - [Swagger/SpringDoc](https://springdoc.org/)
 - [JPA Best Practices](https://thorben-janssen.com/tips-to-boost-your-hibernate-performance/)
@@ -265,4 +291,8 @@ server:
 
 ---
 
-**Last Updated**: 2026-03-24
+**Last Updated**: 2026-04-02
+
+## 변경 이력
+
+- 2026-04-02: 브랜치 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.

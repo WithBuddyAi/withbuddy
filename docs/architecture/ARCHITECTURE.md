@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩 AI 통합 비서 서비스
 
-**최종 업데이트**: 2026-03-27  
-**버전**: 1.2.0  
+**최종 업데이트**: 2026-04-02  
+**버전**: 1.3.1  
 **작성일**: 2026-03-27
 
 ---
@@ -23,7 +23,9 @@
 
 ### 1.1 전체 구조도
 
-![Architecture Overview](./images/architecture-overview.svg)
+[![Architecture Overview](./images/architecture-overview-v2.png)](./images/architecture-overview-v2.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
 ### 1.2 서버 구성
 
@@ -47,14 +49,13 @@
 
 #### Database Server (VCN-B 내부)
 - **위치**: Tenancy B VCN-B
-- **포트**: 3306
+- **포트**: 3306(MySQL), 6379(Redis), 5672(RabbitMQ)
 - **접근**: Private IP만 허용
 - **백업**: 자동 백업 스케줄링
-
-#### Cache Server (VCN-B 내부)
-- **서비스**: Redis
-- **용도**: 세션, API 응답 캐싱
-- **포트**: 6379
+- **구성**: DB 서버 1대에 MySQL + Redis + RabbitMQ 공용 설치
+- **역할 분리**:
+  - Redis: 채팅/간단 액션 응답 캐시, 레이트리밋, 토큰 블랙리스트
+  - RabbitMQ: 주간 회고/리포트/재인덱싱/알림 비동기 처리
 
 ### 1.3 프로젝트 식별자
 
@@ -91,7 +92,7 @@ Icons: Lucide React / Heroicons
 ### 2.2 Backend
 
 ```yaml
-Framework: Spring Boot 3.5.11
+Framework: Spring Boot 3.5+
 Language: Java 21
 Build Tool: Gradle
 Security: Spring Security + JWT
@@ -154,6 +155,7 @@ Cloud Provider: Oracle Cloud
 Network: VCN x2 (Tenancy 분리) + Local VCN Peering (LPG)
 Storage: S3 / Google Cloud Storage / OCI Object Storage
 Cache: Redis
+Messaging System: RabbitMQ
 Domain: Cloudflare
 Frontend Hosting: Vercel
 SSL/TLS: Let's Encrypt / Cloudflare SSL
@@ -171,6 +173,47 @@ Monitoring:
 API Testing: Postman / REST Client
 Load Testing: JMeter / k6
 ```
+
+### 2.6 Cache와 Messaging 역할 분리
+
+```yaml
+Cache Layer:
+  Component: Redis
+  Role:
+    - AI 응답 캐시 (짧은 TTL)
+    - 토큰 블랙리스트
+    - Rate limiting 카운터
+  Rule:
+    - 유실 가능 데이터만 저장
+    - 원본 데이터 저장소로 사용하지 않음
+
+Messaging Layer:
+  Component: RabbitMQ
+  Role:
+    - 비동기 작업 큐
+    - 재시도/실패 큐(DLQ) 처리
+  Use Cases:
+    - 주간 리포트 생성
+    - 문서 임베딩/재인덱싱
+    - Slack 알림 발송
+```
+
+운영 원칙:
+- 사용자 대화 원본은 MySQL(`chat_messages`)에 저장한다.
+- Redis는 응답 성능 최적화를 담당하고, RabbitMQ는 메시징 시스템으로서 작업 전달/처리 보장을 담당한다.
+- 즉시 응답이 필요한 API 경로와 비동기 백그라운드 경로를 분리한다.
+
+### 2.7 지연 대응 워크로드 분류 정책
+
+서비스 이탈을 줄이기 위해, AI 지연 가능성이 있는 요청은 아래 기준으로 분리 처리한다.
+
+- Redis 경로(즉시성 우선): 채팅 응답, 짧은 액션, UI 상호작용에 필요한 경량 연산
+- RabbitMQ 경로(완결성 우선): 주간 회고 생성, 대용량 요약, 재인덱싱, 알림 배치
+
+분류 기준:
+- 사용자 체감 지연이 큰 경로는 동기 처리 대신 Redis 캐시를 먼저 조회해 즉시 응답을 보장한다.
+- 실행 시간이 길거나 재시도/순서 보장이 필요한 경로는 RabbitMQ에 위임한다.
+- API는 `sync-response`와 `async-accepted`를 분리해, 프론트엔드가 상태를 명확히 표시하도록 한다.
 
 ---
 
@@ -214,7 +257,7 @@ WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다
    ↓
 [Backend] 
    - Company 테이블에서 companyCode 조회
-   - User 테이블에서 (company_id, employee_number) 조회
+   - User 테이블에서 (company_code, employee_number) 조회
    - 이름 검증
    ↓
 [Backend] JWT 생성 (companyCode 포함)
@@ -229,7 +272,7 @@ WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다
    ↓
 [Frontend] POST /api/v1/ai/chat
    ↓
-[Backend] JWT 검증 → companyId 추출
+[Backend] JWT 검증 → companyCode 추출
    ↓
 [AI Server] 
    - 해당 회사의 Vector DB에서 문서 검색
@@ -239,6 +282,22 @@ WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다
 [Backend] 응답 저장 & 캐싱
    ↓
 [Frontend] 답변 + 출처 문서 표시
+```
+
+### 4.3 비동기 작업 흐름 (RabbitMQ)
+
+```
+[Backend] 이벤트 생성 (예: report.generate.requested)
+   ↓ publish
+[RabbitMQ Exchange]
+   ↓ route
+[Queue: report-generation]
+   ↓ consume
+[Worker] 작업 처리 (AI/Backend worker)
+   ↓
+[MySQL] 결과 저장
+   ↓
+[Redis] 최신 상태/요약 캐시 갱신 (선택)
 ```
 
 ---
@@ -318,14 +377,14 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 | 문서 | 설명 |
 |------|------|
 | [API.md](../API.md) | 전체 API 명세서 |
-| [ENV.md](./ENV.md) | 환경변수 가이드 |
+| [ENV.md](../guides/ENV.md) | 환경변수 가이드 |
 
 ### 🚀 개발 가이드
 
 | 문서 | 설명 |
 |------|------|
-| [DEVELOPMENT.md](./DEVELOPMENT.md) | 로컬 개발 환경 설정 |
-| [CONTRIBUTING.md](./guides/CONTRIBUTING.md) | 기여 가이드 |
+| [SETUP.md](../guides/SETUP.md) | 로컬 개발 환경 설정 |
+| [CONTRIBUTING.md](../guides/CONTRIBUTING.md) | 기여 가이드 |
 
 ---
 
@@ -336,7 +395,7 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 | 카테고리 | 기술 | 버전 |
 |---------|------|------|
 | Backend | Java | 21 |
-| | Spring Boot | 3.5.11 |
+| | Spring Boot | 3.5+ |
 | | MySQL | 8.0 |
 | Frontend | React | 18+ |
 | | Vite | 최신 |
@@ -359,4 +418,6 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 ## 변경 이력
 
 - 2026-03-27: 오사카 리전 기준 테넌시 분리 구조 반영, LPG 통신 경로 및 다이어그램 업데이트, Infrastructure 항목 최신화, 구조도 이미지 추가.
+- 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 역할 분리 원칙 및 비동기 작업 흐름을 추가.
+- 2026-04-02: 문서 링크 경로와 서버 구성 표기를 현재 파일 구조 기준으로 정리.
 
