@@ -2,7 +2,7 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.6.0
+**버전**: 1.7.0
 **최종 업데이트**: 2026-04-02
 
 ---
@@ -81,6 +81,20 @@ Authorization: Bearer {accessToken}
 ```
 
 로그인 API는 `Authorization` 헤더가 필요하지 않다.
+
+### Swagger (OpenAPI)
+
+본 프로젝트의 REST API는 Swagger(OpenAPI) 기반으로 확인할 수 있다.  
+실행 중인 백엔드 서버에서 Swagger UI를 통해 요청/응답 스키마와 엔드포인트를 확인한다.
+
+```text
+Local Swagger UI: http://localhost:8080/swagger-ui/index.html
+OpenAPI Docs:     http://localhost:8080/v3/api-docs
+```
+
+- Swagger UI는 현재 구현된 API 기준으로 동작한다.
+- 본 문서는 MVP 범위, 정책, 동작 규칙, 내부 연동 기준을 함께 설명하기 위한 문서다.
+- 상세 요청/응답 스키마 및 테스트는 Swagger UI를 우선 확인한다.
 
 ---
 
@@ -588,4 +602,4 @@ Content-Type: application/json
 - **v1.5.0 (2026-03-26)**:
   - 빠른 질문 목록 조회 API 추가, 문서 양식 및 정합성 정리
 - **v1.6.0 (2026-04-02)**:
-  - `company_id` 제거, 로그인/내부 AI 연동 관련 요청·응답 예시 및 동작 규칙 수정
+  - `company_id` 제거, 로그인/내부 AI 연동 관련 요청·응답 예시 및 동작 규칙 수정, Swagger(OpenAPI) 기반 API 문서 확인 경로 추가
