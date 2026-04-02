@@ -6,6 +6,9 @@ import { differenceInDays } from 'date-fns';
 
 
 function Login () {
+  // 로딩 스피너
+const [isLoading, setIsLoading] = useState(false)
+
   // 로그인 시 필요한 정보에 대한 State
   const [companyCode, setCompanyCode] = useState('')
   const [companyCodeError, setCompanyCodeError] = useState('')
@@ -34,6 +37,9 @@ function Login () {
       employeeNumberRef.current.focus()
       return
     } 
+
+  setIsLoading(true)
+  try {
     // 서버에 데이터 전송
     const response = await fetch(`${BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
@@ -61,7 +67,11 @@ function Login () {
     // 실패 시
     else {
       setErrorMessage(data.message)
-    }
+    } 
+  } 
+  finally {
+    setIsLoading(false)
+  }
   }
 
   // 회사 코드 정규식
@@ -139,9 +149,9 @@ function Login () {
 
   return (
     <div className='h-screen bg-[#FFFFFF] flex flex-col overflow-hidden'>
-      <div className='flex-1 flex flex-col items-center justify-center gap-[64px]'>
-        <div className='flex items-center justify-center'>
-          <img className='w-[68px] h-[59px] mr-[24px]' src={char} alt="위드버디 캐릭터"/>
+      <div className='flex-1 flex items-center justify-center gap-[64px]'>
+        <div className='flex flex-col items-center justify-center mr-[200px]'>
+          <img className='w-[138px] h-[120px] mb-[30px]' src={char} alt="위드버디 캐릭터"/>
           <img className='w-[291px] h-[69px]' src={withbuddy} alt="위드버디 로고"/>
         </div>
 
@@ -188,13 +198,22 @@ function Login () {
             {employeeNumberError && <p className='text-[#F03E3E] text-[14px]'>{employeeNumberError}</p>}
           </div>
 
-          <button 
-            className={buttonClass}
+            <button 
+            disabled={isLoading}
+            className={`${buttonClass} ${isLoading ? 'opacity-50' : ''}`}
             type="submit" 
-            onClick={handleLogin}>로그인</button>
+            onClick={handleLogin}>
+              <div className='flex items-center justify-center gap-3'>
+                <span>로그인</span>
+                {isLoading && (
+              <div className='w-6 h-6 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin'/>
+            )}
+              </div>
+            </button>
+            
             {errorMessage && <p className='text-[#F03E3E] text-[14px]'>{errorMessage}</p>}
+          </div>
         </div>
-      </div>
       
       <footer className='text-[12px] text-[#6A7282] text-center pb-6'>© 2026 WithBuddy. A Builders League Project.</footer>
     </div>
