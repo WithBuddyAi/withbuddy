@@ -1,0 +1,123 @@
+"""
+담당자 추천 API 라우터
+────────────────────────────────────────────
+POST /recommend 엔드포인트를 처리합니다.
+질문 내용을 분석하여 적합한 담당 부서와 담당자를 추천합니다.
+LLM 응답에서 JSON을 파싱하여 구조화된 결과를 반환합니다.
+"""
+
+import json
+import re
+
+from fastapi import APIRouter, HTTPException
+from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, Field
+
+from chains.checklist_chain import run_checklist_chain
+from core.llm import get_llm
+from utils.prompts import RECOMMEND_PROMPT
+
+_recommend_chain = None
+
+router = APIRouter(tags=["recommend"])
+
+
+# ── 요청 / 응답 스키마 ──────────────────────
+
+class RecommendRequest(BaseModel):
+    user_id: int = Field(..., description="사용자 고유 ID", example=1)
+    message: str = Field(..., description="문의 내용", example="이거 누구한테 물어봐요?")
+
+
+class RecommendResponse(BaseModel):
+    department: str = Field(..., description="추천 담당 부서")
+    person: str = Field(..., description="추천 담당자 이름")
+    reason: str = Field(default="", description="추천 이유")
+
+
+class ChecklistRequest(BaseModel):
+    department: str = Field(..., description="부서명", example="개발팀")
+
+
+class ChecklistResponse(BaseModel):
+    checklist: str = Field(..., description="온보딩 체크리스트 (마크다운)")
+
+
+# ── 헬퍼: LLM 응답에서 JSON 추출 ───────────
+
+def _parse_recommendation(raw: str) -> dict:
+    """
+    LLM 응답 텍스트에서 JSON 객체를 추출합니다.
+    마크다운 코드블록이 포함된 경우도 처리합니다.
+
+    Args:
+        raw: LLM이 생성한 원본 텍스트
+
+    Returns:
+        dict: {"department": ..., "person": ...} 형태의 딕셔너리
+              파싱 실패 시 인사팀 기본값 반환
+    """
+    # 중괄호로 감싸진 JSON 블록 추출 (멀티라인 포함)
+    json_match = re.search(r'\{[^{}]+\}', raw, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+
+    # 파싱 실패 → 기본값 (인사팀) 반환
+    return {"department": "인사팀", "person": "김지수"}
+
+
+# ── 엔드포인트 ──────────────────────────────
+
+@router.post("/recommend", response_model=RecommendResponse)
+async def recommend_person(request: RecommendRequest):
+    """
+    담당자 추천
+
+    - 질문 내용을 분석하여 가장 적합한 부서와 담당자를 추천합니다.
+    - 인사, IT, 총무, 재무, 법무팀 담당자 정보를 기반으로 판단합니다.
+    """
+    try:
+        global _recommend_chain
+        if _recommend_chain is None:
+            _recommend_chain = RECOMMEND_PROMPT | get_llm() | StrOutputParser()
+
+        raw_result = _recommend_chain.invoke({"message": request.message})
+
+        # JSON 파싱으로 부서/담당자 추출
+        parsed = _parse_recommendation(raw_result)
+
+        return RecommendResponse(
+            department=parsed.get("department", "인사팀"),
+            person=parsed.get("person", "김지수"),
+            reason=parsed.get("reason", ""),
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"담당자 추천 중 오류가 발생했습니다: {str(e)}",
+        )
+
+
+@router.post("/recommend/checklist", response_model=ChecklistResponse)
+async def generate_checklist(request: ChecklistRequest):
+    """
+    부서별 온보딩 체크리스트 생성
+
+    - 입력된 부서명에 맞는 수습사원 온보딩 체크리스트를 생성합니다.
+    """
+    try:
+        checklist = run_checklist_chain(request.department)
+        return ChecklistResponse(checklist=checklist)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"체크리스트 생성 중 오류가 발생했습니다: {str(e)}",
+        )
