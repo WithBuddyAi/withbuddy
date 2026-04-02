@@ -2,8 +2,8 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
-**최종 업데이트**: 2026-03-30  
-**버전**: 1.2.1  
+**최종 업데이트**: 2026-04-02  
+**버전**: 1.3.1  
 **작성일**: 2026-03-27
 
 ## 📋 목차
@@ -30,7 +30,9 @@
 
 ## 인프라 개요
 
-![Deployment Overview](./images/deployment-overview.svg)
+[![Deployment Overview](./images/deployment-overview.png)](./images/deployment-overview.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
 ### 리소스 구성
 ```yaml
@@ -42,28 +44,35 @@ Frontend:
 
 Backend (Tenancy B):
   - Provider: Oracle Cloud Compute
-  - OS: Ubuntu 22.04
+  - OS: Canonical Ubuntu 24.04
   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
   - IP: 공인 IP 할당
   - Port: 8080 (Spring Boot)
 
 AI Server (Tenancy A):
   - Provider: Oracle Cloud Compute
-  - OS: Ubuntu 22.04
+  - OS: Canonical Ubuntu 24.04
   - Shape: VM.Standard.A1.Flex (4 OCPU / 24GB RAM)
   - IP: Private IP 권장
   - Port: 8000 (FastAPI)
 
 MySQL (Tenancy B):
   - Provider: Oracle Cloud Compute
-  - OS: Ubuntu 22.04
+  - OS: Canonical Ubuntu 24.04
   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
   - IP: Private IP만 사용 (VCN 내부)
   - Port: 3306
 
 Redis (Tenancy B):
-  - Provider: Oracle Cloud Compute 또는 Backend 서버 내 운영
+  - Provider: Oracle Cloud Compute (DB 서버와 동일 인스턴스에 설치)
+  - Host: DB Server (Tenancy B)
   - Port: 6379
+
+RabbitMQ (Tenancy B):
+  - Provider: Oracle Cloud Compute (DB 서버와 동일 인스턴스에 설치)
+  - Host: DB Server (Tenancy B)
+  - Port: 5672 (AMQP)
+  - Management: 15672 (운영자 고정 IP만 허용)
 ```
 
 ---
@@ -75,7 +84,7 @@ Redis (Tenancy B):
 **Backend 인스턴스 (Tenancy B)**
 ```
 Name: withbuddy-backend
-Image: Canonical Ubuntu 22.04
+Image: Canonical Ubuntu 24.04
 Shape: VM.Standard.A1.Flex (2 OCPU / 12GB)
 Network: 공인 IP 할당
 Boot Volume: 50GB
@@ -84,7 +93,7 @@ Boot Volume: 50GB
 **AI 서버 인스턴스 (Tenancy A)**
 ```
 Name: withbuddy-ai
-Image: Canonical Ubuntu 22.04
+Image: Canonical Ubuntu 24.04
 Shape: VM.Standard.A1.Flex (4 OCPU / 24GB)
 Network: Private IP 권장 (Public IP는 운영자만 제한)
 Boot Volume: 50GB
@@ -93,7 +102,7 @@ Boot Volume: 50GB
 **MySQL 인스턴스 (Tenancy B)**
 ```
 Name: withbuddy-mysql
-Image: Canonical Ubuntu 22.04
+Image: Canonical Ubuntu 24.04
 Shape: VM.Standard.A1.Flex (2 OCPU / 12GB)
 Network: Private IP만 (공인 IP 미할당)
 Boot Volume: 50GB
@@ -121,8 +130,8 @@ Name: withbuddy-vcn-ai
 CIDR Block: 10.1.0.0/16
 ```
 
-**Tenancy B (Backend/DB/Redis)**
-```
+**Tenancy B (Backend/DB/Core Services)**
+``` 
 Name: withbuddy-vcn-core
 CIDR Block: 10.0.0.0/16
 ```
@@ -139,12 +148,12 @@ VCN-B Public Subnet:
 VCN-B Private App Subnet:
   Name: withbuddy-app-subnet
   CIDR: 10.0.2.0/24
-  Purpose: Redis
+  Purpose: 향후 내부 서비스 확장 (현재 미사용)
 
 VCN-B Private DB Subnet:
   Name: withbuddy-private-subnet
   CIDR: 10.0.3.0/24
-  Purpose: MySQL
+  Purpose: MySQL + Redis + RabbitMQ
 
 VCN-A Private AI Subnet:
   Name: withbuddy-ai-subnet
@@ -185,6 +194,11 @@ Egress Rules:
 Ingress Rules:
   - 3306 (MySQL) from 10.0.0.0/16 (VCN-B)
   - 3306 (MySQL) from 10.1.0.0/16 (VCN-A, LPG)
+  - 6379 (Redis) from 10.0.0.0/16 (VCN-B)
+  - 6379 (Redis) from 10.1.0.0/16 (VCN-A, LPG)
+  - 5672 (RabbitMQ) from 10.0.0.0/16 (VCN-B)
+  - 5672 (RabbitMQ) from 10.1.0.0/16 (VCN-A, LPG)
+  - 15672 (RabbitMQ Management) from <ADMIN_FIXED_IP_OR_CIDR>
 
 Egress Rules:
   - All traffic to 0.0.0.0/0
@@ -398,6 +412,128 @@ crontab -e
 
 ---
 
+## Redis 배포 (Oracle Compute)
+
+### 1. 서버 접속
+```bash
+# Public Subnet의 Backend 서버를 통해 접속
+ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
+ssh ubuntu@<MYSQL_PRIVATE_IP>  # MySQL과 동일 DB 서버
+```
+
+### 2. Redis 설치
+```bash
+sudo apt update
+sudo apt install redis-server -y
+```
+
+### 3. Redis 보안 설정
+
+**/etc/redis/redis.conf**
+```conf
+bind 127.0.0.1 10.0.3.10
+protected-mode yes
+port 6379
+requirepass CHANGE_ME_REDIS_PASSWORD
+maxmemory 2gb
+maxmemory-policy allkeys-lru
+appendonly yes
+```
+
+```bash
+sudo systemctl enable --now redis-server
+sudo systemctl restart redis-server
+```
+
+### 4. 방화벽(UFW) 설정
+```bash
+sudo apt install ufw -y
+
+sudo ufw allow 22/tcp
+sudo ufw allow from 10.0.0.0/16 to any port 6379 proto tcp
+sudo ufw allow from 10.1.0.0/16 to any port 6379 proto tcp
+
+sudo ufw --force enable
+sudo ufw status verbose
+```
+
+### 5. 상태 확인
+```bash
+sudo systemctl status redis-server --no-pager
+redis-cli -a CHANGE_ME_REDIS_PASSWORD ping
+redis-cli -a CHANGE_ME_REDIS_PASSWORD info memory
+```
+
+---
+
+## RabbitMQ 배포 (Oracle Compute)
+
+### 1. 서버 접속
+```bash
+# Public Subnet의 Backend 서버를 통해 접속
+ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
+ssh ubuntu@<MYSQL_PRIVATE_IP>  # MySQL/Redis와 동일 DB 서버
+```
+
+### 2. RabbitMQ 설치
+```bash
+sudo apt update
+sudo apt install rabbitmq-server -y
+sudo systemctl enable --now rabbitmq-server
+```
+
+### 3. 운영 계정/권한 설정
+```bash
+# 기본 guest 계정 비활성화 권장
+sudo rabbitmqctl delete_user guest || true
+
+# 앱 계정 생성
+sudo rabbitmqctl add_user withbuddy_app CHANGE_ME_RMQ_PASSWORD
+sudo rabbitmqctl set_permissions -p / withbuddy_app ".*" ".*" ".*"
+
+# 관리자 계정(선택)
+sudo rabbitmqctl add_user withbuddy_admin CHANGE_ME_RMQ_ADMIN_PASSWORD
+sudo rabbitmqctl set_user_tags withbuddy_admin administrator
+sudo rabbitmqctl set_permissions -p / withbuddy_admin ".*" ".*" ".*"
+```
+
+### 4. 플러그인 및 정책 설정
+```bash
+# 관리 UI (15672)
+sudo rabbitmq-plugins enable rabbitmq_management
+
+# Quorum Queue 기본 사용 권장 (MVP 단일 노드는 Classic도 가능)
+# 정책 예시 (선택)
+sudo rabbitmqctl set_policy quorum "^wb\\." '{"queue-type":"quorum"}' --apply-to queues
+```
+
+워크로드 분리 권장:
+- Redis: 채팅/간단 액션 응답 캐시, 토큰 블랙리스트, 레이트리밋
+- RabbitMQ: 주간 회고/리포트/재인덱싱/알림 등 비동기 장시간 작업
+
+### 5. 방화벽(UFW) 설정
+```bash
+sudo apt install ufw -y
+
+sudo ufw allow 22/tcp
+sudo ufw allow from 10.0.0.0/16 to any port 5672 proto tcp
+sudo ufw allow from 10.1.0.0/16 to any port 5672 proto tcp
+sudo ufw allow from <ADMIN_FIXED_IP_OR_CIDR> to any port 15672 proto tcp
+
+sudo ufw --force enable
+sudo ufw status verbose
+```
+
+### 6. 상태 확인
+```bash
+sudo systemctl status rabbitmq-server --no-pager
+sudo rabbitmqctl status
+sudo rabbitmqctl list_users
+sudo rabbitmqctl list_queues name messages consumers
+```
+
+---
+
 ## Frontend 배포 (Vercel)
 
 ### 1. Vercel 계정 생성
@@ -456,7 +592,7 @@ ANTHROPIC_API_KEY=<Anthropic API Key>
 현재 저장소의 [`ai-deploy.yml`](../../.github/workflows/ai-deploy.yml)은 아래 시크릿을 사용한다.
 
 ```bash
-${{ secrets.AI_SERVER_HOST }}=<예: 217.142.242.239>
+${{ secrets.AI_SERVER_HOST }}=<예: AI_SERVER_PUBLIC_IP>
 ${{ secrets.AI_SERVER_USER }}=ubuntu
 ${{ secrets.AI_SERVER_SSH_KEY }}=<AI 서버 접속 개인키 전체>
 ${{ secrets.AI_APP_DIR }}=/home/ubuntu/withbuddy/ai
@@ -486,7 +622,7 @@ ${{ secrets.AI_SERVICE_NAME }}=withbuddy-ai
 ### 1-3. AI 서버 사전 점검 명령어
 
 ```bash
-ssh -i ~/.ssh/ssh-withbuddy.key ubuntu@217.142.242.239
+ssh -i ~/.ssh/ssh-withbuddy.key ubuntu@<AI_SERVER_PUBLIC_IP>
 
 cd /home/ubuntu/withbuddy/ai
 test -d .git && echo "git repo ok"
@@ -747,7 +883,7 @@ Vercel (Hobby):
 
 ## 다음 단계
 
-- [개발 환경 설정](./SETUP.md) - 로컬 개발 환경 구축
+- [개발 환경 설정](../guides/SETUP.md) - 로컬 개발 환경 구축
 - [API 문서](../PLANNED_API.md) - API 엔드포인트
 
 ---
@@ -757,15 +893,6 @@ Vercel (Hobby):
 - 2026-03-27: 테넌시 분리(Backend/DB/Redis vs AI) 반영, LPG 구성 단계 추가, VCN/서브넷/보안 규칙과 IP 예시 업데이트, OCI A1.Flex 스펙 적용, 인프라 다이어그램 이미지 추가.
 - 2026-03-29: 실제 `ai-deploy.yml` 시크릿 명세와 자동배포 선행조건(systemd/venv/sudoers/health-check) 추가.
 - 2026-03-30: AI Environment Secrets가 `production`에 등록 완료된 상태를 문서에 명시하고 `${{ secrets.* }}` 표기로 통일.
-
-## 개발 일지
-
-### 2026-03-30
-
-- GitHub Actions `Environment: production` 기준으로 AI 배포 시크릿이 등록 완료된 상태를 문서에 명시.
-- AI 시크릿 이름 표기를 `${{ secrets.* }}` 형식으로 통일.
-
-### 2026-03-29
-
-- 문서 내 AI 배포 시크릿 체계를 실제 워크플로우 기준으로 정리.
-- 자동배포 실패를 방지하기 위해 서버 선행조건과 점검 명령어를 명문화.
+- 2026-04-01: RabbitMQ(메시징) 배포 섹션을 추가하고 Redis(캐시)와 역할 분리 원칙을 반영.
+- 2026-04-01: Redis 배포 섹션(설치/보안/방화벽/검증)과 Redis/RabbitMQ 워크로드 분리 운영 가이드를 추가.
+- 2026-04-02: 공개 저장소 기준 IP 마스킹 및 링크 경로 정합성을 보강.

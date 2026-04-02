@@ -3,8 +3,8 @@
 이 문서는 저장소 관리자나 어드민이 Git Flow 규칙을 GitHub 설정으로 강제할 때 사용하는 문서다.
 
 
-**최종 업데이트**: 2026-03-30  
-**버전**: 1.0.1
+**최종 업데이트**: 2026-04-02  
+**버전**: 1.0.4
 
 - 팀원용 규칙 요약: [COLLABORATION.md](./COLLABORATION.md)
 - 작업자용 절차: [CONTRIBUTING.md](./CONTRIBUTING.md)
@@ -15,9 +15,11 @@
 main
 develop
 feature/*
-release/*
 hotfix/*
 ```
+
+브랜치 네이밍:
+- 작업 브랜치는 `type/SCRUM-##-description` 형식을 사용한다.
 
 ## 1. 기본 브랜치 확인
 
@@ -94,9 +96,9 @@ GitHub Repository -> Settings -> Branches 에서 다음 규칙을 추가한다.
 ## 5. Pull Request 운영 규칙
 
 - `feature/*` PR target: `develop`
-- `release/*` PR target: `main`
+- `develop` PR target: `main`
 - `hotfix/*` PR target: `main`
-- `main` 반영 후 `release/*`, `hotfix/*` 변경은 반드시 `develop`에도 동기화
+- `main` 반영 후 `hotfix/*` 변경은 반드시 `develop`에도 동기화
 - 기본 merge 방식은 `Squash and merge`
 - Merge 후 브랜치 자동 삭제 활성화 권장
 
@@ -121,7 +123,7 @@ git push origin v1.0.0
 
 - 기능 개발은 `develop`에서 분기
 - 운영 장애는 `main`에서 `hotfix/*`로 분기
-- 배포 직전 안정화 작업은 `release/*`에서 수행
+- 릴리스는 `develop`에서 `main`으로 직접 반영
 - 문서 규칙과 GitHub 보호 규칙이 다르면 GitHub 보호 규칙을 우선 기준으로 삼는다
 
 ## 8. 현재 저장소 기준 권장 추가 작업
@@ -134,7 +136,7 @@ git push origin v1.0.0
 - Code owner review 필수화
 
 ### 권장
-- `release/*`, `hotfix/*` 브랜치 사용 예시를 README에도 노출
+- `hotfix/*` 브랜치 사용 예시를 README에도 노출
 - CI job 이름과 branch protection required check 이름을 정확히 일치시켜 문서화
 - staging 배포는 `develop`, production 배포는 `main`으로 연결
 
@@ -142,7 +144,7 @@ git push origin v1.0.0
 
 다음 조건이 모두 충족되면 Git Flow 기반 운영이 가능하다고 판단할 수 있다.
 
-- 팀 문서가 `main/develop/feature/release/hotfix` 흐름으로 일관된다
+- 팀 문서가 `main/develop/feature/hotfix` 흐름으로 일관된다
 - `feature/*`가 `develop`에서 분기되도록 안내된다
 - `main`, `develop` direct push가 기술적으로 차단된다
 - PR approval과 CI 통과가 merge 조건으로 강제된다
@@ -157,7 +159,7 @@ git push origin v1.0.0
 - PR 본문 템플릿 형식은 `.github/pull_request_template.md`를 따른다.
 
 운영 규칙:
-- 트리거: `pull_request` `opened`, `reopened`, `synchronize`
+- 트리거: `pull_request` `opened`, `reopened`
 - 본문 잠금: `<!-- AUTO_FILL_LOCK -->`가 본문에 있으면 자동 갱신 중단
 
 권한 확인:
@@ -166,3 +168,5 @@ git push origin v1.0.0
 ## 변경 이력
 
 - 2026-03-30: `pr-autofill.yml` 운영 규칙 및 권한 요구사항 추가.
+- 2026-04-02: `release/*` 제거 및 `develop -> main` 직접 릴리스 운영 기준으로 정리.
+- 2026-04-02: Jira 서브태스크 브랜치 키 표기를 `SCRUM-##` 대문자로 통일.
