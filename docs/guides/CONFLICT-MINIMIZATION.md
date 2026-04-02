@@ -2,8 +2,8 @@
 
 이 문서는 `develop` 중심 협업에서 충돌을 최소화하고, 안정적으로 `develop`에 병합한 뒤 `main`으로 릴리스하기 위한 작업 순서를 정리한 매뉴얼이다.
 
-최신 업데이트: 2026-03-25  
-버전: 1.0.0
+최신 업데이트: 2026-04-02  
+버전: 1.0.3
 
 ---
 
@@ -26,7 +26,7 @@ git pull origin develop
 
 2. 작업 브랜치 생성
 ```bash
-git checkout -b feature/이슈번호-간단설명
+git checkout -b feature/SCRUM-68-간단설명
 ```
 
 ---
@@ -52,7 +52,7 @@ git pull origin develop
 
 2. 작업 브랜치로 복귀
 ```bash
-git checkout feature/이슈번호-간단설명
+git checkout feature/SCRUM-68-간단설명
 ```
 
 3. `develop` 반영 (팀 규칙: merge)
@@ -66,12 +66,12 @@ git merge develop
 
 1. 원격에 push
 ```bash
-git push origin feature/이슈번호-간단설명
+git push origin feature/SCRUM-68-간단설명
 ```
 
 2. PR 대상 브랜치
 - `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` -> `develop`
-- `release/*`, `hotfix/*` -> `main`
+- `develop`, `hotfix/*` -> `main`
 
 ---
 
@@ -89,7 +89,7 @@ git commit -m "fix: Resolve merge conflict"
 ## 릴리스 흐름 요약
 
 - 기능 개발: `develop` -> `feature/*` -> `develop`
-- 릴리스 준비: `develop` -> `release/*` -> `main` -> `develop`
+- 릴리스 반영: `develop` -> `main`
 - 긴급 수정: `main` -> `hotfix/*` -> `main` -> `develop`
 
 ---
@@ -101,3 +101,10 @@ git commit -m "fix: Resolve merge conflict"
 - PR 전에 `develop` 최신을 내 브랜치에 반영했는가?
 - PR 대상 브랜치가 맞는가?
 - 충돌은 PR 전에 로컬에서 해결했는가?
+
+---
+
+## 변경 이력
+
+- 2026-04-02: `release/*` 제거 후 `develop -> main` 직접 반영 흐름으로 정리.
+- 2026-04-02: Jira 서브태스크 브랜치 키 표기를 `SCRUM-##` 대문자로 통일.
