@@ -50,36 +50,12 @@ jobs:
               .filter((title) => !/^chore:\s*sync\b/i.test(title));
 
             const uniqueTitles = [...new Set(cleanedTitles)];
-            const topSummary = uniqueTitles.slice(0, 2);
+            const commitLines = uniqueTitles.map((title) => `- ${title}`);
 
-            const issueRefs = [...new Set(
-              cleanedTitles.flatMap((msg) => {
-                const matches = msg.match(/#\d+/g);
-                return matches || [];
-              })
-            )].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
-
-            const sections = [];
-            const addSection = (title, lines) => {
-              const normalized = (lines || [])
-                .map((line) => `${line}`.trim())
-                .filter(Boolean);
-              if (!normalized.length) return;
-              sections.push(`## ${title}`);
-              sections.push(...normalized);
-              sections.push("");
-            };
-
-            addSection("요약", topSummary.map((s) => `- ${s}`));
-            addSection("변경 사항", uniqueTitles.map((s) => `- ${s}`));
-            addSection("관련 이슈", issueRefs.map((n) => `- Closes ${n}`));
-            addSection("체크리스트", [
-              "- [ ] 변경 의도와 범위를 이해할 수 있게 작성했다",
-              "- [ ] 로컬 테스트를 수행했다 (또는 테스트 불가 사유를 기록했다)",
-              "- [ ] 문서/가이드 업데이트가 필요한 경우 반영했다"
-            ]);
-
-            const body = sections.join("\n").trim();
+            const body = [
+              "## 변경 사항",
+              ...commitLines,
+            ].join("\n").trim();
 
             if (!body) {
               core.info("No meaningful content to autofill. Skip update.");
