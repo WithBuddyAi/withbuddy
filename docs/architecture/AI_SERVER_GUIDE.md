@@ -2,8 +2,8 @@
 
 > 2026-03-30 기준 정리 (실서버 운영 기준)
 
-**최종 업데이트**: 2026-03-30  
-**버전**: 1.0.1  
+**최종 업데이트**: 2026-04-02  
+**버전**: 1.1.1  
 **작성일**: 2026-03-24
 
 ---
@@ -11,7 +11,7 @@
 ## 1. 서버 구조
 
 ```
-Oracle Compute (AI 서버: 217.142.242.239)
+Oracle Compute (AI 서버: <AI_SERVER_PUBLIC_IP>)
 ├── FastAPI (uvicorn, systemd)
 ├── LangChain/LangGraph
 └── ChromaDB (로컬 디스크 저장)
@@ -72,16 +72,43 @@ AI 서버 → answer + sourceDocumentId 반환
 - `8000`은 외부 공개하지 않는다.
 - CORS는 운영 도메인으로 제한한다 (`*` 금지).
 
-- 프로세스는 `systemd` 서비스(`withbuddy-ai.service`)로 관리한다.
-- 앱은 `uvicorn app.main:app`로 실행한다.
-- `--host 127.0.0.1 --port 8000`을 기본값으로 사용하고 외부 노출은 리버스 프록시에서 처리한다.
+### 4.4 캐시/메시징 운영 기준
 
-### 4.2 필수 파일/경로
+- Redis는 캐시 계층으로만 사용한다 (AI 응답 캐시, 토큰 블랙리스트, 레이트리밋).
+- RabbitMQ는 비동기 작업 큐로 사용한다 (리포트 생성, 문서 재인덱싱, 알림 발송).
+- 사용자 대화 원본 데이터 저장은 Backend + MySQL이 담당한다.
+- AI 서버는 RabbitMQ 소비자(worker)로 동작할 수 있으나, 원본 데이터의 최종 쓰기 책임은 Backend에 둔다.
 
-- 앱 경로: `/home/ubuntu/withbuddy/ai`
-- 가상환경: `/home/ubuntu/withbuddy/ai/venv`
-- 환경변수 파일: `/etc/withbuddy/ai.env` (권장)
-- Chroma 저장 경로: `/home/ubuntu/withbuddy/ai/chroma_db`
+### 4.5 DB 서버(공용) Redis/RabbitMQ 설정 기준
+
+DB 서버에 Redis/RabbitMQ를 함께 운영할 때는 아래를 기본값으로 둔다.
+
+```yaml
+Redis:
+  bind: 127.0.0.1 + DB private IP
+  auth: requirepass 또는 ACL 필수
+  persistence: AOF enabled
+  maxmemory-policy: allkeys-lru
+  role: 채팅/간단 액션 캐시
+
+RabbitMQ:
+  ports:
+    amqp: 5672 (내부망만 허용)
+    management: 15672 (운영자 고정 IP만 허용)
+  users:
+    app: withbuddy_app
+    admin: withbuddy_admin
+  role: 주간 회고/리포트/장시간 비동기 작업
+  reliability: retry + DLQ
+```
+
+운영 점검 명령:
+```bash
+sudo systemctl status redis-server --no-pager
+sudo systemctl status rabbitmq-server --no-pager
+redis-cli -a <REDIS_PASSWORD> ping
+sudo rabbitmqctl list_queues name messages consumers
+```
 
 ## 5. CI/CD 배포 전 필수 점검
 
@@ -95,7 +122,7 @@ AI 서버 → answer + sourceDocumentId 반환
 
 ---
 
-## 6. 2026-03-29 실서버 점검 결과 (217.142.242.239)
+## 6. 2026-03-29 실서버 점검 결과 (<AI_SERVER_PUBLIC_IP>)
 
 ### 확인된 상태
 
@@ -115,13 +142,5 @@ AI 서버 → answer + sourceDocumentId 반환
 
 - 2026-03-30: GitHub Actions 시크릿 표기를 `${{ secrets.* }}` 형식으로 통일.
 - 2026-03-29: 운영 기준을 실서버/CI 기반으로 개편하고 CI/CD 선행조건을 추가.
-
----
-
-## 8. 개발 일지
-
-### 2026-03-29
-
-- 운영 기준을 "노트북 + 터널"에서 "OCI 실서버 + systemd + CI/CD" 기준으로 전면 전환.
-- 실서버 점검 결과를 문서에 반영하여 배포 전 필수 선행조건을 명시.
-- CI/CD 준비 완료 판정 기준을 `service active`와 `health check 200`으로 정의.
+- 2026-04-01: Redis(캐시)·RabbitMQ(메시징) 역할 분리 운영 기준을 정리하고, DB 서버 공용 구축 시 보안/신뢰성 기준 및 운영 점검 명령을 추가.
+- 2026-04-02: 변경 이력 중복 항목을 통합 정리.

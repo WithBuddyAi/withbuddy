@@ -2,8 +2,8 @@
 
 > 클라우드 인프라 및 네트워크 구성
 
-**최종 업데이트**: 2026-03-27  
-**버전**: 1.2.0  
+**최종 업데이트**: 2026-04-02  
+**버전**: 1.3.1  
 **작성일**: 2026-03-27
 
 ---
@@ -33,7 +33,9 @@ WithBuddy는 **Oracle Cloud(OCI)** 로 결정했음.
 
 ### 1.2 인프라 구성 요소
 
-![Infrastructure Overview](./images/infrastructure-overview.svg)
+[![Infrastructure Overview](./images/infrastructure-overview.png)](./images/infrastructure-overview.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
 ---
 
@@ -43,7 +45,9 @@ WithBuddy는 **Oracle Cloud(OCI)** 로 결정했음.
 
 현재 구성은 **오사카 리전**에서 **두 개 테넌시 분리**로 운영한다.
 
-![Network Topology](./images/network-topology.svg)
+[![Network Topology](./images/network-topology.png)](./images/network-topology.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
 **중요**: 두 VCN의 CIDR은 반드시 겹치지 않아야 한다.
 
@@ -83,7 +87,7 @@ Destination         Target
 0.0.0.0/0           NAT Gateway (아웃바운드, 선택)
 ```
 
-#### VCN-B (Backend/DB/Redis 테넌시)
+#### VCN-B (Backend/DB/Core Services 테넌시)
 
 **Public Subnet (10.0.1.0/24)**  
 용도: 외부에서 접근 가능한 Backend
@@ -100,19 +104,14 @@ Destination         Target
 10.1.0.0/16        LPG-B (to VCN-A)
 ```
 
-**Private Subnet - App (10.0.2.0/24)**  
-용도: 내부 캐시/서비스
-
-| 리소스 | 포트 | 접근 |
-|-------|------|------|
-| Redis | 6379 | Backend, AI Server |
-
 **Private Subnet - DB (10.0.3.0/24)**  
 용도: 데이터베이스
 
 | 리소스 | 포트 | 접근 |
 |-------|------|------|
 | MySQL 8.0 | 3306 | Backend, AI Server |
+| Redis | 6379 | Backend, AI Server |
+| RabbitMQ | 5672 | Backend, AI Server |
 
 **라우팅 테이블**:
 ```
@@ -127,7 +126,8 @@ Destination         Target
 - Backend ↔ AI: LPG (VCN-B ↔ VCN-A), 8000
 - Backend → MySQL: VCN-B 내부, 3306
 - AI → MySQL: LPG (VCN-A → VCN-B), 3306
-- Backend/AI → Redis: VCN-B 내부 또는 LPG, 6379
+- Backend/AI → Redis: VCN-B Private-DB 또는 LPG, 6379
+- Backend/AI → RabbitMQ: VCN-B Private-DB 또는 LPG, 5672
 
 ---
 
@@ -277,6 +277,35 @@ Outbound Rules:
   - None
 ```
 
+### 3.6 RabbitMQ Security Group (VCN-B)
+
+```yaml
+Name: nsg-withbuddy-rabbitmq
+Description: RabbitMQ messaging system security group
+
+Inbound Rules:
+  - Type: Custom TCP
+    Protocol: TCP
+    Port: 5672
+    Source: <VCN-B CIDR>
+    Description: From Backend subnet
+
+  - Type: Custom TCP
+    Protocol: TCP
+    Port: 5672
+    Source: <VCN-A CIDR>
+    Description: From AI via LPG
+
+  - Type: Custom TCP
+    Protocol: TCP
+    Port: 15672
+    Source: <Admin Fixed IP/CIDR>
+    Description: RabbitMQ management UI (운영자 전용)
+
+Outbound Rules:
+  - None
+```
+
 ---
 
 ## 4. 스토리지 구조
@@ -406,7 +435,7 @@ Shape: VM.Standard.A1.Flex
 CPU: 2 OCPU
 RAM: 12 GB
 Network Bandwidth: 2 Gbps
-OS: Ubuntu 22.04 LTS
+OS: Canonical Ubuntu 24.04
 Subnet: Public (VCN-B)
 ```
 
@@ -416,7 +445,7 @@ Shape: VM.Standard.A1.Flex
 CPU: 4 OCPU
 RAM: 24 GB
 Network Bandwidth: 4 Gbps
-OS: Ubuntu 22.04 LTS
+OS: Canonical Ubuntu 24.04
 Subnet: Private (VCN-A)
 ```
 
@@ -426,15 +455,34 @@ Shape: VM.Standard.A1.Flex
 CPU: 2 OCPU
 RAM: 12 GB
 Network Bandwidth: 2 Gbps
-OS: Ubuntu 22.04 LTS
+OS: Canonical Ubuntu 24.04
 Subnet: Private - DB (VCN-B)
 ```
 
 ### 5.4 Redis Cache (Tenancy B)
 ```yaml
 Service: Redis
-Subnet: Private - App (VCN-B)
-Spec: TBD (별도 인스턴스 또는 Backend와 분리 운영)
+Subnet: Private - DB (VCN-B)
+Host: Database Server (MySQL과 동일 인스턴스)
+Port: 6379
+Operation Policy:
+  - 인터넷 비공개
+  - Backend/AI 내부망만 접근 허용
+  - 인증(requirepass 또는 ACL) 필수
+```
+
+### 5.5 RabbitMQ Messaging System (Tenancy B)
+```yaml
+Service: RabbitMQ
+Subnet: Private - DB (VCN-B)
+Host: Database Server (MySQL/Redis와 동일 인스턴스)
+Role: 메시징 시스템 (비동기 작업 큐/재시도/DLQ)
+Protocol: AMQP 0-9-1
+Port: 5672
+Management UI: 15672 (운영자 고정 IP만 허용)
+High Availability:
+  - MVP: 단일 노드
+  - 확장: quorum queue + 다중 노드
 ```
 
 ---
@@ -660,7 +708,7 @@ MVP 기준 실제 인스턴스 스펙:
 AI Server (A1.Flex 4 OCPU / 24GB):        TBD
 Backend (A1.Flex 2 OCPU / 12GB):          TBD
 Database (A1.Flex 2 OCPU / 12GB):         TBD
-Redis:                                    TBD
+Redis (DB 서버 공용):                      TBD
 Load Balancer:                            TBD
 Object Storage:                           TBD
 Data Transfer:                            TBD
@@ -692,3 +740,5 @@ Total:                                    TBD
 ## 변경 이력
 
 - 2026-03-27: OCI 확정 반영, 테넌시 분리 구조와 LPG 피어링 추가, 실제 서버 스펙 반영, 보안 규칙 및 부록 업데이트, 다이어그램 이미지 추가.
+- 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 분리 운영을 반영해 통신 경로, RabbitMQ NSG, 브로커 스펙을 추가.
+- 2026-04-02: 2.1 VCN 설계 다이어그램을 현재 운영 구조(Tenancy A AI / Tenancy B Backend+DB)로 재정렬하고 미사용 구성 표기를 제거.

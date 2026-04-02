@@ -116,11 +116,11 @@ npm run dev
 ```
 main                          # 최종 배포용 (건드리지 말기)
 └── develop                   # 개발 통합 브랜치
-     ├── feature/login        # 로그인 기능 개발
-     └── feature/my-buddy     # My Buddy 화면 개발
+     ├── feature/SCRUM-68-login      # 로그인 기능 개발
+     └── feature/SCRUM-72-my-buddy   # My Buddy 화면 개발
 ```
 
-- 새 기능을 만들 땐 항상 `develop` 브랜치에서 `feature/기능명` 브랜치를 만들기
+- 새 기능을 만들 땐 항상 `develop` 브랜치에서 `feature/SCRUM-##-기능명` 브랜치를 만들기
 - 기능 완성 후 `develop`으로 Pull Request(PR)를 올리기
 - `main`은 최종 배포할 때만 `develop`에서 합치기
 
@@ -153,3 +153,7 @@ git commit -m "ㅇㅇ"
 - 변수 · 함수명: **camelCase** (`userName`, `handleSubmit`)
 - 스타일링: **Tailwind CSS** 클래스 사용 (별도 CSS 파일 최소화)
 - 하나의 파일이 너무 길어지면 컴포넌트로 분리
+
+## 변경 이력
+
+- 2026-04-02: 브랜치 전략 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.

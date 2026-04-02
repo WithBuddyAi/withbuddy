@@ -2,8 +2,9 @@
 
 > LLM 기반 지능형 온보딩 비서 시스템
 
-**최종 업데이트**: 2026-03-24  
-**버전**: 1.1.2
+**최종 업데이트**: 2026-04-02  
+**버전**: 1.2.1  
+**작성일**: 2026-03-24
 
 ---
 
@@ -17,6 +18,7 @@
 - [6. LLM 전략](#6-llm-전략)
 - [7. Fine-tuning](#7-fine-tuning)
 - [8. 캐싱 & 최적화](#8-캐싱--최적화)
+- [변경 이력](#변경-이력)
 
 ---
 
@@ -24,33 +26,9 @@
 
 ### 1.1 AI 서비스 구조
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Backend (Spring Boot)                 │
-└────────────────────────┬────────────────────────────────┘
-                         │ Internal API (HTTP)
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│                AI Service (FastAPI)                      │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │            LangChain / LangGraph                  │  │
-│  │  ┌──────────────┐    ┌──────────────┐            │  │
-│  │  │ RAG Pipeline │    │ Agent Router │            │  │
-│  │  └──────┬───────┘    └──────┬───────┘            │  │
-│  └─────────┼───────────────────┼────────────────────┘  │
-│            ↓                   ↓                        │
-│  ┌─────────────────┐  ┌─────────────────┐              │
-│  │  Vector Store   │  │  LLM Provider   │              │
-│  │  (ChromaDB)     │  │  (OpenAI/Llama) │              │
-│  └─────────────────┘  └─────────────────┘              │
-└────────┬────────────────────────┬───────────────────────┘
-         │                        │
-         ↓                        ↓
-┌─────────────────┐      ┌─────────────────┐
-│  MySQL          │      │  OpenAI API     │
-│  (Metadata)     │      │  (GPT-4)        │
-└─────────────────┘      └─────────────────┘
-```
+[![AI Service Structure](./images/ai-service-structure-v2.png)](./images/ai-service-structure-v2.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
 **MVP 전제**:
 - AI 서버 1대에서 FastAPI + LangGraph + ChromaDB를 함께 운영한다.
@@ -71,6 +49,15 @@
 | **요약** | 기록/리포트 자동 요약 | GPT-4 Summarization |
 | **추천** | 개인화된 체크리스트 추천 | Collaborative Filtering |
 | **검색** | 문서 의미 기반 검색 | Vector Similarity Search |
+
+### 1.3 런타임 데이터 경계 (중요)
+
+AI 서버 런타임 경계는 다음 원칙을 따른다.
+
+- AI 서버는 Backend 내부 API로 전달된 데이터만 사용한다.
+- 사용자/회사/대화 원본 데이터의 최종 저장 책임은 Backend(MySQL)이다.
+- AI 서버는 Redis 캐시와 RabbitMQ 큐를 보조 계층으로 사용한다.
+- AI 서버가 MySQL에 직접 접근해야 하는 경우는 운영 점검/마이그레이션 등 제한된 시나리오로 한정한다.
 
 ---
 
@@ -588,6 +575,63 @@ with client.trace(
 # - 사용자 피드백
 ```
 
+### 8.4 Redis + RabbitMQ 운영 패턴
+
+#### 요청 처리 패턴
+
+1. Backend → AI `/internal/ai/answer` 호출
+2. AI 서버에서 Redis 캐시 조회 (`cache:{companyCode}:{hash(question)}`)
+3. Cache hit면 즉시 응답 (채팅 UX 보호)
+4. Cache miss면 RAG + LLM 실행 후 Redis TTL 저장
+5. 시간이 오래 걸리는 작업(주간 회고/리포트/알림)은 RabbitMQ로 publish
+
+#### 워크로드 분리 원칙 (Latency vs Throughput)
+
+- Redis 담당:
+  - 채팅 응답 캐시
+  - 간단한 사용자 액션에 대한 경량 계산 결과 캐시
+  - 세션 단위 임시 상태(유실 허용)
+- RabbitMQ 담당:
+  - 주간 회고 생성
+  - 문서 재인덱싱/대량 후처리
+  - 알림/리포트 비동기 파이프라인
+
+운영 목표:
+- 채팅/경량 액션: P95 응답시간 1.5초 이내를 목표로 캐시 우선 처리
+- 회고/리포트: 즉시 응답 대신 작업 접수(`accepted`)를 반환하고 백그라운드 완료를 보장
+
+#### 큐 토폴로지 예시
+
+```text
+Exchange: wb.ai.events (topic)
+  - Queue: wb.report.generate
+    Routing key: report.generate.requested
+  - Queue: wb.docs.reindex
+    Routing key: docs.reindex.requested
+  - Queue: wb.notification.slack
+    Routing key: notification.slack.requested
+  - Queue: wb.deadletter (DLQ)
+```
+
+#### 재시도 정책 예시
+
+- 최대 재시도: 3회
+- 지수 백오프: 5s → 30s → 120s
+- 3회 실패 시 DLQ로 이동
+- DLQ 소비는 운영자 승인 또는 배치 재처리로 수행
+
+#### API 응답 계약 권장
+
+- 채팅/간단 액션 API: 동기 응답 + 필요 시 캐시 메타(`cache_hit`, `cache_ttl`) 제공
+- 주간 회고 API: `202 Accepted` + `job_id` 반환 후 상태 조회/완료 알림으로 후속 처리
+- 프론트엔드는 `processing`, `completed`, `failed` 상태를 명시적으로 구분해 사용자 불확실성을 줄인다
+
+#### 저장소 책임 분리
+
+- MySQL: 원본 대화/도메인 데이터(정합성 기준)
+- Redis: 응답 성능 최적화 캐시(유실 허용)
+- RabbitMQ: 비동기 작업 전달/재시도(처리 보장 계층)
+
 ---
 
 ## 부록
@@ -604,4 +648,12 @@ MVP에서는 Claude API 기준으로 응답 시간/비용을 측정해 기록한
 - [LoRA Paper](https://arxiv.org/abs/2106.09685)
 
 ---
+
+## 변경 이력
+
+- 2026-04-01: 1.1 AI 서비스 구조를 텍스트 블록에서 SVG 다이어그램 이미지로 전환하고 모바일 확대 안내를 추가.
+- 2026-04-01: AI 런타임 데이터 경계 원칙(Backend 저장 책임, Redis/RabbitMQ 보조 계층)과 운영 패턴(큐 토폴로지, 재시도, 저장소 책임 분리)을 추가.
+- 2026-04-01: AI 지연 대응을 위해 채팅/경량 액션은 Redis, 주간 회고/장시간 작업은 RabbitMQ로 분리하는 워크로드 정책과 API 응답 계약을 추가.
+- 2026-04-02: 용어/링크/메타데이터 정합성 점검에 맞춰 문서 버전 표기를 최신 기준으로 정리.
+- 2026-03-24: AI 아키텍처 문서 초안 정리.
 
