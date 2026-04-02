@@ -14,7 +14,7 @@ CREATE TABLE `companies` (
 
 CREATE TABLE `users` (
                          id BIGINT NOT NULL AUTO_INCREMENT,
-                         company_code BIGINT NOT NULL,
+                         company_code VARCHAR(20) NOT NULL,
                          name VARCHAR(100) NOT NULL,
                          employee_number VARCHAR(50) NOT NULL,
                          hire_date DATE NOT NULL,
