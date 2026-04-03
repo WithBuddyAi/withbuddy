@@ -1,12 +1,12 @@
 # WithBuddy 협업 규칙
 
-팀원이 빠르게 확인해야 하는 Git Flow 협업 규칙 요약 문서다.
+팀원이 빠르게 확인해야 하는 GitHub flow 협업 규칙 요약 문서다.
 
 **최종 업데이트**: 2026-04-02  
 **버전**: 1.0.4
 
 - 실무 절차: [CONTRIBUTING.md](./CONTRIBUTING.md)
-- 관리자 설정: [GIT-FLOW-SETUP.md](./GIT-FLOW-SETUP.md)
+- 관리자 설정: [GITHUB-FLOW-SETUP.md](./GITHUB-FLOW-SETUP.md)
 
 ## 브랜치 흐름
 
@@ -64,3 +64,4 @@
 - 2026-03-30: 문서 중복 내용을 정리하고 `pr-autofill.yml` 기반 PR 자동 본문 규칙 추가.
 - 2026-04-02: `release/*` 브랜치 전략을 제거하고 `develop -> main` 직접 릴리스 흐름으로 통일.
 - 2026-04-02: Jira 서브태스크 브랜치 키 표기를 `SCRUM-##` 대문자로 통일.
+- 2026-04-03: 문서 표현을 GitHub flow 용어로 통일.
