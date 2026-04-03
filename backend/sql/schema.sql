@@ -15,8 +15,8 @@ CREATE TABLE `companies` (
 CREATE TABLE `users` (
                          id BIGINT NOT NULL AUTO_INCREMENT,
                          company_code VARCHAR(20) NOT NULL,
-                         name VARCHAR(100) NOT NULL,
-                         employee_number VARCHAR(50) NOT NULL,
+                         name VARCHAR(20) NOT NULL,
+                         employee_number VARCHAR(20) NOT NULL,
                          hire_date DATE NOT NULL,
                          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -29,10 +29,10 @@ CREATE TABLE `users` (
 CREATE TABLE `documents` (
                              id BIGINT NOT NULL AUTO_INCREMENT,
                              company_code VARCHAR(20) NULL,
-                             title VARCHAR(255) NOT NULL,
+                             title VARCHAR(200) NOT NULL,
                              content MEDIUMTEXT NOT NULL,
                              document_type VARCHAR(50) NOT NULL,
-                             department VARCHAR(100) NOT NULL,
+                             department VARCHAR(50) NOT NULL,
                              is_active BOOLEAN NOT NULL DEFAULT TRUE,
                              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
