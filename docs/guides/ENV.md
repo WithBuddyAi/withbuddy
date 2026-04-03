@@ -21,10 +21,10 @@ WithBuddy 프로젝트의 환경변수 설정 가이드입니다.
 
 ```bash
 # 데이터베이스 설정
-SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/withbuddy?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-SPRING_DATASOURCE_USERNAME=root
-SPRING_DATASOURCE_PASSWORD=your_password
-SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+SPRING_DB_URL=jdbc:mysql://localhost:3306/withbuddy?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+SPRING_DB_USERNAME=root
+SPRING_DB_PASSWORD=your_password
+SPRING_DB_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
 
 # JWT 설정
 JWT_SECRET=your-secret-key-min-256-bits
@@ -44,9 +44,9 @@ SHOW_SQL=false  # SQL 쿼리 로깅
 SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.MySQL8Dialect
 
 # 커넥션 풀 설정
-SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=10
-SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=5
-SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=20000
+SPRING_DB_HIKARI_MAXIMUM_POOL_SIZE=10
+SPRING_DB_HIKARI_MINIMUM_IDLE=5
+SPRING_DB_HIKARI_CONNECTION_TIMEOUT=20000
 
 # 로깅 설정
 LOGGING_LEVEL_ROOT=INFO
@@ -72,10 +72,10 @@ SPRING_MAIL_PASSWORD=your-app-password
 ```yaml
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+    url: ${SPRING_DB_URL}
+    username: ${SPRING_DB_USERNAME}
+    password: ${SPRING_DB_PASSWORD}
+    driver-class-name: ${SPRING_DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
   jpa:
     hibernate:
       ddl-auto: ${HIBERNATE_DDL_AUTO:update}
@@ -313,10 +313,10 @@ ai/.env.local
 
 ```bash
 # backend/.env.example
-SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/withbuddy?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-SPRING_DATASOURCE_USERNAME=root
-SPRING_DATASOURCE_PASSWORD=
-SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+SPRING_DB_URL=jdbc:mysql://localhost:3306/withbuddy?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+SPRING_DB_USERNAME=root
+SPRING_DB_PASSWORD=
+SPRING_DB_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
 JWT_SECRET=
 SERVER_PORT=8080
 
