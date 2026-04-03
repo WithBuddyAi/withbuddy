@@ -216,9 +216,9 @@ jobs:
         working-directory: ./backend
         run: ./gradlew test
         env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/withbuddy_test
-          SPRING_DATASOURCE_USERNAME: root
-          SPRING_DATASOURCE_PASSWORD: test
+          SPRING_DB_URL: jdbc:mysql://localhost:3306/withbuddy_test
+          SPRING_DB_USERNAME: root
+          SPRING_DB_PASSWORD: test
       
       - name: Build with Gradle
         working-directory: ./backend
@@ -412,9 +412,9 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=${DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${DB_USER}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - SPRING_DB_URL=${DB_URL}
+      - SPRING_DB_USERNAME=${DB_USER}
+      - SPRING_DB_PASSWORD=${DB_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
