@@ -31,10 +31,10 @@ public class User {
     @JoinColumn(name = "company_code", referencedColumnName = "company_code", nullable = false)
     private Company company;
 
-    @Column(name = "name", nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 20)
     private String name;
 
-    @Column(name = "employee_number", nullable = false, length = 50)
+    @Column(name = "employee_number", nullable = false, length = 20)
     private String employeeNumber;
 
     @Column(name = "hire_date", nullable = false)
