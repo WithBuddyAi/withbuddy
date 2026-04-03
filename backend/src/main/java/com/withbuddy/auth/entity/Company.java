@@ -22,7 +22,7 @@ public class Company {
     @Column(name = "company_code", nullable = false,  length = 20, unique = true)
     private String companyCode;
 
-    @Column(name = "name", nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 20)
     private String name;
 
     @CreationTimestamp
