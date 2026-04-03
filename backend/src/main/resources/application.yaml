@@ -1,3 +1,19 @@
+server:
+  port: 8080
+
 spring:
   application:
     name: withbuddy
+  datasource:
+    url: "jdbc:mysql://localhost/withbuddy"
+    username: "root"
+    password: ${DB_PASSWORD}
+
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-expiration: 7200000

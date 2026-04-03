@@ -133,8 +133,8 @@ Name: withbuddy-vcn-ai
 CIDR Block: 10.1.0.0/16
 ```
 
-**Tenancy B (Backend/DB/Core Services)**
-``` 
+**Tenancy B (Backend/DB/Redis/RabbitMQ)**
+```
 Name: withbuddy-vcn-core
 CIDR Block: 10.0.0.0/16
 ```
@@ -147,11 +147,6 @@ VCN-B Public Subnet:
   Name: withbuddy-public-subnet
   CIDR: 10.0.1.0/24
   Purpose: Backend
-
-VCN-B Private App Subnet:
-  Name: withbuddy-app-subnet
-  CIDR: 10.0.2.0/24
-  Purpose: 향후 내부 서비스 확장 (현재 미사용)
 
 VCN-B Private DB Subnet:
   Name: withbuddy-private-subnet

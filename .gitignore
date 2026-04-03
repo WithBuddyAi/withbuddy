@@ -44,6 +44,11 @@ build/
 *.pt
 datasets/
 
+# AI 서버 — 사내 문서 및 벡터DB (public repo이므로 git 제외, 서버에 직접 배포)
+ai/docs/
+ai/chroma_db/
+ai/data/
+
 # Python tooling
 .venv/
 .pytest_cache/
