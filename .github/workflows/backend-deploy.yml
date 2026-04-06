@@ -102,12 +102,15 @@ jobs:
 
             APP_DIR="${BACKEND_APP_DIR}"
             JAR_PATH="${APP_DIR}/app.jar"
-            ENV_PATH="${APP_DIR}/backend.env"
+            ENV_PATH="/etc/withbuddy-backend.env"
+            TMP_ENV_PATH="${APP_DIR}/backend.env.tmp"
+            SERVICE_NAME="withbuddy-backend.service"
             HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8080/actuator/health}"
 
             mkdir -p "${APP_DIR}"
+            test -f "${JAR_PATH}"
 
-            cat > "${ENV_PATH}" <<EOF
+            cat > "${TMP_ENV_PATH}" <<EOF
             DB_PASSWORD=${DB_PASSWORD}
             JWT_SECRET=${JWT_SECRET}
             AI_API_URL=${AI_API_URL}
@@ -117,38 +120,14 @@ jobs:
             SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
             SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
             SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+            SPRING_PROFILES_ACTIVE=prod
             EOF
-            chmod 600 "${ENV_PATH}"
+            chmod 600 "${TMP_ENV_PATH}"
+            sudo install -m 600 "${TMP_ENV_PATH}" "${ENV_PATH}"
+            rm -f "${TMP_ENV_PATH}"
 
-            pkill -f "java -jar ${JAR_PATH}" || true
-            sleep 2
+            sudo systemctl restart "${SERVICE_NAME}"
+            sudo systemctl is-active --quiet "${SERVICE_NAME}"
 
-            set -a
-            source "${ENV_PATH}"
-            set +a
-
-            CMD=(java -jar "${JAR_PATH}" --spring.profiles.active=prod)
-            EFFECTIVE_DB_URL="${SPRING_DB_URL:-${SPRING_DATASOURCE_URL:-}}"
-            EFFECTIVE_DB_USERNAME="${SPRING_DB_USERNAME:-${SPRING_DATASOURCE_USERNAME:-}}"
-            EFFECTIVE_DB_PASSWORD="${SPRING_DB_PASSWORD:-${SPRING_DATASOURCE_PASSWORD:-${DB_PASSWORD:-}}}"
-
-            if [ -n "${EFFECTIVE_DB_URL:-}" ]; then
-              CMD+=(--spring.datasource.url="${EFFECTIVE_DB_URL}")
-            fi
-            if [ -n "${EFFECTIVE_DB_USERNAME:-}" ]; then
-              CMD+=(--spring.datasource.username="${EFFECTIVE_DB_USERNAME}")
-            fi
-            if [ -n "${EFFECTIVE_DB_PASSWORD:-}" ]; then
-              CMD+=(--spring.datasource.password="${EFFECTIVE_DB_PASSWORD}")
-            fi
-            if [ -n "${JWT_SECRET:-}" ]; then
-              CMD+=(--jwt.secret="${JWT_SECRET}")
-            fi
-            if [ -n "${AI_API_URL:-}" ]; then
-              CMD+=(--ai.api.url="${AI_API_URL}")
-            fi
-
-            nohup "${CMD[@]}" > "${APP_DIR}/app.log" 2>&1 < /dev/null &
-
-            sleep 10
+            sleep 5
             curl -fsS "${HEALTH_URL}"

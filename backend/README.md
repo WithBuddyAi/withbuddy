@@ -321,7 +321,9 @@ application-prod.yml    # 프로덕션 (gitignore)
 
 ### 2. 서버 선행 조건
 - `${BACKEND_APP_DIR}` 경로에 쓰기 권한이 있어야 한다.
-- 배포 계정이 `pkill`, `nohup`, `curl` 명령을 실행할 수 있어야 한다.
+- 배포 계정이 `sudo systemctl restart withbuddy-backend.service`를 비밀번호 없이 실행할 수 있어야 한다.
+- 운영 백엔드는 `withbuddy-backend.service` 단일 서비스로만 기동한다. (수동 `java -jar` 금지)
+- 환경변수 파일은 `/etc/withbuddy-backend.env`를 사용한다.
 
 ### 3. 배포 방법
 1. `main` 브랜치에 `backend/**` 변경을 push한다.
@@ -354,9 +356,10 @@ Error: JWT expired
 ### Port 충돌
 ```
 Error: Port 8080 is already in use
-→ application.yml에서 포트 변경
-server:
-  port: 8081
+→ 수동 java 프로세스/중복 서비스 여부 확인
+  sudo lsof -iTCP:8080 -sTCP:LISTEN -n -P
+  ps -ef | grep 'java -jar' | grep -v grep
+→ 운영 정책은 withbuddy-backend.service 단일 기동 유지
 ```
 
 ## 문의
@@ -374,5 +377,6 @@ server:
 - 2026-04-06: CI/CD 환경변수 설명 정리 (`BACKEND_HEALTH_URL`, `JWT_SECRET`, `REDIS_URL`, `RABBITMQ_URL`).
 - 2026-04-06: 캐시/큐 운영 반영으로 `REDIS_URL`, `RABBITMQ_URL`를 필수값으로 상향.
 - 2026-04-07: SSH 배포 대상 시크릿을 `BACKEND_SERVER_HOST` 단일 기준으로 정리.
+- 2026-04-07: 배포 재시작 방식을 `nohup`/`pkill`에서 `withbuddy-backend.service` 단일 systemd 재시작으로 통일.
 - 2026-04-02: 브랜치 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.
 

@@ -609,6 +609,10 @@ curl -i http://127.0.0.1:8000/health
 
 ### 2. Backend 배포 워크플로우
 
+> 운영 표준(2026-04-07): 백엔드는 `withbuddy-backend.service` 단일 서비스로만 기동한다.  
+> `pkill`/`nohup` 기반 수동 프로세스 재기동은 포트 충돌을 유발하므로 사용하지 않는다.
+> 실제 기준은 저장소의 최신 `.github/workflows/backend-deploy.yml`을 따른다.
+
 **.github/workflows/backend-deploy.yml**
 ```yaml
 name: Deploy Backend to Oracle Cloud
@@ -866,6 +870,7 @@ Vercel (Hobby):
 
 ## 변경 이력
 
+- 2026-04-07: Backend 운영 표준을 `withbuddy-backend.service` 단일 기동으로 고정하고, `pkill`/`nohup` 기반 재기동 금지 원칙을 명시.
 - 2026-04-06: Backend 배포 섹션에서 `/etc/systemd/system/withbuddy.service` 필수 표기를 제거하고, 현재 CI/CD 기본(`java -jar`) 및 선택 systemd 서비스명(`withbuddy-backend.service`) 기준으로 정리.
 - 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 연결 항목을 제거.
 - 2026-03-27: 테넌시 분리(Backend/DB/Redis vs AI) 반영, LPG 구성 단계 추가, VCN/서브넷/보안 규칙과 IP 예시 업데이트, OCI A1.Flex 스펙 적용, 인프라 다이어그램 이미지 추가.
