@@ -238,7 +238,7 @@ Settings → Secrets and variables → Actions → New repository secret
 ```
 
 **필수 Secrets:**
-- `DB_PASSWORD` - 데이터베이스 비밀번호
+- `SPRING_DB_PASSWORD` - 데이터베이스 비밀번호
 - `JWT_SECRET` - JWT 서명 키
 - `ANTHROPIC_API_KEY` - Anthropic Claude API 키
 
@@ -392,16 +392,16 @@ CORS_ALLOWED_ORIGINS=https://withbuddy.com
 REACT_APP_API_URL=xxx  # Vite는 VITE_ 접두사 필요
 
 # ✅ 올바른 사용
-VITE_API_URL=xxx
+VITE_API_BASE_URL=xxx
 ```
 
 ---
 
 ## 변경 이력
 
+- 2026-04-02: 공개 저장소 기준 서버 주소 표기를 플레이스홀더로 통일하고 문서 정합성을 보강.
 - 2026-04-01: 문서 메타데이터 위치를 표준화하고(`작성일/최종 업데이트/버전` 상단, `변경 이력` 하단) 형식을 통일.
 - 2026-04-01: AI 지연 대응 설계를 반영해 Redis(캐시)와 RabbitMQ(메시징) 환경변수/Secrets 항목을 추가.
 - 2026-04-01: DB 서버 공용 Redis/RabbitMQ 운영을 위한 권장 접속값과 큐 변수(`RABBITMQ_QUEUE_DLQ` 포함)를 추가.
-- 2026-04-02: 공개 저장소 기준 서버 주소 표기를 플레이스홀더로 통일하고 문서 정합성을 보강.
 - 2026-03-30: AI 배포용 `production` Environment Secrets 등록 상태를 추가하고 `${{ secrets.* }}` 표기로 통일.
 - 2026-03-23: AI/Backend/Frontend 환경변수 구조 정리.

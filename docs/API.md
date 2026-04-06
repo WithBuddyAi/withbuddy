@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.6.0
-**최종 업데이트**: 2026-04-02
+**버전**: 1.7.1
+**최종 업데이트**: 2026-04-06
 
 ---
 
@@ -111,10 +111,36 @@ OpenAPI Docs:     http://localhost:8080/v3/api-docs
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
-  "message": "잘못된 요청입니다",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사 코드는 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    }
+  ],
   "path": "/api/v1/auth/login"
 }
 ```
+
+### 에러 응답 필드 설명
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `timestamp` | `String` | 에러 발생 시각 |
+| `status` | `Number` | HTTP 상태 코드 |
+| `error` | `String` | HTTP 상태 이름 |
+| `code` | `String` | 서비스 에러 코드 |
+| `errors` | `Array<Object>` | 상세 에러 목록 |
+| `errors[].field` | `String` | 오류가 발생한 필드명 또는 오류 대상 |
+| `errors[].message` | `String` | 상세 오류 메시지 |
+| `path` | `String` | 요청 경로 |
 
 ### HTTP 상태 코드
 
@@ -125,6 +151,12 @@ OpenAPI Docs:     http://localhost:8080/v3/api-docs
 - `403 Forbidden`: 요청 권한 없음
 - `404 Not Found`: 리소스 없음
 - `500 Internal Server Error`: 서버 오류
+
+#### 로그인 API (`POST /api/v1/auth/login`) 상태 코드
+
+- `200 OK`: 로그인 성공
+- `400 Bad Request`: 요청값 검증 실패
+- `401 Unauthorized`: 로그인 실패(회사코드/사번/이름 불일치)
 
 ### 공통 에러 코드
 - `BAD_REQUEST`: 잘못된 요청
@@ -155,7 +187,7 @@ Content-Type: application/json
 
 ```json
 {
-  "companyCode": "1001",
+  "companyCode": "WB1001",
   "employeeNumber": "20260001",
   "name": "김지원"
 }
@@ -163,11 +195,11 @@ Content-Type: application/json
 
 #### Request Field
 
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-|------|------|------|--------|------|-----------|
-| `companyCode` | `String` | Y | `"1001"` | 회사 식별 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| 필드 | 타입 | 필수 | 예시값          | 설명 | 상세 규칙 |
+|------|------|------|--------------|------|-----------|
+| `companyCode` | `String` | Y | `"WB1001"`   | 회사 식별 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 | `employeeNumber` | `String` | Y | `"20260001"` | 사용자 사번 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
-| `name` | `String` | Y | `"김지원"` | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
+| `name` | `String` | Y | `"김지원"`      | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
 
 #### 동작 규칙
 - 사용자는 로그인 시 회사코드, 사번, 이름을 입력한다.
@@ -182,7 +214,7 @@ Content-Type: application/json
   "accessToken": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
     "id": 1,
-    "companyCode": "1001",
+    "companyCode": "WB1001",
     "companyName": "테크 주식회사",
     "employeeNumber": "20260001",
     "name": "김지원",
@@ -190,6 +222,39 @@ Content-Type: application/json
   }
 }
 ```
+
+#### Error Response (400 Bad Request)
+
+```json
+{
+  "timestamp": "2026-04-03T10:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사 코드는 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+#### 검증 규칙
+- `companyCode`, `employeeNumber`, `name`은 필수값이다.
+- 각 필드는 공백만 입력할 수 없다.
+- 길이 제한을 초과하면 `400 Bad Request`를 반환한다.
+- 입력값 검증 실패 시 각 필드별 오류 메시지는 `errors` 배열에 담아 반환한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
 
 #### Error Response (401 Unauthorized)
 
@@ -199,7 +264,12 @@ Content-Type: application/json
   "status": 401,
   "error": "Unauthorized",
   "code": "UNAUTHORIZED",
-  "message": "회사코드, 사번 또는 이름이 올바르지 않습니다",
+  "errors": [
+    {
+      "field": "login",
+      "message": "회사코드, 사번 또는 이름이 올바르지 않습니다."
+    }
+  ],
   "path": "/api/v1/auth/login"
 }
 ```
@@ -216,7 +286,12 @@ Content-Type: application/json
   "status": 401,
   "error": "Unauthorized",
   "code": "UNAUTHORIZED",
-  "message": "인증 정보가 올바르지 않습니다",
+  "errors": [
+    {
+      "field": "auth",
+      "message": "인증 정보가 올바르지 않습니다."
+    }
+  ],
   "path": "/api/v1/chat/messages"
 }
 ```
@@ -231,7 +306,12 @@ Content-Type: application/json
   "status": 401,
   "error": "Unauthorized",
   "code": "TOKEN_EXPIRED",
-  "message": "액세스 토큰이 만료되었습니다",
+  "errors": [
+    {
+      "field": "token",
+      "message": "액세스 토큰이 만료되었습니다."
+    }
+  ],
   "path": "/api/v1/chat/messages"
 }
 ```
@@ -369,7 +449,12 @@ Content-Type: application/json
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
-  "message": "질문 내용은 비어 있을 수 없습니다",
+  "errors": [
+    {
+      "field": "content",
+      "message": "질문 내용은 비어 있을 수 없습니다."
+    }
+  ],
   "path": "/api/v1/chat/messages"
 }
 ```
@@ -498,7 +583,7 @@ Content-Type: application/json
 {
   "user": {
     "id": 1,
-    "companyCode": "1001",
+    "companyCode": "WB1001",
     "name": "김지원",
     "hireDate": "2026-03-01"
   },
@@ -538,11 +623,11 @@ Content-Type: application/json
 
 #### `user` Field
 
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-|------|------|------|--------|------|-----------|
-| `id` | `Long` | Y | `1` | 사용자 ID | 양의 정수 |
-| `companyCode` | `String` | Y | `"1001"` | 사용자 소속 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
-| `name` | `String` | Y | `"김지원"` | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
+| 필드 | 타입 | 필수 | 예시값            | 설명 | 상세 규칙 |
+|------|------|------|----------------|------|-----------|
+| `id` | `Long` | Y | `1`            | 사용자 ID | 양의 정수 |
+| `companyCode` | `String` | Y | `"WB1001"`     | 사용자 소속 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| `name` | `String` | Y | `"김지원"`        | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
 | `hireDate` | `String` | Y | `"2026-03-01"` | 사용자 입사일 (`YYYY-MM-DD`) | 길이: 10자 / 형식: `YYYY-MM-DD` / 특수문자는 하이픈(`-`)만 허용 |
 
 #### `messageHistory` Field
@@ -603,3 +688,7 @@ Content-Type: application/json
   - 빠른 질문 목록 조회 API 추가, 문서 양식 및 정합성 정리
 - **v1.6.0 (2026-04-02)**:
   - `company_id` 제거, 로그인/내부 AI 연동 관련 요청·응답 예시 및 동작 규칙 수정, Swagger(OpenAPI) 기반 API 문서 확인 경로 추가
+- **v1.7.0 (2026-04-03)**:
+  - 로그인 API 입력값 검증 적용에 따라 `400 Bad Request` 의미를 구체화, `POST /api/v1/auth/login`의 `200/400/401` 상태 코드 기준 정리, 예외 응답 형식 변경
+- **v1.7.1 (2026-04-06)**:
+- `company_code` 예시값 수정

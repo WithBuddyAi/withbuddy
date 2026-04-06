@@ -1,0 +1,154 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: backend-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Build Boot Jar
+        working-directory: ./backend
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew clean bootJar -x test --no-daemon
+
+      - name: Prepare artifact
+        run: |
+          set -euo pipefail
+          JAR_PATH=$(ls backend/build/libs/*.jar | grep -v '\-plain\.jar$' | head -n 1 || true)
+          if [ -z "${JAR_PATH}" ]; then
+            echo "No boot jar found in backend/build/libs"
+            exit 1
+          fi
+          cp "${JAR_PATH}" app.jar
+
+      - name: Validate required environment secrets
+        env:
+          BACKEND_API_HOST: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
+          BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
+          BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
+        run: |
+          set -euo pipefail
+          required_vars=(
+            BACKEND_API_HOST
+            BACKEND_SERVER_USER
+            BACKEND_SERVER_SSH_KEY
+            BACKEND_APP_DIR
+          )
+          for v in "${required_vars[@]}"; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret: $v"
+              exit 1
+            fi
+          done
+
+      - name: Upload app.jar to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
+          username: ${{ secrets.BACKEND_SERVER_USER }}
+          key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          source: "app.jar"
+          target: ${{ secrets.BACKEND_APP_DIR }}
+          overwrite: true
+
+      - name: Restart backend
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AI_API_URL: ${{ secrets.AI_API_URL }}
+          SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
+          SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
+          SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
+          SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
+          SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
+          SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
+          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
+        with:
+          host: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
+          username: ${{ secrets.BACKEND_SERVER_USER }}
+          key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          envs: DB_PASSWORD,JWT_SECRET,AI_API_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,SPRING_DATASOURCE_URL,SPRING_DATASOURCE_USERNAME,SPRING_DATASOURCE_PASSWORD,BACKEND_HEALTH_URL,BACKEND_APP_DIR
+          script: |
+            set -euo pipefail
+
+            APP_DIR="${BACKEND_APP_DIR}"
+            JAR_PATH="${APP_DIR}/app.jar"
+            ENV_PATH="${APP_DIR}/backend.env"
+            HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8080/actuator/health}"
+
+            mkdir -p "${APP_DIR}"
+
+            cat > "${ENV_PATH}" <<EOF
+            DB_PASSWORD=${DB_PASSWORD}
+            JWT_SECRET=${JWT_SECRET}
+            AI_API_URL=${AI_API_URL}
+            SPRING_DB_URL=${SPRING_DB_URL}
+            SPRING_DB_USERNAME=${SPRING_DB_USERNAME}
+            SPRING_DB_PASSWORD=${SPRING_DB_PASSWORD}
+            SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+            SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+            SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+            EOF
+            chmod 600 "${ENV_PATH}"
+
+            pkill -f "java -jar ${JAR_PATH}" || true
+            sleep 2
+
+            set -a
+            source "${ENV_PATH}"
+            set +a
+
+            CMD=(java -jar "${JAR_PATH}" --spring.profiles.active=prod)
+            EFFECTIVE_DB_URL="${SPRING_DB_URL:-${SPRING_DATASOURCE_URL:-}}"
+            EFFECTIVE_DB_USERNAME="${SPRING_DB_USERNAME:-${SPRING_DATASOURCE_USERNAME:-}}"
+            EFFECTIVE_DB_PASSWORD="${SPRING_DB_PASSWORD:-${SPRING_DATASOURCE_PASSWORD:-${DB_PASSWORD:-}}}"
+
+            if [ -n "${EFFECTIVE_DB_URL:-}" ]; then
+              CMD+=(--spring.datasource.url="${EFFECTIVE_DB_URL}")
+            fi
+            if [ -n "${EFFECTIVE_DB_USERNAME:-}" ]; then
+              CMD+=(--spring.datasource.username="${EFFECTIVE_DB_USERNAME}")
+            fi
+            if [ -n "${EFFECTIVE_DB_PASSWORD:-}" ]; then
+              CMD+=(--spring.datasource.password="${EFFECTIVE_DB_PASSWORD}")
+            fi
+            if [ -n "${JWT_SECRET:-}" ]; then
+              CMD+=(--jwt.secret="${JWT_SECRET}")
+            fi
+            if [ -n "${AI_API_URL:-}" ]; then
+              CMD+=(--ai.api.url="${AI_API_URL}")
+            fi
+
+            nohup "${CMD[@]}" > "${APP_DIR}/app.log" 2>&1 < /dev/null &
+
+            sleep 10
+            curl -fsS "${HEALTH_URL}"
