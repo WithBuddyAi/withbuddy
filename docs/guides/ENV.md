@@ -128,12 +128,12 @@ VITE_ENABLE_MOCK_API=false
 
 ```env
 # .env.development
-VITE_API_BASE_URL=http://localhost:8080/api
+VITE_API_BASE_URL=http://localhost:8080
 VITE_APP_ENV=development
 VITE_ENABLE_MOCK_API=true
 
 # .env.production
-VITE_API_BASE_URL=https://api.withbuddy.com/api
+VITE_API_BASE_URL=https://api-wb.itsdev.kr
 VITE_APP_ENV=production
 VITE_ENABLE_ANALYTICS=true
 ```

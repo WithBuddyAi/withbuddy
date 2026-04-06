@@ -306,8 +306,7 @@ application-prod.yml    # 프로덕션 (gitignore)
 - `SPRING_DB_URL` - JDBC URL
 - `SPRING_DB_USERNAME` - DB 계정
 - `SPRING_DB_PASSWORD` - DB 비밀번호
-- `BACKEND_API_HOST` - 백엔드 API 호스트 (예: `api-wb.itsdev.kr`, 권장)
-- `BACKEND_SERVER_HOST` - 레거시 호스트명 (마이그레이션 중 fallback 용도)
+- `BACKEND_SERVER_HOST` - SSH 배포 대상 호스트
 - `BACKEND_SERVER_USER` - SSH 사용자
 - `BACKEND_SERVER_SSH_KEY` - SSH 개인키
 - `BACKEND_APP_DIR` - 배포 경로
@@ -368,12 +367,12 @@ server:
 
 ---
 
-**Last Updated**: 2026-04-06
+**Last Updated**: 2026-04-07
 
 ## 변경 이력
 
 - 2026-04-06: CI/CD 환경변수 설명 정리 (`BACKEND_HEALTH_URL`, `JWT_SECRET`, `REDIS_URL`, `RABBITMQ_URL`).
 - 2026-04-06: 캐시/큐 운영 반영으로 `REDIS_URL`, `RABBITMQ_URL`를 필수값으로 상향.
-- 2026-04-06: 배포 호스트 시크릿을 `BACKEND_API_HOST` 기준으로 전환하고 `BACKEND_SERVER_HOST` fallback을 추가.
+- 2026-04-07: SSH 배포 대상 시크릿을 `BACKEND_SERVER_HOST` 단일 기준으로 정리.
 - 2026-04-02: 브랜치 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.
 
