@@ -2,8 +2,8 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
-**최종 업데이트**: 2026-04-06  
-**버전**: 1.3.3  
+**최종 업데이트**: 2026-04-07
+**버전**: 0.3.3
 **작성일**: 2026-03-27
 
 ## 목차
@@ -388,6 +388,128 @@ crontab -e
 
 ---
 
+## Redis 배포 (Oracle Compute)
+
+### 1. 서버 접속
+```bash
+# Public Subnet의 Backend 서버를 통해 접속
+ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
+ssh ubuntu@<MYSQL_PRIVATE_IP>  # MySQL과 동일 DB 서버
+```
+
+### 2. Redis 설치
+```bash
+sudo apt update
+sudo apt install redis-server -y
+```
+
+### 3. Redis 보안 설정
+
+**/etc/redis/redis.conf**
+```conf
+bind 127.0.0.1 10.0.3.10
+protected-mode yes
+port 6379
+requirepass CHANGE_ME_REDIS_PASSWORD
+maxmemory 2gb
+maxmemory-policy allkeys-lru
+appendonly yes
+```
+
+```bash
+sudo systemctl enable --now redis-server
+sudo systemctl restart redis-server
+```
+
+### 4. 방화벽(UFW) 설정
+```bash
+sudo apt install ufw -y
+
+sudo ufw allow 22/tcp
+sudo ufw allow from 10.0.0.0/16 to any port 6379 proto tcp
+sudo ufw allow from 10.1.0.0/16 to any port 6379 proto tcp
+
+sudo ufw --force enable
+sudo ufw status verbose
+```
+
+### 5. 상태 확인
+```bash
+sudo systemctl status redis-server --no-pager
+redis-cli -a CHANGE_ME_REDIS_PASSWORD ping
+redis-cli -a CHANGE_ME_REDIS_PASSWORD info memory
+```
+
+---
+
+## RabbitMQ 배포 (Oracle Compute)
+
+### 1. 서버 접속
+```bash
+# Public Subnet의 Backend 서버를 통해 접속
+ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
+ssh ubuntu@<MYSQL_PRIVATE_IP>  # MySQL/Redis와 동일 DB 서버
+```
+
+### 2. RabbitMQ 설치
+```bash
+sudo apt update
+sudo apt install rabbitmq-server -y
+sudo systemctl enable --now rabbitmq-server
+```
+
+### 3. 운영 계정/권한 설정
+```bash
+# 기본 guest 계정 비활성화 권장
+sudo rabbitmqctl delete_user guest || true
+
+# 앱 계정 생성
+sudo rabbitmqctl add_user withbuddy_app CHANGE_ME_RMQ_PASSWORD
+sudo rabbitmqctl set_permissions -p / withbuddy_app ".*" ".*" ".*"
+
+# 관리자 계정(선택)
+sudo rabbitmqctl add_user withbuddy_admin CHANGE_ME_RMQ_ADMIN_PASSWORD
+sudo rabbitmqctl set_user_tags withbuddy_admin administrator
+sudo rabbitmqctl set_permissions -p / withbuddy_admin ".*" ".*" ".*"
+```
+
+### 4. 플러그인 및 정책 설정
+```bash
+# 관리 UI (15672)
+sudo rabbitmq-plugins enable rabbitmq_management
+
+# Quorum Queue 기본 사용 권장 (MVP 단일 노드는 Classic도 가능)
+# 정책 예시 (선택)
+sudo rabbitmqctl set_policy quorum "^wb\\." '{"queue-type":"quorum"}' --apply-to queues
+```
+
+워크로드 분리 권장:
+- Redis: 채팅/간단 액션 응답 캐시, 토큰 블랙리스트, 레이트리밋
+- RabbitMQ: 주간 회고/리포트/재인덱싱/알림 등 비동기 장시간 작업
+
+### 5. 방화벽(UFW) 설정
+```bash
+sudo apt install ufw -y
+
+sudo ufw allow 22/tcp
+sudo ufw allow from 10.0.0.0/16 to any port 5672 proto tcp
+sudo ufw allow from 10.1.0.0/16 to any port 5672 proto tcp
+sudo ufw allow from <ADMIN_FIXED_IP_OR_CIDR> to any port 15672 proto tcp
+
+sudo ufw --force enable
+sudo ufw status verbose
+```
+
+### 6. 상태 확인
+```bash
+sudo systemctl status rabbitmq-server --no-pager
+sudo rabbitmqctl status
+sudo rabbitmqctl list_users
+sudo rabbitmqctl list_queues name messages consumers
+```
+
+---
+
 ## Frontend 배포 (Vercel)
 
 ### 1. Vercel 계정 생성
@@ -556,47 +678,13 @@ SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
 "SPRING_DB_PASSWORD='$SPRING_DB_PASSWORD' JWT_SECRET='$JWT_SECRET' AI_API_URL='$AI_API_URL' bash -s" << 'ENDSSH'
           
-          # 기존 프로세스 종료
-          pkill -9 -f "java -jar" || true
-          sleep 3
-          
-          # 재확인
-          if pgrep -f "java -jar"; then
-            echo "Still running, force killing..."
-            pkill -9 -f "java -jar"
-            sleep 2
-          fi          
-          
-          # 환경변수 확인
-echo "SPRING_DB_PASSWORD length: ${#SPRING_DB_PASSWORD}"
-          echo "JWT_SECRET length: ${#JWT_SECRET}"
-          
-          # 애플리케이션 시작
-          nohup java -jar /home/ubuntu/withbuddy/app.jar \
-            --spring.profiles.active=prod \
-            --spring.datasource.url="jdbc:mysql://10.0.3.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
-            --spring.datasource.username=withbuddy \
---spring.datasource.password="${SPRING_DB_PASSWORD}" \
-            --jwt.secret="${JWT_SECRET}" \
-            --ai.api.url="${AI_API_URL}" \
-            > /home/ubuntu/withbuddy/app.log 2>&1 &
-          
-          APP_PID=$!
-          echo "Started with PID: $APP_PID"
-          sleep 10
-          
-          if ps -p $APP_PID > /dev/null 2>&1; then
-            echo "✅ Application is running (PID: $APP_PID)"
-            ps aux | grep "java -jar" | grep -v grep
-            echo ""
-            echo "=== Last 30 lines of log ==="
-            tail -30 /home/ubuntu/withbuddy/app.log
-          else
-            echo "❌ Application failed to start"
-            echo "=== Last 100 lines of log ==="
-            tail -100 /home/ubuntu/withbuddy/app.log
-            exit 1
-          fi
+          # 운영 표준: systemd 단일 서비스 재시작
+          sudo systemctl restart withbuddy-backend.service
+          sudo systemctl is-active --quiet withbuddy-backend.service
+          sleep 5
+
+          # 헬스체크
+          curl -fsS http://127.0.0.1:8080/actuator/health
           ENDSSH
       
       - name: Deployment completed

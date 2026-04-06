@@ -739,6 +739,39 @@ MySQL Security List/NSG:
       - None (완전 차단)
 ```
 
+### 6.3 Redis/RabbitMQ 분리 보안 정책
+
+```yaml
+Redis:
+  Purpose:
+    - 캐시/토큰 블랙리스트/레이트리밋
+  Port: 6379
+  Access:
+    - Backend subnet
+    - AI subnet (필요 시)
+  Requirements:
+    - requirepass 또는 ACL 필수
+    - 외부 인터넷 직접 노출 금지
+
+RabbitMQ:
+  Purpose:
+    - 비동기 메시징 (작업 큐)
+  Port: 5672
+  Management Port: 15672
+  Access:
+    - 5672: Backend/AI 내부망만 허용
+    - 15672: 운영자 고정 IP만 허용
+  Requirements:
+    - 앱 계정/관리자 계정 분리
+    - DLQ 및 재시도 정책 사용
+    - 기본 guest 계정 비활성화
+```
+
+추가 원칙:
+- AI 서버는 사용자 원본 데이터를 직접 변경하지 않는다.
+- 사용자/회사 원본 데이터는 Backend를 통해 MySQL에만 저장한다.
+- Redis 데이터 유실은 허용하되, RabbitMQ 큐 유실은 운영 장애로 간주하고 모니터링한다.
+
 
 ---
 
