@@ -49,14 +49,14 @@ jobs:
 
       - name: Validate required environment secrets
         env:
-          BACKEND_API_HOST: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
+          BACKEND_SERVER_HOST: ${{ secrets.BACKEND_SERVER_HOST }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
           BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         run: |
           set -euo pipefail
           required_vars=(
-            BACKEND_API_HOST
+            BACKEND_SERVER_HOST
             BACKEND_SERVER_USER
             BACKEND_SERVER_SSH_KEY
             BACKEND_APP_DIR
@@ -71,7 +71,7 @@ jobs:
       - name: Upload app.jar to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
+          host: ${{ secrets.BACKEND_SERVER_HOST }}
           username: ${{ secrets.BACKEND_SERVER_USER }}
           key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
           source: "app.jar"
@@ -93,7 +93,7 @@ jobs:
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         with:
-          host: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
+          host: ${{ secrets.BACKEND_SERVER_HOST }}
           username: ${{ secrets.BACKEND_SERVER_USER }}
           key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
           envs: DB_PASSWORD,JWT_SECRET,AI_API_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,SPRING_DATASOURCE_URL,SPRING_DATASOURCE_USERNAME,SPRING_DATASOURCE_PASSWORD,BACKEND_HEALTH_URL,BACKEND_APP_DIR
