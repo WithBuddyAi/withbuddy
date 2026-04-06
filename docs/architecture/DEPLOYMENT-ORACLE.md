@@ -2,11 +2,11 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
-**최종 업데이트**: 2026-04-03  
-**버전**: 1.3.2  
+**최종 업데이트**: 2026-04-06  
+**버전**: 1.3.3  
 **작성일**: 2026-03-27
 
-## 📋 목차
+## 목차
 - [인프라 개요](#인프라-개요)
 - [Oracle Cloud 리소스 생성](#oracle-cloud-리소스-생성)
 - [VCN 및 네트워크 설정](#vcn-및-네트워크-설정)
@@ -42,7 +42,7 @@ Frontend:
   - CDN: Vercel Edge Network
   - HTTPS: 자동 제공
 
-Backend (Tenancy B):
+Backend Server (Tenancy B):
   - Provider: Oracle Cloud Compute
   - OS: Canonical Ubuntu 24.04
   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
@@ -56,23 +56,13 @@ AI Server (Tenancy A):
   - IP: Private IP 권장
   - Port: 8000 (FastAPI)
 
-MySQL (Tenancy B):
+MySQL/Redis/RMQ Server (Tenancy B):
   - Provider: Oracle Cloud Compute
   - OS: Canonical Ubuntu 24.04
   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
   - IP: Private IP만 사용 (VCN 내부)
   - Port: 3306
 
-Redis (Tenancy B):
-  - Provider: Oracle Cloud Compute (DB 서버와 동일 인스턴스에 설치)
-  - Host: DB Server (Tenancy B)
-  - Port: 6379
-
-RabbitMQ (Tenancy B):
-  - Provider: Oracle Cloud Compute (DB 서버와 동일 인스턴스에 설치)
-  - Host: DB Server (Tenancy B)
-  - Port: 5672 (AMQP)
-  - Management: 15672 (운영자 고정 IP만 허용)
 ```
 
 ---
@@ -99,7 +89,7 @@ Network: Private IP 권장 (Public IP는 운영자만 제한)
 Boot Volume: 50GB
 ```
 
-**MySQL 인스턴스 (Tenancy B)**
+**MySQL(Redis/RMQ) 인스턴스 (Tenancy B)**
 ```
 Name: withbuddy-mysql
 Image: Canonical Ubuntu 24.04
@@ -148,15 +138,10 @@ VCN-B Public Subnet:
   CIDR: 10.0.1.0/24
   Purpose: Backend
 
-VCN-B Private App Subnet:
-  Name: withbuddy-app-subnet
-  CIDR: 10.0.2.0/24
-  Purpose: 향후 내부 서비스 확장 (현재 미사용)
-
 VCN-B Private DB Subnet:
   Name: withbuddy-private-subnet
   CIDR: 10.0.3.0/24
-  Purpose: MySQL + Redis + RabbitMQ
+  Purpose: MySQL/Redis/RMQ
 
 VCN-A Private AI Subnet:
   Name: withbuddy-ai-subnet
@@ -196,12 +181,6 @@ Egress Rules:
 ```
 Ingress Rules:
   - 3306 (MySQL) from 10.0.0.0/16 (VCN-B)
-  - 3306 (MySQL) from 10.1.0.0/16 (VCN-A, LPG)
-  - 6379 (Redis) from 10.0.0.0/16 (VCN-B)
-  - 6379 (Redis) from 10.1.0.0/16 (VCN-A, LPG)
-  - 5672 (RabbitMQ) from 10.0.0.0/16 (VCN-B)
-  - 5672 (RabbitMQ) from 10.1.0.0/16 (VCN-A, LPG)
-  - 15672 (RabbitMQ Management) from <ADMIN_FIXED_IP_OR_CIDR>
 
 Egress Rules:
   - All traffic to 0.0.0.0/0
@@ -254,33 +233,27 @@ java -version
 mkdir -p /home/ubuntu/withbuddy
 ```
 
-### 5. systemd 서비스 생성
+### 5. 백엔드 서비스 실행 방식
 
-**/etc/systemd/system/withbuddy.service**
+- 현재 `.github/workflows/backend-deploy.yml` 기준 기본 배포는 `java -jar` 재기동 방식이며, `/etc/systemd/system/withbuddy.service` 파일은 필수 아님.
+- systemd 운영을 적용할 경우 서비스명은 `withbuddy-backend.service`로 통일한다.
+
+**(선택) /etc/systemd/system/withbuddy-backend.service**
 ```ini
 [Unit]
-Description=WithBuddy Spring Boot Application
+Description=WithBuddy Backend Service
 After=network.target
 
 [Service]
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/withbuddy
-ExecStart=/usr/bin/java -jar /home/ubuntu/withbuddy/app.jar \
-  --spring.profiles.active=prod \
-  --spring.datasource.url="jdbc:mysql://10.0.3.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
-  --spring.datasource.username=withbuddy \
-  --spring.datasource.password="${DB_PASSWORD}" \
-  --ai.api.url="${AI_API_URL}"
-
+EnvironmentFile=/home/ubuntu/withbuddy/backend.env
+ExecStart=/usr/bin/java -jar /home/ubuntu/withbuddy/app.jar --spring.profiles.active=prod
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-
-Environment="DB_PASSWORD=your_password"
-Environment="JWT_SECRET=your_jwt_secret"
-Environment="AI_API_URL=http://10.1.2.10:8000"
 
 [Install]
 WantedBy=multi-user.target
@@ -415,128 +388,6 @@ crontab -e
 
 ---
 
-## Redis 배포 (Oracle Compute)
-
-### 1. 서버 접속
-```bash
-# Public Subnet의 Backend 서버를 통해 접속
-ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
-ssh ubuntu@<MYSQL_PRIVATE_IP>  # MySQL과 동일 DB 서버
-```
-
-### 2. Redis 설치
-```bash
-sudo apt update
-sudo apt install redis-server -y
-```
-
-### 3. Redis 보안 설정
-
-**/etc/redis/redis.conf**
-```conf
-bind 127.0.0.1 10.0.3.10
-protected-mode yes
-port 6379
-requirepass CHANGE_ME_REDIS_PASSWORD
-maxmemory 2gb
-maxmemory-policy allkeys-lru
-appendonly yes
-```
-
-```bash
-sudo systemctl enable --now redis-server
-sudo systemctl restart redis-server
-```
-
-### 4. 방화벽(UFW) 설정
-```bash
-sudo apt install ufw -y
-
-sudo ufw allow 22/tcp
-sudo ufw allow from 10.0.0.0/16 to any port 6379 proto tcp
-sudo ufw allow from 10.1.0.0/16 to any port 6379 proto tcp
-
-sudo ufw --force enable
-sudo ufw status verbose
-```
-
-### 5. 상태 확인
-```bash
-sudo systemctl status redis-server --no-pager
-redis-cli -a CHANGE_ME_REDIS_PASSWORD ping
-redis-cli -a CHANGE_ME_REDIS_PASSWORD info memory
-```
-
----
-
-## RabbitMQ 배포 (Oracle Compute)
-
-### 1. 서버 접속
-```bash
-# Public Subnet의 Backend 서버를 통해 접속
-ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
-ssh ubuntu@<MYSQL_PRIVATE_IP>  # MySQL/Redis와 동일 DB 서버
-```
-
-### 2. RabbitMQ 설치
-```bash
-sudo apt update
-sudo apt install rabbitmq-server -y
-sudo systemctl enable --now rabbitmq-server
-```
-
-### 3. 운영 계정/권한 설정
-```bash
-# 기본 guest 계정 비활성화 권장
-sudo rabbitmqctl delete_user guest || true
-
-# 앱 계정 생성
-sudo rabbitmqctl add_user withbuddy_app CHANGE_ME_RMQ_PASSWORD
-sudo rabbitmqctl set_permissions -p / withbuddy_app ".*" ".*" ".*"
-
-# 관리자 계정(선택)
-sudo rabbitmqctl add_user withbuddy_admin CHANGE_ME_RMQ_ADMIN_PASSWORD
-sudo rabbitmqctl set_user_tags withbuddy_admin administrator
-sudo rabbitmqctl set_permissions -p / withbuddy_admin ".*" ".*" ".*"
-```
-
-### 4. 플러그인 및 정책 설정
-```bash
-# 관리 UI (15672)
-sudo rabbitmq-plugins enable rabbitmq_management
-
-# Quorum Queue 기본 사용 권장 (MVP 단일 노드는 Classic도 가능)
-# 정책 예시 (선택)
-sudo rabbitmqctl set_policy quorum "^wb\\." '{"queue-type":"quorum"}' --apply-to queues
-```
-
-워크로드 분리 권장:
-- Redis: 채팅/간단 액션 응답 캐시, 토큰 블랙리스트, 레이트리밋
-- RabbitMQ: 주간 회고/리포트/재인덱싱/알림 등 비동기 장시간 작업
-
-### 5. 방화벽(UFW) 설정
-```bash
-sudo apt install ufw -y
-
-sudo ufw allow 22/tcp
-sudo ufw allow from 10.0.0.0/16 to any port 5672 proto tcp
-sudo ufw allow from 10.1.0.0/16 to any port 5672 proto tcp
-sudo ufw allow from <ADMIN_FIXED_IP_OR_CIDR> to any port 15672 proto tcp
-
-sudo ufw --force enable
-sudo ufw status verbose
-```
-
-### 6. 상태 확인
-```bash
-sudo systemctl status rabbitmq-server --no-pager
-sudo rabbitmqctl status
-sudo rabbitmqctl list_users
-sudo rabbitmqctl list_queues name messages consumers
-```
-
----
-
 ## Frontend 배포 (Vercel)
 
 ### 1. Vercel 계정 생성
@@ -584,9 +435,9 @@ SSH_PRIVATE_KEY=<withbuddy_oracle 개인키 전체 내용>
 BACKEND_SERVER_IP=<Backend 공인 IP>
 AI_SERVER_IP=<AI 서버 공인 IP>
 SERVER_USER=ubuntu
-DB_PASSWORD=<MySQL 비밀번호>
+SPRING_DB_PASSWORD=<MySQL 비밀번호>
 JWT_SECRET=<JWT Secret>
-AI_API_URL=http://10.1.2.10:8000
+AI_API_URL=https://ai.itsdev.kr
 ANTHROPIC_API_KEY=<Anthropic API Key>
 ```
 
@@ -682,7 +533,7 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_IP: ${{ secrets.BACKEND_SERVER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           AI_API_URL: ${{ secrets.AI_API_URL }}
         run: |
@@ -699,7 +550,7 @@ jobs:
           
           echo "=== Starting Application ==="
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
-            "DB_PASSWORD='$DB_PASSWORD' JWT_SECRET='$JWT_SECRET' AI_API_URL='$AI_API_URL' bash -s" << 'ENDSSH'
+"SPRING_DB_PASSWORD='$SPRING_DB_PASSWORD' JWT_SECRET='$JWT_SECRET' AI_API_URL='$AI_API_URL' bash -s" << 'ENDSSH'
           
           # 기존 프로세스 종료
           pkill -9 -f "java -jar" || true
@@ -713,7 +564,7 @@ jobs:
           fi          
           
           # 환경변수 확인
-          echo "DB_PASSWORD length: ${#DB_PASSWORD}"
+echo "SPRING_DB_PASSWORD length: ${#SPRING_DB_PASSWORD}"
           echo "JWT_SECRET length: ${#JWT_SECRET}"
           
           # 애플리케이션 시작
@@ -721,7 +572,7 @@ jobs:
             --spring.profiles.active=prod \
             --spring.datasource.url="jdbc:mysql://10.0.3.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
             --spring.datasource.username=withbuddy \
-            --spring.datasource.password="${DB_PASSWORD}" \
+--spring.datasource.password="${SPRING_DB_PASSWORD}" \
             --jwt.secret="${JWT_SECRET}" \
             --ai.api.url="${AI_API_URL}" \
             > /home/ubuntu/withbuddy/app.log 2>&1 &
@@ -893,6 +744,8 @@ Vercel (Hobby):
 
 ## 변경 이력
 
+- 2026-04-06: Backend 배포 섹션에서 `/etc/systemd/system/withbuddy.service` 필수 표기를 제거하고, 현재 CI/CD 기본(`java -jar`) 및 선택 systemd 서비스명(`withbuddy-backend.service`) 기준으로 정리.
+- 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 연결 항목을 제거.
 - 2026-03-27: 테넌시 분리(Backend/DB/Redis vs AI) 반영, LPG 구성 단계 추가, VCN/서브넷/보안 규칙과 IP 예시 업데이트, OCI A1.Flex 스펙 적용, 인프라 다이어그램 이미지 추가.
 - 2026-03-29: 실제 `ai-deploy.yml` 시크릿 명세와 자동배포 선행조건(systemd/venv/sudoers/health-check) 추가.
 - 2026-03-30: AI Environment Secrets가 `production`에 등록 완료된 상태를 문서에 명시하고 `${{ secrets.* }}` 표기로 통일.
