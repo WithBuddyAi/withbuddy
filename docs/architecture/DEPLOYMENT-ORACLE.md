@@ -2,8 +2,8 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
-**최종 업데이트**: 2026-04-02  
-**버전**: 1.3.1  
+**최종 업데이트**: 2026-04-03  
+**버전**: 1.3.2  
 **작성일**: 2026-03-27
 
 ## 📋 목차
@@ -38,7 +38,7 @@
 ```yaml
 Frontend:
   - Platform: Vercel
-  - Domain: withbuddy.vercel.app (또는 커스텀 도메인)
+  - Domain: withbuddy-rust.vercel.app (기본), withbuddy.itsdev.kr (Cloudflare DNS 연결 커스텀 도메인)
   - CDN: Vercel Edge Network
   - HTTPS: 자동 제공
 
@@ -110,8 +110,11 @@ Boot Volume: 50GB
 
 ### 2. SSH 키 생성 및 등록
 ```bash
-# 로컬에서 SSH 키 생성
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/withbuddy_oracle
+# 로컬에서 SSH 키 생성 (권장: Ed25519)
+ssh-keygen -t ed25519 -f ~/.ssh/withbuddy_oracle
+
+# 구형 환경 호환이 필요하면 RSA 사용 가능
+# ssh-keygen -t rsa -b 4096 -f ~/.ssh/withbuddy_oracle
 
 # 공개키 내용 복사
 cat ~/.ssh/withbuddy_oracle.pub

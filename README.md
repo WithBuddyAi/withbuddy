@@ -162,7 +162,7 @@ withbuddy/
 │  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼 📚 필독)
 │  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼📚 필독)
 │  │  ├─ ENV.md                   # BE/CI  (환경변수 및 GitHub Secrets 가이드)
-│  │  ├─ GIT-FLOW-SETUP.md        # BE/CI  (Git Flow 설정 체크리스트)
+│  │  ├─ GITHUB-FLOW-SETUP.md     # BE/CI  (GitHub flow 설정 체크리스트)
 │  │  ├─ GITHUB-SSH.md            # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
 │  │  └─ SETUP.md                 # BE/CI  (개발 환경 설정 가이드 📚 필독)
 │  │
@@ -190,7 +190,7 @@ withbuddy/
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
 - **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
-- **[Git Flow 설정 체크리스트](./docs/guides/GIT-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS, PR 자동 본문 설정
+- **[GitHub flow 설정 체크리스트](./docs/guides/GITHUB-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS, PR 자동 본문 설정
 - **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR, 코드 작성 기준
 
 ### 아키텍처

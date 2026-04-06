@@ -1,10 +1,10 @@
 package com.withbuddy.auth.exception;
 
 import com.withbuddy.auth.dto.ErrorResponse;
+import com.withbuddy.auth.dto.FieldValidationError;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -22,12 +21,16 @@ public class GlobalExceptionHandler {
             LoginFailedException e,
             HttpServletRequest request
     ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("login", e.getMessage())
+        );
+
         ErrorResponse response = new ErrorResponse(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "UNAUTHORIZED",
-                e.getMessage(),
+                errors,
                 request.getRequestURI()
         );
 
@@ -39,20 +42,21 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException e,
             HttpServletRequest request
     ) {
-        List<String> validationMessages = e.getBindingResult()
+        List<FieldValidationError> errors = e.getBindingResult()
                 .getFieldErrors()
                 .stream()
-                .map(FieldError::getDefaultMessage)
-                .collect(Collectors.toList());
-
-        String message = String.join(", ", validationMessages);
+                .map(fieldError -> new FieldValidationError(
+                        fieldError.getField(),
+                        fieldError.getDefaultMessage()
+                ))
+                .toList();
 
         ErrorResponse response = new ErrorResponse(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.BAD_REQUEST.value(),
                 HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 "BAD_REQUEST",
-                message,
+                errors,
                 request.getRequestURI()
         );
 

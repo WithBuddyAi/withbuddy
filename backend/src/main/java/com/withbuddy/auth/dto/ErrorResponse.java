@@ -3,6 +3,8 @@ package com.withbuddy.auth.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
+import java.util.List;
+
 @Getter
 @Schema(description = "에러 응답")
 public class ErrorResponse {
@@ -20,17 +22,18 @@ public class ErrorResponse {
     private final String code;
 
     @Schema(description = "에러 메시지", example = "회사코드, 사번 또는 이름이 올바르지 않습니다")
-    private final String message;
+
+    private final List<FieldValidationError> errors;
 
     @Schema(description = "요청 경로", example = "/api/v1/auth/login")
     private final String path;
 
-    public ErrorResponse(String timestamp, int status, String error, String code, String message, String path) {
+    public ErrorResponse(String timestamp, int status, String error, String code, List<FieldValidationError> errors, String path) {
         this.timestamp = timestamp;
         this.status = status;
         this.error = error;
         this.code = code;
-        this.message = message;
+        this.errors = errors;
         this.path = path;
     }
 }
