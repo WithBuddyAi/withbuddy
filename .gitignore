@@ -34,6 +34,7 @@ build/
 .vite/
 *.log
 backend/bootrun.log
+wb_cookie.txt
 
 # Database
 *.sqlite
