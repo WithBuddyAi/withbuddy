@@ -678,47 +678,13 @@ SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
 "SPRING_DB_PASSWORD='$SPRING_DB_PASSWORD' JWT_SECRET='$JWT_SECRET' AI_API_URL='$AI_API_URL' bash -s" << 'ENDSSH'
           
-          # 기존 프로세스 종료
-          pkill -9 -f "java -jar" || true
-          sleep 3
-          
-          # 재확인
-          if pgrep -f "java -jar"; then
-            echo "Still running, force killing..."
-            pkill -9 -f "java -jar"
-            sleep 2
-          fi          
-          
-          # 환경변수 확인
-echo "SPRING_DB_PASSWORD length: ${#SPRING_DB_PASSWORD}"
-          echo "JWT_SECRET length: ${#JWT_SECRET}"
-          
-          # 애플리케이션 시작
-          nohup java -jar /home/ubuntu/withbuddy/app.jar \
-            --spring.profiles.active=prod \
-            --spring.datasource.url="jdbc:mysql://10.0.3.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
-            --spring.datasource.username=withbuddy \
---spring.datasource.password="${SPRING_DB_PASSWORD}" \
-            --jwt.secret="${JWT_SECRET}" \
-            --ai.api.url="${AI_API_URL}" \
-            > /home/ubuntu/withbuddy/app.log 2>&1 &
-          
-          APP_PID=$!
-          echo "Started with PID: $APP_PID"
-          sleep 10
-          
-          if ps -p $APP_PID > /dev/null 2>&1; then
-            echo "✅ Application is running (PID: $APP_PID)"
-            ps aux | grep "java -jar" | grep -v grep
-            echo ""
-            echo "=== Last 30 lines of log ==="
-            tail -30 /home/ubuntu/withbuddy/app.log
-          else
-            echo "❌ Application failed to start"
-            echo "=== Last 100 lines of log ==="
-            tail -100 /home/ubuntu/withbuddy/app.log
-            exit 1
-          fi
+          # 운영 표준: systemd 단일 서비스 재시작
+          sudo systemctl restart withbuddy-backend.service
+          sudo systemctl is-active --quiet withbuddy-backend.service
+          sleep 5
+
+          # 헬스체크
+          curl -fsS http://127.0.0.1:8080/actuator/health
           ENDSSH
       
       - name: Deployment completed

@@ -328,7 +328,7 @@ application-prod.yml    # 프로덕션 (gitignore)
 ### 3. 배포 방법
 1. `main` 브랜치에 `backend/**` 변경을 push한다.
 2. GitHub Actions `Deploy Backend`가 자동 실행된다.
-3. 빌드 성공 시 JAR 업로드 → 서비스 재시작 → 헬스체크까지 수행된다.
+3. 빌드 성공 시 JAR 업로드 → `/etc/withbuddy-backend.env` 갱신 → `withbuddy-backend.service` 재시작 → 헬스체크까지 수행된다.
 
 ## 참고 문서
 
