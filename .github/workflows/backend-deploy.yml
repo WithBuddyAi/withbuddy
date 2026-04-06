@@ -49,14 +49,14 @@ jobs:
 
       - name: Validate required environment secrets
         env:
-          BACKEND_SERVER_HOST: ${{ secrets.BACKEND_SERVER_HOST }}
+          BACKEND_API_HOST: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
           BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         run: |
           set -euo pipefail
           required_vars=(
-            BACKEND_SERVER_HOST
+            BACKEND_API_HOST
             BACKEND_SERVER_USER
             BACKEND_SERVER_SSH_KEY
             BACKEND_APP_DIR
@@ -71,7 +71,7 @@ jobs:
       - name: Upload app.jar to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.BACKEND_SERVER_HOST }}
+          host: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
           username: ${{ secrets.BACKEND_SERVER_USER }}
           key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
           source: "app.jar"
@@ -84,16 +84,19 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           AI_API_URL: ${{ secrets.AI_API_URL }}
+          SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
+          SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
+          SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
           SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
           SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
           SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         with:
-          host: ${{ secrets.BACKEND_SERVER_HOST }}
+          host: ${{ secrets.BACKEND_API_HOST || secrets.BACKEND_SERVER_HOST }}
           username: ${{ secrets.BACKEND_SERVER_USER }}
           key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
-          envs: DB_PASSWORD,JWT_SECRET,AI_API_URL,SPRING_DATASOURCE_URL,SPRING_DATASOURCE_USERNAME,SPRING_DATASOURCE_PASSWORD,BACKEND_HEALTH_URL,BACKEND_APP_DIR
+          envs: DB_PASSWORD,JWT_SECRET,AI_API_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,SPRING_DATASOURCE_URL,SPRING_DATASOURCE_USERNAME,SPRING_DATASOURCE_PASSWORD,BACKEND_HEALTH_URL,BACKEND_APP_DIR
           script: |
             set -euo pipefail
 
@@ -108,6 +111,9 @@ jobs:
             DB_PASSWORD=${DB_PASSWORD}
             JWT_SECRET=${JWT_SECRET}
             AI_API_URL=${AI_API_URL}
+            SPRING_DB_URL=${SPRING_DB_URL}
+            SPRING_DB_USERNAME=${SPRING_DB_USERNAME}
+            SPRING_DB_PASSWORD=${SPRING_DB_PASSWORD}
             SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
             SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
             SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
@@ -122,16 +128,18 @@ jobs:
             set +a
 
             CMD=(java -jar "${JAR_PATH}" --spring.profiles.active=prod)
-            if [ -n "${SPRING_DATASOURCE_URL:-}" ]; then
-              CMD+=(--spring.datasource.url="${SPRING_DATASOURCE_URL}")
+            EFFECTIVE_DB_URL="${SPRING_DB_URL:-${SPRING_DATASOURCE_URL:-}}"
+            EFFECTIVE_DB_USERNAME="${SPRING_DB_USERNAME:-${SPRING_DATASOURCE_USERNAME:-}}"
+            EFFECTIVE_DB_PASSWORD="${SPRING_DB_PASSWORD:-${SPRING_DATASOURCE_PASSWORD:-${DB_PASSWORD:-}}}"
+
+            if [ -n "${EFFECTIVE_DB_URL:-}" ]; then
+              CMD+=(--spring.datasource.url="${EFFECTIVE_DB_URL}")
             fi
-            if [ -n "${SPRING_DATASOURCE_USERNAME:-}" ]; then
-              CMD+=(--spring.datasource.username="${SPRING_DATASOURCE_USERNAME}")
+            if [ -n "${EFFECTIVE_DB_USERNAME:-}" ]; then
+              CMD+=(--spring.datasource.username="${EFFECTIVE_DB_USERNAME}")
             fi
-            if [ -n "${SPRING_DATASOURCE_PASSWORD:-}" ]; then
-              CMD+=(--spring.datasource.password="${SPRING_DATASOURCE_PASSWORD}")
-            elif [ -n "${DB_PASSWORD:-}" ]; then
-              CMD+=(--spring.datasource.password="${DB_PASSWORD}")
+            if [ -n "${EFFECTIVE_DB_PASSWORD:-}" ]; then
+              CMD+=(--spring.datasource.password="${EFFECTIVE_DB_PASSWORD}")
             fi
             if [ -n "${JWT_SECRET:-}" ]; then
               CMD+=(--jwt.secret="${JWT_SECRET}")
