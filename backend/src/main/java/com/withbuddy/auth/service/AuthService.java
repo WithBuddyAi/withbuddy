@@ -1,9 +1,9 @@
 package com.withbuddy.auth.service;
 
-import com.withbuddy.auth.dto.LoginRequest;
-import com.withbuddy.auth.dto.LoginResponse;
-import com.withbuddy.auth.dto.LoginUserResponse;
-import com.withbuddy.auth.entity.User;
+import com.withbuddy.auth.dto.request.LoginRequest;
+import com.withbuddy.auth.dto.response.LoginResponse;
+import com.withbuddy.auth.dto.response.LoginUserResponse;
+import com.withbuddy.users.entity.User;
 import com.withbuddy.auth.exception.LoginFailedException;
 import com.withbuddy.auth.repository.UserRepository;
 import com.withbuddy.global.jwt.JwtService;

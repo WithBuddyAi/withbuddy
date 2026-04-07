@@ -1,7 +1,8 @@
-package com.withbuddy.auth.exception;
+package com.withbuddy.global.exception;
 
-import com.withbuddy.auth.dto.ErrorResponse;
-import com.withbuddy.auth.dto.FieldValidationError;
+import com.withbuddy.global.dto.ErrorResponse;
+import com.withbuddy.global.dto.FieldValidationError;
+import com.withbuddy.auth.exception.LoginFailedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

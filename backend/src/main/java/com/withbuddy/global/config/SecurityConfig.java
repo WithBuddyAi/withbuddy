@@ -1,4 +1,4 @@
-package com.withbuddy.auth.config;
+package com.withbuddy.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
