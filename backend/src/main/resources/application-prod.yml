@@ -1,13 +1,15 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
-  application:
-    name: withbuddy
+  config:
+    activate:
+      on-profile: prod
   datasource:
     url: ${SPRING_DB_URL}
     username: ${SPRING_DB_USERNAME}
     password: ${SPRING_DB_PASSWORD}
+    driver-class-name: ${SPRING_DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
   data:
     redis:
       url: ${REDIS_URL}
@@ -18,17 +20,11 @@ spring:
       ddl-auto: none
   sql:
     init:
-      mode: always
-      encoding: UTF-8
-
-
-springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
+      mode: never
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 7200000
+  access-expiration: ${JWT_ACCESS_EXPIRATION:7200000}
 
 app:
   rabbitmq:

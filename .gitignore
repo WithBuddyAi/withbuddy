@@ -33,6 +33,8 @@ dist/
 build/
 .vite/
 *.log
+backend/bootrun.log
+wb_cookie.txt
 
 # Database
 *.sqlite
@@ -63,3 +65,4 @@ frontend/.claude
 # Local AI tooling
 .ai/
 frontend/node_modules
+.ssh/

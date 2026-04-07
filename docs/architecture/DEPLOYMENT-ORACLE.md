@@ -2,11 +2,11 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
-**최종 업데이트**: 2026-04-02  
-**버전**: 1.3.1  
+**최종 업데이트**: 2026-04-07
+**버전**: 0.3.3
 **작성일**: 2026-03-27
 
-## 📋 목차
+## 목차
 - [인프라 개요](#인프라-개요)
 - [Oracle Cloud 리소스 생성](#oracle-cloud-리소스-생성)
 - [VCN 및 네트워크 설정](#vcn-및-네트워크-설정)
@@ -38,11 +38,11 @@
 ```yaml
 Frontend:
   - Platform: Vercel
-  - Domain: withbuddy.vercel.app (또는 커스텀 도메인)
+  - Domain: withbuddy-rust.vercel.app (기본), withbuddy.itsdev.kr (Cloudflare DNS 연결 커스텀 도메인)
   - CDN: Vercel Edge Network
   - HTTPS: 자동 제공
 
-Backend (Tenancy B):
+Backend Server (Tenancy B):
   - Provider: Oracle Cloud Compute
   - OS: Canonical Ubuntu 24.04
   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
@@ -56,23 +56,13 @@ AI Server (Tenancy A):
   - IP: Private IP 권장
   - Port: 8000 (FastAPI)
 
-MySQL (Tenancy B):
+MySQL/Redis/RMQ Server (Tenancy B):
   - Provider: Oracle Cloud Compute
   - OS: Canonical Ubuntu 24.04
   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
   - IP: Private IP만 사용 (VCN 내부)
   - Port: 3306
 
-Redis (Tenancy B):
-  - Provider: Oracle Cloud Compute (DB 서버와 동일 인스턴스에 설치)
-  - Host: DB Server (Tenancy B)
-  - Port: 6379
-
-RabbitMQ (Tenancy B):
-  - Provider: Oracle Cloud Compute (DB 서버와 동일 인스턴스에 설치)
-  - Host: DB Server (Tenancy B)
-  - Port: 5672 (AMQP)
-  - Management: 15672 (운영자 고정 IP만 허용)
 ```
 
 ---
@@ -99,7 +89,7 @@ Network: Private IP 권장 (Public IP는 운영자만 제한)
 Boot Volume: 50GB
 ```
 
-**MySQL 인스턴스 (Tenancy B)**
+**MySQL(Redis/RMQ) 인스턴스 (Tenancy B)**
 ```
 Name: withbuddy-mysql
 Image: Canonical Ubuntu 24.04
@@ -110,8 +100,11 @@ Boot Volume: 50GB
 
 ### 2. SSH 키 생성 및 등록
 ```bash
-# 로컬에서 SSH 키 생성
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/withbuddy_oracle
+# 로컬에서 SSH 키 생성 (권장: Ed25519)
+ssh-keygen -t ed25519 -f ~/.ssh/withbuddy_oracle
+
+# 구형 환경 호환이 필요하면 RSA 사용 가능
+# ssh-keygen -t rsa -b 4096 -f ~/.ssh/withbuddy_oracle
 
 # 공개키 내용 복사
 cat ~/.ssh/withbuddy_oracle.pub
@@ -145,15 +138,10 @@ VCN-B Public Subnet:
   CIDR: 10.0.1.0/24
   Purpose: Backend
 
-VCN-B Private App Subnet:
-  Name: withbuddy-app-subnet
-  CIDR: 10.0.2.0/24
-  Purpose: 향후 내부 서비스 확장 (현재 미사용)
-
 VCN-B Private DB Subnet:
   Name: withbuddy-private-subnet
   CIDR: 10.0.3.0/24
-  Purpose: MySQL + Redis + RabbitMQ
+  Purpose: MySQL/Redis/RMQ
 
 VCN-A Private AI Subnet:
   Name: withbuddy-ai-subnet
@@ -193,12 +181,6 @@ Egress Rules:
 ```
 Ingress Rules:
   - 3306 (MySQL) from 10.0.0.0/16 (VCN-B)
-  - 3306 (MySQL) from 10.1.0.0/16 (VCN-A, LPG)
-  - 6379 (Redis) from 10.0.0.0/16 (VCN-B)
-  - 6379 (Redis) from 10.1.0.0/16 (VCN-A, LPG)
-  - 5672 (RabbitMQ) from 10.0.0.0/16 (VCN-B)
-  - 5672 (RabbitMQ) from 10.1.0.0/16 (VCN-A, LPG)
-  - 15672 (RabbitMQ Management) from <ADMIN_FIXED_IP_OR_CIDR>
 
 Egress Rules:
   - All traffic to 0.0.0.0/0
@@ -251,33 +233,27 @@ java -version
 mkdir -p /home/ubuntu/withbuddy
 ```
 
-### 5. systemd 서비스 생성
+### 5. 백엔드 서비스 실행 방식
 
-**/etc/systemd/system/withbuddy.service**
+- 현재 `.github/workflows/backend-deploy.yml` 기준 기본 배포는 `java -jar` 재기동 방식이며, `/etc/systemd/system/withbuddy.service` 파일은 필수 아님.
+- systemd 운영을 적용할 경우 서비스명은 `withbuddy-backend.service`로 통일한다.
+
+**(선택) /etc/systemd/system/withbuddy-backend.service**
 ```ini
 [Unit]
-Description=WithBuddy Spring Boot Application
+Description=WithBuddy Backend Service
 After=network.target
 
 [Service]
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/withbuddy
-ExecStart=/usr/bin/java -jar /home/ubuntu/withbuddy/app.jar \
-  --spring.profiles.active=prod \
-  --spring.datasource.url="jdbc:mysql://10.0.3.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
-  --spring.datasource.username=withbuddy \
-  --spring.datasource.password="${DB_PASSWORD}" \
-  --ai.api.url="${AI_API_URL}"
-
+EnvironmentFile=/home/ubuntu/withbuddy/backend.env
+ExecStart=/usr/bin/java -jar /home/ubuntu/withbuddy/app.jar --spring.profiles.active=prod
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-
-Environment="DB_PASSWORD=your_password"
-Environment="JWT_SECRET=your_jwt_secret"
-Environment="AI_API_URL=http://10.1.2.10:8000"
 
 [Install]
 WantedBy=multi-user.target
@@ -581,9 +557,9 @@ SSH_PRIVATE_KEY=<withbuddy_oracle 개인키 전체 내용>
 BACKEND_SERVER_IP=<Backend 공인 IP>
 AI_SERVER_IP=<AI 서버 공인 IP>
 SERVER_USER=ubuntu
-DB_PASSWORD=<MySQL 비밀번호>
+SPRING_DB_PASSWORD=<MySQL 비밀번호>
 JWT_SECRET=<JWT Secret>
-AI_API_URL=http://10.1.2.10:8000
+AI_API_URL=https://ai.itsdev.kr
 ANTHROPIC_API_KEY=<Anthropic API Key>
 ```
 
@@ -633,6 +609,10 @@ curl -i http://127.0.0.1:8000/health
 
 ### 2. Backend 배포 워크플로우
 
+> 운영 표준(2026-04-07): 백엔드는 `withbuddy-backend.service` 단일 서비스로만 기동한다.  
+> `pkill`/`nohup` 기반 수동 프로세스 재기동은 포트 충돌을 유발하므로 사용하지 않는다.
+> 실제 기준은 저장소의 최신 `.github/workflows/backend-deploy.yml`을 따른다.
+
 **.github/workflows/backend-deploy.yml**
 ```yaml
 name: Deploy Backend to Oracle Cloud
@@ -679,7 +659,7 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_IP: ${{ secrets.BACKEND_SERVER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           AI_API_URL: ${{ secrets.AI_API_URL }}
         run: |
@@ -696,49 +676,15 @@ jobs:
           
           echo "=== Starting Application ==="
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
-            "DB_PASSWORD='$DB_PASSWORD' JWT_SECRET='$JWT_SECRET' AI_API_URL='$AI_API_URL' bash -s" << 'ENDSSH'
+"SPRING_DB_PASSWORD='$SPRING_DB_PASSWORD' JWT_SECRET='$JWT_SECRET' AI_API_URL='$AI_API_URL' bash -s" << 'ENDSSH'
           
-          # 기존 프로세스 종료
-          pkill -9 -f "java -jar" || true
-          sleep 3
-          
-          # 재확인
-          if pgrep -f "java -jar"; then
-            echo "Still running, force killing..."
-            pkill -9 -f "java -jar"
-            sleep 2
-          fi          
-          
-          # 환경변수 확인
-          echo "DB_PASSWORD length: ${#DB_PASSWORD}"
-          echo "JWT_SECRET length: ${#JWT_SECRET}"
-          
-          # 애플리케이션 시작
-          nohup java -jar /home/ubuntu/withbuddy/app.jar \
-            --spring.profiles.active=prod \
-            --spring.datasource.url="jdbc:mysql://10.0.3.10:3306/withbuddy?serverTimezone=Asia/Seoul&useSSL=false&allowPublicKeyRetrieval=true" \
-            --spring.datasource.username=withbuddy \
-            --spring.datasource.password="${DB_PASSWORD}" \
-            --jwt.secret="${JWT_SECRET}" \
-            --ai.api.url="${AI_API_URL}" \
-            > /home/ubuntu/withbuddy/app.log 2>&1 &
-          
-          APP_PID=$!
-          echo "Started with PID: $APP_PID"
-          sleep 10
-          
-          if ps -p $APP_PID > /dev/null 2>&1; then
-            echo "✅ Application is running (PID: $APP_PID)"
-            ps aux | grep "java -jar" | grep -v grep
-            echo ""
-            echo "=== Last 30 lines of log ==="
-            tail -30 /home/ubuntu/withbuddy/app.log
-          else
-            echo "❌ Application failed to start"
-            echo "=== Last 100 lines of log ==="
-            tail -100 /home/ubuntu/withbuddy/app.log
-            exit 1
-          fi
+          # 운영 표준: systemd 단일 서비스 재시작
+          sudo systemctl restart withbuddy-backend.service
+          sudo systemctl is-active --quiet withbuddy-backend.service
+          sleep 5
+
+          # 헬스체크
+          curl -fsS http://127.0.0.1:8080/actuator/health
           ENDSSH
       
       - name: Deployment completed
@@ -890,6 +836,9 @@ Vercel (Hobby):
 
 ## 변경 이력
 
+- 2026-04-07: Backend 운영 표준을 `withbuddy-backend.service` 단일 기동으로 고정하고, `pkill`/`nohup` 기반 재기동 금지 원칙을 명시.
+- 2026-04-06: Backend 배포 섹션에서 `/etc/systemd/system/withbuddy.service` 필수 표기를 제거하고, 현재 CI/CD 기본(`java -jar`) 및 선택 systemd 서비스명(`withbuddy-backend.service`) 기준으로 정리.
+- 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 연결 항목을 제거.
 - 2026-03-27: 테넌시 분리(Backend/DB/Redis vs AI) 반영, LPG 구성 단계 추가, VCN/서브넷/보안 규칙과 IP 예시 업데이트, OCI A1.Flex 스펙 적용, 인프라 다이어그램 이미지 추가.
 - 2026-03-29: 실제 `ai-deploy.yml` 시크릿 명세와 자동배포 선행조건(systemd/venv/sudoers/health-check) 추가.
 - 2026-03-30: AI Environment Secrets가 `production`에 등록 완료된 상태를 문서에 명시하고 `${{ secrets.* }}` 표기로 통일.
