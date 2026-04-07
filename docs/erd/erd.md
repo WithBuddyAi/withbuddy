@@ -97,7 +97,6 @@
 ### 컬럼
 - `id` : PK, bigint
 - `user_id` : FK → `users.id`
-- `document_id` : FK → `documents.id`, nullable
 - `suggestion_id` : FK → `onboarding_suggestions.id`, nullable
 - `sender_type` : 발신 주체 구분값, varchar
 - `message_type` : 메시지 유형 구분값, varchar
@@ -115,7 +114,6 @@
   - `suggestion` : 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
 - `rag_answer`는 답변이 생성된 경우로 간주한다.
 - `no_result`는 질문 범위는 맞지만 답변 가능한 정보가 없는 경우로 간주한다.
-- 문서 기반 답변인 경우 어떤 문서를 근거로 답변했는지 `document_id`로 연결할 수 있다.
 - 온보딩 가이드 기반 제안인 경우 어떤 온보딩 가이드를 참조했는지 `suggestion_id`로 연결할 수 있다.
 - 채팅형 UI에서 시간순 메시지 조회 및 대화 이력 관리에 활용할 수 있다.
 ---
@@ -147,7 +145,6 @@
 - `companies` 1 : N `users`
 - `companies` 1 : N `documents` _(회사별 문서 기준)_
 - `users` 1 : N `chat_messages`
-- `documents` 1 : N `chat_messages` _(선택적 연결)_
 - `onboarding_suggestions` 1 : N `chat_messages` _(선택적 연결)_
 - `users` 1 : N `user_activity_logs`
 
@@ -155,7 +152,6 @@
 - 회사 1개는 여러 명의 사용자를 가질 수 있다.
 - 회사 1개는 여러 개의 문서를 가질 수 있다.
 - 사용자 1명은 여러 개의 채팅 메시지를 남길 수 있다.
-- 문서 1개는 여러 답변 메시지의 근거로 사용될 수 있다.
 - 온보딩 가이드 1개는 여러 제안 메시지의 원본으로 사용될 수 있다.
 - 각 채팅 메시지는 1명의 사용자와 연결되며, 상황에 따라 1개의 문서 또는 1개의 온보딩 가이드와 연결될 수 있다.
 - 문서는 `company_code`를 기준으로 회사별 문서로 구분할 수 있으며, `company_code`가 없는 경우 공통 문서로 간주한다.
@@ -173,8 +169,7 @@
 - v1.2 (2026-03-26): `user_activity_logs`의 이벤트 유형 및 로그 수집 방식 설명 보강
 - v1.3 (2026-03-30): `documents` 테이블 `content` 수정
 - v1.4 (2026-04-01): `users`와 `documents`의 회사 참조 기준을 `company_code`로 통일하고, 관련 설명 및 관계 문구를 정리
-- v1.5 (2026-04-07): `documents.document_type`, `documents.department` 표준 분류값 및 분류 기준 설명 추가
-- 
+- v1.5 (2026-04-07): `documents.document_type`, `documents.department` 표준 분류값 및 분류 기준 설명 추가, `chat_messages` 테이블 수정, `document_id` 컬럼 삭제
 ---
 
 ## ERD 원본 링크
