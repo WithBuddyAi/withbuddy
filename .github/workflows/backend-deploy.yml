@@ -147,5 +147,16 @@ jobs:
             sudo systemctl restart "${SERVICE_NAME}"
             sudo systemctl is-active --quiet "${SERVICE_NAME}"
 
-            sleep 5
-            curl -fsS "${HEALTH_URL}"
+            for i in {1..12}; do
+              if curl -fsS "${HEALTH_URL}"; then
+                echo "Health check succeeded on attempt ${i}"
+                exit 0
+              fi
+              echo "Health check failed on attempt ${i}, retrying in 5s..."
+              sleep 5
+            done
+
+            echo "Health check failed after retries. Collecting diagnostics..."
+            sudo systemctl status "${SERVICE_NAME}" --no-pager -l || true
+            sudo journalctl -u "${SERVICE_NAME}" -n 200 --no-pager || true
+            exit 1
