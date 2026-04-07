@@ -42,6 +42,7 @@ class ChatRequest(BaseModel):
     user_id: int = Field(..., description="사용자 고유 ID", example=1)
     message: str = Field(..., description="사용자 질문", example="연차 신청 방법이 뭐야?")
     user_name: str = Field("", description="사용자 이름 (로그인 시 전달)")
+    company_id: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
 
 
 class ChatResponse(BaseModel):
@@ -56,7 +57,7 @@ class ChatResponse(BaseModel):
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
     try:
-        answer, source, related_docs = run_rag_chain(str(request.user_id), request.message, request.user_name)
+        answer, source, related_docs = run_rag_chain(str(request.user_id), request.message, request.user_name, request.company_id)
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
@@ -91,7 +92,7 @@ async def chat_stream(request: ChatRequest):
                 yield f"data: {json.dumps({'done': True, 'source': result.intent, 'docs': [], 'team_cards': is_team_cards}, ensure_ascii=False)}\n\n"
                 return
 
-            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user_name):
+            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user_name, request.company_id):
                 if source is not None:
                     yield f"data: {json.dumps({'done': True, 'source': source, 'docs': related_docs or []}, ensure_ascii=False)}\n\n"
                 else:
@@ -199,7 +200,7 @@ class InternalAIAnswerRequest(BaseModel):
 class InternalAIAnswerResponse(BaseModel):
     answer: str
     messageType: str = "rag_answer"
-    sourceDocumentId: int | None = None
+    documentId: int | None = None
 
 _OUT_OF_SCOPE_KEYWORDS = [
     "코드 짜줘", "코드 작성", "업무 처리", "실무 조언", "커리어",
@@ -262,7 +263,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             message_type = "rag_answer"
 
         source_id = request.documents[0].id if request.documents and message_type == "rag_answer" else None
-        return InternalAIAnswerResponse(answer=answer, messageType=message_type, sourceDocumentId=source_id)
+        return InternalAIAnswerResponse(answer=answer, messageType=message_type, documentId=source_id)
 
     except HTTPException:
         raise

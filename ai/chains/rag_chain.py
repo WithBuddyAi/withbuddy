@@ -17,7 +17,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
-from core.vectorstore import get_retriever
+from core.vectorstore import search_with_company_fallback
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
 from utils.prompts import RAG_PROMPT
@@ -184,12 +184,12 @@ _MAX_CONTEXT_CHARS = 2000  # 전체 컨텍스트 최대 글자 수
 
 # 문서 내 회사명 치환 목록 — PDF 원본의 회사명을 서비스명으로 변경
 _COMPANY_REPLACEMENTS = [
-    ("한전KDN", "(주)버디"),
-    ("한국전력공사", "(주)버디"),
-    ("한국전력", "(주)버디"),
-    ("KEPCO", "(주)버디"),
-    ("KDN", "(주)버디"),
-    ("한전", "(주)버디"),
+    ("한전KDN", "테크 주식회사"),
+    ("한국전력공사", "테크 주식회사"),
+    ("한국전력", "테크 주식회사"),
+    ("KEPCO", "테크 주식회사"),
+    ("KDN", "테크 주식회사"),
+    ("한전", "테크 주식회사"),
 ]
 
 def _replace_company(text: str) -> str:
@@ -237,7 +237,7 @@ def _extract_sources(docs: List[Document]) -> str:
     return ", ".join(sources) if sources else "알 수 없음"
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "") -> Tuple[str, str, List[dict]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_id: str = "") -> Tuple[str, str, List[dict]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록을 반환합니다.
 
@@ -258,8 +258,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "") -> Tuple[str
     if ambiguous:
         return ambiguous, "", []
 
-    retriever = get_retriever(k=_get_k_for_question(question))
-    retrieved_docs = retriever.invoke(question)
+    retrieved_docs = search_with_company_fallback(question, k=_get_k_for_question(question), company_id=company_id)
     formatted_context = _format_docs(retrieved_docs)
     source_names = _extract_sources(retrieved_docs)
     user_style = _detect_user_style(chat_history, question)
@@ -289,7 +288,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "") -> Tuple[str
     return answer, source_names, related_docs
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_id: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None)을 yield하고, 마지막에 ("", source_names, related_docs)를 yield합니다.
@@ -311,8 +310,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "") -> 
         yield "", "", []              # done 시그널
         return
 
-    retriever = get_retriever(k=_get_k_for_question(question))
-    retrieved_docs = retriever.invoke(question)
+    retrieved_docs = search_with_company_fallback(question, k=_get_k_for_question(question), company_id=company_id)
     formatted_context = _format_docs(retrieved_docs)
     source_names = _extract_sources(retrieved_docs)
     user_style = _detect_user_style(chat_history, question)
