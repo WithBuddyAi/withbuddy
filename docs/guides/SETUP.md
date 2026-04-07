@@ -110,7 +110,7 @@ FLUSH PRIVILEGES;
 2. Environment Variables 클릭
 3. 다음 변수 추가:
 
-DB_PASSWORD=your_password
+SPRING_DB_PASSWORD=your_password
 JWT_SECRET=your-jwt-secret-key-at-least-32-characters-long
 JWT_ACCESS_EXPIRATION=7200000
 JWT_REFRESH_EXPIRATION=604800000
@@ -120,7 +120,7 @@ AI_API_URL=http://localhost:8000
 **Ubuntu 서버 (배포용)**
 ```bash
 # ~/.bashrc 또는 /etc/environment에 추가
-export DB_PASSWORD=your_password
+export SPRING_DB_PASSWORD=your_password
 export JWT_SECRET=your-jwt-secret-key
 export JWT_ACCESS_EXPIRATION=7200000
 export JWT_REFRESH_EXPIRATION=604800000
@@ -138,7 +138,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/withbuddy
     username: withbuddy
-    password: ${DB_PASSWORD}
+    password: ${SPRING_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   
   jpa:
@@ -303,7 +303,7 @@ uvicorn app.main:app --reload --log-level debug
 ### MySQL 연결 오류
 ```bash
 # 에러: Access denied for user
-→ DB_PASSWORD 환경변수 확인
+→ SPRING_DB_PASSWORD 환경변수 확인
 → MySQL 사용자 권한 확인
 
 # 에러: Unknown database 'withbuddy'
@@ -341,6 +341,6 @@ uvicorn app.main:app --reload --log-level debug
 
 ## 다음 단계
 
-- [배포 가이드](./DEPLOYMENT.md) - 실제 서버 배포
-- [API 문서](../PLANNED_API.md) - API 엔드포인트
+- [배포 가이드](../architecture/DEPLOYMENT.md) - 실제 서버 배포
+- [API 문서](../API.md) - API 엔드포인트
 - [기여 가이드](CONTRIBUTING.md) - 개발 참여 방법

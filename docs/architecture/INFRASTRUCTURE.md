@@ -2,8 +2,8 @@
 
 > 클라우드 인프라 및 네트워크 구성
 
-**최종 업데이트**: 2026-03-27  
-**버전**: 1.2.0  
+**최종 업데이트**: 2026-04-06  
+**버전**: 1.3.2  
 **작성일**: 2026-03-27
 
 ---
@@ -33,7 +33,9 @@ WithBuddy는 **Oracle Cloud(OCI)** 로 결정했음.
 
 ### 1.2 인프라 구성 요소
 
-![Infrastructure Overview](./images/infrastructure-overview.svg)
+[![Infrastructure Overview](./images/infrastructure-overview.png)](./images/infrastructure-overview.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
 ---
 
@@ -43,7 +45,9 @@ WithBuddy는 **Oracle Cloud(OCI)** 로 결정했음.
 
 현재 구성은 **오사카 리전**에서 **두 개 테넌시 분리**로 운영한다.
 
-![Network Topology](./images/network-topology.svg)
+[![Network Topology](./images/network-topology.png)](./images/network-topology.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
 **중요**: 두 VCN의 CIDR은 반드시 겹치지 않아야 한다.
 
@@ -83,7 +87,7 @@ Destination         Target
 0.0.0.0/0           NAT Gateway (아웃바운드, 선택)
 ```
 
-#### VCN-B (Backend/DB/Redis 테넌시)
+#### VCN-B (Backend/DB/Core Services 테넌시)
 
 **Public Subnet (10.0.1.0/24)**  
 용도: 외부에서 접근 가능한 Backend
@@ -100,25 +104,17 @@ Destination         Target
 10.1.0.0/16        LPG-B (to VCN-A)
 ```
 
-**Private Subnet - App (10.0.2.0/24)**  
-용도: 내부 캐시/서비스
-
-| 리소스 | 포트 | 접근 |
-|-------|------|------|
-| Redis | 6379 | Backend, AI Server |
-
 **Private Subnet - DB (10.0.3.0/24)**  
 용도: 데이터베이스
 
 | 리소스 | 포트 | 접근 |
 |-------|------|------|
-| MySQL 8.0 | 3306 | Backend, AI Server |
+| MySQL 8.0 | 3306 | Backend only |
 
 **라우팅 테이블**:
 ```
 Destination         Target
 10.0.0.0/16        Local
-10.1.0.0/16        LPG-B (to VCN-A)
 ```
 
 ### 2.4 통신 경로 요약
@@ -126,8 +122,6 @@ Destination         Target
 - Frontend → Backend: Public HTTPS → Backend (8080)
 - Backend ↔ AI: LPG (VCN-B ↔ VCN-A), 8000
 - Backend → MySQL: VCN-B 내부, 3306
-- AI → MySQL: LPG (VCN-A → VCN-B), 3306
-- Backend/AI → Redis: VCN-B 내부 또는 LPG, 6379
 
 ---
 
@@ -185,12 +179,6 @@ Outbound Rules:
     Destination: <VCN-A CIDR>
     Description: To AI Server via LPG
 
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Destination: 10.0.2.0/24
-    Description: To Redis (VCN-B)
-    
   - Type: HTTPS
     Protocol: TCP
     Port: 443
@@ -212,18 +200,6 @@ Inbound Rules:
     Description: From Backend via LPG only
 
 Outbound Rules:
-  - Type: MySQL
-    Protocol: TCP
-    Port: 3306
-    Destination: <VCN-B CIDR>
-    Description: To MySQL via LPG
-    
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Destination: <VCN-B CIDR>
-    Description: To Redis via LPG
-    
   - Type: HTTPS
     Protocol: TCP
     Port: 443
@@ -243,38 +219,9 @@ Inbound Rules:
     Port: 3306
     Source: <VCN-B CIDR>
     Description: From Backend subnet
-    
-  - Type: MySQL
-    Protocol: TCP
-    Port: 3306
-    Source: <VCN-A CIDR>
-    Description: From AI via LPG
 
 Outbound Rules:
   - None (데이터베이스는 아웃바운드 불필요)
-```
-
-### 3.5 Redis Security Group (VCN-B)
-
-```yaml
-Name: nsg-withbuddy-redis
-Description: Redis Cache security group
-
-Inbound Rules:
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Source: <VCN-B CIDR>
-    Description: From Backend subnet
-    
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Source: <VCN-A CIDR>
-    Description: From AI via LPG
-
-Outbound Rules:
-  - None
 ```
 
 ---
@@ -380,20 +327,6 @@ Maintenance:
   Window: Sun 04:00-05:00 UTC (한국시간 일요일 13:00-14:00)
 ```
 
-#### Redis Storage
-
-```yaml
-Instance Type: cache.t3.medium
-Engine Version: 7.0
-Replicas: 1 (고가용성)
-Max Memory: 3.09 GB
-Eviction Policy: allkeys-lru
-
-Snapshot:
-  Frequency: Daily
-  Retention: 7 days
-```
-
 ---
 
 ## 5. 서버 스펙
@@ -406,7 +339,7 @@ Shape: VM.Standard.A1.Flex
 CPU: 2 OCPU
 RAM: 12 GB
 Network Bandwidth: 2 Gbps
-OS: Ubuntu 22.04 LTS
+OS: Canonical Ubuntu 24.04
 Subnet: Public (VCN-B)
 ```
 
@@ -416,7 +349,7 @@ Shape: VM.Standard.A1.Flex
 CPU: 4 OCPU
 RAM: 24 GB
 Network Bandwidth: 4 Gbps
-OS: Ubuntu 22.04 LTS
+OS: Canonical Ubuntu 24.04
 Subnet: Private (VCN-A)
 ```
 
@@ -426,15 +359,8 @@ Shape: VM.Standard.A1.Flex
 CPU: 2 OCPU
 RAM: 12 GB
 Network Bandwidth: 2 Gbps
-OS: Ubuntu 22.04 LTS
+OS: Canonical Ubuntu 24.04
 Subnet: Private - DB (VCN-B)
-```
-
-### 5.4 Redis Cache (Tenancy B)
-```yaml
-Service: Redis
-Subnet: Private - App (VCN-B)
-Spec: TBD (별도 인스턴스 또는 Backend와 분리 운영)
 ```
 
 ---
@@ -649,7 +575,6 @@ Notification:
 | 데이터베이스 | MySQL on Compute (VM.Standard.A1.Flex) |
 | 스토리지 | Object Storage |
 | 로드밸런서 | Load Balancer |
-| 캐시 | Redis (Compute 또는 Managed Cache) |
 | 네트워크 | VCN + Local VCN Peering (LPG) |
 
 ### B. 비용 예측 (월간, OCI 기준)
@@ -660,7 +585,6 @@ MVP 기준 실제 인스턴스 스펙:
 AI Server (A1.Flex 4 OCPU / 24GB):        TBD
 Backend (A1.Flex 2 OCPU / 12GB):          TBD
 Database (A1.Flex 2 OCPU / 12GB):         TBD
-Redis:                                    TBD
 Load Balancer:                            TBD
 Object Storage:                           TBD
 Data Transfer:                            TBD
@@ -682,7 +606,6 @@ Total:                                    TBD
 - [ ] Load Balancer 생성
 - [ ] EC2 인스턴스 생성 (Backend, AI)
 - [ ] RDS MySQL 생성
-- [ ] ElastiCache Redis 생성
 - [ ] S3 버킷 생성
 - [ ] IAM 역할 설정
 - [ ] CloudWatch 알람 설정
@@ -691,4 +614,7 @@ Total:                                    TBD
 
 ## 변경 이력
 
+- 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 접근 규칙을 제거.
 - 2026-03-27: OCI 확정 반영, 테넌시 분리 구조와 LPG 피어링 추가, 실제 서버 스펙 반영, 보안 규칙 및 부록 업데이트, 다이어그램 이미지 추가.
+- 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 분리 운영을 반영해 통신 경로, RabbitMQ NSG, 브로커 스펙을 추가.
+- 2026-04-02: 2.1 VCN 설계 다이어그램을 현재 운영 구조(Tenancy A AI / Tenancy B Backend+DB)로 재정렬하고 미사용 구성 표기를 제거.
