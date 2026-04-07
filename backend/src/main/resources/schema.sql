@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS `documents` (
     id BIGINT NOT NULL AUTO_INCREMENT,
     company_code VARCHAR(20) NULL,
     title VARCHAR(200) NOT NULL,
-    content MEDIUMTEXT NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
     document_type VARCHAR(50) NOT NULL,
     department VARCHAR(50) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -78,127 +78,74 @@ CREATE TABLE IF NOT EXISTS `user_activity_logs` (
 
 -- Dummy seed data
 INSERT INTO `companies` (company_code, name)
-SELECT 'WB-0001', '위드버디(주)'
+SELECT 'WB0001', '테크 주식회사'
 WHERE NOT EXISTS (
-    SELECT 1 FROM `companies` WHERE company_code = 'WB-0001'
+    SELECT 1 FROM `companies` WHERE company_code = 'WB0001'
 );
 
 INSERT INTO `users` (company_code, name, employee_number, hire_date)
-SELECT 'WB-0001', '홍성하', 'WB-001', '2026-03-04'
+SELECT 'WB0001', '김지원', '20260001', '2026-03-01'
 WHERE NOT EXISTS (
-    SELECT 1 FROM `users` WHERE company_code = 'WB-0001' AND employee_number = 'WB-001'
+    SELECT 1 FROM `users` WHERE company_code = 'WB0001' AND employee_number = '20260001'
 );
 
-INSERT INTO `users` (company_code, name, employee_number, hire_date)
-SELECT 'WB-0001', '김지원', 'WB-002', '2026-03-04'
-WHERE NOT EXISTS (
-    SELECT 1 FROM `users` WHERE company_code = 'WB-0001' AND employee_number = 'WB-002'
+INSERT INTO documents (company_code, title, file_path, document_type, department, is_active)
+SELECT NULL, '남녀고용평등과 일 · 가정 양립 지원에 관한 법률', '/docs/common-law/남녀고용평등과 일 · 가정 양립 지원에 관한 법률(법률)(제21065호)(20251001).pdf', 'LEGAL', 'LEGAL', TRUE
+    WHERE NOT EXISTS (
+    SELECT 1 FROM documents
+    WHERE title = '남녀고용평등과 일 · 가정 양립 지원에 관한 법률'
 );
 
-INSERT INTO `users` (company_code, name, employee_number, hire_date)
-SELECT 'WB-0001', '장수민', 'WB-003', '2026-03-04'
-WHERE NOT EXISTS (
-    SELECT 1 FROM `users` WHERE company_code = 'WB-0001' AND employee_number = 'WB-003'
+INSERT INTO documents (company_code, title, file_path, document_type, department, is_active)
+SELECT NULL, '근로자퇴직급여 보장법', '/docs/common-law/근로자퇴직급여 보장법(법률)(제21135호)(20251111).pdf', 'LEGAL', 'LEGAL', TRUE
+    WHERE NOT EXISTS (
+    SELECT 1 FROM documents
+    WHERE title = '근로자퇴직급여 보장법'
 );
 
-INSERT INTO `users` (company_code, name, employee_number, hire_date)
-SELECT 'WB-0001', '신수민', 'WB-004', '2026-03-04'
-WHERE NOT EXISTS (
-    SELECT 1 FROM `users` WHERE company_code = 'WB-0001' AND employee_number = 'WB-004'
+INSERT INTO documents (company_code, title, file_path, document_type, department, is_active)
+SELECT NULL, '최저임금법', '/docs/common-law/최저임금법(법률)(제17326호)(20200526).pdf', 'LEGAL', 'LEGAL', TRUE
+    WHERE NOT EXISTS (
+    SELECT 1 FROM documents
+    WHERE title = '최저임금법'
 );
 
-INSERT INTO `users` (company_code, name, employee_number, hire_date)
-SELECT 'WB-0001', '김준수', 'WB-005', '2026-03-04'
-WHERE NOT EXISTS (
-    SELECT 1 FROM `users` WHERE company_code = 'WB-0001' AND employee_number = 'WB-005'
-);
-
-INSERT INTO `users` (company_code, name, employee_number, hire_date)
-SELECT 'WB-0001', '박혜진', 'WB-006', '2026-03-04'
-WHERE NOT EXISTS (
-    SELECT 1 FROM `users` WHERE company_code = 'WB-0001' AND employee_number = 'WB-006'
-);
-
-INSERT INTO `documents` (company_code, title, content, document_type, department, is_active)
-SELECT 'WB-0001', '온보딩 안내서', '입사 첫 달 필수 확인 사항과 업무 적응 가이드입니다.', 'GUIDE', 'HR', TRUE
-WHERE NOT EXISTS (
-    SELECT 1 FROM `documents` WHERE company_code = 'WB-0001' AND title = '온보딩 안내서'
-);
-
-INSERT INTO `documents` (company_code, title, content, document_type, department, is_active)
-SELECT 'WB-0001', '복리후생 정책', '연차, 교육비, 장비지원 등 복리후생 정책 문서입니다.', 'POLICY', 'HR', TRUE
-WHERE NOT EXISTS (
-    SELECT 1 FROM `documents` WHERE company_code = 'WB-0001' AND title = '복리후생 정책'
-);
-
-INSERT INTO `documents` (company_code, title, content, document_type, department, is_active)
-SELECT 'WB-0001', '개발 환경 세팅', '로컬 개발환경 구성과 브랜치 전략을 정리한 문서입니다.', 'TECH', 'ENGINEERING', TRUE
-WHERE NOT EXISTS (
-    SELECT 1 FROM `documents` WHERE company_code = 'WB-0001' AND title = '개발 환경 세팅'
+INSERT INTO documents (company_code, title, file_path, document_type, department, is_active)
+SELECT NULL, '근로기준법', '/docs/common-law/근로기준법(법률)(제20520호)(20251023).pdf', 'LEGAL', 'LEGAL', TRUE
+    WHERE NOT EXISTS (
+    SELECT 1 FROM documents
+    WHERE title = '근로기준법'
 );
 
 INSERT INTO `onboarding_suggestions` (title, content, day_offset)
-SELECT '첫 출근 체크리스트', '계정 발급, 필수 시스템 로그인, 팀 채널 입장을 완료하세요.', 1
+SELECT '입사 1일차 안내', '당신의 입사를 진심으로 축하드려요. 복지 제도와 사내 규정 문서를 먼저 확인해보세요.', 1
 WHERE NOT EXISTS (
-    SELECT 1 FROM `onboarding_suggestions` WHERE title = '첫 출근 체크리스트' AND day_offset = 1
+    SELECT 1 FROM `onboarding_suggestions` WHERE title = '입사 1일차 안내' AND day_offset = 1
 );
 
 INSERT INTO `onboarding_suggestions` (title, content, day_offset)
-SELECT '첫 주 목표', '팀 온보딩 미팅 참여 후 현재 스프린트 이슈를 파악하세요.', 7
-WHERE NOT EXISTS (
-    SELECT 1 FROM `onboarding_suggestions` WHERE title = '첫 주 목표' AND day_offset = 7
+SELECT '입사 3일차 안내', '업무에 조금씩 익숙해지고 있을 시점이에요. 자주 사용하는 시스템과 꼭 알아야 할 사내 규정을 다시 한 번 확인해보세요.', 3
+    WHERE NOT EXISTS (
+    SELECT 1
+    FROM `onboarding_suggestions`
+    WHERE title = '입사 3일차 안내'
+      AND day_offset = 3
 );
 
 INSERT INTO `onboarding_suggestions` (title, content, day_offset)
-SELECT '첫 달 회고', '한 달간 배운 점과 개선 아이디어를 간단히 정리해 공유하세요.', 30
-WHERE NOT EXISTS (
-    SELECT 1 FROM `onboarding_suggestions` WHERE title = '첫 달 회고' AND day_offset = 30
+SELECT '입사 7일차 안내', '한 주 동안 확인한 업무 흐름과 아직 헷갈리는 부분을 정리해보세요.', 7
+    WHERE NOT EXISTS (
+    SELECT 1
+    FROM `onboarding_suggestions`
+    WHERE title = '입사 7일차 안내'
+      AND day_offset = 7
 );
 
-INSERT INTO `chat_messages` (user_id, document_id, suggestion_id, sender_type, message_type, content)
-SELECT u.id, d.id, NULL, 'USER', 'TEXT', '복리후생 정책에서 교육비 지원 기준이 궁금해요.'
-FROM `users` u
-JOIN `documents` d ON d.title = '복리후생 정책'
-WHERE u.employee_number = 'WB-001'
-  AND NOT EXISTS (
-      SELECT 1 FROM `chat_messages` cm
-      WHERE cm.user_id = u.id
-        AND cm.sender_type = 'USER'
-        AND cm.message_type = 'TEXT'
-        AND cm.content = '복리후생 정책에서 교육비 지원 기준이 궁금해요.'
-  );
-
-INSERT INTO `chat_messages` (user_id, document_id, suggestion_id, sender_type, message_type, content)
-SELECT u.id, NULL, s.id, 'BOT', 'SUGGESTION', '첫 주 목표를 확인하고 팀 온보딩 미팅 일정을 캘린더에 등록해보세요.'
-FROM `users` u
-JOIN `onboarding_suggestions` s ON s.title = '첫 주 목표'
-WHERE u.employee_number = 'WB-002'
-  AND NOT EXISTS (
-      SELECT 1 FROM `chat_messages` cm
-      WHERE cm.user_id = u.id
-        AND cm.sender_type = 'BOT'
-        AND cm.message_type = 'SUGGESTION'
-        AND cm.content = '첫 주 목표를 확인하고 팀 온보딩 미팅 일정을 캘린더에 등록해보세요.'
-  );
-
-INSERT INTO `user_activity_logs` (user_id, event_type, event_target)
-SELECT u.id, 'DOCUMENT_VIEW', '복리후생 정책'
-FROM `users` u
-WHERE u.employee_number = 'WB-003'
-  AND NOT EXISTS (
-      SELECT 1 FROM `user_activity_logs` l
-      WHERE l.user_id = u.id
-        AND l.event_type = 'DOCUMENT_VIEW'
-        AND l.event_target = '복리후생 정책'
-  );
-
-INSERT INTO `user_activity_logs` (user_id, event_type, event_target)
-SELECT u.id, 'SUGGESTION_READ', '첫 출근 체크리스트'
-FROM `users` u
-WHERE u.employee_number = 'WB-004'
-  AND NOT EXISTS (
-      SELECT 1 FROM `user_activity_logs` l
-      WHERE l.user_id = u.id
-        AND l.event_type = 'SUGGESTION_READ'
-        AND l.event_target = '첫 출근 체크리스트'
-  );
+INSERT INTO `onboarding_suggestions` (title, content, day_offset)
+SELECT '입사 30일차 안내', '입사한 지 한 달이 됐네요. 한 달간 적응한 내용을 돌아보고, 자주 묻는 업무나 개선이 필요한 부분을 정리해보세요.', 30
+    WHERE NOT EXISTS (
+    SELECT 1
+    FROM `onboarding_suggestions`
+    WHERE title = '입사 30일차 안내'
+      AND day_offset = 30
+);
