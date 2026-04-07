@@ -1,6 +1,6 @@
 package com.withbuddy.global.jwt;
 
-import com.withbuddy.auth.entity.User;
+import com.withbuddy.users.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;

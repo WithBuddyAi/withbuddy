@@ -1,6 +1,6 @@
 package com.withbuddy.auth.repository;
 
-import com.withbuddy.auth.entity.User;
+import com.withbuddy.users.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
