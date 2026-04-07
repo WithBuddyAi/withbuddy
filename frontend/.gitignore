@@ -25,3 +25,9 @@ dist-ssr
 
 # Claude
 .claude/
+
+# 환병변수 파일
+.env
+.env.development
+.env.production
+.env.local
