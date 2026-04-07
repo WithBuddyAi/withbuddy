@@ -1,7 +1,7 @@
 # ERD
 
-**현재 버전: v1.4**  
-**최종 수정일: 2026-04-01**
+**현재 버전: v1.5**  
+**최종 수정일: 2026-04-07**
 
 ## 개요
 **MVP 기준 ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
@@ -55,7 +55,7 @@
 - `id` : PK, bigint
 - `company_code` : FK → `companies.company_code`, nullable
 - `title` : 문서 제목, varchar
-- `content` : 문서 내용, mediumtext
+- `file_path` : 문서 경로, varchar
 - `document_type` : 문서 유형, varchar
 - `department` : 관련 부서, varchar
 - `is_active` : 사용 여부, boolean
@@ -67,6 +67,8 @@
 - `company_code`가 `null`인 경우 회사 공통 문서로 사용한다.
 - `company_code`에 특정 회사코드가 들어 있는 경우 해당 회사 전용 문서로 사용한다.
 - 사용자의 질문에 대해 어떤 문서를 근거로 답변했는지 연결할 수 있다.
+- `document_type`은 문서의 유형을 구분하기 위한 표준 분류값이며, `POLICY`, `GUIDE`, `FORM`, `NOTICE`, `FAQ`, `LEGAL`, `TEMPLATE` 값을 사용한다.
+- `department`는 문서의 관련 부서 또는 업무 영역을 구분하기 위한 표준 분류값이며, `HR`, `FINANCE`, `IT`, `OPS`, `LEGAL`, `GENERAL` 값을 사용한다.
 
 ---
 
@@ -171,7 +173,8 @@
 - v1.2 (2026-03-26): `user_activity_logs`의 이벤트 유형 및 로그 수집 방식 설명 보강
 - v1.3 (2026-03-30): `documents` 테이블 `content` 수정
 - v1.4 (2026-04-01): `users`와 `documents`의 회사 참조 기준을 `company_code`로 통일하고, 관련 설명 및 관계 문구를 정리
-
+- v1.5 (2026-04-07): `documents.document_type`, `documents.department` 표준 분류값 및 분류 기준 설명 추가
+- 
 ---
 
 ## ERD 원본 링크
