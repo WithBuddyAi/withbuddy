@@ -10,6 +10,11 @@ spring:
     username: ${SPRING_DB_USERNAME}
     password: ${SPRING_DB_PASSWORD}
     driver-class-name: ${SPRING_DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+  data:
+    redis:
+      url: ${REDIS_URL}
+  rabbitmq:
+    uri: ${RABBITMQ_URL}
   jpa:
     hibernate:
       ddl-auto: none
@@ -20,3 +25,9 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
   access-expiration: ${JWT_ACCESS_EXPIRATION:7200000}
+
+app:
+  rabbitmq:
+    exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
+    queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
+    queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}

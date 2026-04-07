@@ -10,6 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 
 @Service
@@ -25,8 +28,24 @@ public class JwtService {
 
     @PostConstruct
     public void init() {
-        byte[] keyBytes = Decoders.BASE64.decode(secret);
+        byte[] keyBytes = resolveKeyBytes(secret);
         this.secretKey = Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private byte[] resolveKeyBytes(String secretValue) {
+        try {
+            return Decoders.BASE64.decode(secretValue);
+        } catch (Exception ignored) {
+            byte[] raw = secretValue.getBytes(StandardCharsets.UTF_8);
+            if (raw.length >= 32) {
+                return raw;
+            }
+            try {
+                return MessageDigest.getInstance("SHA-256").digest(raw);
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("SHA-256 algorithm is not available", e);
+            }
+        }
     }
 
     public String generateAccessToken(User user) {
