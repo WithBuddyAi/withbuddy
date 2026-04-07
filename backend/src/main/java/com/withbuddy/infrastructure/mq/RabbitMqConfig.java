@@ -4,6 +4,7 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Declarables;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
@@ -22,7 +23,10 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue reportQueue(AppRabbitMqProperties properties) {
-        return new Queue(properties.queueReport(), true);
+        return QueueBuilder.durable(properties.queueReport())
+                .withArgument("x-dead-letter-exchange", properties.exchange())
+                .withArgument("x-dead-letter-routing-key", properties.queueDlq())
+                .build();
     }
 
     @Bean
