@@ -1,4 +1,4 @@
-package com.withbuddy.auth.dto;
+package com.withbuddy.global.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

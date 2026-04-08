@@ -1,4 +1,4 @@
-package com.withbuddy.auth.config;
+package com.withbuddy.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +28,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/auth/login",
+                                "/api/v1/ai/messages",
                                 "/actuator/health",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",

@@ -1,5 +1,6 @@
-package com.withbuddy.auth.entity;
+package com.withbuddy.users.entity;
 
+import com.withbuddy.companies.entity.Company;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

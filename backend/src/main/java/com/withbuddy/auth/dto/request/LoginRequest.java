@@ -1,4 +1,4 @@
-package com.withbuddy.auth.dto;
+package com.withbuddy.auth.dto.request;
 
 
 import io.swagger.v3.oas.annotations.media.Schema;
