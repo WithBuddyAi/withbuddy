@@ -1,0 +1,300 @@
+"""
+채팅 API 라우터
+────────────────────────────────────────────
+POST /chat        : 일반 질의응답
+POST /chat/stream : SSE 스트리밍 질의응답 (토큰 단위 실시간 출력)
+"""
+
+import asyncio
+import json
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
+
+from agents.orchestrator import run_orchestrator
+from chains.rag_chain import run_rag_chain, stream_rag_chain
+from core.llm import get_llm
+from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
+
+router = APIRouter(tags=["chat"])
+
+_SUMMARIZE_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """당신은 With Buddy입니다.
+아래는 수습사원과 AI 간의 누적 대화 내역입니다.
+이 대화를 바탕으로 다음을 한국어로 간결하게 정리해주세요:
+
+1. **주요 질문 요약** – 어떤 주제를 물어봤는지 bullet로 정리
+2. **해결된 내용** – AI가 안내해준 핵심 정보
+3. **아직 확인이 필요한 사항** – 추가로 알아두면 좋을 것들
+
+[대화 내역]
+{history}"""),
+    ("human", "위 대화를 요약 정리해주세요."),
+])
+
+
+# ── 요청 / 응답 스키마 ──────────────────────
+
+class ChatRequest(BaseModel):
+    user_id: int = Field(..., description="사용자 고유 ID", example=1)
+    message: str = Field(..., description="사용자 질문", example="연차 신청 방법이 뭐야?")
+    user_name: str = Field("", description="사용자 이름 (로그인 시 전달)")
+    company_id: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
+
+
+class ChatResponse(BaseModel):
+    answer: str = Field(..., description="AI 답변")
+    source: str = Field(..., description="답변에 사용된 출처 문서명")
+    related_docs: list = Field(default_factory=list, description="관련 양식/가이드 문서 목록")
+
+
+# ── 엔드포인트 ──────────────────────────────
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """회사 문서 기반 RAG 질의응답 (일반)"""
+    try:
+        answer, source, related_docs = run_rag_chain(str(request.user_id), request.message, request.user_name, request.company_id)
+        return ChatResponse(answer=answer, source=source, related_docs=related_docs)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"질의응답 처리 중 오류: {str(e)}")
+
+
+@router.post("/chat/stream")
+async def chat_stream(request: ChatRequest):
+    """
+    오케스트레이터 기반 멀티에이전트 질의응답 (SSE 스트리밍)
+    토큰 단위로 실시간 응답을 전송합니다.
+    """
+    async def event_generator():
+        try:
+            from chains.rag_chain import _resolve_selection
+            from memory.chat_history import get_chat_history as _get_history
+            # 2-7: 숫자 선택("1"~"4")을 이전 ambiguous 응답과 매핑
+            uid = str(request.user_id)
+            message = request.message
+            resolved = _resolve_selection(message, _get_history(uid))
+            if resolved:
+                message = resolved
+
+            result = run_orchestrator(uid, request.user_name, message)
+            if result.intent != "rag":
+                from chains.rag_chain import _fix_names
+                is_team_cards = result.metadata.get("type") == "team_cards"
+                fixed_answer = _fix_names(result.answer)
+                save_interaction(uid, message, fixed_answer)
+                yield f"data: {json.dumps({'text': fixed_answer}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'done': True, 'source': result.intent, 'docs': [], 'team_cards': is_team_cards}, ensure_ascii=False)}\n\n"
+                return
+
+            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user_name, request.company_id):
+                if source is not None:
+                    yield f"data: {json.dumps({'done': True, 'source': source, 'docs': related_docs or []}, ensure_ascii=False)}\n\n"
+                else:
+                    yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+_PDF_AGENT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """당신은 With Buddy AI입니다.
+사용자가 PDF 파일을 업로드했고, 아래는 그 파일을 마크다운으로 변환한 전체 내용입니다.
+
+[변환된 문서 내용]
+{markdown}
+
+위 문서를 바탕으로 사용자의 요청에 성실하게 답변하세요.
+- 문서 내용을 요약할 때는 핵심 항목을 bullet로 정리하세요.
+- 사용자가 특정 내용을 묻는다면 해당 내용을 문서에서 찾아 정확히 답변하세요.
+- 문서에 없는 내용은 없다고 솔직하게 말하세요.
+{user_style}"""),
+    ("placeholder", "{chat_history}"),
+    ("human", "{question}"),
+])
+
+
+@router.post("/chat/pdf")
+async def chat_pdf(
+    file: UploadFile = File(...),
+    user_id: int = Form(...),
+    message: str = Form(""),
+    user_name: str = Form(""),
+):
+    """PDF 파일을 업로드하면 AI가 변환 후 내용을 분석·설명합니다."""
+    from chains.rag_chain import _detect_user_style
+    from routers.pdf2md import _pdf_bytes_to_md
+
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="PDF 파일만 업로드할 수 있습니다.")
+
+    data = await file.read()
+    if len(data) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="파일 크기는 50 MB 이하여야 합니다.")
+
+    try:
+        md_text = _pdf_bytes_to_md(data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF 변환 실패: {e}")
+
+    if not md_text.strip():
+        raise HTTPException(status_code=422, detail="텍스트를 추출할 수 없는 PDF입니다.")
+
+    user_q = message.strip() or "이 문서의 내용을 핵심만 요약해줘."
+    uid = str(user_id)
+    chat_history = get_chat_history(uid)
+    user_style = _detect_user_style(chat_history, user_q)
+    md_for_llm = md_text[:6000] + ("\n\n...(이하 생략)" if len(md_text) > 6000 else "")
+
+    chain = _PDF_AGENT_PROMPT | get_llm() | StrOutputParser()
+    answer = chain.invoke({
+        "markdown": md_for_llm,
+        "question": user_q,
+        "chat_history": chat_history,
+        "user_style": user_style,
+    })
+
+    display_q = f"📎 {file.filename}\n{user_q}" if user_q != "이 문서의 내용을 핵심만 요약해줘." else f"📎 {file.filename} — 내용 요약 요청"
+    save_interaction(uid, display_q, answer)
+
+    return {"answer": answer, "markdown": md_text, "filename": (file.filename or "document").removesuffix(".pdf")}
+
+
+# ── 내부 AI 연동 (백엔드 → AI 서버) ────────────────────────────
+
+class _InternalUser(BaseModel):
+    id: int
+    companyId: int
+    companyCode: str = ""
+    name: str
+    hireDate: str
+
+class _InternalMessage(BaseModel):
+    senderType: str
+    messageType: str
+    content: str
+
+class _InternalDocument(BaseModel):
+    id: int
+    title: str
+    content: str
+    documentType: str
+    department: str
+
+class InternalAIAnswerRequest(BaseModel):
+    user: _InternalUser
+    question: str
+    messageHistory: list[_InternalMessage] = []
+    documents: list[_InternalDocument] = []
+
+class InternalAIAnswerResponse(BaseModel):
+    answer: str
+    messageType: str = "rag_answer"
+    documentId: int | None = None
+
+_OUT_OF_SCOPE_KEYWORDS = [
+    "코드 짜줘", "코드 작성", "업무 처리", "실무 조언", "커리어",
+    "사람이 싫어", "동료가 미워", "상사가 싫다", "친구", "연애", "이별",
+    "우울해", "힘들어 죽겠어", "살기 싫어", "자해", "자살", "멘탈",
+    "소송", "고소", "세금 신고", "탈세", "법적 조언", "변호사 추천",
+]
+
+_OUT_OF_SCOPE_ANSWER = (
+    "이 내용은 담당 사수님과 직접 이야기 나누는 게 가장 정확해요. "
+    "사내 규정·복지·IT 환경 관련 궁금한 건 제가 언제든지 답해드릴게요!"
+)
+
+_INTERNAL_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """당신은 With Buddy입니다. 수습사원의 온보딩을 돕는 AI 어시스턴트입니다.
+아래 문서를 참고하여 질문에 답변하세요.
+
+[참고 문서]
+{documents}
+
+- 문서에 답이 있으면 문서 내용을 바탕으로 친절하게 답변하세요.
+- 문서에 답이 없으면 모른다고 솔직하게 안내하세요.
+- 반드시 존댓말로 답변하세요."""),
+    ("placeholder", "{history}"),
+    ("human", "{question}"),
+])
+
+
+@router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
+async def internal_ai_answer(request: InternalAIAnswerRequest):
+    """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
+    if any(kw in request.question for kw in _OUT_OF_SCOPE_KEYWORDS):
+        return InternalAIAnswerResponse(answer=_OUT_OF_SCOPE_ANSWER, messageType="out_of_scope")
+
+    try:
+        docs_text = "\n\n".join(
+            f"[문서 {doc.id}] {doc.title} ({doc.department})\n{doc.content}"
+            for doc in request.documents
+        ) if request.documents else "제공된 문서 없음"
+
+        history = [
+            ("human" if m.senderType == "USER" else "assistant", m.content)
+            for m in request.messageHistory
+        ]
+
+        chain = _INTERNAL_PROMPT | get_llm() | StrOutputParser()
+        try:
+            async with asyncio.timeout(10):
+                answer = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: chain.invoke({"documents": docs_text, "history": history, "question": request.question})
+                )
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=408, detail="AI 응답 시간이 초과되었습니다. 다시 시도해주세요.")
+
+        _NO_RESULT_KW = ["모른다", "찾을 수 없", "확인되지 않", "정보가 없", "안내가 없", "내용이 없"]
+        if not request.documents or any(kw in answer for kw in _NO_RESULT_KW):
+            message_type = "no_result"
+        else:
+            message_type = "rag_answer"
+
+        source_id = request.documents[0].id if request.documents and message_type == "rag_answer" else None
+        return InternalAIAnswerResponse(answer=answer, messageType=message_type, documentId=source_id)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SummarizeRequest(BaseModel):
+    user_id: int = Field(..., description="사용자 고유 ID")
+
+
+class SummarizeResponse(BaseModel):
+    summary: str = Field(..., description="누적 대화 요약")
+
+
+@router.post("/chat/clear")
+async def clear_chat_history(request: SummarizeRequest):
+    """대화 기록 초기화 (서버 side)"""
+    clear_memory(str(request.user_id))
+    return {"ok": True}
+
+
+@router.post("/chat/summarize", response_model=SummarizeResponse)
+async def summarize_history(request: SummarizeRequest):
+    """누적 대화 내역을 AI가 요약·정리합니다."""
+    try:
+        history_text = get_history_as_text(str(request.user_id))
+        if history_text == "대화 내역이 없습니다.":
+            return SummarizeResponse(summary="아직 대화 내역이 없습니다. 먼저 질문을 몇 가지 해보세요!")
+        chain = _SUMMARIZE_PROMPT | get_llm() | StrOutputParser()
+        summary = chain.invoke({"history": history_text})
+        return SummarizeResponse(summary=summary)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
