@@ -21,7 +21,7 @@ public class ErrorResponse {
     @Schema(description = "에러 코드", example = "UNAUTHORIZED")
     private final String code;
 
-    @Schema(description = "에러 메시지", example = "회사코드, 사번 또는 이름이 올바르지 않습니다")
+    @Schema(description = "에러 메시지", example = "입력하신 정보를 다시 확인해 주세요")
 
     private final List<FieldValidationError> errors;
 
