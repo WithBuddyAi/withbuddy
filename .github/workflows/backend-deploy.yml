@@ -101,9 +101,6 @@ jobs:
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
-          SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
-          SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
-          SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
@@ -112,7 +109,7 @@ jobs:
           host: ${{ secrets.BACKEND_SERVER_HOST }}
           username: ${{ secrets.BACKEND_SERVER_USER }}
           key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
-          envs: DB_PASSWORD,JWT_SECRET,AI_API_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,SPRING_DATASOURCE_URL,SPRING_DATASOURCE_USERNAME,SPRING_DATASOURCE_PASSWORD,REDIS_URL,RABBITMQ_URL,BACKEND_HEALTH_URL,BACKEND_APP_DIR
+          envs: DB_PASSWORD,JWT_SECRET,AI_API_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,REDIS_URL,RABBITMQ_URL,BACKEND_HEALTH_URL,BACKEND_APP_DIR
           script: |
             set -euo pipefail
 
@@ -126,16 +123,30 @@ jobs:
             mkdir -p "${APP_DIR}"
             test -f "${JAR_PATH}"
 
+            EFFECTIVE_DB_URL="${SPRING_DB_URL:-}"
+            EFFECTIVE_DB_USERNAME="${SPRING_DB_USERNAME:-}"
+            EFFECTIVE_DB_PASSWORD="${SPRING_DB_PASSWORD:-${DB_PASSWORD:-}}"
+
+            if [ -z "${EFFECTIVE_DB_URL// }" ]; then
+              echo "ERROR: DB URL is empty. Check SPRING_DB_URL or SPRING_DATASOURCE_URL secret."
+              exit 1
+            fi
+            if [ -z "${EFFECTIVE_DB_USERNAME// }" ]; then
+              echo "ERROR: DB username is empty. Check SPRING_DB_USERNAME or SPRING_DATASOURCE_USERNAME secret."
+              exit 1
+            fi
+            if [ -z "${EFFECTIVE_DB_PASSWORD// }" ]; then
+              echo "ERROR: DB password is empty. Check SPRING_DB_PASSWORD or SPRING_DATASOURCE_PASSWORD/DB_PASSWORD secret."
+              exit 1
+            fi
+
             cat > "${TMP_ENV_PATH}" <<EOF
             DB_PASSWORD=${DB_PASSWORD}
             JWT_SECRET=${JWT_SECRET}
             AI_API_URL=${AI_API_URL}
-            SPRING_DB_URL=${SPRING_DB_URL}
-            SPRING_DB_USERNAME=${SPRING_DB_USERNAME}
-            SPRING_DB_PASSWORD=${SPRING_DB_PASSWORD}
-            SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
-            SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
-            SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+            SPRING_DB_URL=${EFFECTIVE_DB_URL}
+            SPRING_DB_USERNAME=${EFFECTIVE_DB_USERNAME}
+            SPRING_DB_PASSWORD=${EFFECTIVE_DB_PASSWORD}
             REDIS_URL=${REDIS_URL}
             RABBITMQ_URL=${RABBITMQ_URL}
             SPRING_PROFILES_ACTIVE=prod
