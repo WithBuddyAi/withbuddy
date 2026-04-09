@@ -6,14 +6,14 @@ ChromaDB에 인덱싱합니다.
 
 - 이미 인덱싱된 문서는 중복 저장하지 않음
 - 신규 문서만 선별하여 인덱싱
-- company_id 메타데이터 포함 (ST-027 격리 지원)
+- company_code 메타데이터 포함 (ST-027 격리 지원)
 
 사용법:
     # 전체 문서 인덱싱
     python scripts/ingest_from_api.py
 
     # 특정 회사 문서만
-    python scripts/ingest_from_api.py --company_id WB1001
+    python scripts/ingest_from_api.py --company_code WB1001
 
     # 백엔드 API URL 지정
     python scripts/ingest_from_api.py --api_url http://localhost:8080
@@ -62,7 +62,7 @@ def _save_indexed_id(doc_id: str) -> None:
         f.write(doc_id + "\n")
 
 
-def _fetch_document_list(api_url: str, token: str, company_id: str = "") -> list:
+def _fetch_document_list(api_url: str, token: str, company_code: str = "") -> list:
     """백엔드 API에서 문서 목록 조회"""
     headers = {"Authorization": f"Bearer {token}"}
     params = {"size": 100, "page": 0}
@@ -123,7 +123,7 @@ def _split_text(text: str, metadata: dict) -> list[Document]:
     return docs
 
 
-def run(api_url: str, token: str, company_id: str = "") -> None:
+def run(api_url: str, token: str, company_code: str = "") -> None:
     print("=" * 50)
     print("  백엔드 API 기반 문서 인덱싱 시작")
     print("=" * 50)
@@ -134,7 +134,7 @@ def run(api_url: str, token: str, company_id: str = "") -> None:
 
     # 문서 목록 조회
     print(f"\n[1/3] 문서 목록 조회 중... ({api_url})")
-    doc_list = _fetch_document_list(api_url, token, company_id)
+    doc_list = _fetch_document_list(api_url, token, company_code)
     print(f"  → 총 {len(doc_list)}개 문서 확인")
 
     # 신규 문서만 필터링
@@ -174,8 +174,8 @@ def run(api_url: str, token: str, company_id: str = "") -> None:
                 "document_type": doc_meta.get("documentType", ""),
                 "department": doc_meta.get("department", ""),
             }
-            if company_id:
-                metadata["company_id"] = company_id
+            if company_code:
+                metadata["company_code"] = company_code
 
             chunks = _split_text(text, metadata)
             vs.add_documents(chunks)
@@ -201,7 +201,7 @@ def main() -> None:
                         help="백엔드 API URL")
     parser.add_argument("--token", type=str, default=os.getenv("BACKEND_API_TOKEN", ""),
                         help="백엔드 API 인증 토큰")
-    parser.add_argument("--company_id", type=str, default="",
+    parser.add_argument("--company_code", type=str, default="",
                         help="회사 고유 ID (비워두면 공통 문서로 처리)")
     args = parser.parse_args()
 
@@ -209,7 +209,7 @@ def main() -> None:
         print("오류: --token 또는 BACKEND_API_TOKEN 환경변수가 필요합니다.")
         sys.exit(1)
 
-    run(api_url=args.api_url, token=args.token, company_id=args.company_id)
+    run(api_url=args.api_url, token=args.token, company_code=args.company_code)
 
 
 if __name__ == "__main__":

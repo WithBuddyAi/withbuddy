@@ -244,7 +244,7 @@ async def upsert_team_member(req: MemberSyncRequest):
 # ── 문서 업로드 + RAG 인덱싱 엔드포인트 ───────────────────────
 
 @router.post("/documents")
-async def upload_document(file: UploadFile = File(...), company_id: str = Form("")):
+async def upload_document(file: UploadFile = File(...), company_code: str = Form("")):
     """
     문서 업로드 후 RAG 파이프라인에 자동 인덱싱.
     지원 형식: PDF, Markdown(.md), 텍스트(.txt)
@@ -278,7 +278,7 @@ async def upload_document(file: UploadFile = File(...), company_id: str = Form("
     docs = [
         Document(
             page_content=chunk,
-            metadata={"source": filename, "chunk_index": i, **({"company_id": company_id} if company_id else {})},
+            metadata={"source": filename, "chunk_index": i, **({"company_code": company_code} if company_code else {})},
         )
         for i, chunk in enumerate(chunks)
     ]

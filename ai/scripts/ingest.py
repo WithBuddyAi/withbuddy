@@ -119,6 +119,9 @@ def split_documents(documents: list[Document]) -> list[Document]:
         # 청크 앞 50자에 이미 제목이 있으면 중복 추가 안 함
         if doc_title and doc_title not in chunk.page_content[:80]:
             chunk.page_content = f"[{doc_title}]\n{chunk.page_content}"
+        # index_ 로 시작하는 txt 파일은 법률 문서로 분류
+        if os.path.basename(source).startswith("index_") and source.endswith(".txt"):
+            chunk.metadata["document_type"] = "LEGAL"
 
     return chunks
 
@@ -243,7 +246,7 @@ def main() -> None:
         help="ChromaDB 저장 경로 (기본값: ./chroma_db)",
     )
     parser.add_argument(
-        "--company_id",
+        "--company_code",
         type=str,
         default="",
         help="회사 고유 ID (다중 테넌트 격리용, 예: company_A)",
@@ -274,11 +277,11 @@ def main() -> None:
     chunks = split_documents(documents)
     print(f"  → 총 {len(chunks)}개 청크 생성")
 
-    # company_id가 지정된 경우 각 청크 메타데이터에 추가
-    if args.company_id:
+    # company_code가 지정된 경우 각 청크 메타데이터에 추가
+    if args.company_code:
         for chunk in chunks:
-            chunk.metadata["company_id"] = args.company_id
-        print(f"  → company_id='{args.company_id}' 메타데이터 적용")
+            chunk.metadata["company_code"] = args.company_code
+        print(f"  → company_code='{args.company_code}' 메타데이터 적용")
 
     # 3단계: ChromaDB 저장
     print(f"\n[3/3] ChromaDB에 저장 중... ({args.chroma_dir})")

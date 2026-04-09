@@ -37,20 +37,20 @@ def get_vectorstore() -> Chroma:
 
 
 @lru_cache(maxsize=16)
-def get_retriever(k: int = 3, company_id: str = "") -> VectorStoreRetriever:
+def get_retriever(k: int = 3, company_code: str = "") -> VectorStoreRetriever:
     """
     문서 검색기(Retriever) 반환 (싱글톤)
 
     Args:
         k: 반환할 상위 유사 문서 개수 (기본값: 3)
-        company_id: 회사 고유 ID — 지정 시 해당 회사 문서만 검색 (기본값: "" = 전체)
+        company_code: 회사 고유 ID — 지정 시 해당 회사 문서만 검색 (기본값: "" = 전체)
 
     Returns:
         VectorStoreRetriever: 유사도 기반 문서 검색기
     """
     search_kwargs: dict = {"k": k}
-    if company_id:
-        search_kwargs["filter"] = {"company_id": company_id}
+    if company_code:
+        search_kwargs["filter"] = {"company_code": company_code}
     return get_vectorstore().as_retriever(
         search_type="similarity",
         search_kwargs=search_kwargs,
@@ -72,18 +72,18 @@ def search_legal_docs(query: str, k: int = 7, score_threshold: float = 0.30) -> 
     return filtered
 
 
-def search_with_company_fallback(query: str, k: int = 5, company_id: str = "", score_threshold: float = 0.35) -> List[Document]:
+def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.30) -> List[Document]:
     """
-    ST-027: company_id 기준 벡터 DB 격리 검색
-    회사 특화 문서(company_id 일치) + 공통 문서(company_id 없음) OR 조건 검색.
+    ST-027: company_code 기준 벡터 DB 격리 검색
+    회사 특화 문서(company_code 일치) + 공통 문서(company_code 없음) OR 조건 검색.
     유사도 점수 임계값 이하의 무관한 문서를 필터링합니다.
 
-    company_id가 없으면 전체 문서 검색.
+    company_code가 없으면 전체 문서 검색.
 
     Args:
         query: 검색 쿼리
         k: 반환할 문서 수
-        company_id: 회사 고유 ID
+        company_code: 회사 고유 ID
         score_threshold: 유사도 임계값 (0~1, 높을수록 관련성 높음, 기본 0.35)
 
     Returns:
@@ -95,7 +95,7 @@ def search_with_company_fallback(query: str, k: int = 5, company_id: str = "", s
         """(Document, score) 리스트에서 임계값 이상만 반환."""
         return [doc for doc, score in results if score >= score_threshold]
 
-    if not company_id:
+    if not company_code:
         raw = vs.similarity_search_with_relevance_scores(query, k=k)
         filtered = _filter_by_score(raw)
         # 필터링 후 결과가 0개면 임계값 낮춰서 재시도 (최소 1개 보장)
@@ -105,13 +105,13 @@ def search_with_company_fallback(query: str, k: int = 5, company_id: str = "", s
 
     # 회사 특화 문서 검색
     company_raw = vs.similarity_search_with_relevance_scores(
-        query, k=k, filter={"company_id": company_id}
+        query, k=k, filter={"company_code": company_code}
     )
     company_docs = _filter_by_score(company_raw)
 
-    # 공통 문서 검색 (company_id 메타데이터가 없는 문서)
+    # 공통 문서 검색 (company_code 메타데이터가 없는 문서)
     common_raw = vs.similarity_search_with_relevance_scores(
-        query, k=k, filter={"company_id": ""}
+        query, k=k, filter={"company_code": ""}
     )
     common_docs = _filter_by_score(common_raw)
 
