@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-03-24  
-**버전**: 1.1.1
+**최종 업데이트**: 2026-04-09  
+**버전**: 1.1.3
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
@@ -11,7 +11,7 @@
 
 ---
 
-## 📖 프로젝트 소개
+## 프로젝트 소개
 
 **WithBuddy**는 신입사원의 성공적인 온보딩을 지원하는 AI 기반 통합 비서 서비스입니다.
 
@@ -32,7 +32,7 @@
 
 ---
 
-## 👥 팀원
+## 팀원
 
 | 역할 | 이름 | GitHub |
 |------|------|--------|
@@ -45,11 +45,11 @@
 
 ---
 
-## 🛠 기술 스택
+## 기술 스택
 
 | 분야 | 기술 |
 |------|------|
-| **Backend** | Java 21, Spring Boot 3.5.11, MySQL 8.0, JWT |
+| **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, JWT |
 | **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
 | **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
 | **배포** | Oracle Cloud (Backend/AI/MySQL), Vercel (Frontend) |
@@ -57,7 +57,7 @@
 
 ---
 
-## 🧭 프로젝트 표준
+## 프로젝트 표준
 
 | 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
 |------|----------|------------|---------------|-----------|
@@ -67,7 +67,7 @@
 
 ---
 
-## 🚀 빠른 시작
+## 빠른 시작
 
 ### 필수 요구사항
 - Java 21, Node.js 20+, Python 3.11+, MySQL 8.0
@@ -122,94 +122,100 @@ uvicorn app.main:app --reload
 # http://localhost:8000/docs
 ```
 
+**5-1. AI Docker 실행**
+```bash
+# withbuddy 루트에서 실행
+docker compose up -d ai
+# http://localhost:8000/docs
+```
+
 > 📚 **상세 가이드**: [docs/guides/SETUP.md](./docs/guides/SETUP.md)
 
 ---
 
-## 📂 withBuddy 디렉토리 구조
+## withBuddy 디렉토리 구조
 
 ```
 withbuddy/
 ├─ .github/
-│  ├─ ISSUE_TEMPLATE/           # BE/CI  (Issue 템플릿 관리)
-│  │  ├─ bug_report.md          # BE/CI  (New Issue 생성시 제공되는 버그 리포트 관리 템플릿)
-│  │  └─ config.yml             # BE/CI  (New Issue 생성시 안내되는 기여 가이드 링크) 
+│  ├─ ISSUE_TEMPLATE/                   # BE/CI  (Issue 템플릿 관리)
+│  │  ├─ bug_report.md                  # BE/CI  (New Issue 생성시 제공되는 버그 리포트 관리 템플릿)
+│  │  └─ config.yml                     # BE/CI  (New Issue 생성시 안내되는 기여 가이드 링크) 
 │  └─ workflows/               
-│     └─ ci.yml                 # BE/CI  (ci.yml 테스트 목적은 “푸시/PR에서 변경된 코드가 정상 빌드되고 기본 품질 기준을 만족하는지”를 자동으로 확인하는 겁니다. 이 워크플로에서는 변경된 영역만 골라서, 해당 영역의 빌드와 테스트(백엔드/프론트/AI)를 돌려서 기능 회귀나 빌드 실패를 조기에 잡는 데 목적이 있습니다. 예외)모든 문서 파일들은 테스트에서 제외 처리하도록 설정되어 있습니다)
+│     ├─ ci.yml                         # BE/CI  (변경 영역 빌드/테스트 자동 검증)
+│     ├─ ai-deploy.yml                  # AI/CI  (AI 서버 자동 배포 워크플로우)
+│     ├─ backend-deploy.yml             # BE/CI  (Backend 자동 배포 워크플로우)
+│     └─ pr-autofill.yml                # BE/CI  (PR 본문 자동 생성 워크플로우)
 │ 
-├─ ai/                          # AI (기능 구현 시작 후 이 폴더에서 관리)
+├─ ai/                                  # AI (기능 구현 시작 후 이 폴더에서 관리)
 │ 
-├─ backend/                     # BE (기능 구현 시작 후 이 폴더에서 관리)
+├─ backend/                             # BE (기능 구현 시작 후 이 폴더에서 관리)
 │ 
 ├─ docs/
 │  ├─ architecture/
-│  │  ├─ AI_ARCHITECTURE.md     # AI  (초안 - AI 아키텍처)
-│  │  ├─ ARCHITECTURE.md        # BE/CI  (초안 - 시스템 아키텍처)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - OCI 배포 가이드)
-│  │  ├─ DEPLOYMENT.md          # BE/CI  (초안 - 배포 가이드)
-│  │  └─ INFRASTRUCTURE.md      # BE/CI  (초안 - 인프라 구조)
+│  │  ├─ AI_ARCHITECTURE.md             # AI  (AI 아키텍처)
+│  │  ├─ ARCHITECTURE.md                # BE/CI  (시스템 아키텍처)
+│  │  ├─ DEPLOYMENT-ORACLE.md           # BE/CI  (OCI 배포 가이드)
+│  │  ├─ INFRASTRUCTURE.md              # BE/CI  (인프라 구조)
+│  │  └─ AI_SERVER_GUIDE.md             # AI/CI  (AI 서버 운영/배포 점검 가이드)
 │  │
-│  ├─ erd/                      # BE (MVP 단계에서 진행)
+│  ├─ erd/                              # BE (MVP 단계에서 진행)
 │  │
 │  ├─ guides/ 
-│  │  ├─ COLLABORATION.md         # BE/CI  (초안 - 협업 규칙 📚 필독)
-│  │  ├─ CONTRIBUTING.md          # BE/CI  (초안 - 기여 가이드 📚 필독)
-│  │  ├─ AI-DEPENDENCIES.md       # BE/AI  (AI 의존성 파일 관리 가이드)
-│  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼)
-│  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼)
-│  │  ├─ ENV.md                   # BE/CI  (초안 - 환경변수)
-│  │  ├─ GIT-FLOW-SETUP.md        # BE/CI  (초안 - Git Flow 설정 체크리스트)
-│  │  ├─ GITHUB-SSH.md            # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
-│  │  └─ SETUP.md                 # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
-│  │  ├─ COLLABORATION.md       # BE/CI  (초안 - 협업 규칙 📚 필독)
-│  │  ├─ CONTRIBUTING.md        # BE/CI  (초안 - 기여 가이드 📚 필독)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - Oracle Cloud 배포 가이드)
-│  │  ├─ ENV.md                 # BE/CI  (초안 - 환경변수)
-│  │  ├─ GIT-FLOW-SETUP.md      # BE/CI  (초안 - Git Flow 설정 체크리스트)
-│  │  ├─ GITHUB-SSH.md          # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
-│  │  └─ SETUP.md               # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
+│  │  ├─ COLLABORATION.md               # BE/CI  (협업 규칙 📚 필독)
+│  │  ├─ CONTRIBUTING.md                # BE/CI  (기여 가이드 📚 필독)
+│  │  ├─ AI-DEPENDENCIES.md             # BE/AI  (AI 의존성 파일 관리 가이드)
+│  │  ├─ CONFLICT-MINIMIZATION.md       # BE/CI  (충돌 최소화 작업 매뉴얼 📚 필독)
+│  │  ├─ CONFLICT-RECOVERY.md           # BE/CI  (충돌/오염 상태 복구 매뉴얼📚 필독)
+│  │  ├─ ENV.md                         # BE/CI  (환경변수 및 GitHub Secrets 가이드)
+│  │  ├─ GITHUB-FLOW-SETUP.md           # BE/CI  (GitHub flow 설정 체크리스트)
+│  │  ├─ GITHUB-SSH.md                  # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
+│  │  └─ SETUP.md                       # BE/CI  (개발 환경 설정 가이드 📚 필독)
 │  │
-│  ├─ API.md                    # BE  (초안 - API 명세서)
-│  ├─ MULTI_TENANCY.md          # BE  (초안 - 멀티 테넌시 아키텍처)
-│  ├─ PLANNED_API.md            # BE  (초안 - Planned API)
-│  └─ SECURITY.md               # BE/CI  (보안 설계)
+│  ├─ API.md                            # BE  (API 명세서)
+│  ├─ MULTI_TENANCY.md                  # BE  (멀티 테넌시 아키텍처)
+│  ├─ OCI_OBJECT_STORAGE_STRATEGY.md    # BE/CI  (OCI 이중 Object Storage 전략)
+│  ├─ PLANNED_API.md                    # BE  (Planned API)
+│  └─ SECURITY.md                       # BE/CI  (보안 설계)
 │                               
-├─ frontend/                    # FE  (기능 구현 시작 후 이 폴더에서 관리)
-├─ .gitignore                   # BE/FE/AI/CI  (지속 관리)
-└─ README.md                    # PM/BE/CI (MVP 설계 단계 이후 관리)
+├─ frontend/                            # FE  (기능 구현 시작 후 이 폴더에서 관리)
+├─ .gitignore                           # BE/FE/AI/CI  (지속 관리)
+└─ README.md                            # PM/BE/CI (MVP 설계 단계 이후 관리)
 
 *** BE - Backend | FE - Frontend | PM - Project Manager | CI - Cloud Infrastructure
 ```
 
 ---
 
-## 📚 문서 바로가기
+## 문서 바로가기
 
 ### 시작하기
 - **[개발 환경 설정](./docs/guides/SETUP.md)** - MySQL, 환경변수, 실행 방법
-- **[GitHub SSH 키 설정 가이드](./docs/guides/GIT-FLOW-SETUP.md)** - MySQL, 환경변수, 실행 방법
-- **[환경변수 관리](./docs/guides/ENV.md)** - application.yml, .env 설정
+- **[GitHub SSH 키 설정 가이드](./docs/guides/GITHUB-SSH.md)** - GitHub 연동용 SSH 설정
+- **[환경변수 관리](./docs/guides/ENV.md)** - 서비스 환경변수 + GitHub Actions `Environment: production` 시크릿 설정
 
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
 - **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
-- **[코딩 컨벤션](./docs/conventions/CODING.md)** - Java, TS, Python 규칙
+- **[GitHub flow 설정 체크리스트](./docs/guides/GITHUB-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS, PR 자동 본문 설정
+- **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR, 코드 작성 기준
 
 ### 아키텍처
 - **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
+- **[AI 서버 운영 가이드](docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
+- **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
+- **[OCI Object Storage 전략](./docs/OCI_OBJECT_STORAGE_STRATEGY.md)** - 이중 tenancy 스토리지 업로드/조회/백업 전략
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
 
 ### API
-- **[API 명세서](./docs/API.md)** - API 전체 엔드포인트
+- **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
----
-
-> 📊 [전체 로드맵 보기](./docs/ROADMAP.md)
+> 📊 프로젝트 문서는 `docs/` 디렉토리에서 주제별로 확인할 수 있습니다.
 
 ---
 
-## 🤝 기여하기
+## 기여하기
 
 ### 버그 발견 시
 👉 [Bug Report](https://github.com/WithBuddyAi/withbuddy/issues/new?template=bug_report.md)
@@ -219,7 +225,7 @@ withbuddy/
 
 ### 기여 프로세스
 1. **Issue 확인** → 작업 선택 및 할당
-2. **브랜치 생성** → `develop`에서 `feature/123-add-feature`
+2. **브랜치 생성** → `develop`에서 `feature/SCRUM-68-add-feature`
 3. **개발 & 커밋** → `feat: Add feature`
 4. **Pull Request** → `develop` 대상으로 리뷰 요청
 5. **코드 리뷰** → 최소 1 approve
@@ -229,7 +235,7 @@ withbuddy/
 
 ---
 
-## 🏆 빌더스 리그 2026
+## 빌더스 리그 2026
 
 | 단계 | 기간 | 목표 |
 |------|------|------|
@@ -244,7 +250,7 @@ withbuddy/
 
 ---
 
-## 📞 연락처
+## 연락처
 
 - **GitHub**: [@WithBuddyAi](https://github.com/WithBuddyAi)
 - **Email**: team@withbuddy.ai
@@ -252,13 +258,13 @@ withbuddy/
 
 ---
 
-## 📄 라이센스
+## 라이센스
 
 **Copyright © 2026 WithBuddy Team. All Rights Reserved.**
 
 본 프로젝트는 교육 및 포트폴리오 목적으로 공개되었습니다. 소스 코드의 모든 권리는 WithBuddy 팀에게 있으며, 다음 조건 하에 제한적으로 사용이 허가됩니다.
 
-### ✅ 허용되는 사용
+### 허용되는 사용
 
 **학습 및 참고 목적**
 - 소스 코드 열람 및 학습
@@ -270,7 +276,7 @@ withbuddy/
 - 면접 시 코드 설명 및 시연
 - 개인 GitHub 프로필에 기여 내역 표시
 
-### ❌ 금지되는 사용
+### 금지되는 사용
 
 **상업적 이용**
 - 본 소프트웨어를 이용한 상업적 서비스 운영
@@ -287,7 +293,7 @@ withbuddy/
 - Fork 후 독립 프로젝트로 전환
 - 상표 및 저작권 표시 제거
 
-### 📋 특별 사용 허가
+### 특별 사용 허가
 
 다음의 경우 사전 서면 동의를 통해 사용이 가능합니다:
 
@@ -296,7 +302,7 @@ withbuddy/
 3. **교육 기관**: 강의 자료 또는 교육 목적 사용
 4. **연구 목적**: 학술 연구 또는 논문 작성
 
-### 📧 문의 및 협업
+### 문의 및 협업
 
 **라이센스 관련 문의**
 - 이메일: team@withbuddy.ai
@@ -308,7 +314,7 @@ withbuddy/
 
 ---
 
-### 📚 오픈소스 라이브러리 고지
+### 오픈소스 라이브러리 고지
 
 본 프로젝트는 다음의 오픈소스 소프트웨어를 사용합니다:
 
@@ -334,7 +340,7 @@ withbuddy/
 
 ---
 
-### ⚖️ 면책 조항
+### 면책 조항
 
 본 소프트웨어는 "있는 그대로" 제공되며, 명시적이든 묵시적이든 어떠한 종류의 보증도 하지 않습니다. 저작권자는 소프트웨어의 사용으로 인해 발생하는 어떠한 청구, 손해 또는 기타 책임에 대해서도 책임을 지지 않습니다.
 
@@ -347,3 +353,12 @@ withbuddy/
 [🏠 홈페이지](https://withbuddy.com) • [📖 문서](./docs) • [💬 논의](https://github.com/WithBuddyAi/withbuddy/discussions)
 
 </div>
+
+---
+
+## 변경 이력
+
+- 2026-04-09: 문서 디렉터리 구조에서 비프로젝트 폴더를 제외하고, `OCI_OBJECT_STORAGE_STRATEGY.md` 링크와 AI Docker 실행 안내를 반영.
+- 2026-04-02: 브랜치 예시의 Jira 서브태스크 키 표기를 `SCRUM-##` 대문자로 통일.
+- 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
+

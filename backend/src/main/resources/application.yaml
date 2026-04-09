@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: withbuddy
+  datasource:
+    url: ${SPRING_DB_URL}
+    username: ${SPRING_DB_USERNAME}
+    password: ${SPRING_DB_PASSWORD}
+  data:
+    redis:
+      url: ${REDIS_URL}
+  rabbitmq:
+    uri: ${RABBITMQ_URL}
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-expiration: 7200000
+
+app:
+  rabbitmq:
+    exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
+    queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
+    queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}

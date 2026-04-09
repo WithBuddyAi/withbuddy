@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.5.0  
-**최종 업데이트**: 2026-03-26
+**버전**: 1.7.2
+**최종 업데이트**: 2026-04-08
 
 ---
 
@@ -71,7 +71,7 @@ Frontend Development: http://localhost:5173
 ### 데이터 범위
 
 모든 데이터 조회 및 저장은 로그인한 사용자의 회사 기준으로 처리한다.  
-문서 기반 Q&A는 로그인한 사용자의 회사 문서와 공통 문서(`company_id = null`)를 함께 대상으로 처리한다.
+문서 기반 Q&A는 로그인한 사용자의 회사 문서와 공통 문서(`company_code = null`)를 함께 대상으로 처리한다.
 
 ### 공통 헤더
 
@@ -81,6 +81,20 @@ Authorization: Bearer {accessToken}
 ```
 
 로그인 API는 `Authorization` 헤더가 필요하지 않다.
+
+### Swagger (OpenAPI)
+
+본 프로젝트의 REST API는 Swagger(OpenAPI) 기반으로 확인할 수 있다.  
+실행 중인 백엔드 서버에서 Swagger UI를 통해 요청/응답 스키마와 엔드포인트를 확인한다.
+
+```text
+Local Swagger UI: http://localhost:8080/swagger-ui/index.html
+OpenAPI Docs:     http://localhost:8080/v3/api-docs
+```
+
+- Swagger UI는 현재 구현된 API 기준으로 동작한다.
+- 본 문서는 MVP 범위, 정책, 동작 규칙, 내부 연동 기준을 함께 설명하기 위한 문서다.
+- 상세 요청/응답 스키마 및 테스트는 Swagger UI를 우선 확인한다.
 
 ---
 
@@ -97,10 +111,36 @@ Authorization: Bearer {accessToken}
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
-  "message": "잘못된 요청입니다",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사 코드는 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    }
+  ],
   "path": "/api/v1/auth/login"
 }
 ```
+
+### 에러 응답 필드 설명
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `timestamp` | `String` | 에러 발생 시각 |
+| `status` | `Number` | HTTP 상태 코드 |
+| `error` | `String` | HTTP 상태 이름 |
+| `code` | `String` | 서비스 에러 코드 |
+| `errors` | `Array<Object>` | 상세 에러 목록 |
+| `errors[].field` | `String` | 오류가 발생한 필드명 또는 오류 대상 |
+| `errors[].message` | `String` | 상세 오류 메시지 |
+| `path` | `String` | 요청 경로 |
 
 ### HTTP 상태 코드
 
@@ -111,6 +151,12 @@ Authorization: Bearer {accessToken}
 - `403 Forbidden`: 요청 권한 없음
 - `404 Not Found`: 리소스 없음
 - `500 Internal Server Error`: 서버 오류
+
+#### 로그인 API (`POST /api/v1/auth/login`) 상태 코드
+
+- `200 OK`: 로그인 성공
+- `400 Bad Request`: 요청값 검증 실패
+- `401 Unauthorized`: 로그인 실패(회사코드/사번/이름 불일치)
 
 ### 공통 에러 코드
 - `BAD_REQUEST`: 잘못된 요청
@@ -141,7 +187,7 @@ Content-Type: application/json
 
 ```json
 {
-  "companyCode": "1001",
+  "companyCode": "WB1001",
   "employeeNumber": "20260001",
   "name": "김지원"
 }
@@ -149,22 +195,16 @@ Content-Type: application/json
 
 #### Request Field
 
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-|------|------|------|--------|------|-----------|
-| `companyCode` | `String` | Y | `"1001"` | 회사 식별 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| 필드 | 타입 | 필수 | 예시값          | 설명 | 상세 규칙 |
+|------|------|------|--------------|------|-----------|
+| `companyCode` | `String` | Y | `"WB1001"`   | 회사 식별 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 | `employeeNumber` | `String` | Y | `"20260001"` | 사용자 사번 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
-| `name` | `String` | Y | `"김지원"` | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
+| `name` | `String` | Y | `"김지원"`      | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
 
 #### 동작 규칙
 - 사용자는 로그인 시 회사코드, 사번, 이름을 입력한다.
-- 서버는 `companyCode`로 `companies`를 조회한다.
-- 조회된 회사의 `id`를 기준으로 `users`에서 사용자를 확인한다.
-- 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
-
-#### 동작 규칙
-- 사용자는 로그인 시 회사코드, 사번, 이름을 입력한다.
-- 서버는 `companyCode`로 `companies`를 조회한다.
-- 조회된 회사의 `id`를 기준으로 `users`에서 사용자를 확인한다.
+- 서버는 입력값 형식을 먼저 검증한다.
+- 형식 검증을 통과한 경우 회사코드, 사원번호, 이름 기준으로 사용자를 조회한다.
 - 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
 
 #### Response (200 OK)
@@ -174,8 +214,7 @@ Content-Type: application/json
   "accessToken": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
     "id": 1,
-    "companyId": 1,
-    "companyCode": "1001",
+    "companyCode": "WB1001",
     "companyName": "테크 주식회사",
     "employeeNumber": "20260001",
     "name": "김지원",
@@ -183,6 +222,62 @@ Content-Type: application/json
   }
 }
 ```
+
+#### Error Response (400 Bad Request - 필수값 누락)
+
+
+```json
+{
+  "timestamp": "2026-04-03T10:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사 코드를 입력해 주세요."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사원번호를 입력해 주세요."
+    },
+    {
+      "field": "name",
+      "message": "이름을 입력해 주세요."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+#### Error Response (400 Bad Request - 형식 오류)
+
+```json
+{
+  "timestamp": "2026-04-08T10:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사코드는 영문, 숫자를 조합하여 4~20자로 입력해 주세요."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사원번호는 영문, 숫자를 조합하여 4~20자로 입력해 주세요."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+#### 검증 규칙
+- `companyCode`, `employeeNumber`, `name`은 필수값이다.
+- 각 필드는 공백만 입력할 수 없다.
+- 길이 제한을 초과하면 `400 Bad Request`를 반환한다.
+- 입력값 검증 실패 시 각 필드별 오류 메시지는 `errors` 배열에 담아 반환한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
 
 #### Error Response (401 Unauthorized)
 
@@ -192,7 +287,12 @@ Content-Type: application/json
   "status": 401,
   "error": "Unauthorized",
   "code": "UNAUTHORIZED",
-  "message": "회사코드, 사번 또는 이름이 올바르지 않습니다",
+  "errors": [
+    {
+      "field": "login",
+      "message": "입력하신 정보를 다시 확인해 주세요."
+    }
+  ],
   "path": "/api/v1/auth/login"
 }
 ```
@@ -209,7 +309,12 @@ Content-Type: application/json
   "status": 401,
   "error": "Unauthorized",
   "code": "UNAUTHORIZED",
-  "message": "인증 정보가 올바르지 않습니다",
+  "errors": [
+    {
+      "field": "auth",
+      "message": "인증 정보가 올바르지 않습니다."
+    }
+  ],
   "path": "/api/v1/chat/messages"
 }
 ```
@@ -224,7 +329,12 @@ Content-Type: application/json
   "status": 401,
   "error": "Unauthorized",
   "code": "TOKEN_EXPIRED",
-  "message": "액세스 토큰이 만료되었습니다",
+  "errors": [
+    {
+      "field": "token",
+      "message": "액세스 토큰이 만료되었습니다."
+    }
+  ],
   "path": "/api/v1/chat/messages"
 }
 ```
@@ -259,7 +369,6 @@ Authorization: Bearer {accessToken}
       "senderType": "USER",
       "messageType": "user_question",
       "content": "복지카드는 어떻게 신청하나요?",
-      "documentId": null,
       "suggestionId": null,
       "createdAt": "2026-03-24T10:00:00Z"
     },
@@ -268,7 +377,6 @@ Authorization: Bearer {accessToken}
       "senderType": "BOT",
       "messageType": "rag_answer",
       "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
-      "documentId": 10,
       "suggestionId": null,
       "createdAt": "2026-03-24T10:00:02Z"
     },
@@ -277,7 +385,6 @@ Authorization: Bearer {accessToken}
       "senderType": "BOT",
       "messageType": "suggestion",
       "content": "입사 1일차 안내를 먼저 확인해보세요.",
-      "documentId": null,
       "suggestionId": 3,
       "createdAt": "2026-03-24T10:10:00Z"
     }
@@ -295,7 +402,6 @@ Authorization: Bearer {accessToken}
 
 #### 설명
 - 현재 로그인한 사용자 기준으로 `chat_messages`를 조회한다.
-- 문서 기반 답변인 경우 `documentId`가 포함될 수 있다.
 - 온보딩 제안 메시지인 경우 `suggestionId`가 포함될 수 있다.
 - `senderType`은 `USER`, `BOT` 값을 사용한다.
 - `messageType`은 아래 표준값을 사용한다.
@@ -309,7 +415,7 @@ Authorization: Bearer {accessToken}
 
 ### 6-2. 질문 전송
 
-사용자가 질문을 보내면 사용자 질문 메시지를 저장하고, AI 답변 메시지를 생성하여 저장한 뒤, 두 메시지를 함께 응답으로 반환한다.
+사용자가 질문을 보내면 사용자 질문 메시지를 저장하고, 내부 AI 서버에 답변 생성을 요청한 뒤, 생성된 AI 답변 메시지를 저장하여 두 메시지를 함께 응답으로 반환한다.
 
 ```http
 POST /api/v1/chat/messages
@@ -338,7 +444,6 @@ Content-Type: application/json
     "senderType": "USER",
     "messageType": "user_question",
     "content": "복지카드는 어떻게 신청하나요?",
-    "documentId": null,
     "suggestionId": null,
     "createdAt": "2026-03-24T10:00:00Z"
   },
@@ -347,7 +452,6 @@ Content-Type: application/json
     "senderType": "BOT",
     "messageType": "rag_answer",
     "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
-    "documentId": 10,
     "suggestionId": null,
     "createdAt": "2026-03-24T10:00:02Z"
   }
@@ -362,7 +466,12 @@ Content-Type: application/json
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
-  "message": "질문 내용은 비어 있을 수 없습니다",
+  "errors": [
+    {
+      "field": "content",
+      "message": "질문 내용은 비어 있을 수 없습니다."
+    }
+  ],
   "path": "/api/v1/chat/messages"
 }
 ```
@@ -383,12 +492,12 @@ Content-Type: application/json
 #### 동작 규칙
 
 - 질문 메시지는 `chat_messages`에 `sender_type = USER`, `message_type = user_question`으로 저장한다.
-- 백엔드는 질문 저장 후, 회사 문서와 공통 문서만 필터링하여 `/internal/ai/answer`를 호출한다.
+- 백엔드는 질문 저장 후 생성된 질문 메시지의 `id`를 `questionId`로 사용한다.
+- 백엔드는 질문 저장 후, 로그인한 사용자의 `companyCode`, 질문 메시지의 `id(questionId)`, 질문 `content`를 사용하여 `/internal/ai/answer`를 호출한다.
+- 내부 AI 서버는 로그인한 사용자의 회사 문서와 공통 문서만을 대상으로 답변을 생성한다.
 - 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
-- 답변 메시지는 `chat_messages`에 `sender_type = BOT`으로 저장하고, `message_type`은 내부 AI 응답의 `messageType` 값을 그대로 사용한다.
+- 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용해 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
 - 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
-- `rag_answer`로 생성되었고 특정 문서를 근거로 삼은 경우 `document_id`를 저장한다.
-- `no_result`, `out_of_scope`인 경우 `document_id`는 `null`이다.
 - 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
 
@@ -475,9 +584,12 @@ Authorization: Bearer {accessToken}
 
 - 사용자가 질문 전송
 - 백엔드가 `/api/v1/chat/messages` 요청을 받음
-- 백엔드가 `question`, `documents`, `messageHistory`를 구성해서 `/internal/ai/answer` 호출
-- AI가 `answer`, `messageType`, `documentId`를 반환
-- 백엔드가 답변 메시지를 저장하고 최종 응답 반환
+- 백엔드가 사용자 질문 메시지를 저장함
+- 백엔드가 생성된 질문 메시지의 `id`를 `questionId`로 사용함
+- 백엔드가 로그인한 사용자의 `companyCode`, `questionId`, 질문 `content`를 이용해 `/internal/ai/answer`를 호출
+- AI 서버가 공통 문서와 해당 회사 문서를 기반으로 답변을 생성함
+- AI 서버가 `questionId`, `messageType`, `content`를 반환함
+- 백엔드가 반환값으로 답변 메시지를 저장하고 최종 응답을 반환함
 
 ### 7-2. 답변 생성 요청
 
@@ -489,96 +601,41 @@ Content-Type: application/json
 #### Request Body
 ```json
 {
-  "user": {
-    "id": 1,
-    "companyId": 1,
-    "companyCode": "1001",
-    "name": "김지원",
-    "hireDate": "2026-03-01"
-  },
-  "question": "복지카드는 어떻게 신청하나요?",
-  "messageHistory": [
-    {
-      "senderType": "USER",
-      "messageType": "user_question",
-      "content": "출근 기록은 어디서 확인하나요?"
-    },
-    {
-      "senderType": "BOT",
-      "messageType": "rag_answer",
-      "content": "근태 시스템에서 확인할 수 있습니다."
-    }
-  ],
-  "documents": [
-    {
-      "id": 10,
-      "title": "복지카드 신청 안내",
-      "content": "복지카드는 관련 안내 문서를 기준으로 신청한다.",
-      "documentType": "HR",
-      "department": "인사팀"
-    }
-  ]
+  "questionId": 201,
+  "companyCode": "WB0001",
+  "content": "복지카드는 어떻게 신청하나요?"
 }
 ```
 
 #### Request Field (Top-level)
 
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-|------|------|------|--------|------|-----------|
-| `user` | `Object` | Y | `{...}` | 현재 로그인한 사용자 정보 | null 불가 |
-| `question` | `String` | Y | `"복지카드는 어떻게 신청하나요?"` | 사용자가 입력한 질문 | 길이: 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
-| `messageHistory` | `Array<Object>` | Y | `[{...}]` | 이전 대화 이력 | null 불가 / 배열 형태 |
-| `documents` | `Array<Object>` | Y | `[{...}]` | 답변 생성에 사용할 문서 목록 | null 불가 / 배열 형태 |
+| 필드            | 타입       | 필수 | 예시값                  | 설명                     | 상세 규칙                                          |
+| ------------- | -------- | -- | -------------------- | ---------------------- | ---------------------------------------------- |
+| `questionId`  | `Long`   | Y  | `201`                | 백엔드가 저장한 사용자 질문 메시지 ID | 양의 정수                                          |
+| `companyCode` | `String` | Y  | `"WB0001"`           | 로그인한 사용자의 회사 코드        | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가   |
+| `content`     | `String` | Y  | `"복지카드는 어떻게 신청하나요?"` | 사용자가 입력한 질문 내용         | 길이: 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
 
-#### `user` Field
-
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-|------|------|------|--------|------|-----------|
-| `id` | `Long` | Y | `1` | 사용자 ID | 양의 정수 |
-| `companyId` | `Integer` | Y | `1` | 사용자 소속 회사 ID | 양의 정수 |
-| `companyCode` | `String` | Y | `"1001"` | 사용자 소속 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
-| `name` | `String` | Y | `"김지원"` | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
-| `hireDate` | `String` | Y | `"2026-03-01"` | 사용자 입사일 (`YYYY-MM-DD`) | 길이: 10자 / 형식: `YYYY-MM-DD` / 특수문자는 하이픈(`-`)만 허용 |
-
-#### `messageHistory` Field
-
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-|------|------|------|--------|------|-----------|
-| `senderType` | `String` | Y | `"USER"` | 메시지 발신 주체 | 허용값: `USER`, `BOT` |
-| `messageType` | `String` | Y | `"user_question"` | 메시지 유형 | 허용값: `user_question`, `rag_answer`, `no_result`, `out_of_scope`, `suggestion` |
-| `content` | `String` | Y | `"출근 기록은 어디서 확인하나요?"` | 이전 대화 메시지 내용 | 길이: 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
-
-#### `documents` Item Field
-
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-|------|------|------|--------|------|-----------|
-| `id` | `Long` | Y | `10` | 문서 ID | 양의 정수 |
-| `title` | `String` | Y | `"복지카드 신청 안내"` | 문서 제목 | 길이: 1~200자 / 공백만 입력 불가 / 특수문자 허용 |
-| `content` | `String` | Y | `"복지카드는 관련 안내 문서를 기준으로 신청한다."` | 문서 본문 | 길이: 1~5000자 / 공백만 입력 불가 / 특수문자 허용 |
-| `documentType` | `String` | Y | `"HR"` | 문서 유형 | 길이: 1~50자 / 허용 문자: 영문 대문자 + 숫자 + 밑줄(`_`) / 공백·기타 특수문자 불가 |
-| `department` | `String` | Y | `"인사팀"` | 관련 부서 | 길이: 1~50자 / 허용 문자: 한글 + 영문 대소문자 + 공백 / 특수문자·숫자 불가 |
 
 #### Response (200 OK)
 
 ```json
 {
-  "answer": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
+  "questionId": 201,
   "messageType": "rag_answer",
-  "documentId": 10
+  "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다."
 }
 ```
 
 #### 설명
 
-- 백엔드는 현재 로그인한 사용자 기준으로 회사 문서와 공통 문서만 필터링한 뒤 AI 서버에 전달한다.
-- AI 서버는 답변 문자열, 답변 유형, 대표 근거 문서 ID 1개를 반환한다.
+- 백엔드는 질문 메시지를 먼저 저장한 뒤 내부 AI 서버를 호출한다.
+- 내부 AI 요청에는 질문 저장 결과 전체 객체를 전달하지 않고, 답변 생성에 필요한 최소 정보인 `questionId`, `companyCode`, `content`만 전달한다.
+- AI 서버는 `companyCode`를 기준으로 해당 회사 문서와 공통 문서만 조회 대상으로 사용한다.
+- AI 서버는 질문 내용에 대해 답변 문자열과 답변 유형을 생성하여 반환한다.
 - `messageType`은 아래 값 중 하나를 사용한다.
   - `rag_answer`: 문서 기반 답변 생성
   - `no_result`: 질문 범위는 맞지만 문서/정보 부족으로 답변 불가
   - `out_of_scope`: 서비스 범위를 벗어난 질문
-- 반환된 `documentId`는 저장되는 답변 메시지의 `document_id`에 기록한다.
-- `rag_answer`인 경우 대표 근거 문서가 있으면 `documentId`를 반환할 수 있다.
-- `no_result`, `out_of_scope`인 경우 `documentId`는 `null`이다.
 - `suggestion`은 온보딩 가이드 기반 메시지 유형이므로 내부 AI 답변 응답값으로 사용하지 않는다.
 
 ---
@@ -596,3 +653,11 @@ Content-Type: application/json
   - 로그인 기준과 인증 흐름을 수정된 ERD에 맞게 정리, `companyCode` 반영, 토큰 만료 처리, 프론트 개발 서버 주소 추가, 백엔드 서버와 생성형 AI 서버 간 연동 흐름 추가
 - **v1.5.0 (2026-03-26)**:
   - 빠른 질문 목록 조회 API 추가, 문서 양식 및 정합성 정리
+- **v1.6.0 (2026-04-02)**:
+  - `company_id` 제거, 로그인/내부 AI 연동 관련 요청·응답 예시 및 동작 규칙 수정, Swagger(OpenAPI) 기반 API 문서 확인 경로 추가
+- **v1.7.0 (2026-04-03)**:
+  - 로그인 API 입력값 검증 적용에 따라 `400 Bad Request` 의미를 구체화, `POST /api/v1/auth/login`의 `200/400/401` 상태 코드 기준 정리, 예외 응답 형식 변경
+- **v1.7.1 (2026-04-06)**:
+- `company_code` 예시값 수정
+- **v1.7.2 (2026-04-08)**:
+  - 내부 AI 요청을 `questionId`, `companyCode`, `content` 기반 구조로 단순화, 내부 AI 응답을 `questionId`, `messageType`, `content` 중심으로 수정, 내부 AI 연동 규격에서 `documentId`를 제외하도록 정리
