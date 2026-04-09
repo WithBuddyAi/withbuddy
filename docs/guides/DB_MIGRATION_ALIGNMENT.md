@@ -87,7 +87,7 @@
 ### SCRUM-117 ST-005 chat_messages 테이블
 
 - 스크럼 설명 비교: `company_code` 추가 검토 여지가 남아 있음
-- 기준 문서 비교: ERD 기준 컬럼은 `user_id`, `document_id`, `suggestion_id`, `sender_type`, `message_type`, `content`, `created_at`
+- 기준 문서 비교: ERD 기준 컬럼은 `user_id`, `suggestion_id`, `sender_type`, `message_type`, `content`, `created_at`
 - 진행 기준: 이번 작업은 기준 문서를 따라 `user_id` 중심 구조로 진행하고 `company_code`는 추가하지 않는다.
 - 문서 수정 제안: 스크럼 설명에 `company_code` 논의가 남아 있다면 참고 항목으로 낮추고, 필요성이 생기면 ERD/API를 먼저 수정한다.
 
