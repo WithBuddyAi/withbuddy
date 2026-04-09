@@ -1497,7 +1497,6 @@
         리더 기능 <i class="sec-arrow">▼</i>
       </div>
       <div class="nav-group-items collapsed" id="nav-group-leader">
-        <!-- 고도화 예정
         <div class="nav-item" data-tab="leader-analytics" onclick="switchTab('leader-analytics')">
           <span class="nav-icon">📊</span>
           <div class="nav-text">
@@ -1505,8 +1504,6 @@
             <span class="nav-desc">질문 현황·주제·AI 리포트</span>
           </div>
         </div>
-        -->
-        <!-- 고도화 예정
         <div class="nav-item" data-tab="leader-slack" onclick="switchTab('leader-slack')">
           <span class="nav-icon">🔔</span>
           <div class="nav-text">
@@ -1514,8 +1511,6 @@
             <span class="nav-desc">리포트 발송·스케줄 설정</span>
           </div>
         </div>
-        -->
-        <!-- 고도화 예정: 미답변 질문
         <div class="nav-item" data-tab="leader-unanswered" onclick="switchTab('leader-unanswered')">
           <span class="nav-icon">❓</span>
           <div class="nav-text">
@@ -1523,8 +1518,6 @@
             <span class="nav-desc">직접 답변 → AI 지식 저장</span>
           </div>
         </div>
-        -->
-        <!-- 고도화 예정
         <div class="nav-item" data-tab="leader-tasks" onclick="switchTab('leader-tasks')">
           <span class="nav-icon">📋</span>
           <div class="nav-text">
@@ -1532,8 +1525,6 @@
             <span class="nav-desc">수습사원 할 일 등록·관리</span>
           </div>
         </div>
-        -->
-        <!-- 고도화 예정
         <div class="nav-item" data-tab="admin-company" onclick="switchTab('admin-company')">
           <span class="nav-icon">🏢</span>
           <div class="nav-text">
@@ -1548,7 +1539,6 @@
             <span class="nav-desc">PDF를 마크다운으로 자동 변환</span>
           </div>
         </div>
-        -->
       </div>
     </div>
 
@@ -1830,7 +1820,7 @@
           <div class="section-label" style="margin-bottom:10px">부서별 담당자 바로가기</div>
           <div class="dept-grid">
             <div class="dept-chip" onclick="fillRecommend('인사 연차 휴가 급여 복리후생 경비 사무용품 총무 온보딩 문의')">
-              <div class="chip-name">🏢 경영지원팀 · 이*정</div>
+              <div class="chip-name">🏢 경영지원팀 · 김*수</div>
               <div class="chip-desc">인사·연차·급여·경비·총무·온보딩</div>
             </div>
             <div class="dept-chip" onclick="fillRecommend('프로덕트 로드맵 스프린트 백로그 KPI 제품기획 문의')">
@@ -1867,7 +1857,7 @@
     <!-- ── 리더 전용 패널들 ── -->
 
     <!-- 진척도 & 리포트 통합 패널 (고도화 예정) -->
-    <div id="panel-leader-analytics" class="panel" style="display:none">
+    <div id="panel-leader-analytics" class="panel">
       <div class="panel-header">
         <h2>📊 진척도 & 온보딩 리포트</h2>
         <p>팀원을 선택하면 질문 현황·주제 분석과 AI 리포트를 한 번에 확인합니다.</p>
@@ -1897,7 +1887,6 @@
       </div>
     </div>
 
-    <!-- 고도화 예정: Slack 알림 패널
     <div id="panel-leader-slack" class="panel">
       <div class="panel-header">
         <h2>🔔 Slack 알림</h2>
@@ -1938,10 +1927,9 @@
         </div>
       </div>
     </div>
-    -->
 
     <!-- 미답변 질문 패널 -->
-    <div id="panel-leader-unanswered" class="panel" style="display:none">
+    <div id="panel-leader-unanswered" class="panel">
       <div class="panel-header">
         <h2>❓ 미답변 질문</h2>
         <p>AI가 답변하지 못한 질문 목록입니다. 직접 답변을 입력하면 즉시 AI 지식으로 저장됩니다.</p>
@@ -1955,7 +1943,7 @@
       </div>
     </div>
 
-    <div id="panel-leader-tasks" class="panel" style="display:none">
+    <div id="panel-leader-tasks" class="panel">
       <div class="panel-header">
         <h2>📋 My Buddy 태스크 관리</h2>
         <p>수습사원을 선택하고 할 일을 등록하면 수습사원 화면에 즉시 반영됩니다.</p>
@@ -2120,7 +2108,7 @@
     <div id="panel-profile-settings" class="panel" style="display:none"></div>
 
     <!-- 사내 정보 관리 패널 (고도화 예정) -->
-    <div id="panel-admin-company" class="panel" style="display:none">
+    <div id="panel-admin-company" class="panel">
       <div class="panel-header">
         <h2>🏢 사내 정보 관리</h2>
         <p>점심시간, 급여일 등 사내 기본 정보를 등록·수정합니다.</p>
@@ -2158,7 +2146,7 @@
     </div>
 
     <!-- PDF → MD 변환 패널 (고도화 예정) -->
-    <div id="panel-admin-pdf2md" class="panel" style="display:none">
+    <div id="panel-admin-pdf2md" class="panel">
       <div class="panel-header">
         <h2>📄 PDF → Markdown 변환</h2>
         <p>PDF 파일을 드래그 앤 드롭하면 Markdown으로 자동 변환해드립니다.</p>
@@ -2386,11 +2374,11 @@
     }
     // 리더 모드 설정
     if (role === 'leader') {
-      // document.getElementById('leader-nav').style.display = 'block';
-      // const drawerLeaderNav = document.getElementById('drawer-leader-nav');
-      // if (drawerLeaderNav) drawerLeaderNav.style.display = 'block';
-      // const ingestBtn = document.getElementById('ingestBtn');
-      // if (ingestBtn) ingestBtn.style.display = '';
+      document.getElementById('leader-nav').style.display = 'block';
+      const drawerLeaderNav = document.getElementById('drawer-leader-nav');
+      if (drawerLeaderNav) drawerLeaderNav.style.display = 'block';
+      const ingestBtn = document.getElementById('ingestBtn');
+      if (ingestBtn) ingestBtn.style.display = '';
       loadMembersFromConfig();
       // 리더도 홈으로 시작
       switchTab('home');
@@ -2913,7 +2901,7 @@
               }
               // 담당자 카드 — LLM이 이름을 명시한 경우에만 표시
               const PEOPLE = {
-                '이*정': { dept:'경영지원팀',    emoji:'🏢',  email:'hr@company.com',    ext:'1000', role:'인사·연차·급여·경비·총무·온보딩' },
+                '김*수': { dept:'경영지원팀',    emoji:'🏢',  email:'hr@company.com',    ext:'1000', role:'인사·연차·급여·경비·총무·온보딩' },
                 '신*아': { dept:'PM팀',          emoji:'🗓️',  email:'pm@company.com',    ext:'1002', role:'프로덕트기획·스프린트·백로그·KPI' },
                 '박*진': { dept:'PD팀',          emoji:'🎨',  email:'pd@company.com',    ext:'1003', role:'디자인·UX·브랜드·시안' },
                 '김*원': { dept:'백엔드DB팀',    emoji:'🗄️',  email:'db@company.com',    ext:'1004', role:'백엔드개발·DB설계·쿼리·API' },
@@ -3247,7 +3235,7 @@
 
   /* ── 담당자 추천 ── */
   const DEPT_INFO = {
-    '경영지원팀':    { emoji: '🏢', email: 'hr@company.com',    ext: '1000', person: '이*정' },
+    '경영지원팀':    { emoji: '🏢', email: 'hr@company.com',    ext: '1000', person: '김*수' },
     'PM팀':          { emoji: '🗓️', email: 'pm@company.com',    ext: '1002', person: '신*아' },
     'PD팀':          { emoji: '🎨', email: 'pd@company.com',    ext: '1003', person: '박*진' },
     '백엔드DB팀':    { emoji: '🗄️', email: 'db@company.com',    ext: '1004', person: '김*원' },

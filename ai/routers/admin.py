@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field
 
@@ -244,7 +244,7 @@ async def upsert_team_member(req: MemberSyncRequest):
 # ── 문서 업로드 + RAG 인덱싱 엔드포인트 ───────────────────────
 
 @router.post("/documents")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(file: UploadFile = File(...), company_code: str = Form("")):
     """
     문서 업로드 후 RAG 파이프라인에 자동 인덱싱.
     지원 형식: PDF, Markdown(.md), 텍스트(.txt)
@@ -278,7 +278,7 @@ async def upload_document(file: UploadFile = File(...)):
     docs = [
         Document(
             page_content=chunk,
-            metadata={"source": filename, "chunk_index": i},
+            metadata={"source": filename, "chunk_index": i, **({"company_code": company_code} if company_code else {})},
         )
         for i, chunk in enumerate(chunks)
     ]
