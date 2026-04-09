@@ -49,12 +49,13 @@ _INTENT_PROMPT = ChatPromptTemplate.from_messages([
 chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다")
 out_of_scope : 회사 업무와 완전히 무관한 질문 — 아래 중 하나라도 해당되면 out_of_scope
   - 직무 실무·기술 (예: "코딩 어떻게 해", "엑셀 수식 알려줘")
-  - 법률·세무·개인 재무 (예: "퇴직금 소송", "세금 신고 방법", "투자 조언")
-  - 회사 외부 일상·취미·개인사 (예: "주식 추천", "여행지 추천", "연애 상담")
+  - 개인 재무·투자 (예: "투자 조언", "주식 추천") — ⚠️ 최저임금·퇴직금·연차·육아휴직·임금 등 노동법 관련은 절대 out_of_scope 아님, 반드시 rag로 분류
+  - 회사 외부 일상·취미·개인사 (예: "여행지 추천", "연애 상담")
 rag          : 회사 규정·문서·절차 질문 + 담당자·팀장 질문
   - 회사 규정·절차: 연차 신청 방법, 경비 처리, IT장비, 계약서, 취업규칙 등
   - 담당자·팀장 질문: "XX팀장 누구야", "XX담당", "XX팀 담당자", "PM 팀장님", "백엔드 담당", "프론트엔드 담당" 등 특정 팀/역할의 담당자를 묻는 모든 질문
   - 불만이나 감정이 섞인 표현이어도 회사 관련 실무 질문이면 rag로 분류
+  ⚠️ 노동법·근로기준법 관련 질문은 반드시 rag로 분류 (퇴직금, 최저임금, 최저시급, 연차, 육아휴직, 산재, 근로계약, 해고, 임금체불 등)
 communication: 아래 패턴 중 하나라도 해당되면 communication으로 분류
   - 누구에게 말해야/물어봐야 하는지 (예: "누구한테 말해", "어디에 문의해야", "누구한테 물어봐야")
   - 어떻게 말해야 하는지 (예: "어떻게 말해야 해", "뭐라고 해야", "어떻게 표현해", "어떻게 말씀드려야")
@@ -128,11 +129,47 @@ def load_context_node(state: AgentState) -> dict:
     }
 
 
+import re as _re
+
+_LABOR_LAW_KEYWORDS = [
+    "최저임금", "최저시급", "퇴직금", "육아휴직", "산재", "임금체불",
+    "근로계약", "해고", "근로기준법", "노동법", "연장근로", "야간수당",
+    "주휴수당", "소정근로시간", "월 환산",
+]
+_ARTICLE_PATTERN = _re.compile(r"제?\d+조")
+
+# ── 성희롱 키워드 감지 — RAG 생성 금지, 신고 안내로 즉시 전환 ──
+_HARASSMENT_KEYWORDS = [
+    "성희롱", "성추행", "성폭력", "성적 괴롭힘", "직장내 성희롱",
+    "성희롱 신고", "성추행 신고", "성폭력 신고",
+]
+_HARASSMENT_ANSWER = (
+    "해당 내용은 법적·윤리적으로 민감한 사안이라 AI가 직접 안내드리기 어려워요. 😔\n\n"
+    "아래 창구로 연락하시면 정확하고 안전하게 도움받으실 수 있어요.\n\n"
+    "🏢 **사내 신고처**\n"
+    "　경영지원팀 김*수 님께 직접 또는 비밀 보장 채널로 신고 가능합니다.\n\n"
+    "📞 **고용노동부 고객상담센터**\n"
+    "　☎ **1350** (평일 09:00~18:00, 무료)\n\n"
+    "🌐 **온라인 신고**\n"
+    "　고용노동부 민원마당 → 직장 내 괴롭힘·성희롱 신고\n\n"
+    "신고자 신원은 철저히 보호되니 걱정하지 않으셔도 돼요. 용기 내셔서 꼭 도움받으세요. 💙"
+)
+
+
 def classify_intent_node(state: AgentState) -> dict:
     """메시지 의도 분류."""
-    raw = _get_intent_chain().invoke({"message": state["message"]}).strip().lower()
-    valid = {"rag", "communication", "preboarding", "company_info", "chitchat", "out_of_scope"}
-    intent = next((v for v in valid if v in raw), "rag")
+    msg = state["message"]
+
+    # 성희롱 키워드 감지 → 고정 안내 메시지 (RAG 생성 금지)
+    if any(kw in msg for kw in _HARASSMENT_KEYWORDS):
+        return {"intent": "chitchat", "extra_context": "", "answer": _HARASSMENT_ANSWER}
+
+    if any(kw in msg for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(msg):
+        intent = "rag"
+    else:
+        raw = _get_intent_chain().invoke({"message": msg}).strip().lower()
+        valid = {"rag", "communication", "preboarding", "company_info", "chitchat", "out_of_scope"}
+        intent = next((v for v in valid if v in raw), "rag")
 
     extra_context = ""
     if intent == "company_info":
@@ -251,6 +288,9 @@ def out_of_scope_node(state: AgentState) -> dict:
 
 
 def chitchat_agent_node(state: AgentState) -> dict:
+    # classify_intent_node에서 이미 답변이 세팅된 경우(성희롱 등) LLM 호출 건너뜀
+    if state.get("answer"):
+        return {}
     answer = _get_chitchat_chain().invoke({
         "message": state["message"],
         "user_style": state.get("user_style", ""),
