@@ -26,8 +26,20 @@ jwt:
   secret: ${JWT_SECRET}
   access-expiration: ${JWT_ACCESS_EXPIRATION:7200000}
 
+ai:
+  server:
+    base-url: ${AI_SERVER_BASE_URL}
+
 app:
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
     queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
     queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}
+
+management:
+  health:
+    rabbit:
+      enabled: false
+    redis:
+      enabled: false
+

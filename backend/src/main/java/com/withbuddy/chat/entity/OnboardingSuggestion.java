@@ -1,4 +1,4 @@
-package com.withbuddy.ai.entity;
+package com.withbuddy.chat.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
