@@ -370,13 +370,14 @@ Error: Port 8080 is already in use
 
 ---
 
-**Last Updated**: 2026-04-07
+**Last Updated**: 2026-04-09
 
 ## 변경 이력
 
-- 2026-04-06: CI/CD 환경변수 설명 정리 (`BACKEND_HEALTH_URL`, `JWT_SECRET`, `REDIS_URL`, `RABBITMQ_URL`).
-- 2026-04-06: 캐시/큐 운영 반영으로 `REDIS_URL`, `RABBITMQ_URL`를 필수값으로 상향.
+- 2026-04-09: 문서 메타데이터를 현재 수정 상태에 맞게 정리하고 변경 이력 순서를 최신 기준으로 재정렬.
 - 2026-04-07: SSH 배포 대상 시크릿을 `BACKEND_SERVER_HOST` 단일 기준으로 정리.
 - 2026-04-07: 배포 재시작 방식을 `nohup`/`pkill`에서 `withbuddy-backend.service` 단일 systemd 재시작으로 통일.
+- 2026-04-06: CI/CD 환경변수 설명 정리 (`BACKEND_HEALTH_URL`, `JWT_SECRET`, `REDIS_URL`, `RABBITMQ_URL`).
+- 2026-04-06: 캐시/큐 운영 반영으로 `REDIS_URL`, `RABBITMQ_URL`를 필수값으로 상향.
 - 2026-04-02: 브랜치 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.
 

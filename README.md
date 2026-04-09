@@ -2,7 +2,7 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-03-30  
+**최종 업데이트**: 2026-04-09  
 **버전**: 1.1.3
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
@@ -11,7 +11,7 @@
 
 ---
 
-## 📖 프로젝트 소개
+## 프로젝트 소개
 
 **WithBuddy**는 신입사원의 성공적인 온보딩을 지원하는 AI 기반 통합 비서 서비스입니다.
 
@@ -32,7 +32,7 @@
 
 ---
 
-## 👥 팀원
+## 팀원
 
 | 역할 | 이름 | GitHub |
 |------|------|--------|
@@ -45,7 +45,7 @@
 
 ---
 
-## 🛠 기술 스택
+## 기술 스택
 
 | 분야 | 기술 |
 |------|------|
@@ -57,7 +57,7 @@
 
 ---
 
-## 🧭 프로젝트 표준
+## 프로젝트 표준
 
 | 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
 |------|----------|------------|---------------|-----------|
@@ -67,7 +67,7 @@
 
 ---
 
-## 🚀 빠른 시작
+## 빠른 시작
 
 ### 필수 요구사항
 - Java 21, Node.js 20+, Python 3.11+, MySQL 8.0
@@ -122,65 +122,72 @@ uvicorn app.main:app --reload
 # http://localhost:8000/docs
 ```
 
+**5-1. AI Docker 실행**
+```bash
+# withbuddy 루트에서 실행
+docker compose up -d ai
+# http://localhost:8000/docs
+```
+
 > 📚 **상세 가이드**: [docs/guides/SETUP.md](./docs/guides/SETUP.md)
 
 ---
 
-## 📂 withBuddy 디렉토리 구조
+## withBuddy 디렉토리 구조
 
 ```
 withbuddy/
 ├─ .github/
-│  ├─ ISSUE_TEMPLATE/           # BE/CI  (Issue 템플릿 관리)
-│  │  ├─ bug_report.md          # BE/CI  (New Issue 생성시 제공되는 버그 리포트 관리 템플릿)
-│  │  └─ config.yml             # BE/CI  (New Issue 생성시 안내되는 기여 가이드 링크) 
+│  ├─ ISSUE_TEMPLATE/                   # BE/CI  (Issue 템플릿 관리)
+│  │  ├─ bug_report.md                  # BE/CI  (New Issue 생성시 제공되는 버그 리포트 관리 템플릿)
+│  │  └─ config.yml                     # BE/CI  (New Issue 생성시 안내되는 기여 가이드 링크) 
 │  └─ workflows/               
-│     ├─ ci.yml                 # BE/CI  (변경 영역 빌드/테스트 자동 검증)
-│     ├─ ai-deploy.yml          # AI/CI  (AI 서버 자동 배포 워크플로우)
-│     ├─ backend-deploy.yml     # BE/CI  (Backend 자동 배포 워크플로우)
-│     └─ pr-autofill.yml        # BE/CI  (PR 본문 자동 생성 워크플로우)
+│     ├─ ci.yml                         # BE/CI  (변경 영역 빌드/테스트 자동 검증)
+│     ├─ ai-deploy.yml                  # AI/CI  (AI 서버 자동 배포 워크플로우)
+│     ├─ backend-deploy.yml             # BE/CI  (Backend 자동 배포 워크플로우)
+│     └─ pr-autofill.yml                # BE/CI  (PR 본문 자동 생성 워크플로우)
 │ 
-├─ ai/                          # AI (기능 구현 시작 후 이 폴더에서 관리)
+├─ ai/                                  # AI (기능 구현 시작 후 이 폴더에서 관리)
 │ 
-├─ backend/                     # BE (기능 구현 시작 후 이 폴더에서 관리)
+├─ backend/                             # BE (기능 구현 시작 후 이 폴더에서 관리)
 │ 
 ├─ docs/
 │  ├─ architecture/
-│  │  ├─ AI_ARCHITECTURE.md     # AI  (AI 아키텍처)
-│  │  ├─ ARCHITECTURE.md        # BE/CI  (시스템 아키텍처)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (OCI 배포 가이드)
-│  │  ├─ DEPLOYMENT.md          # BE/CI  (배포 가이드)
-│  │  ├─ INFRASTRUCTURE.md      # BE/CI  (인프라 구조)
-│  │  └─ AI_SERVER_GUIDE.md     # AI/CI  (AI 서버 운영/배포 점검 가이드)
+│  │  ├─ AI_ARCHITECTURE.md             # AI  (AI 아키텍처)
+│  │  ├─ ARCHITECTURE.md                # BE/CI  (시스템 아키텍처)
+│  │  ├─ DEPLOYMENT-ORACLE.md           # BE/CI  (OCI 배포 가이드)
+│  │  ├─ INFRASTRUCTURE.md              # BE/CI  (인프라 구조)
+│  │  └─ AI_SERVER_GUIDE.md             # AI/CI  (AI 서버 운영/배포 점검 가이드)
 │  │
-│  ├─ erd/                      # BE (MVP 단계에서 진행)
+│  ├─ erd/                              # BE (MVP 단계에서 진행)
 │  │
 │  ├─ guides/ 
-│  │  ├─ COLLABORATION.md         # BE/CI  (협업 규칙 📚 필독)
-│  │  ├─ CONTRIBUTING.md          # BE/CI  (기여 가이드 📚 필독)
-│  │  ├─ AI-DEPENDENCIES.md       # BE/AI  (AI 의존성 파일 관리 가이드)
-│  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼 📚 필독)
-│  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼📚 필독)
-│  │  ├─ ENV.md                   # BE/CI  (환경변수 및 GitHub Secrets 가이드)
-│  │  ├─ GITHUB-FLOW-SETUP.md     # BE/CI  (GitHub flow 설정 체크리스트)
-│  │  ├─ GITHUB-SSH.md            # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
-│  │  └─ SETUP.md                 # BE/CI  (개발 환경 설정 가이드 📚 필독)
+│  │  ├─ COLLABORATION.md               # BE/CI  (협업 규칙 📚 필독)
+│  │  ├─ CONTRIBUTING.md                # BE/CI  (기여 가이드 📚 필독)
+│  │  ├─ AI-DEPENDENCIES.md             # BE/AI  (AI 의존성 파일 관리 가이드)
+│  │  ├─ CONFLICT-MINIMIZATION.md       # BE/CI  (충돌 최소화 작업 매뉴얼 📚 필독)
+│  │  ├─ CONFLICT-RECOVERY.md           # BE/CI  (충돌/오염 상태 복구 매뉴얼📚 필독)
+│  │  ├─ ENV.md                         # BE/CI  (환경변수 및 GitHub Secrets 가이드)
+│  │  ├─ GITHUB-FLOW-SETUP.md           # BE/CI  (GitHub flow 설정 체크리스트)
+│  │  ├─ GITHUB-SSH.md                  # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
+│  │  └─ SETUP.md                       # BE/CI  (개발 환경 설정 가이드 📚 필독)
 │  │
-│  ├─ API.md                    # BE  (API 명세서)
-│  ├─ MULTI_TENANCY.md          # BE  (멀티 테넌시 아키텍처)
-│  ├─ PLANNED_API.md            # BE  (Planned API)
-│  └─ SECURITY.md               # BE/CI  (보안 설계)
+│  ├─ API.md                            # BE  (API 명세서)
+│  ├─ MULTI_TENANCY.md                  # BE  (멀티 테넌시 아키텍처)
+│  ├─ OCI_OBJECT_STORAGE_STRATEGY.md    # BE/CI  (OCI 이중 Object Storage 전략)
+│  ├─ PLANNED_API.md                    # BE  (Planned API)
+│  └─ SECURITY.md                       # BE/CI  (보안 설계)
 │                               
-├─ frontend/                    # FE  (기능 구현 시작 후 이 폴더에서 관리)
-├─ .gitignore                   # BE/FE/AI/CI  (지속 관리)
-└─ README.md                    # PM/BE/CI (MVP 설계 단계 이후 관리)
+├─ frontend/                            # FE  (기능 구현 시작 후 이 폴더에서 관리)
+├─ .gitignore                           # BE/FE/AI/CI  (지속 관리)
+└─ README.md                            # PM/BE/CI (MVP 설계 단계 이후 관리)
 
 *** BE - Backend | FE - Frontend | PM - Project Manager | CI - Cloud Infrastructure
 ```
 
 ---
 
-## 📚 문서 바로가기
+## 문서 바로가기
 
 ### 시작하기
 - **[개발 환경 설정](./docs/guides/SETUP.md)** - MySQL, 환경변수, 실행 방법
@@ -197,6 +204,7 @@ withbuddy/
 - **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
 - **[AI 서버 운영 가이드](docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
 - **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
+- **[OCI Object Storage 전략](./docs/OCI_OBJECT_STORAGE_STRATEGY.md)** - 이중 tenancy 스토리지 업로드/조회/백업 전략
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
 
 ### API
@@ -207,7 +215,7 @@ withbuddy/
 
 ---
 
-## 🤝 기여하기
+## 기여하기
 
 ### 버그 발견 시
 👉 [Bug Report](https://github.com/WithBuddyAi/withbuddy/issues/new?template=bug_report.md)
@@ -227,7 +235,7 @@ withbuddy/
 
 ---
 
-## 🏆 빌더스 리그 2026
+## 빌더스 리그 2026
 
 | 단계 | 기간 | 목표 |
 |------|------|------|
@@ -242,7 +250,7 @@ withbuddy/
 
 ---
 
-## 📞 연락처
+## 연락처
 
 - **GitHub**: [@WithBuddyAi](https://github.com/WithBuddyAi)
 - **Email**: team@withbuddy.ai
@@ -250,13 +258,13 @@ withbuddy/
 
 ---
 
-## 📄 라이센스
+## 라이센스
 
 **Copyright © 2026 WithBuddy Team. All Rights Reserved.**
 
 본 프로젝트는 교육 및 포트폴리오 목적으로 공개되었습니다. 소스 코드의 모든 권리는 WithBuddy 팀에게 있으며, 다음 조건 하에 제한적으로 사용이 허가됩니다.
 
-### ✅ 허용되는 사용
+### 허용되는 사용
 
 **학습 및 참고 목적**
 - 소스 코드 열람 및 학습
@@ -268,7 +276,7 @@ withbuddy/
 - 면접 시 코드 설명 및 시연
 - 개인 GitHub 프로필에 기여 내역 표시
 
-### ❌ 금지되는 사용
+### 금지되는 사용
 
 **상업적 이용**
 - 본 소프트웨어를 이용한 상업적 서비스 운영
@@ -285,7 +293,7 @@ withbuddy/
 - Fork 후 독립 프로젝트로 전환
 - 상표 및 저작권 표시 제거
 
-### 📋 특별 사용 허가
+### 특별 사용 허가
 
 다음의 경우 사전 서면 동의를 통해 사용이 가능합니다:
 
@@ -294,7 +302,7 @@ withbuddy/
 3. **교육 기관**: 강의 자료 또는 교육 목적 사용
 4. **연구 목적**: 학술 연구 또는 논문 작성
 
-### 📧 문의 및 협업
+### 문의 및 협업
 
 **라이센스 관련 문의**
 - 이메일: team@withbuddy.ai
@@ -306,7 +314,7 @@ withbuddy/
 
 ---
 
-### 📚 오픈소스 라이브러리 고지
+### 오픈소스 라이브러리 고지
 
 본 프로젝트는 다음의 오픈소스 소프트웨어를 사용합니다:
 
@@ -332,7 +340,7 @@ withbuddy/
 
 ---
 
-### ⚖️ 면책 조항
+### 면책 조항
 
 본 소프트웨어는 "있는 그대로" 제공되며, 명시적이든 묵시적이든 어떠한 종류의 보증도 하지 않습니다. 저작권자는 소프트웨어의 사용으로 인해 발생하는 어떠한 청구, 손해 또는 기타 책임에 대해서도 책임을 지지 않습니다.
 
@@ -350,5 +358,7 @@ withbuddy/
 
 ## 변경 이력
 
-- 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
+- 2026-04-09: 문서 디렉터리 구조에서 비프로젝트 폴더를 제외하고, `OCI_OBJECT_STORAGE_STRATEGY.md` 링크와 AI Docker 실행 안내를 반영.
 - 2026-04-02: 브랜치 예시의 Jira 서브태스크 키 표기를 `SCRUM-##` 대문자로 통일.
+- 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
+
