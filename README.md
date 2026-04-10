@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-03-30  
-**버전**: 1.1.3
+**최종 업데이트**: 2026-04-11  
+**버전**: 1.2.0
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
@@ -49,10 +49,10 @@
 
 | 분야 | 기술 |
 |------|------|
-| **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, JWT |
+| **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, Redis, RabbitMQ, JWT |
 | **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
 | **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
-| **배포** | Oracle Cloud (Backend/AI/MySQL), Vercel (Frontend) |
+| **배포** | Oracle Cloud (Backend/AI/MySQL/Object Storage), Vercel (Frontend) |
 | **CI/CD** | GitHub Actions |
 
 ---
@@ -94,7 +94,11 @@ cd backend
 # IntelliJ: Run > Edit Configurations > Environment Variables
 # DB_PASSWORD=your_password
 # JWT_SECRET=your-secret-key-min-32-chars
-# AI_API_URL=http://localhost:8000
+# AI_SERVER_BASE_URL=http://localhost:8000
+# REDIS_URL=redis://localhost:6379
+# RABBITMQ_URL=amqp://guest:guest@localhost:5672
+# STORAGE_API_AUTH_ENABLED=true
+# STORAGE_API_KEY_VALUE=<storage_admin_key>
 
 ./gradlew bootRun
 # http://localhost:8080
@@ -165,6 +169,7 @@ withbuddy/
 │  │  └─ AI_SERVER_GUIDE.md     # AI/CI  (AI 서버 운영/배포 점검 가이드)
 │  │
 │  ├─ erd/                      # BE (MVP 단계에서 진행)
+│  ├─ storage/                  # BE/CI  (스토리지 API/운영/DDL 문서)
 │  │
 │  ├─ guides/ 
 │  │  ├─ COLLABORATION.md         # BE/CI  (협업 규칙 📚 필독)
@@ -209,6 +214,7 @@ withbuddy/
 - **[AI 서버 운영 가이드](docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
 - **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
+- **[스토리지 문서 세트](./docs/storage/README.md)** - Storage API, 운영 Runbook, DDL, ERD
 
 ### API
 - **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
@@ -361,5 +367,6 @@ withbuddy/
 
 ## 변경 이력
 
-- 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
+- 2026-04-11: 스토리지(Object Storage) 반영에 맞춰 기술 스택/배포 항목을 갱신하고, 백엔드 로컬 실행 환경변수 예시에 `REDIS_URL`, `RABBITMQ_URL`, `STORAGE_API_*`를 추가. `docs/storage` 문서 경로를 디렉토리 구조와 문서 링크에 반영.
 - 2026-04-02: 브랜치 예시의 Jira 서브태스크 키 표기를 `SCRUM-##` 대문자로 통일.
+- 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
