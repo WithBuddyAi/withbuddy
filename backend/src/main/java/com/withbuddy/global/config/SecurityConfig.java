@@ -4,6 +4,7 @@ import com.withbuddy.global.security.StorageApiKeyAuthenticationFilter;
 import com.withbuddy.global.security.StorageApiKeyProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -30,7 +31,28 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    @Order(0)
+    public SecurityFilterChain documentSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/v1/documents", "/api/v1/documents/**")
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+
+        if (storageApiKeyProperties.isEnabled()) {
+            http.addFilterBefore(storageApiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        }
+        return http.build();
+    }
+
+    @Bean
+    @Order(1)
+    public SecurityFilterChain appSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -50,17 +72,8 @@ public class SecurityConfig {
                             "/v3/api-docs/**"
                     ).permitAll();
 
-                    auth.requestMatchers(
-                            "/api/v1/documents",
-                            "/api/v1/documents/**"
-                    ).permitAll();
-
                     auth.anyRequest().authenticated();
                 });
-
-        if (storageApiKeyProperties.isEnabled()) {
-            http.addFilterBefore(storageApiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        }
         return http.build();
     }
 
