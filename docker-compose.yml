@@ -1,0 +1,29 @@
+name: withbuddy-local
+
+services:
+  ai:
+    container_name: withbuddy-ai
+    image: withbuddy-ai
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      AI_SERVER_PORT: "8000"
+      AI_BIND_HOST: "0.0.0.0"
+      CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      CHROMA_PERSIST_DIR: /app/chroma_db
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./ai:/app
+      - ai_chroma_db:/app/chroma_db
+    restart: unless-stopped
+
+volumes:
+  ai_chroma_db:

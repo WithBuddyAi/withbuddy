@@ -3,6 +3,7 @@ package com.withbuddy.global.exception;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.auth.exception.LoginFailedException;
+import com.withbuddy.storage.exception.StorageException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -62,5 +63,26 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<ErrorResponse> handleStorageException(
+            StorageException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError(e.getField(), e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                e.getStatus().value(),
+                e.getStatus().getReasonPhrase(),
+                e.getCode(),
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(e.getStatus()).body(response);
     }
 }

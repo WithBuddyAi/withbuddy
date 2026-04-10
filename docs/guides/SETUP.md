@@ -23,6 +23,7 @@
 - **Node.js**: 20+ & npm/yarn
 - **Python**: 3.11+
 - **MySQL**: 8.0
+- **Docker Desktop**: 4.0+ (선택, AI 서버 컨테이너 실행 시)
 
 ### 권장 개발 도구
 - IntelliJ IDEA / VS Code
@@ -224,7 +225,31 @@ npm run preview
 
 ## AI 서버 설정
 
-### 1. 가상환경 생성
+### 1. Docker Compose로 실행 (선택)
+
+루트 디렉토리의 `docker-compose.yml`은 AI 서버만 빠르게 띄우기 위한 로컬 개발용 설정입니다.
+
+```bash
+cd withbuddy
+
+# 필요 시 현재 셸 또는 .env 에 환경변수 설정
+# ANTHROPIC_API_KEY=your_anthropic_api_key
+# SLACK_BOT_TOKEN=xoxb-...
+# SLACK_APP_TOKEN=xapp-...
+# AI_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+
+docker compose up --build ai
+
+# 확인
+curl http://localhost:8000/health
+```
+
+기본 동작:
+- `ai/` 디렉토리를 `/app`으로 마운트해 코드 변경이 즉시 반영됩니다.
+- ChromaDB 데이터는 Docker 볼륨 `ai_chroma_db`에 저장됩니다.
+- 기본 포트는 `8000:8000`입니다.
+
+### 2. 가상환경 생성
 ```bash
 cd ai
 
@@ -335,6 +360,10 @@ uvicorn app.main:app --reload --log-level debug
 
 # 에러: Anthropic API key not found
 → .env 파일 확인
+
+# 에러: docker compose 실행 시 빌드 또는 포트 충돌
+→ Docker Desktop 실행 상태 확인
+→ 8000 포트 사용 중 프로세스 종료 또는 compose 포트 변경
 ```
 
 ---
