@@ -60,7 +60,8 @@ public class StorageApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         String apiKeyValue = request.getHeader(API_KEY_HEADER);
         if (!StringUtils.hasText(apiKeyValue)) {
-            writeUnauthorized(response, request.getRequestURI(), API_KEY_HEADER, "X-API-Key 헤더가 필요합니다.");
+            // API Key 없이 접근한 요청은 Bearer/JWT 경로로 처리될 수 있도록 다음 체인으로 전달한다.
+            filterChain.doFilter(request, response);
             return;
         }
 
