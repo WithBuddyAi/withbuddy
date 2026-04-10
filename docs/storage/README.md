@@ -20,7 +20,7 @@ WithBuddy의 OCI Object Storage(원본/백업) 설계와 구현 기준을 모아
   - 운영 권장: `X-API-Key: {storageAdminApiKey}`
   - 호환: `Authorization: Bearer {accessToken}` (`STORAGE_API_AUTH_ENABLED=false`일 때)
 - 에러 형식: `docs/API.md`의 `ErrorResponse`(`timestamp`, `status`, `error`, `code`, `errors`, `path`)
-- 멀티테넌시 경계:
+- 문서 파일 구분:
   - API Key 모드: 업로드 요청의 `companyCode`로 구분(미지정 시 공통)
   - Bearer 모드: JWT의 `companyCode` 기준
 

@@ -17,7 +17,7 @@
 - 인증:
   - 운영 권장: `X-API-Key: {storageAdminApiKey}`
   - 이행/개발 호환: `Authorization: Bearer {accessToken}` (`STORAGE_API_AUTH_ENABLED=false`일 때만)
-- 회사 경계:
+- 문서 파일 구분:
   - API Key 모드: 관리자 전역 권한
     - 업로드: `companyCode`로 대상 회사 지정, 미지정 시 공통 문서
     - 조회/삭제: 전체 문서 범위
@@ -56,28 +56,28 @@
 - `global-access=false`로 내리면 공통 문서 중심으로 제한 동작(운영에서는 비권장)
 - 특정 회사 업로드 시 `companyCode`는 DB `companies.company_code`에 존재해야 함
 
-요청 예시(curl, 공통 문서 업로드):
+요청 예시(Postman, 공통 문서 업로드):
+- Method: `POST`
+- URL: `{{baseUrl}}/api/v1/documents/upload`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
+- Body (`form-data`):
+  - `file`: `/path/to/common-guide.pdf` (File)
+  - `title`: `공통 안내 문서`
+  - `documentType`: `LEGAL`
+  - `department`: `HR`
 
-```bash
-curl -X POST "{{baseUrl}}/api/v1/documents/upload" \
-  -H "X-API-Key: {{storageAdminApiKey}}" \
-  -F "file=@/path/to/common-guide.pdf" \
-  -F "title=공통 안내 문서" \
-  -F "documentType=LEGAL" \
-  -F "department=HR"
-```
-
-요청 예시(curl, 특정 회사 문서 업로드):
-
-```bash
-curl -X POST "{{baseUrl}}/api/v1/documents/upload" \
-  -H "X-API-Key: {{storageAdminApiKey}}" \
-  -F "file=@/path/to/company-guide.pdf" \
-  -F "title=회사 전용 안내 문서" \
-  -F "documentType=LEGAL" \
-  -F "department=HR" \
-  -F "companyCode=WB0001"
-```
+요청 예시(Postman, 특정 회사 문서 업로드):
+- Method: `POST`
+- URL: `{{baseUrl}}/api/v1/documents/upload`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
+- Body (`form-data`):
+  - `file`: `/path/to/company-guide.pdf` (File)
+  - `title`: `회사 전용 안내 문서`
+  - `documentType`: `LEGAL`
+  - `department`: `HR`
+  - `companyCode`: `WB0001`
 
 응답: `201 Created`
 
@@ -102,12 +102,11 @@ curl -X POST "{{baseUrl}}/api/v1/documents/upload" \
 
 `GET /api/v1/documents?page=0&size=20&documentType=LEGAL&search=근로`
 
-요청 예시(curl):
-
-```bash
-curl -X GET "{{baseUrl}}/api/v1/documents?page=0&size=20" \
-  -H "X-API-Key: {{storageAdminApiKey}}"
-```
+요청 예시(Postman):
+- Method: `GET`
+- URL: `{{baseUrl}}/api/v1/documents?page=0&size=20`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
 
 응답: `200 OK` (`DocumentListResponse`)
 
@@ -115,12 +114,11 @@ curl -X GET "{{baseUrl}}/api/v1/documents?page=0&size=20" \
 
 `GET /api/v1/documents/{documentId}`
 
-요청 예시(curl):
-
-```bash
-curl -X GET "{{baseUrl}}/api/v1/documents/101" \
-  -H "X-API-Key: {{storageAdminApiKey}}"
-```
+요청 예시(Postman):
+- Method: `GET`
+- URL: `{{baseUrl}}/api/v1/documents/101`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
 
 응답: `200 OK` (`DocumentDetailResponse`)
 
@@ -131,12 +129,11 @@ curl -X GET "{{baseUrl}}/api/v1/documents/101" \
 
 `GET /api/v1/documents/{documentId}/download`
 
-요청 예시(curl):
-
-```bash
-curl -X GET "{{baseUrl}}/api/v1/documents/101/download" \
-  -H "X-API-Key: {{storageAdminApiKey}}"
-```
+요청 예시(Postman):
+- Method: `GET`
+- URL: `{{baseUrl}}/api/v1/documents/101/download`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
 
 응답: `200 OK`
 
@@ -156,12 +153,11 @@ curl -X GET "{{baseUrl}}/api/v1/documents/101/download" \
 
 `POST /api/v1/documents/{documentId}/backup/retry`
 
-요청 예시(curl):
-
-```bash
-curl -X POST "{{baseUrl}}/api/v1/documents/101/backup/retry" \
-  -H "X-API-Key: {{storageAdminApiKey}}"
-```
+요청 예시(Postman):
+- Method: `POST`
+- URL: `{{baseUrl}}/api/v1/documents/101/backup/retry`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
 
 응답: `200 OK`
 
@@ -179,12 +175,11 @@ curl -X POST "{{baseUrl}}/api/v1/documents/101/backup/retry" \
 
 `GET /api/v1/documents/{documentId}/delete-check`
 
-요청 예시(curl):
-
-```bash
-curl -X GET "{{baseUrl}}/api/v1/documents/101/delete-check" \
-  -H "X-API-Key: {{storageAdminApiKey}}"
-```
+요청 예시(Postman):
+- Method: `GET`
+- URL: `{{baseUrl}}/api/v1/documents/101/delete-check`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
 
 응답: `200 OK`
 
@@ -206,12 +201,11 @@ curl -X GET "{{baseUrl}}/api/v1/documents/101/delete-check" \
 
 `DELETE /api/v1/documents/{documentId}?confirm=true`
 
-요청 예시(curl):
-
-```bash
-curl -X DELETE "{{baseUrl}}/api/v1/documents/101?confirm=true" \
-  -H "X-API-Key: {{storageAdminApiKey}}"
-```
+요청 예시(Postman):
+- Method: `DELETE`
+- URL: `{{baseUrl}}/api/v1/documents/101?confirm=true`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
 
 응답: `200 OK`
 
@@ -234,13 +228,17 @@ curl -X DELETE "{{baseUrl}}/api/v1/documents/101?confirm=true" \
 }
 ```
 
-요청 예시(curl):
-
-```bash
-curl -X POST "{{baseUrl}}/api/v1/documents/bulk-delete/delete-check" \
-  -H "X-API-Key: {{storageAdminApiKey}}" \
-  -H "Content-Type: application/json" \
-  -d '{"documentIds":[101,102,999999]}'
+요청 예시(Postman):
+- Method: `POST`
+- URL: `{{baseUrl}}/api/v1/documents/bulk-delete/delete-check`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
+  - `Content-Type: application/json`
+- Body (`raw`, JSON):
+```json
+{
+  "documentIds": [101, 102, 999999]
+}
 ```
 
 응답:
@@ -269,13 +267,17 @@ curl -X POST "{{baseUrl}}/api/v1/documents/bulk-delete/delete-check" \
 }
 ```
 
-요청 예시(curl):
-
-```bash
-curl -X POST "{{baseUrl}}/api/v1/documents/bulk-delete?confirm=true" \
-  -H "X-API-Key: {{storageAdminApiKey}}" \
-  -H "Content-Type: application/json" \
-  -d '{"documentIds":[101,102,999999]}'
+요청 예시(Postman):
+- Method: `POST`
+- URL: `{{baseUrl}}/api/v1/documents/bulk-delete?confirm=true`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
+  - `Content-Type: application/json`
+- Body (`raw`, JSON):
+```json
+{
+  "documentIds": [101, 102, 999999]
+}
 ```
 
 응답:
@@ -296,19 +298,18 @@ curl -X POST "{{baseUrl}}/api/v1/documents/bulk-delete?confirm=true" \
 
 `GET /api/v1/documents/delete-check`
 
-요청 예시(curl):
-
-```bash
-curl -X GET "{{baseUrl}}/api/v1/documents/delete-check" \
-  -H "X-API-Key: {{storageAdminApiKey}}"
-```
+요청 예시(Postman):
+- Method: `GET`
+- URL: `{{baseUrl}}/api/v1/documents/delete-check`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
 
 응답:
 
 ```json
 {
   "confirmRequired": true,
-  "message": "삭제 가능 5/5건, 삭제 불가 0/5건, 실행 시 confirm=true가 필요합니다.",
+  "message": "삭제 가능 5/5건, 삭제 불가 0/5건, 전체 문서 삭제를 진행하시겠습니까?",
   "requestedCount": 5,
   "deletableCount": 5,
   "deletableDocumentIds": [101, 102, 103, 104, 105],
@@ -321,12 +322,11 @@ curl -X GET "{{baseUrl}}/api/v1/documents/delete-check" \
 
 `DELETE /api/v1/documents?confirm=true`
 
-요청 예시(curl):
-
-```bash
-curl -X DELETE "{{baseUrl}}/api/v1/documents?confirm=true" \
-  -H "X-API-Key: {{storageAdminApiKey}}"
-```
+요청 예시(Postman):
+- Method: `DELETE`
+- URL: `{{baseUrl}}/api/v1/documents?confirm=true`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
 
 응답:
 

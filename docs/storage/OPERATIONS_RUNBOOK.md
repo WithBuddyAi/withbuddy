@@ -76,7 +76,7 @@ LIMIT 50;
 ### 3.3 삭제 API 400(confirm)
 
 증상:
-- `문서 삭제는 confirm=true가 필요합니다.`
+- `삭제를 진행하시겠습니까` (문서 삭제는 confirm=true가 필요하다.)
 
 조치:
 - 클라이언트 요청에 `?confirm=true` 포함
@@ -97,8 +97,8 @@ LIMIT 50;
 ## 4. 삭제 운영 정책
 
 - 단건 삭제:
-  - `delete-check`로 사전 검증
-  - `confirm=true`로 최종 실행
+  - `{id}/delete-check`로 사전 검증
+  - `{id}/confirm=true`로 최종 실행
 - 선택 삭제:
   - `bulk-delete/delete-check`로 사전 검증
   - `bulk-delete?confirm=true`로 최종 실행
@@ -162,8 +162,8 @@ LIMIT 50;
 3. 백업 복제 시도 후 상태 갱신(`COMPLETED`/`FAILED`)
 
 운영 목표:
-- RPO: 15분 이내
-- RTO: 60분 이내
+- RPO(Recovery Point Objective): 15분 이내
+- RTO(Recovery Time Objective): 60분 이내
 
 다운로드 우선순위:
 1. Primary 확인
