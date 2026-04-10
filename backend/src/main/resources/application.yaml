@@ -32,17 +32,10 @@ jwt:
 
 ai:
   server:
-    base-url: http://localhost:8000
+    base-url: ${AI_SERVER_BASE_URL}
 
 app:
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
     queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
     queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}
-
-management:
-  health:
-    rabbit:
-      enabled: false
-    redis:
-      enabled: false
