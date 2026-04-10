@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.7.2
-**최종 업데이트**: 2026-04-08
+**버전**: 0.6.0
+**최종 업데이트**: 2026-04-11
 
 ---
 
@@ -203,8 +203,8 @@ Content-Type: application/json
 
 #### 동작 규칙
 - 사용자는 로그인 시 회사코드, 사번, 이름을 입력한다.
-- 서버는 입력값 형식을 먼저 검증한다.
-- 형식 검증을 통과한 경우 회사코드, 사원번호, 이름 기준으로 사용자를 조회한다.
+- 서버는 입력된 `companyCode`로 `companies`를 조회한다.
+- 서버는 조회된 `company_code`와 사용자 이름, 사번을 기준으로 `users`에서 사용자를 확인한다.
 - 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
 
 #### Response (200 OK)
@@ -223,8 +223,7 @@ Content-Type: application/json
 }
 ```
 
-#### Error Response (400 Bad Request - 필수값 누락)
-
+#### Error Response (400 Bad Request)
 
 ```json
 {
@@ -235,37 +234,15 @@ Content-Type: application/json
   "errors": [
     {
       "field": "companyCode",
-      "message": "회사 코드를 입력해 주세요."
+      "message": "회사 코드는 필수입니다."
     },
     {
       "field": "employeeNumber",
-      "message": "사원번호를 입력해 주세요."
+      "message": "사번은 필수입니다."
     },
     {
       "field": "name",
-      "message": "이름을 입력해 주세요."
-    }
-  ],
-  "path": "/api/v1/auth/login"
-}
-```
-
-#### Error Response (400 Bad Request - 형식 오류)
-
-```json
-{
-  "timestamp": "2026-04-08T10:30:00Z",
-  "status": 400,
-  "error": "Bad Request",
-  "code": "BAD_REQUEST",
-  "errors": [
-    {
-      "field": "companyCode",
-      "message": "회사코드는 영문, 숫자를 조합하여 4~20자로 입력해 주세요."
-    },
-    {
-      "field": "employeeNumber",
-      "message": "사원번호는 영문, 숫자를 조합하여 4~20자로 입력해 주세요."
+      "message": "이름은 필수입니다."
     }
   ],
   "path": "/api/v1/auth/login"
@@ -290,7 +267,7 @@ Content-Type: application/json
   "errors": [
     {
       "field": "login",
-      "message": "입력하신 정보를 다시 확인해 주세요."
+      "message": "회사코드, 사번 또는 이름이 올바르지 않습니다."
     }
   ],
   "path": "/api/v1/auth/login"
