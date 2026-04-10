@@ -71,6 +71,7 @@
 
 ### 필수 요구사항
 - Java 21, Node.js 20+, Python 3.11+, MySQL 8.0
+- Docker Desktop 4.0+ (선택, AI 서버 컨테이너 실행 시)
 
 ### 로컬 실행
 
@@ -108,6 +109,16 @@ npm run dev
 ```
 
 **5. AI 서버 실행**
+
+옵션 A. Docker Compose로 AI 서버만 실행
+```bash
+docker compose up --build ai
+# http://localhost:8000/docs
+```
+
+> `docker-compose.yml`은 AI 서버 전용 로컬 실행 파일입니다. `ANTHROPIC_API_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `AI_CORS_ALLOWED_ORIGINS`는 현재 쉘 환경변수 또는 `.env`로 주입할 수 있습니다.
+
+옵션 B. 로컬 Python 환경에서 직접 실행
 ```bash
 cd ai
 python -m venv venv
