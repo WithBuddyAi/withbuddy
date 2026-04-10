@@ -43,11 +43,15 @@ public class ChatMessageService {
 
         AiServerResponse aiResponse = aiClient.requestAnswer(aiRequest);
 
+        if (!savedQuestionMessage.getId().equals(aiResponse.getQuestionId())) {
+            throw new IllegalStateException("AI 응답의 questionId가 저장된 질문 ID와 일치하지 않습니다.");
+        }
+
         MessageType answerMessageType = convertMessageType(aiResponse.getMessageType());
 
         ChatMessage answerMessage = new ChatMessage(
                 loginUserId,
-                savedQuestionMessage.getId(),
+                null,
                 SenderType.BOT,
                 answerMessageType,
                 aiResponse.getContent()
@@ -55,25 +59,21 @@ public class ChatMessageService {
 
         ChatMessage savedAnswerMessage = chatMessageRepository.save(answerMessage);
 
-        ChatMessageResponse questionResponse = new ChatMessageResponse(
-                savedQuestionMessage.getId(),
-                savedQuestionMessage.getSenderType().name(),
-                savedQuestionMessage.getMessageType().getValue(),
-                savedQuestionMessage.getContent(),
-                null,
-                savedQuestionMessage.getCreatedAt().toString()
+        return new ChatMessageCreateResponse(
+                toResponse(savedQuestionMessage),
+                toResponse(savedAnswerMessage)
         );
+    }
 
-        ChatMessageResponse answerResponse = new ChatMessageResponse(
-                savedAnswerMessage.getId(),
-                savedAnswerMessage.getSenderType().name(),
-                savedAnswerMessage.getMessageType().getValue(),
-                savedAnswerMessage.getContent(),
+    private ChatMessageResponse toResponse(ChatMessage message) {
+        return new ChatMessageResponse(
+                message.getId(),
+                message.getSenderType().name(),
+                message.getMessageType().getValue(),
+                message.getContent(),
                 null,
-                savedAnswerMessage.getCreatedAt().toString()
+                message.getCreatedAt().toString()
         );
-
-        return new ChatMessageCreateResponse(questionResponse, answerResponse);
     }
 
     private MessageType convertMessageType(String aiMessageType) {
