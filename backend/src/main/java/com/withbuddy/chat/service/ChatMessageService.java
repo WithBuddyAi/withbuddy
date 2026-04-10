@@ -1,12 +1,16 @@
-package com.withbuddy.ai.service;
+package com.withbuddy.chat.service;
 
-import com.withbuddy.ai.client.AiClient;
-import com.withbuddy.ai.dto.*;
+import com.withbuddy.infrastructure.ai.client.AiClient;
+import com.withbuddy.chat.dto.ChatMessageCreateResponse;
+import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.dto.ChatMessageResponse;
 import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.entity.MessageType;
 import com.withbuddy.chat.entity.SenderType;
-import com.withbuddy.ai.repository.ChatMessageRepository;
+import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.global.jwt.JwtService;
+import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
+import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,13 +39,13 @@ public class ChatMessageService {
 
         ChatMessage savedQuestionMessage = chatMessageRepository.save(questionMessage);
 
-        AiServerRequest aiRequest = new AiServerRequest(
+        AiAnswerServerRequest aiRequest = new AiAnswerServerRequest(
                 savedQuestionMessage.getId(),
                 companyCode,
                 savedQuestionMessage.getContent()
         );
 
-        AiServerResponse aiResponse = aiClient.requestAnswer(aiRequest);
+        AiAnswerServerResponse aiResponse = aiClient.requestAnswer(aiRequest);
 
         if (!savedQuestionMessage.getId().equals(aiResponse.getQuestionId())) {
             throw new IllegalStateException("AI 응답의 questionId가 저장된 질문 ID와 일치하지 않습니다.");

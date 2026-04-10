@@ -1,4 +1,4 @@
-package com.withbuddy.ai.dto;
+package com.withbuddy.chat.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

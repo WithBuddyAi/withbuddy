@@ -1,4 +1,4 @@
-package com.withbuddy.ai.repository;
+package com.withbuddy.chat.repository;
 
 
 import com.withbuddy.chat.entity.ChatMessage;

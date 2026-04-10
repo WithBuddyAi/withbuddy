@@ -1,8 +1,8 @@
-package com.withbuddy.ai.controller;
+package com.withbuddy.chat.controller;
 
-import com.withbuddy.ai.dto.ChatMessageCreateResponse;
-import com.withbuddy.ai.dto.ChatMessageRequest;
-import com.withbuddy.ai.service.ChatMessageService;
+import com.withbuddy.chat.dto.ChatMessageCreateResponse;
+import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.service.ChatMessageService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

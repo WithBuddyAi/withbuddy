@@ -1,4 +1,4 @@
-package com.withbuddy.ai.config;
+package com.withbuddy.infrastructure.ai.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

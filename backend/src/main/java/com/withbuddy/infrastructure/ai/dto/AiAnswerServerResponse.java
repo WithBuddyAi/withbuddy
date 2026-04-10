@@ -1,4 +1,4 @@
-package com.withbuddy.ai.dto;
+package com.withbuddy.infrastructure.ai.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 @Schema(description = "AI 서버 답변 응답")
-public class AiServerResponse {
+public class AiAnswerServerResponse {
 
     @Schema(description = "질문 ID", example = "201")
     private Long questionId;
