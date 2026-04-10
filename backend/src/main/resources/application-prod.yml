@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT}
 
 spring:
   config:
@@ -9,7 +9,7 @@ spring:
     url: ${SPRING_DB_URL}
     username: ${SPRING_DB_USERNAME}
     password: ${SPRING_DB_PASSWORD}
-    driver-class-name: ${SPRING_DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+    driver-class-name: ${SPRING_DB_DRIVER_CLASS_NAME}
   data:
     redis:
       url: ${REDIS_URL}
@@ -20,14 +20,51 @@ spring:
       ddl-auto: none
   sql:
     init:
-      mode: never
+      mode: ${SPRING_SQL_INIT_MODE:always}
+      encoding: UTF-8
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: ${JWT_ACCESS_EXPIRATION:7200000}
+  access-expiration: ${JWT_ACCESS_EXPIRATION}
+
+ai:
+  server:
+    base-url: ${AI_SERVER_BASE_URL}
 
 app:
+  security:
+    storage-api:
+      enabled: ${STORAGE_API_AUTH_ENABLED:true}
+      keys:
+        - id: ${STORAGE_API_KEY_ID:storage-admin}
+          value: ${STORAGE_API_KEY_VALUE:}
+          global-access: ${STORAGE_API_GLOBAL_ACCESS:true}
+          active: ${STORAGE_API_KEY_ACTIVE:true}
   rabbitmq:
-    exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
-    queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
-    queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}
+    exchange: ${RABBITMQ_EXCHANGE}
+    queue-report: ${RABBITMQ_QUEUE_REPORT}
+    queue-dlq: ${RABBITMQ_QUEUE_DLQ}
+  storage:
+    provider: ${STORAGE_PROVIDER}
+    local-base-dir: ${STORAGE_LOCAL_BASE_DIR}
+    max-document-size-mb: ${STORAGE_MAX_DOCUMENT_SIZE_MB}
+    max-image-size-mb: ${STORAGE_MAX_IMAGE_SIZE_MB}
+    download-url-ttl-seconds: ${STORAGE_DOWNLOAD_URL_TTL_SECONDS}
+    retry:
+      enabled: ${STORAGE_RETRY_ENABLED}
+      max-attempts: ${STORAGE_RETRY_MAX_ATTEMPTS}
+      interval-ms: ${STORAGE_RETRY_INTERVAL_MS}
+      base-backoff-seconds: ${STORAGE_RETRY_BASE_BACKOFF_SECONDS}
+      max-backoff-seconds: ${STORAGE_RETRY_MAX_BACKOFF_SECONDS}
+      batch-size: ${STORAGE_RETRY_BATCH_SIZE}
+    oci-cli:
+      executable: ${STORAGE_OCI_CLI_EXECUTABLE}
+      primary-profile: ${STORAGE_OCI_PRIMARY_PROFILE}
+      backup-profile: ${STORAGE_OCI_BACKUP_PROFILE}
+      suppress-file-permissions-warning: ${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING}
+    primary:
+      namespace: ${STORAGE_PRIMARY_NAMESPACE}
+      bucket: ${STORAGE_PRIMARY_BUCKET}
+    backup:
+      namespace: ${STORAGE_BACKUP_NAMESPACE}
+      bucket: ${STORAGE_BACKUP_BUCKET}

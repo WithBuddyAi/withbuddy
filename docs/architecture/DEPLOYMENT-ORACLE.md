@@ -24,7 +24,7 @@
 |------|----------|------------|---------------|-----------|
 | Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
 | Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
-| AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
+| AI | `ai/` | withbuddy-ai | `main:app` | 8000 |
 
 ---
 
@@ -186,6 +186,18 @@ Egress Rules:
   - All traffic to 0.0.0.0/0
 ```
 
+운영 주의(2026-04-09 장애 복구 기준):
+
+- Backend/DB를 동일 Subnet으로 임시 운영하는 경우, egress 제한형 정책이라면 아래 내부 포트를 반드시 허용해야 한다.
+- 누락 시 `Backend -> DB:3306` 타임아웃으로 로그인 API가 지연/실패할 수 있다.
+
+```yaml
+Shared Subnet Mandatory Egress:
+  - <VCN_B_CIDR>:3306 (MySQL)
+  - <VCN_B_CIDR>:6379 (Redis)
+  - <VCN_B_CIDR>:5672 (RabbitMQ)
+```
+
 ### 5. 인터넷 게이트웨이 설정 (VCN-B)
 ```
 Name: withbuddy-internet-gateway
@@ -300,7 +312,7 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/withbuddy/ai
-ExecStart=/home/ubuntu/withbuddy/ai/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+ExecStart=/home/ubuntu/withbuddy/ai/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=10
 
@@ -759,7 +771,7 @@ CHROMA_PERSIST_DIR=/home/ubuntu/withbuddy/ai/chroma_db
 EOF
           
           # 애플리케이션 시작
-          nohup venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+          nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 \
             > /home/ubuntu/withbuddy/ai/app.log 2>&1 &
           
           APP_PID=$!
@@ -836,6 +848,7 @@ Vercel (Hobby):
 
 ## 변경 이력
 
+- 2026-04-09: 실제 장애 복구 결과를 반영해 shared-subnet 운영 시 필수 내부 egress(3306/6379/5672) 주의사항을 추가.
 - 2026-04-07: Backend 운영 표준을 `withbuddy-backend.service` 단일 기동으로 고정하고, `pkill`/`nohup` 기반 재기동 금지 원칙을 명시.
 - 2026-04-06: Backend 배포 섹션에서 `/etc/systemd/system/withbuddy.service` 필수 표기를 제거하고, 현재 CI/CD 기본(`java -jar`) 및 선택 systemd 서비스명(`withbuddy-backend.service`) 기준으로 정리.
 - 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 연결 항목을 제거.

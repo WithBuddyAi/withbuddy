@@ -224,6 +224,30 @@ Outbound Rules:
   - None (데이터베이스는 아웃바운드 불필요)
 ```
 
+### 3.5 운영 복구 메모 (2026-04-09)
+
+로그인 API 타임아웃 장애(`Backend -> DB 3306 timeout`)를 실제 OCI 설정 기준으로 점검한 결과, 직접 원인은
+`<BACKEND_DB_SUBNET_NAME>` 보안 목록(Security List) egress 누락이었다.
+
+- 증상: `<BACKEND_PRIVATE_IP> -> <DB_PRIVATE_IP>:3306` 타임아웃, `/api/v1/auth/login` 응답 지연/타임아웃
+- 원인: DB ingress(3306)는 있었지만, 내부망 대상 egress가 `10.2.0.0/16` 위주로만 구성됨
+- 복구: 동일 서브넷 내부 통신 허용 egress 규칙 추가
+
+```yaml
+Mandatory Egress Rules (same-subnet/shared-subnet 운영 시):
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 3306 (MySQL)
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 6379 (Redis)
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 5672 (RabbitMQ)
+```
+
+검증 명령:
+
+```bash
+# Backend 서버에서
+nc -vz -w 5 <DB_PRIVATE_IP> 3306
+curl -X POST https://<API_DOMAIN>/api/v1/auth/login ...
+```
+
 ---
 
 ## 4. 스토리지 구조
@@ -668,6 +692,7 @@ Total:                                    Always Free 단독 운영은 어려울
 
 ## 변경 이력
 
+- 2026-04-09: OCI 운영 이슈 복구 내역을 반영하고, shared-subnet 운영 시 필수 egress(3306/6379/5672) 규칙을 명시.
 - 2026-04-09: 스토리지/백업/모니터링 섹션을 OCI 기준으로 전면 정리하고, Primary/Backup Object Storage 및 Block Volume 배분 구조를 반영. 체크리스트에 LPG/Service Gateway/DNS-TLS 단계를 추가.
 - 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 접근 규칙을 제거.
 - 2026-04-02: 2.1 VCN 설계 다이어그램을 현재 운영 구조(Tenancy A AI / Tenancy B Backend+DB)로 재정렬하고 미사용 구성 표기를 제거.

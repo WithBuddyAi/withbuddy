@@ -66,3 +66,7 @@ frontend/.claude
 .ai/
 frontend/node_modules
 .ssh/
+
+# Codex workspace runtime artifacts
+.codex/runtime/
+.codex/logs/
