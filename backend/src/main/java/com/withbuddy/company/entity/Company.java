@@ -1,4 +1,4 @@
-package com.withbuddy.ai.entity;
+package com.withbuddy.company.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -10,23 +10,20 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "onboarding_suggestions")
+@Table(name="companies")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OnboardingSuggestion {
+public class Company {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "title", nullable = false, length = 255)
-    private String title;
+    @Column(name = "company_code", nullable = false,  length = 20, unique = true)
+    private String companyCode;
 
-    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
-    private String content;
-
-    @Column(name = "day_offset", nullable = false)
-    private int dayOffset;
+    @Column(name = "name", nullable = false, length = 20)
+    private String name;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

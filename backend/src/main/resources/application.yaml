@@ -44,30 +44,30 @@ app:
           global-access: ${STORAGE_API_GLOBAL_ACCESS:true}
           active: ${STORAGE_API_KEY_ACTIVE:true}
   rabbitmq:
-    exchange: ${RABBITMQ_EXCHANGE}
-    queue-report: ${RABBITMQ_QUEUE_REPORT}
-    queue-dlq: ${RABBITMQ_QUEUE_DLQ}
+    exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
+    queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
+    queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}
   storage:
-    provider: ${STORAGE_PROVIDER}
-    local-base-dir: ${STORAGE_LOCAL_BASE_DIR}
-    max-document-size-mb: ${STORAGE_MAX_DOCUMENT_SIZE_MB}
-    max-image-size-mb: ${STORAGE_MAX_IMAGE_SIZE_MB}
-    download-url-ttl-seconds: ${STORAGE_DOWNLOAD_URL_TTL_SECONDS}
+    provider: ${STORAGE_PROVIDER:local}
+    local-base-dir: ${STORAGE_LOCAL_BASE_DIR:storage-data}
+    max-document-size-mb: ${STORAGE_MAX_DOCUMENT_SIZE_MB:20}
+    max-image-size-mb: ${STORAGE_MAX_IMAGE_SIZE_MB:5}
+    download-url-ttl-seconds: ${STORAGE_DOWNLOAD_URL_TTL_SECONDS:300}
     retry:
-      enabled: ${STORAGE_RETRY_ENABLED}
-      max-attempts: ${STORAGE_RETRY_MAX_ATTEMPTS}
-      interval-ms: ${STORAGE_RETRY_INTERVAL_MS}
-      base-backoff-seconds: ${STORAGE_RETRY_BASE_BACKOFF_SECONDS}
-      max-backoff-seconds: ${STORAGE_RETRY_MAX_BACKOFF_SECONDS}
-      batch-size: ${STORAGE_RETRY_BATCH_SIZE}
+      enabled: ${STORAGE_RETRY_ENABLED:true}
+      max-attempts: ${STORAGE_RETRY_MAX_ATTEMPTS:5}
+      interval-ms: ${STORAGE_RETRY_INTERVAL_MS:60000}
+      base-backoff-seconds: ${STORAGE_RETRY_BASE_BACKOFF_SECONDS:60}
+      max-backoff-seconds: ${STORAGE_RETRY_MAX_BACKOFF_SECONDS:1800}
+      batch-size: ${STORAGE_RETRY_BATCH_SIZE:20}
     oci-cli:
-      executable: ${STORAGE_OCI_CLI_EXECUTABLE}
-      primary-profile: ${STORAGE_OCI_PRIMARY_PROFILE}
-      backup-profile: ${STORAGE_OCI_BACKUP_PROFILE}
-      suppress-file-permissions-warning: ${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING}
+      executable: ${STORAGE_OCI_CLI_EXECUTABLE:oci}
+      primary-profile: ${STORAGE_OCI_PRIMARY_PROFILE:DEFAULT}
+      backup-profile: ${STORAGE_OCI_BACKUP_PROFILE:DEFAULT}
+      suppress-file-permissions-warning: ${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING:true}
     primary:
-      namespace: ${STORAGE_PRIMARY_NAMESPACE}
-      bucket: ${STORAGE_PRIMARY_BUCKET}
+      namespace: ${STORAGE_PRIMARY_NAMESPACE:primary}
+      bucket: ${STORAGE_PRIMARY_BUCKET:withbuddy-primary}
     backup:
-      namespace: ${STORAGE_BACKUP_NAMESPACE}
-      bucket: ${STORAGE_BACKUP_BUCKET}
+      namespace: ${STORAGE_BACKUP_NAMESPACE:backup}
+      bucket: ${STORAGE_BACKUP_BUCKET:withbuddy-backup}

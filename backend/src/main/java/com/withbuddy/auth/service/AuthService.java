@@ -3,7 +3,7 @@ package com.withbuddy.auth.service;
 import com.withbuddy.auth.dto.request.LoginRequest;
 import com.withbuddy.auth.dto.response.LoginResponse;
 import com.withbuddy.auth.dto.response.LoginUserResponse;
-import com.withbuddy.users.entity.User;
+import com.withbuddy.user.entity.User;
 import com.withbuddy.auth.exception.LoginFailedException;
 import com.withbuddy.auth.repository.UserRepository;
 import com.withbuddy.global.jwt.JwtService;
