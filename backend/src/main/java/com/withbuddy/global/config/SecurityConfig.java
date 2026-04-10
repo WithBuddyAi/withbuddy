@@ -50,7 +50,10 @@ public class SecurityConfig {
                             "/v3/api-docs/**"
                     ).permitAll();
 
-                    auth.requestMatchers("/api/v1/documents/**").permitAll();
+                    auth.requestMatchers(
+                            "/api/v1/documents",
+                            "/api/v1/documents/**"
+                    ).permitAll();
 
                     auth.anyRequest().authenticated();
                 });
