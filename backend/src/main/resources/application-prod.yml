@@ -67,3 +67,9 @@ app:
     backup:
       namespace: ${STORAGE_BACKUP_NAMESPACE:backup}
       bucket: ${STORAGE_BACKUP_BUCKET:withbuddy-backup}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
