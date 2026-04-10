@@ -50,11 +50,7 @@ public class SecurityConfig {
                             "/v3/api-docs/**"
                     ).permitAll();
 
-                    if (storageApiKeyProperties.isEnabled()) {
-                        auth.requestMatchers("/api/v1/documents/**").hasRole("STORAGE_ADMIN");
-                    } else {
-                        auth.requestMatchers("/api/v1/documents/**").permitAll();
-                    }
+                    auth.requestMatchers("/api/v1/documents/**").permitAll();
 
                     auth.anyRequest().authenticated();
                 });
