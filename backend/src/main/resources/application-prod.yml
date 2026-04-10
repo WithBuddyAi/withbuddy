@@ -26,6 +26,10 @@ jwt:
   secret: ${JWT_SECRET}
   access-expiration: ${JWT_ACCESS_EXPIRATION:7200000}
 
+ai:
+  server:
+    base-url: ${AI_SERVER_BASE_URL}
+
 app:
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
