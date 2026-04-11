@@ -26,7 +26,7 @@ public class Document {
     @Column(name = "title", nullable = false, length = 200)
     private String title;
 
-    @Column(name = "content", columnDefinition = "MEDIUMTEXT")
+    @Column(name = "file_path", length = 500)
     private String content;
 
     @Column(name = "document_type", nullable = false, length = 50)
