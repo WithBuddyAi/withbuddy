@@ -385,13 +385,23 @@ public class DocumentStorageService {
                 .map(Document::getId)
                 .toList();
 
-        Map<Long, DocumentFile> fileMap = documentIds.isEmpty()
-                ? Map.of()
-                : documentFileRepository.findByDocumentIdIn(documentIds).stream()
-                .collect(Collectors.toMap(DocumentFile::getDocumentId, documentFile -> documentFile));
+        Map<Long, DocumentFile> fileMap = Map.of();
+        if (!documentIds.isEmpty()) {
+            try {
+                fileMap = documentFileRepository.findByDocumentIdIn(documentIds).stream()
+                        .collect(Collectors.toMap(
+                                DocumentFile::getDocumentId,
+                                documentFile -> documentFile,
+                                (existing, replacement) -> replacement
+                        ));
+            } catch (RuntimeException e) {
+                log.warn("문서 파일 메타데이터 조회 실패, 메타데이터 없이 목록을 반환합니다. reason={}", safeMessage(e));
+            }
+        }
 
+        Map<Long, DocumentFile> resolvedFileMap = fileMap;
         List<DocumentListItemResponse> content = documentPage.getContent().stream()
-                .map(document -> toListItem(document, fileMap.get(document.getId())))
+                .map(document -> toListItem(document, resolvedFileMap.get(document.getId())))
                 .toList();
 
         return new DocumentListResponse(
