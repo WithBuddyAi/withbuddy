@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 0.6.0
-**최종 업데이트**: 2026-04-11
+**버전**: 1.7.3
+**최종 업데이트**: 2026-04-13
 
 ---
 
@@ -330,11 +330,17 @@ Content-Type: application/json
 ### 6-1. 채팅 메시지 목록 조회
 
 현재 로그인한 사용자의 채팅 메시지를 `createdAt` 오름차순으로 조회한다.
+`date`가 없으면 전체 메시지를 조회하고, `date`가 있으면 해당 날짜의 메시지만 `createdAt` 오름차순으로 조회한다.
 
 ```http
-GET /api/v1/chat/messages
+GET /api/v1/chat/messages?date=2026-03-24
 Authorization: Bearer {accessToken}
 ```
+
+### Query Parameter
+`date` (optional, `yyyy-MM-dd`)
+- 지정하지 않으면 현재 로그인한 사용자의 전체 채팅 메시지를 조회한다.
+- 지정하면 해당 날짜의 채팅 메시지만 조회한다.
 
 #### Response (200 OK)
 
@@ -638,3 +644,5 @@ Content-Type: application/json
 - `company_code` 예시값 수정
 - **v1.7.2 (2026-04-08)**:
   - 내부 AI 요청을 `questionId`, `companyCode`, `content` 기반 구조로 단순화, 내부 AI 응답을 `questionId`, `messageType`, `content` 중심으로 수정, 내부 AI 연동 규격에서 `documentId`를 제외하도록 정리
+- **v1.7.3 (2026-04-13)**:
+- 채팅 메시지 목록 조회 응답 형식 수정
