@@ -64,7 +64,7 @@ def _save_indexed_id(doc_id: str) -> None:
 
 def _fetch_document_list(api_url: str, token: str, company_code: str = "") -> list:
     """백엔드 API에서 문서 목록 조회"""
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {"X-API-Key": token}
     params = {"size": 100, "page": 0}
 
     all_docs = []
@@ -82,10 +82,17 @@ def _fetch_document_list(api_url: str, token: str, company_code: str = "") -> li
     return all_docs
 
 
-def _download_file(file_url: str, token: str) -> bytes:
-    """문서 파일 다운로드"""
-    headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(file_url, headers=headers, timeout=60)
+def _download_file(api_url: str, doc_id: str, token: str) -> bytes:
+    """문서 파일 다운로드 (다운로드 URL 조회 후 파일 수신)"""
+    headers = {"X-API-Key": token}
+    # 다운로드 URL 조회
+    url_resp = requests.get(f"{api_url}/api/v1/documents/{doc_id}/download", headers=headers, timeout=30)
+    url_resp.raise_for_status()
+    download_url = url_resp.json()["downloadUrl"]
+    # 상대경로면 base URL 붙이기
+    if download_url.startswith("/"):
+        download_url = f"{api_url}{download_url}"
+    resp = requests.get(download_url, headers=headers, timeout=60)
     resp.raise_for_status()
     return resp.content
 
@@ -159,7 +166,11 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
         print(f"  처리 중: {title}")
 
         try:
+<<<<<<< HEAD
+            file_bytes = _download_file(api_url, doc_id, token)
+=======
             file_bytes = _download_file(file_url, token)
+>>>>>>> origin/develop
             filename = f"{title}.{file_type.lower()}"
             text = _extract_text(file_bytes, filename)
 

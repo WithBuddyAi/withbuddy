@@ -81,6 +81,10 @@ frontend/.claude
 frontend/node_modules
 .ssh/
 
+# OneDrive 자동 생성 중복 파일
+* (1).*
+* (1)/
+
 # Codex workspace runtime artifacts
 .codex/runtime/
 .codex/logs/
