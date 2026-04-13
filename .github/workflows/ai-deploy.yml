@@ -7,17 +7,80 @@ on:
       - "ai/**"
       - ".github/workflows/ai-deploy.yml"
   workflow_dispatch:
+    inputs:
+      deploy_branch:
+        description: "배포 브랜치 (기본: deploy/ai)"
+        required: false
+        default: ""
+      skip_branch_sync:
+        description: "main -> 배포 브랜치 동기화를 건너뛸지 여부 (true/false)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
 
 concurrency:
-  group: ai-deploy-${{ github.ref }}
+  group: ai-deploy-${{ github.ref_name }}
   cancel-in-progress: true
 
+env:
+  DEFAULT_DEPLOY_BRANCH: deploy/ai
+
 jobs:
+  sync-deploy-branch:
+    name: Sync deploy branch from main
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_branch: ${{ steps.resolve.outputs.deploy_branch }}
+    steps:
+      - name: Resolve deploy branch
+        id: resolve
+        env:
+          INPUT_DEPLOY_BRANCH: ${{ github.event.inputs.deploy_branch }}
+          VAR_DEPLOY_BRANCH: ${{ vars.AI_DEPLOY_BRANCH }}
+        run: |
+          set -euo pipefail
+          DEPLOY_BRANCH="${INPUT_DEPLOY_BRANCH:-}"
+          if [ -z "${DEPLOY_BRANCH// }" ]; then
+            DEPLOY_BRANCH="${VAR_DEPLOY_BRANCH:-}"
+          fi
+          if [ -z "${DEPLOY_BRANCH// }" ]; then
+            DEPLOY_BRANCH="${DEFAULT_DEPLOY_BRANCH}"
+          fi
+          echo "Resolved deploy branch: ${DEPLOY_BRANCH}"
+          echo "deploy_branch=${DEPLOY_BRANCH}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync branch to latest main
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.skip_branch_sync != 'true' }}
+        env:
+          DEPLOY_BRANCH: ${{ steps.resolve.outputs.deploy_branch }}
+        run: |
+          set -euo pipefail
+          git fetch --prune origin
+          git checkout -B "${DEPLOY_BRANCH}" "origin/main"
+          git push --force-with-lease origin "${DEPLOY_BRANCH}:${DEPLOY_BRANCH}"
+          echo "Synced ${DEPLOY_BRANCH} to origin/main"
+
+      - name: Verify remote deploy branch exists
+        env:
+          DEPLOY_BRANCH: ${{ steps.resolve.outputs.deploy_branch }}
+        run: |
+          set -euo pipefail
+          git ls-remote --exit-code --heads origin "${DEPLOY_BRANCH}" >/dev/null
+          echo "Verified remote branch origin/${DEPLOY_BRANCH}"
+
   deploy:
     name: Deploy to WithBuddy AI Server
+    needs: sync-deploy-branch
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Validate required environment secrets
         env:
@@ -43,42 +106,78 @@ jobs:
           done
 
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.AI_SERVER_HOST }}
           username: ${{ secrets.AI_SERVER_USER }}
           key: ${{ secrets.AI_SERVER_SSH_KEY }}
-          command_timeout: 20m
+          command_timeout: 25m
           script: |
             set -Eeuo pipefail
+            DEPLOY_BRANCH="${{ needs.sync-deploy-branch.outputs.deploy_branch }}"
+            HEALTH_URL="${{ secrets.AI_HEALTH_URL }}"
+            if [ -z "${HEALTH_URL// }" ]; then
+              HEALTH_URL="http://127.0.0.1:8000/health"
+            fi
+
             cd "${{ secrets.AI_APP_DIR }}"
             if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
               echo "AI_APP_DIR is not inside a git work tree: $(pwd)"
               exit 1
             fi
-            git fetch origin
-            git checkout main
-            git pull origin main
+
+            git fetch --prune origin
+            if ! git show-ref --verify --quiet "refs/remotes/origin/${DEPLOY_BRANCH}"; then
+              echo "Remote deploy branch not found: origin/${DEPLOY_BRANCH}"
+              exit 1
+            fi
+
+            if [ -n "$(git status --porcelain)" ]; then
+              STASH_NAME="ai-deploy-auto-$(date +%Y%m%d%H%M%S)"
+              git stash push --include-untracked --message "${STASH_NAME}" || true
+              echo "Server worktree was dirty. Stashed as ${STASH_NAME}"
+            fi
+
+            git checkout -B "${DEPLOY_BRANCH}" "origin/${DEPLOY_BRANCH}"
+            git reset --hard "origin/${DEPLOY_BRANCH}"
+            git clean -fd
+
             if ! command -v python3 >/dev/null 2>&1; then
               echo "python3 is required on server"
               exit 1
             fi
+
             if [ ! -d venv ]; then
               python3 -m venv venv
             fi
             . venv/bin/activate
             python -m pip install --upgrade pip
             pip install -r requirements.txt
+
             sudo systemctl restart "${{ secrets.AI_SERVICE_NAME }}"
             sudo systemctl is-active --quiet "${{ secrets.AI_SERVICE_NAME }}"
             sudo systemctl status --no-pager "${{ secrets.AI_SERVICE_NAME }}"
-            for i in 1 2 3 4 5; do
-              if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8000/health >/dev/null; then
-                break
+
+            sleep 3
+            for i in {1..30}; do
+              if curl --fail --silent --show-error --max-time 10 "${HEALTH_URL}" >/dev/null; then
+                echo "Health check succeeded on attempt ${i}"
+                exit 0
               fi
-              if [ "$i" -eq 5 ]; then
-                echo "Health check failed after retries"
+
+              if ! sudo systemctl is-active --quiet "${{ secrets.AI_SERVICE_NAME }}"; then
+                echo "Service is not active while waiting for health endpoint."
+                sudo systemctl status --no-pager "${{ secrets.AI_SERVICE_NAME }}" || true
+                sudo journalctl -u "${{ secrets.AI_SERVICE_NAME }}" -n 200 --no-pager || true
                 exit 1
               fi
-              sleep 2
+
+              if [ "${i}" -eq 30 ]; then
+                echo "Health check failed after retries: ${HEALTH_URL}"
+                sudo systemctl status --no-pager "${{ secrets.AI_SERVICE_NAME }}" || true
+                sudo journalctl -u "${{ secrets.AI_SERVICE_NAME }}" -n 200 --no-pager || true
+                exit 1
+              fi
+
+              sleep 5
             done
