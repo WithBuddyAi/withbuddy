@@ -1,4 +1,4 @@
-CREATE TABLE documents (
+CREATE TABLE IF NOT EXISTS documents (
     id            BIGINT       NOT NULL AUTO_INCREMENT,
     company_code  VARCHAR(20)  NULL,
     title         VARCHAR(200) NOT NULL,

@@ -1,4 +1,4 @@
-CREATE TABLE user_activity_logs (
+CREATE TABLE IF NOT EXISTS user_activity_logs (
     id           BIGINT       NOT NULL AUTO_INCREMENT,
     user_id      BIGINT       NOT NULL,
     event_type   VARCHAR(30)  NOT NULL,
