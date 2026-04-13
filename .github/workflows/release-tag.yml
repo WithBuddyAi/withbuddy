@@ -166,6 +166,8 @@ jobs:
           branch: chore/release-docs-${{ steps.semver.outputs.next_tag }}
           base: main
           add-paths: |
+
+            *.md
             **/*.md
           delete-branch: true
 
