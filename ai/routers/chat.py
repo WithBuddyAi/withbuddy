@@ -183,9 +183,27 @@ class InternalAIAnswerResponse(BaseModel):
     content: str
 
 
+_HARASSMENT_KEYWORDS = [
+    "성희롱", "성추행", "성폭력", "성적 괴롭힘", "직장내 성희롱",
+    "성희롱 신고", "성추행 신고", "성폭력 신고",
+]
+_HARASSMENT_ANSWER = (
+    "해당 내용은 법적·윤리적으로 민감한 사안이라 AI가 직접 안내드리기 어려워요. 😔\n\n"
+    "현재 고민하고 계신 사항은 사내 인사 규정 및 근로계약에 따라 보호받으실 수 있는 영역입니다.\n\n"
+    "먼저 **경영지원팀** 담당자와 상담을 통해 회사의 공식적인 지원과 해결 방안을 확인해 보시길 권장해 드려요.\n\n"
+    "신고자 신원은 철저히 보호되니 걱정하지 않으셔도 돼요. 용기 내셔서 꼭 도움받으세요. 💙"
+)
+
+
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
+    if any(kw in request.content for kw in _HARASSMENT_KEYWORDS):
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="out_of_scope",
+            content=_HARASSMENT_ANSWER,
+        )
     try:
         async with asyncio.timeout(10):
             answer, _, _ = await asyncio.get_event_loop().run_in_executor(
@@ -202,7 +220,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
     _NO_RESULT_KW = ["문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
-                     "안내가 없습니다", "내용이 없습니다", "찾을 수 없습니다", "정보가 없"]
+                     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
+                     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요"]
     _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
     if any(kw in answer for kw in _OUT_OF_SCOPE_KW):
