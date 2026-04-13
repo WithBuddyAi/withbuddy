@@ -41,11 +41,13 @@
 | V7 | `V7__create_document_files.sql` | document_files 테이블 생성 | SCRUM-168 |
 | V8 | `V8__create_document_backup_jobs.sql` | document_backup_jobs 테이블 생성 | SCRUM-169 |
 | V9 | `V9__seed_data.sql` | 초기 테스트 시드 데이터 삽입 | SCRUM-120 |
+| V10 | `V10__backfill_seed_rows_idempotent.sql` | V9 시드 누락 보정 (행 단위 idempotent) | SCRUM-120 |
 
 > V4(onboarding_suggestions)가 V5(chat_messages)보다 먼저 실행되는 이유는 FK 의존성 때문이다.  
 > V7(document_files)은 documents(V3)를 참조하므로 V3 이후에 실행되어야 한다.  
 > V8(document_backup_jobs)은 document_files(V7)를 참조하므로 V7 이후에 실행되어야 한다.  
-> V9(seed_data)는 모든 DDL 완료 후 마지막에 실행된다.
+> V9(seed_data)는 모든 DDL 완료 후 실행된다.  
+> V10은 V9의 테이블 단위 조건으로 인해 누락될 수 있는 시드를 행 단위 존재 체크로 보정한다.
 
 ---
 
@@ -217,7 +219,7 @@
 
 ---
 
-## 5. 시드 데이터 (V9)
+## 5. 시드 데이터 (V9, V10 보정 포함)
 
 ### 삽입 조건
 
@@ -282,12 +284,12 @@ WHERE NOT EXISTS (SELECT 1 FROM {table} LIMIT 1);
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-Spring Boot 기동 시 Flyway가 자동으로 V1~V9를 순서대로 실행한다.
+Spring Boot 기동 시 Flyway가 자동으로 V1~V10을 순서대로 실행한다.
 
 ### 검증 쿼리
 
 ```sql
--- 1. Flyway 실행 이력 확인 (V1~V9 모두 success=1이어야 함)
+-- 1. Flyway 실행 이력 확인 (V1~V10 모두 success=1이어야 함)
 SELECT installed_rank, version, description, success
 FROM flyway_schema_history
 ORDER BY installed_rank;

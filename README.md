@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-04-11
-**버전**: 0.6.1
+**최종 업데이트**: 2026-04-14
+**버전**: 0.6.2
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
@@ -49,7 +49,7 @@
 
 | 분야 | 기술 |
 |------|------|
-| **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, Redis, RabbitMQ, JWT |
+| **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, Redis, RabbitMQ, JWT, Flyway |
 | **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
 | **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
 | **배포** | Oracle Cloud (Backend/AI/MySQL/Object Storage), Vercel (Frontend) |
@@ -104,6 +104,8 @@ cd backend
 # http://localhost:8080
 ```
 
+> Backend는 기동 시 Flyway 마이그레이션(`backend/src/main/resources/db/migration`)을 자동 실행합니다.
+
 **4. Frontend 실행**
 ```bash
 cd frontend
@@ -157,18 +159,29 @@ withbuddy/
 │ 
 ├─ ai/                          # AI (기능 구현 시작 후 이 폴더에서 관리)
 │ 
-├─ backend/                     # BE (기능 구현 시작 후 이 폴더에서 관리)
+├─ backend/                     # BE
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml       # 공통 설정
+│  │  ├─ application-prod.yml   # 운영 설정
+│  │  ├─ schema.sql             # 참고용 초기 스키마/시드
+│  │  └─ db/migration/          # Flyway 마이그레이션
+│  │     ├─ V1__create_companies.sql
+│  │     ├─ ...
+│  │     └─ V10__backfill_seed_rows_idempotent.sql
+│  ├─ build.gradle              # 백엔드 빌드 설정
+│  └─ README.md                 # 백엔드 개발/배포 가이드
 │ 
 ├─ docs/
 │  ├─ architecture/
 │  │  ├─ AI_ARCHITECTURE.md     # AI  (AI 아키텍처)
 │  │  ├─ ARCHITECTURE.md        # BE/CI  (시스템 아키텍처)
 │  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (OCI 배포 가이드)
-│  │  ├─ DEPLOYMENT.md          # BE/CI  (배포 가이드)
 │  │  ├─ INFRASTRUCTURE.md      # BE/CI  (인프라 구조)
 │  │  └─ AI_SERVER_GUIDE.md     # AI/CI  (AI 서버 운영/배포 점검 가이드)
 │  │
 │  ├─ erd/                      # BE (MVP 단계에서 진행)
+│  ├─ migration/
+│  │  └─ MIGRATION.md           # BE/CI  (Flyway 마이그레이션 가이드)
 │  ├─ storage/                  # BE/CI  (스토리지 API/운영/DDL 문서)
 │  │
 │  ├─ guides/ 
@@ -213,6 +226,7 @@ withbuddy/
 - **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
 - **[AI 서버 운영 가이드](docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
 - **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
+- **[DB 마이그레이션 가이드](./docs/migration/MIGRATION.md)** - Flyway 버전 관리, 검증 쿼리, 운영 규칙
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
 - **[스토리지 문서 세트](./docs/storage/README.md)** - Storage API, 운영 Runbook, DDL, ERD
 
@@ -367,6 +381,7 @@ withbuddy/
 
 ## 변경 이력
 
+- 2026-04-14: 백엔드 배포 기준을 Flyway 중심으로 업데이트. baseline 설정(`SPRING_FLYWAY_BASELINE_*`)과 V10 시드 보정 마이그레이션 반영 내용을 문서 링크와 함께 정리.
 - 2026-04-11: 스토리지(Object Storage) 반영에 맞춰 기술 스택/배포 항목을 갱신하고, 백엔드 로컬 실행 환경변수 예시에 `REDIS_URL`, `RABBITMQ_URL`, `STORAGE_API_*`를 추가. `docs/storage` 문서 경로를 디렉토리 구조와 문서 링크에 반영.
 - 2026-04-02: 브랜치 예시의 Jira 서브태스크 키 표기를 `SCRUM-##` 대문자로 통일.
 - 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
