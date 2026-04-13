@@ -18,6 +18,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
   sql:
     init:
       mode: never
