@@ -6,6 +6,7 @@ WithBuddy의 OCI Object Storage(원본/백업) 설계와 구현 기준을 모아
 - [OPERATIONS_RUNBOOK.md](./OPERATIONS_RUNBOOK.md): 운영 점검/장애 대응/배포 체크리스트 + 테스트 절차 + 백업 전략
 - [DB_DDL.sql](./DB_DDL.sql): 스토리지 메타데이터/백업 작업 추적용 MySQL DDL
 - [ERD.md](./ERD.md): 스토리지 메타데이터 중심 ERD
+- [OPS_LOG_2026-04-11_OBJECT_STORAGE.md](./OPS_LOG_2026-04-11_OBJECT_STORAGE.md): 원본/백업 연결 실검증 결과 및 차단 이슈 기록
 
 ## 범위
 

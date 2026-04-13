@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS `document_files` (
     id BIGINT NOT NULL AUTO_INCREMENT,
     document_id BIGINT NOT NULL,
-    company_code VARCHAR(20) NOT NULL,
+    company_code VARCHAR(20) NULL,
     original_file_name VARCHAR(255) NOT NULL,
     stored_file_name VARCHAR(255) NOT NULL,
     content_type VARCHAR(120) NOT NULL,
@@ -43,6 +43,30 @@ CREATE TABLE IF NOT EXISTS `document_files` (
     CONSTRAINT ck_document_files_backup_status
         CHECK (backup_status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED'))
 );
+
+-- 기존 환경 호환: 공용 문서(company_code=NULL) 업로드를 허용하도록 컬럼 nullable 정렬
+SET @sql = (
+    SELECT CASE
+               WHEN NOT EXISTS (
+                   SELECT 1
+                   FROM information_schema.tables
+                   WHERE table_schema = DATABASE()
+                     AND table_name = 'document_files'
+               ) THEN 'SELECT ''skip alter document_files.company_code: table missing'' AS message'
+               WHEN EXISTS (
+                   SELECT 1
+                   FROM information_schema.columns
+                   WHERE table_schema = DATABASE()
+                     AND table_name = 'document_files'
+                     AND column_name = 'company_code'
+                     AND is_nullable = 'NO'
+               ) THEN 'ALTER TABLE `document_files` MODIFY `company_code` VARCHAR(20) NULL'
+               ELSE 'SELECT ''skip alter document_files.company_code: already nullable'' AS message'
+        END
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 SET @sql = (
     SELECT CASE

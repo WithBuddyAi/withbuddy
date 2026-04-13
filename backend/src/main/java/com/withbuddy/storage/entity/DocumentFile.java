@@ -24,7 +24,7 @@ public class DocumentFile {
     @Column(name = "document_id", nullable = false, unique = true)
     private Long documentId;
 
-    @Column(name = "company_code", nullable = false, length = 20)
+    @Column(name = "company_code", length = 20)
     private String companyCode;
 
     @Column(name = "original_file_name", nullable = false, length = 255)
