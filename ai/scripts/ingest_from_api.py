@@ -145,7 +145,7 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
     print(f"  → 총 {len(doc_list)}개 문서 확인")
 
     # 신규 문서만 필터링
-    new_docs = [d for d in doc_list if str(d["id"]) not in indexed_ids]
+    new_docs = [d for d in doc_list if str(d["documentId"]) not in indexed_ids]
     print(f"  → 신규 문서: {len(new_docs)}개")
 
     if not new_docs:
@@ -158,9 +158,8 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
     splitter_total = 0
 
     for doc_meta in new_docs:
-        doc_id = str(doc_meta["id"])
+        doc_id = str(doc_meta["documentId"])
         title = doc_meta.get("title", doc_id)
-        file_url = doc_meta.get("fileUrl", "")
         file_type = doc_meta.get("fileType", "PDF")
 
         print(f"  처리 중: {title}")
