@@ -119,9 +119,14 @@ def split_documents(documents: list[Document]) -> list[Document]:
         # 청크 앞 50자에 이미 제목이 있으면 중복 추가 안 함
         if doc_title and doc_title not in chunk.page_content[:80]:
             chunk.page_content = f"[{doc_title}]\n{chunk.page_content}"
-        # index_ 로 시작하는 txt 파일은 법률 문서로 분류
-        if os.path.basename(source).startswith("index_") and source.endswith(".txt"):
+        filename = os.path.basename(source)
+        # index_ 로 시작하는 txt 파일은 법률 문서로 분류 (공통 레이어)
+        if filename.startswith("index_") and source.endswith(".txt"):
             chunk.metadata["document_type"] = "LEGAL"
+            chunk.metadata["company_code"] = ""
+        # techco_ 로 시작하는 txt 파일은 회사 특화 문서
+        elif filename.startswith("techco_") and source.endswith(".txt"):
+            chunk.metadata["company_code"] = "techco_001"
 
     return chunks
 
