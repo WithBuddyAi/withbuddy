@@ -80,3 +80,7 @@ frontend/.claude
 .ai/
 frontend/node_modules
 .ssh/
+
+# OneDrive 자동 생성 중복 파일
+* (1).*
+* (1)/
