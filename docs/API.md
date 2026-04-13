@@ -349,26 +349,26 @@ Authorization: Bearer {accessToken}
   "messages": [
     {
       "id": 101,
+      "suggestionId": null,
       "senderType": "USER",
       "messageType": "user_question",
       "content": "복지카드는 어떻게 신청하나요?",
-      "suggestionId": null,
       "createdAt": "2026-03-24T10:00:00Z"
     },
     {
       "id": 102,
+      "suggestionId": null,
       "senderType": "BOT",
       "messageType": "rag_answer",
       "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
-      "suggestionId": null,
       "createdAt": "2026-03-24T10:00:02Z"
     },
     {
       "id": 103,
+      "suggestionId": 3,
       "senderType": "BOT",
       "messageType": "suggestion",
       "content": "입사 1일차 안내를 먼저 확인해보세요.",
-      "suggestionId": 3,
       "createdAt": "2026-03-24T10:10:00Z"
     }
   ]
