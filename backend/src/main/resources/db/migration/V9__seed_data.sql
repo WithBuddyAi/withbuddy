@@ -11,7 +11,7 @@ SELECT 'WB0002', '넥스트스텝 주식회사'
 WHERE NOT EXISTS (SELECT 1 FROM companies LIMIT 1);
 
 -- =============================================================
--- Users (5명 / hire_date 기준일: 2026-04-14)
+-- Users (6명 / hire_date 기준일: 2026-04-14)
 -- day_offset = (today - hire_date) + 1
 --   D+0  -> day_offset=1  -> hire_date=2026-04-14
 --   D+3  -> day_offset=4  -> hire_date=2026-04-11
@@ -19,23 +19,27 @@ WHERE NOT EXISTS (SELECT 1 FROM companies LIMIT 1);
 --   D+30 -> day_offset=31 -> hire_date=2026-03-15
 -- =============================================================
 INSERT INTO users (company_code, name, employee_number, hire_date)
-SELECT 'WB0001', '홍성민', '20260001', '2026-04-14'
+SELECT 'WB0001', '김민준', '20260001', '2026-04-14'
 WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1);
 
 INSERT INTO users (company_code, name, employee_number, hire_date)
-SELECT 'WB0001', '김지원', '20260002', '2026-04-11'
+SELECT 'WB0001', '이서연', '20260002', '2026-04-11'
 WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1);
 
 INSERT INTO users (company_code, name, employee_number, hire_date)
-SELECT 'WB0001', '박수민', '20260003', '2026-04-07'
+SELECT 'WB0001', '박도현', '20260003', '2026-04-07'
 WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1);
 
 INSERT INTO users (company_code, name, employee_number, hire_date)
-SELECT 'WB0001', '이준수', '20260004', '2026-03-15'
+SELECT 'WB0001', '최지아', '20260004', '2026-03-15'
 WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1);
 
 INSERT INTO users (company_code, name, employee_number, hire_date)
-SELECT 'WB0002', '최유진', '20260001', '2026-04-14'
+SELECT 'WB0002', '정하은', '20260001', '2026-04-14'
+WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1);
+
+INSERT INTO users (company_code, name, employee_number, hire_date)
+SELECT 'WB0002', '강준서', '20260002', '2026-04-11'
 WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1);
 
 -- =============================================================
