@@ -206,6 +206,8 @@ Content-Type: application/json
 - 서버는 입력된 `companyCode`로 `companies`를 조회한다.
 - 서버는 조회된 `company_code`와 사용자 이름, 사번을 기준으로 `users`에서 사용자를 확인한다.
 - 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
+- 로그인에 성공하면 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = LOGIN` 로그를 기록한다.
+- 로그인 성공 시의 `SESSION_START` 로그는 재로그인 시점 추적 용도로 사용한다.
 
 #### Response (200 OK)
 
@@ -558,6 +560,49 @@ Authorization: Bearer {accessToken}
 
 ---
 
+### 6-5. 채팅 화면 진입 로그 기록
+사용자가 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.
+이때 `event_target = CHAT`으로 저장한다.  
+단, 동일 사용자가 **30분 이내에 다시 채팅 화면에 진입한 경우** 중복 기록하지 않는다.
+
+```http
+POST /api/v1/chat/session-start
+Authorization: Bearer {accessToken}
+```
+
+#### Response (201 Created)
+
+```json
+{
+  "logged": true,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "createdAt": "2026-04-13T09:00:00Z"
+}
+```
+#### Response (200 OK, 중복 기록 제외)
+```json
+{
+  "logged": false,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "message": "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다."
+}
+```
+
+#### 설명
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 채팅 화면 진입 시 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = CHAT`으로 기록한다.
+- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 동일 사용자가 최근 30분 이내에 이미 `event_target = CHAT`인 `SESSION_START` 이벤트를 기록한 경우 새로 저장하지 않는다.
+- 프론트엔드는 채팅 화면 최초 진입 시 이 API를 1회 호출한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 채팅 메시지 목록 조회 API(`GET /api/v1/chat/messages`) 호출만으로는 `SESSION_START` 로그를 자동 기록하지 않는다.
+- 채팅 화면 진입 로그는 별도 API(`POST /api/v1/chat/session-start`) 호출로 기록한다.
+
+---
+
 ## 7. 내부 AI 연동 규격
 
 이 항목은 백엔드 서버와 생성형 AI 서버 간 내부 통신 규격이다.
@@ -645,4 +690,4 @@ Content-Type: application/json
 - **v1.7.2 (2026-04-08)**:
   - 내부 AI 요청을 `questionId`, `companyCode`, `content` 기반 구조로 단순화, 내부 AI 응답을 `questionId`, `messageType`, `content` 중심으로 수정, 내부 AI 연동 규격에서 `documentId`를 제외하도록 정리
 - **v1.7.3 (2026-04-13)**:
-- 채팅 메시지 목록 조회 응답 형식 수정
+- 채팅 메시지 목록 조회 응답 형식 수정, `SESSION_START` 이벤트 기록 API 추가

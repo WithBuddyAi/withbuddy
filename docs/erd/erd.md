@@ -120,23 +120,26 @@
 
 ## 6. user_activity_logs
 ### 역할
-사용자의 서비스 접속 기록과 버튼 클릭 로그를 저장하는 테이블이다.
+사용자의 세션 시작 기록과 버튼 클릭 로그를 저장하는 테이블이다.
 
 ### 컬럼
 - `id` : PK, bigint
 - `user_id` : FK → `users.id`
 - `event_type` : 이벤트 유형, varchar
-- `event_target` : 이벤트 대상, varchar, nullable
+- `event_target` : 이벤트 발생 대상 또는 화면, varchar, nullable
 - `created_at` : 이벤트 발생 시각, datetime
 
 ### 설명
-- 사용자의 서비스 접속 시작 기록과 버튼 클릭 기록을 저장한다.
+- 사용자의 세션 시작 기록과 버튼 클릭 기록을 저장한다.
 - `event_type`은 아래 표준값으로 구분한다.
-  - `SESSION_START` : 사용자가 로그인에 성공하여 세션이 시작된 시점
+  - `SESSION_START` : 사용자가 로그인하거나 특정 화면에 진입하여 세션성 활동이 시작된 시점
   - `BUTTON_CLICK` : 사용자가 특정 버튼 또는 UI 요소를 클릭한 시점
-- `SESSION_START` 로그는 로그인 성공 시 서버 내부 로직에서 자동 저장할 수 있다.
+- `SESSION_START` 로그는 로그인 성공 시점과 채팅 화면 진입 시점에 기록할 수 있다.
+- `SESSION_START` 로그의 세부 맥락은 `event_target`으로 구분한다.
+  - `LOGIN` : 로그인 API 기준 세션 시작(재로그인)
+  - `CHAT` : 채팅 화면 진입 API 기준 세션 시작(재방문)
 - `BUTTON_CLICK` 로그는 프론트엔드 이벤트 수집 또는 별도 로그 수집 API 호출을 통해 저장할 수 있다.
-- `event_target`은 `BUTTON_CLICK`인 경우 클릭된 버튼 또는 UI 요소를 저장하며, `SESSION_START`인 경우 `null`일 수 있다.
+- `event_target`은 `SESSION_START` 또는 `BUTTON_CLICK` 이벤트의 발생 대상을 저장한다.
 
 ---
 
