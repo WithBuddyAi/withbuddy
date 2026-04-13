@@ -36,10 +36,10 @@ public class DocumentController {
             @RequestHeader(value = "X-API-Key", required = false) String apiKeyHeader,
             @Parameter(hidden = true) @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestPart("file") MultipartFile file,
-            @RequestPart("title") @NotBlank String title,
-            @RequestPart("documentType") @NotBlank String documentType,
-            @RequestPart("department") @NotBlank String department,
-            @RequestPart(value = "companyCode", required = false) String companyCode
+            @RequestParam("title") @NotBlank String title,
+            @RequestParam("documentType") @NotBlank String documentType,
+            @RequestParam("department") @NotBlank String department,
+            @RequestParam(value = "companyCode", required = false) String companyCode
     ) {
         DocumentUploadResponse response = documentStorageService.upload(
                 authorizationHeader,
