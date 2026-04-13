@@ -1,13 +1,17 @@
 package com.withbuddy.chat.controller;
 
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
+import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.service.ChatMessageQueryService;
 import com.withbuddy.chat.service.ChatMessageService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/v1/chat")
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class ChatMessageController {
 
     private final ChatMessageService chatMessageService;
+    private final ChatMessageQueryService chatMessageQueryService;
 
     @PostMapping("/messages")
     @ResponseStatus(HttpStatus.CREATED)
@@ -24,5 +29,14 @@ public class ChatMessageController {
             @Valid @RequestBody ChatMessageRequest request
     ) {
         return chatMessageService.saveUserMessage(bearerToken, request);
+    }
+
+    @GetMapping("/messages")
+    @ResponseStatus(HttpStatus.OK)
+    public ChatMessageListResponse getMessages(
+            @RequestHeader("Authorization") String bearerToken,
+            @RequestParam(required = false) LocalDate date
+    ) {
+        return chatMessageQueryService.getMessages(bearerToken, date);
     }
 }

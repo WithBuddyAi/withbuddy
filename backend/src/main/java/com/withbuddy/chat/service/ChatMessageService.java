@@ -72,10 +72,10 @@ public class ChatMessageService {
     private ChatMessageResponse toResponse(ChatMessage message) {
         return new ChatMessageResponse(
                 message.getId(),
+                message.getSuggestionId(),
                 message.getSenderType().name(),
                 message.getMessageType().getValue(),
                 message.getContent(),
-                null,
                 message.getCreatedAt().toString()
         );
     }
