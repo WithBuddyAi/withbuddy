@@ -7,9 +7,9 @@ import lombok.Getter;
 @AllArgsConstructor
 public class ChatMessageResponse {
     private Long id;
+    private Long suggestionId;
     private String senderType;
     private String messageType;
     private String content;
-    private Long suggestionId;
     private String createdAt;
 }
