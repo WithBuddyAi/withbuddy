@@ -1,9 +1,9 @@
 package com.withbuddy.auth.service;
 
-import com.withbuddy.auth.dto.LoginRequest;
-import com.withbuddy.auth.dto.LoginResponse;
-import com.withbuddy.auth.dto.LoginUserResponse;
-import com.withbuddy.auth.entity.User;
+import com.withbuddy.auth.dto.request.LoginRequest;
+import com.withbuddy.auth.dto.response.LoginResponse;
+import com.withbuddy.auth.dto.response.LoginUserResponse;
+import com.withbuddy.user.entity.User;
 import com.withbuddy.auth.exception.LoginFailedException;
 import com.withbuddy.auth.repository.UserRepository;
 import com.withbuddy.global.jwt.JwtService;
@@ -25,7 +25,7 @@ public class AuthService {
                 request.getCompanyCode(),
                 request.getName(),
                 request.getEmployeeNumber()
-        ).orElseThrow(() -> new LoginFailedException("회사 코드, 사번 또는 이름이 올바르지 않습니다."));
+        ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요"));
 
         String accessToken = jwtService.generateAccessToken(user);
 

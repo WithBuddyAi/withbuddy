@@ -56,10 +56,39 @@ jobs:
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
+          SPRING_DB_DRIVER_CLASS_NAME: ${{ secrets.SPRING_DB_DRIVER_CLASS_NAME }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_ACCESS_EXPIRATION: ${{ secrets.JWT_ACCESS_EXPIRATION }}
+          AI_SERVER_BASE_URL: ${{ secrets.AI_SERVER_BASE_URL }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
+          RABBITMQ_EXCHANGE: ${{ secrets.RABBITMQ_EXCHANGE }}
+          RABBITMQ_QUEUE_REPORT: ${{ secrets.RABBITMQ_QUEUE_REPORT }}
+          RABBITMQ_QUEUE_DLQ: ${{ secrets.RABBITMQ_QUEUE_DLQ }}
+          STORAGE_API_AUTH_ENABLED: ${{ secrets.STORAGE_API_AUTH_ENABLED }}
+          STORAGE_API_KEY_VALUE: ${{ secrets.STORAGE_API_KEY_VALUE }}
+          STORAGE_API_GLOBAL_ACCESS: ${{ secrets.STORAGE_API_GLOBAL_ACCESS }}
+          STORAGE_API_KEY_ACTIVE: ${{ secrets.STORAGE_API_KEY_ACTIVE }}
+          STORAGE_PROVIDER: ${{ secrets.STORAGE_PROVIDER }}
+          STORAGE_LOCAL_BASE_DIR: ${{ secrets.STORAGE_LOCAL_BASE_DIR }}
+          STORAGE_MAX_DOCUMENT_SIZE_MB: ${{ secrets.STORAGE_MAX_DOCUMENT_SIZE_MB }}
+          STORAGE_MAX_IMAGE_SIZE_MB: ${{ secrets.STORAGE_MAX_IMAGE_SIZE_MB }}
+          STORAGE_DOWNLOAD_URL_TTL_SECONDS: ${{ secrets.STORAGE_DOWNLOAD_URL_TTL_SECONDS }}
+          STORAGE_RETRY_ENABLED: ${{ secrets.STORAGE_RETRY_ENABLED }}
+          STORAGE_RETRY_MAX_ATTEMPTS: ${{ secrets.STORAGE_RETRY_MAX_ATTEMPTS }}
+          STORAGE_RETRY_INTERVAL_MS: ${{ secrets.STORAGE_RETRY_INTERVAL_MS }}
+          STORAGE_RETRY_BASE_BACKOFF_SECONDS: ${{ secrets.STORAGE_RETRY_BASE_BACKOFF_SECONDS }}
+          STORAGE_RETRY_MAX_BACKOFF_SECONDS: ${{ secrets.STORAGE_RETRY_MAX_BACKOFF_SECONDS }}
+          STORAGE_RETRY_BATCH_SIZE: ${{ secrets.STORAGE_RETRY_BATCH_SIZE }}
+          STORAGE_OCI_CLI_EXECUTABLE: ${{ secrets.STORAGE_OCI_CLI_EXECUTABLE }}
+          STORAGE_OCI_PRIMARY_PROFILE: ${{ secrets.STORAGE_OCI_PRIMARY_PROFILE }}
+          STORAGE_OCI_BACKUP_PROFILE: ${{ secrets.STORAGE_OCI_BACKUP_PROFILE }}
+          STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING: ${{ secrets.STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING }}
+          STORAGE_PRIMARY_NAMESPACE: ${{ secrets.STORAGE_PRIMARY_NAMESPACE }}
+          STORAGE_PRIMARY_BUCKET: ${{ secrets.STORAGE_PRIMARY_BUCKET }}
+          STORAGE_BACKUP_NAMESPACE: ${{ secrets.STORAGE_BACKUP_NAMESPACE }}
+          STORAGE_BACKUP_BUCKET: ${{ secrets.STORAGE_BACKUP_BUCKET }}
         run: |
           set -euo pipefail
           required_vars=(
@@ -70,10 +99,39 @@ jobs:
             SPRING_DB_URL
             SPRING_DB_USERNAME
             SPRING_DB_PASSWORD
+            SPRING_DB_DRIVER_CLASS_NAME
             JWT_SECRET
+            JWT_ACCESS_EXPIRATION
+            AI_SERVER_BASE_URL
             BACKEND_HEALTH_URL
             REDIS_URL
             RABBITMQ_URL
+            RABBITMQ_EXCHANGE
+            RABBITMQ_QUEUE_REPORT
+            RABBITMQ_QUEUE_DLQ
+            STORAGE_API_AUTH_ENABLED
+            STORAGE_API_KEY_VALUE
+            STORAGE_API_GLOBAL_ACCESS
+            STORAGE_API_KEY_ACTIVE
+            STORAGE_PROVIDER
+            STORAGE_LOCAL_BASE_DIR
+            STORAGE_MAX_DOCUMENT_SIZE_MB
+            STORAGE_MAX_IMAGE_SIZE_MB
+            STORAGE_DOWNLOAD_URL_TTL_SECONDS
+            STORAGE_RETRY_ENABLED
+            STORAGE_RETRY_MAX_ATTEMPTS
+            STORAGE_RETRY_INTERVAL_MS
+            STORAGE_RETRY_BASE_BACKOFF_SECONDS
+            STORAGE_RETRY_MAX_BACKOFF_SECONDS
+            STORAGE_RETRY_BATCH_SIZE
+            STORAGE_OCI_CLI_EXECUTABLE
+            STORAGE_OCI_PRIMARY_PROFILE
+            STORAGE_OCI_BACKUP_PROFILE
+            STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING
+            STORAGE_PRIMARY_NAMESPACE
+            STORAGE_PRIMARY_BUCKET
+            STORAGE_BACKUP_NAMESPACE
+            STORAGE_BACKUP_BUCKET
           )
           for v in "${required_vars[@]}"; do
             if [ -z "${!v:-}" ]; then
@@ -97,19 +155,49 @@ jobs:
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          AI_API_URL: ${{ secrets.AI_API_URL }}
+          JWT_ACCESS_EXPIRATION: ${{ secrets.JWT_ACCESS_EXPIRATION }}
+          AI_SERVER_BASE_URL: ${{ secrets.AI_SERVER_BASE_URL }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
+          SPRING_DB_DRIVER_CLASS_NAME: ${{ secrets.SPRING_DB_DRIVER_CLASS_NAME }}
+          SPRING_SQL_INIT_MODE: ${{ secrets.SPRING_SQL_INIT_MODE }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
+          RABBITMQ_EXCHANGE: ${{ secrets.RABBITMQ_EXCHANGE }}
+          RABBITMQ_QUEUE_REPORT: ${{ secrets.RABBITMQ_QUEUE_REPORT }}
+          RABBITMQ_QUEUE_DLQ: ${{ secrets.RABBITMQ_QUEUE_DLQ }}
+          STORAGE_API_AUTH_ENABLED: ${{ secrets.STORAGE_API_AUTH_ENABLED }}
+          STORAGE_API_KEY_ID: ${{ secrets.STORAGE_API_KEY_ID }}
+          STORAGE_API_KEY_VALUE: ${{ secrets.STORAGE_API_KEY_VALUE }}
+          STORAGE_API_GLOBAL_ACCESS: ${{ secrets.STORAGE_API_GLOBAL_ACCESS }}
+          STORAGE_API_KEY_ACTIVE: ${{ secrets.STORAGE_API_KEY_ACTIVE }}
+          STORAGE_PROVIDER: ${{ secrets.STORAGE_PROVIDER }}
+          STORAGE_LOCAL_BASE_DIR: ${{ secrets.STORAGE_LOCAL_BASE_DIR }}
+          STORAGE_MAX_DOCUMENT_SIZE_MB: ${{ secrets.STORAGE_MAX_DOCUMENT_SIZE_MB }}
+          STORAGE_MAX_IMAGE_SIZE_MB: ${{ secrets.STORAGE_MAX_IMAGE_SIZE_MB }}
+          STORAGE_DOWNLOAD_URL_TTL_SECONDS: ${{ secrets.STORAGE_DOWNLOAD_URL_TTL_SECONDS }}
+          STORAGE_RETRY_ENABLED: ${{ secrets.STORAGE_RETRY_ENABLED }}
+          STORAGE_RETRY_MAX_ATTEMPTS: ${{ secrets.STORAGE_RETRY_MAX_ATTEMPTS }}
+          STORAGE_RETRY_INTERVAL_MS: ${{ secrets.STORAGE_RETRY_INTERVAL_MS }}
+          STORAGE_RETRY_BASE_BACKOFF_SECONDS: ${{ secrets.STORAGE_RETRY_BASE_BACKOFF_SECONDS }}
+          STORAGE_RETRY_MAX_BACKOFF_SECONDS: ${{ secrets.STORAGE_RETRY_MAX_BACKOFF_SECONDS }}
+          STORAGE_RETRY_BATCH_SIZE: ${{ secrets.STORAGE_RETRY_BATCH_SIZE }}
+          STORAGE_OCI_CLI_EXECUTABLE: ${{ secrets.STORAGE_OCI_CLI_EXECUTABLE }}
+          STORAGE_OCI_PRIMARY_PROFILE: ${{ secrets.STORAGE_OCI_PRIMARY_PROFILE }}
+          STORAGE_OCI_BACKUP_PROFILE: ${{ secrets.STORAGE_OCI_BACKUP_PROFILE }}
+          STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING: ${{ secrets.STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING }}
+          STORAGE_PRIMARY_NAMESPACE: ${{ secrets.STORAGE_PRIMARY_NAMESPACE }}
+          STORAGE_PRIMARY_BUCKET: ${{ secrets.STORAGE_PRIMARY_BUCKET }}
+          STORAGE_BACKUP_NAMESPACE: ${{ secrets.STORAGE_BACKUP_NAMESPACE }}
+          STORAGE_BACKUP_BUCKET: ${{ secrets.STORAGE_BACKUP_BUCKET }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         with:
           host: ${{ secrets.BACKEND_SERVER_HOST }}
           username: ${{ secrets.BACKEND_SERVER_USER }}
           key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
-          envs: DB_PASSWORD,JWT_SECRET,AI_API_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,REDIS_URL,RABBITMQ_URL,BACKEND_HEALTH_URL,BACKEND_APP_DIR
+          envs: DB_PASSWORD,JWT_SECRET,JWT_ACCESS_EXPIRATION,AI_SERVER_BASE_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,SPRING_DB_DRIVER_CLASS_NAME,SPRING_SQL_INIT_MODE,REDIS_URL,RABBITMQ_URL,RABBITMQ_EXCHANGE,RABBITMQ_QUEUE_REPORT,RABBITMQ_QUEUE_DLQ,STORAGE_API_AUTH_ENABLED,STORAGE_API_KEY_ID,STORAGE_API_KEY_VALUE,STORAGE_API_GLOBAL_ACCESS,STORAGE_API_KEY_ACTIVE,STORAGE_PROVIDER,STORAGE_LOCAL_BASE_DIR,STORAGE_MAX_DOCUMENT_SIZE_MB,STORAGE_MAX_IMAGE_SIZE_MB,STORAGE_DOWNLOAD_URL_TTL_SECONDS,STORAGE_RETRY_ENABLED,STORAGE_RETRY_MAX_ATTEMPTS,STORAGE_RETRY_INTERVAL_MS,STORAGE_RETRY_BASE_BACKOFF_SECONDS,STORAGE_RETRY_MAX_BACKOFF_SECONDS,STORAGE_RETRY_BATCH_SIZE,STORAGE_OCI_CLI_EXECUTABLE,STORAGE_OCI_PRIMARY_PROFILE,STORAGE_OCI_BACKUP_PROFILE,STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING,STORAGE_PRIMARY_NAMESPACE,STORAGE_PRIMARY_BUCKET,STORAGE_BACKUP_NAMESPACE,STORAGE_BACKUP_BUCKET,BACKEND_HEALTH_URL,BACKEND_APP_DIR
           script: |
             set -euo pipefail
 
@@ -118,7 +206,14 @@ jobs:
             ENV_PATH="/etc/withbuddy-backend.env"
             TMP_ENV_PATH="${APP_DIR}/backend.env.tmp"
             SERVICE_NAME="withbuddy-backend.service"
-            HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8080/actuator/health}"
+            HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8080/actuator/health/liveness}"
+            FALLBACK_HEALTH_URL=""
+            LOCAL_HEALTH_URL="http://127.0.0.1:8080/actuator/health/liveness"
+            case "${HEALTH_URL}" in
+              */actuator/health)
+                FALLBACK_HEALTH_URL="${HEALTH_URL}/liveness"
+                ;;
+            esac
 
             mkdir -p "${APP_DIR}"
             test -f "${JAR_PATH}"
@@ -140,15 +235,94 @@ jobs:
               exit 1
             fi
 
+            EFFECTIVE_REDIS_URL="${REDIS_URL:-}"
+            EFFECTIVE_RABBITMQ_URL="${RABBITMQ_URL:-}"
+
+            extract_host_port() {
+              local url="$1"
+              local default_port="$2"
+              local without_scheme="${url#*://}"
+              local without_auth="${without_scheme#*@}"
+              local hostport="${without_auth%%/*}"
+              local host="${hostport%%:*}"
+              local port="${hostport##*:}"
+
+              if [ -z "${host}" ]; then
+                return 1
+              fi
+              if [ "${host}" = "${port}" ] || [ -z "${port}" ]; then
+                port="${default_port}"
+              fi
+              echo "${host} ${port}"
+            }
+
+            can_connect_tcp() {
+              local host="$1"
+              local port="$2"
+              timeout 2 bash -c "cat < /dev/null > /dev/tcp/${host}/${port}" >/dev/null 2>&1
+            }
+
+            wait_for_dependency() {
+              local label="$1"
+              local host="$2"
+              local port="$3"
+              for i in {1..12}; do
+                if can_connect_tcp "${host}" "${port}"; then
+                  echo "${label} reachable: ${host}:${port} (attempt ${i})"
+                  return 0
+                fi
+                echo "${label} not reachable yet: ${host}:${port} (attempt ${i}/12), retrying in 5s..."
+                sleep 5
+              done
+              echo "ERROR: ${label} unreachable: ${host}:${port}"
+              return 1
+            }
+
+            read REDIS_HOST REDIS_PORT < <(extract_host_port "${EFFECTIVE_REDIS_URL}" "6379")
+            read RABBITMQ_HOST RABBITMQ_PORT < <(extract_host_port "${EFFECTIVE_RABBITMQ_URL}" "5672")
+
+            wait_for_dependency "Redis" "${REDIS_HOST}" "${REDIS_PORT}"
+            wait_for_dependency "RabbitMQ" "${RABBITMQ_HOST}" "${RABBITMQ_PORT}"
+
             cat > "${TMP_ENV_PATH}" <<EOF
             DB_PASSWORD=${DB_PASSWORD}
             JWT_SECRET=${JWT_SECRET}
-            AI_API_URL=${AI_API_URL}
+            JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
+            AI_SERVER_BASE_URL=${AI_SERVER_BASE_URL}
             SPRING_DB_URL=${EFFECTIVE_DB_URL}
             SPRING_DB_USERNAME=${EFFECTIVE_DB_USERNAME}
             SPRING_DB_PASSWORD=${EFFECTIVE_DB_PASSWORD}
-            REDIS_URL=${REDIS_URL}
-            RABBITMQ_URL=${RABBITMQ_URL}
+            SPRING_DB_DRIVER_CLASS_NAME=${SPRING_DB_DRIVER_CLASS_NAME}
+            SPRING_SQL_INIT_MODE=${SPRING_SQL_INIT_MODE:-always}
+            REDIS_URL=${EFFECTIVE_REDIS_URL}
+            RABBITMQ_URL=${EFFECTIVE_RABBITMQ_URL}
+            RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE}
+            RABBITMQ_QUEUE_REPORT=${RABBITMQ_QUEUE_REPORT}
+            RABBITMQ_QUEUE_DLQ=${RABBITMQ_QUEUE_DLQ}
+            STORAGE_API_AUTH_ENABLED=${STORAGE_API_AUTH_ENABLED}
+            STORAGE_API_KEY_ID=${STORAGE_API_KEY_ID:-storage-admin}
+            STORAGE_API_KEY_VALUE=${STORAGE_API_KEY_VALUE}
+            STORAGE_API_GLOBAL_ACCESS=${STORAGE_API_GLOBAL_ACCESS}
+            STORAGE_API_KEY_ACTIVE=${STORAGE_API_KEY_ACTIVE}
+            STORAGE_PROVIDER=${STORAGE_PROVIDER}
+            STORAGE_LOCAL_BASE_DIR=${STORAGE_LOCAL_BASE_DIR}
+            STORAGE_MAX_DOCUMENT_SIZE_MB=${STORAGE_MAX_DOCUMENT_SIZE_MB}
+            STORAGE_MAX_IMAGE_SIZE_MB=${STORAGE_MAX_IMAGE_SIZE_MB}
+            STORAGE_DOWNLOAD_URL_TTL_SECONDS=${STORAGE_DOWNLOAD_URL_TTL_SECONDS}
+            STORAGE_RETRY_ENABLED=${STORAGE_RETRY_ENABLED}
+            STORAGE_RETRY_MAX_ATTEMPTS=${STORAGE_RETRY_MAX_ATTEMPTS}
+            STORAGE_RETRY_INTERVAL_MS=${STORAGE_RETRY_INTERVAL_MS}
+            STORAGE_RETRY_BASE_BACKOFF_SECONDS=${STORAGE_RETRY_BASE_BACKOFF_SECONDS}
+            STORAGE_RETRY_MAX_BACKOFF_SECONDS=${STORAGE_RETRY_MAX_BACKOFF_SECONDS}
+            STORAGE_RETRY_BATCH_SIZE=${STORAGE_RETRY_BATCH_SIZE}
+            STORAGE_OCI_CLI_EXECUTABLE=${STORAGE_OCI_CLI_EXECUTABLE}
+            STORAGE_OCI_PRIMARY_PROFILE=${STORAGE_OCI_PRIMARY_PROFILE}
+            STORAGE_OCI_BACKUP_PROFILE=${STORAGE_OCI_BACKUP_PROFILE}
+            STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING=${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING}
+            STORAGE_PRIMARY_NAMESPACE=${STORAGE_PRIMARY_NAMESPACE}
+            STORAGE_PRIMARY_BUCKET=${STORAGE_PRIMARY_BUCKET}
+            STORAGE_BACKUP_NAMESPACE=${STORAGE_BACKUP_NAMESPACE}
+            STORAGE_BACKUP_BUCKET=${STORAGE_BACKUP_BUCKET}
             SPRING_PROFILES_ACTIVE=prod
             EOF
             chmod 600 "${TMP_ENV_PATH}"
@@ -161,6 +335,14 @@ jobs:
             for i in {1..12}; do
               if curl -fsS "${HEALTH_URL}"; then
                 echo "Health check succeeded on attempt ${i}"
+                exit 0
+              fi
+              if [ -n "${FALLBACK_HEALTH_URL}" ] && curl -fsS "${FALLBACK_HEALTH_URL}"; then
+                echo "Health check succeeded on attempt ${i} (liveness fallback)"
+                exit 0
+              fi
+              if [ "${LOCAL_HEALTH_URL}" != "${HEALTH_URL}" ] && [ "${LOCAL_HEALTH_URL}" != "${FALLBACK_HEALTH_URL}" ] && curl -fsS "${LOCAL_HEALTH_URL}"; then
+                echo "Health check succeeded on attempt ${i} (local liveness fallback)"
                 exit 0
               fi
               echo "Health check failed on attempt ${i}, retrying in 5s..."

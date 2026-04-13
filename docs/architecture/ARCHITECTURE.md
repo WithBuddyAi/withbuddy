@@ -2,7 +2,7 @@
 
 > 신입사원 온보딩 AI 통합 비서 서비스
 
-**최종 업데이트**: 2026-04-06  
+**최종 업데이트**: 2026-04-09  
 **버전**: 1.3.2  
 **작성일**: 2026-03-27
 
@@ -153,7 +153,7 @@ Cache: Redis
 ```yaml
 Cloud Provider: Oracle Cloud
 Network: VCN x2 (Tenancy 분리) + Local VCN Peering (LPG)
-Storage: S3 / Google Cloud Storage / OCI Object Storage
+Storage: OCI Block Volume + OCI Object Storage
 Cache: Redis
 Messaging System: RabbitMQ
 Domain: Cloudflare
@@ -169,7 +169,7 @@ CI/CD: GitHub Actions
 Monitoring: 
   - Application: Spring Boot Actuator
   - Error Tracking: Sentry (추천)
-  - Logging: ELK Stack / CloudWatch (추천)
+  - Logging: OCI Logging / ELK Stack (추천)
 API Testing: Postman / REST Client
 Load Testing: JMeter / k6
 ```
@@ -436,12 +436,13 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 
 ## 변경 이력
 
+- 2026-04-09: 인프라 기술 스택 표기를 OCI 기준으로 정리하고, 스토리지와 로깅 항목의 클라우드 혼합 표현을 제거.
 - 2026-04-06: API 설계를 현재 운영(MVP)과 목표(Planned)로 분리하고, 운영 API는 `API.md`, 목표 API는 `PLANNED_API.md`를 참조하도록 정리.
 - 2026-04-02: 문서 링크 경로와 서버 구성 표기를 현재 파일 구조 기준으로 정리.- 
 - 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 역할 분리 원칙 및 비동기 작업 흐름을 추가.
 - 2026-03-27: 오사카 리전 기준 테넌시 분리 구조 반영, LPG 통신 경로 및 다이어그램 업데이트, Infrastructure 항목 최신화, 구조도 이미지 추가.
-- 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 역할 분리 원칙 및 비동기 작업 흐름을 추가.
-- 2026-04-02: 문서 링크 경로와 서버 구성 표기를 현재 파일 구조 기준으로 정리.
+- 
+
 
 
 

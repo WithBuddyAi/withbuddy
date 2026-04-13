@@ -1,8 +1,8 @@
 package com.withbuddy.auth.controller;
 
-import com.withbuddy.auth.dto.ErrorResponse;
-import com.withbuddy.auth.dto.LoginRequest;
-import com.withbuddy.auth.dto.LoginResponse;
+import com.withbuddy.global.dto.ErrorResponse;
+import com.withbuddy.auth.dto.request.LoginRequest;
+import com.withbuddy.auth.dto.response.LoginResponse;
 import com.withbuddy.auth.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
