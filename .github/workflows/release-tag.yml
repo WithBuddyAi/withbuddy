@@ -159,13 +159,15 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: chore(release-docs): sync document version to ${{ steps.semver.outputs.next_tag }}
-          title: chore(release-docs): sync document version to ${{ steps.semver.outputs.next_tag }}
+          commit-message: "chore(release-docs): sync document version to ${{ steps.semver.outputs.next_tag }}"
+          title: "chore(release-docs): sync document version to ${{ steps.semver.outputs.next_tag }}"
           body: |
             Automated sync of markdown version headers for `${{ steps.semver.outputs.next_tag }}`.
           branch: chore/release-docs-${{ steps.semver.outputs.next_tag }}
           base: main
           add-paths: |
+
+            *.md
             **/*.md
           delete-branch: true
 
