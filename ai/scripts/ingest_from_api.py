@@ -166,11 +166,7 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
         print(f"  처리 중: {title}")
 
         try:
-<<<<<<< HEAD
             file_bytes = _download_file(api_url, doc_id, token)
-=======
-            file_bytes = _download_file(file_url, token)
->>>>>>> origin/develop
             filename = f"{title}.{file_type.lower()}"
             text = _extract_text(file_bytes, filename)
 
