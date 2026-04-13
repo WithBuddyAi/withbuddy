@@ -20,6 +20,7 @@
 - **Spring Web**: RESTful API
 - **Spring Security**: 인증/인가
 - **Spring Data JPA**: ORM
+- **Flyway**: DB 마이그레이션 버전 관리
 - **MySQL Driver**: DB 연결
 
 ### Database
@@ -130,7 +131,7 @@ src/main/resources/
 ├── application.yaml         # 공통 기본값
 ├── application-local.yml    # 로컬 개발
 ├── application-prod.yml     # 운영
-└── schema.sql               # 초기 스키마/시드(필요 시)
+└── db/migration/            # Flyway 마이그레이션 스크립트 (V1~)
 ```
 
 프로필/환경변수는 운영 가이드를 따른다. 상세는 `docs/guides/ENV.md`를 참조한다.
@@ -302,7 +303,7 @@ application-prod.yml    # 프로덕션 (gitignore)
 ### 1. GitHub Secrets (Environment: production) 등록
 
 #### 현재 등록됨 (백엔드 관련)
-- `AI_API_URL` - AI 서버 URL
+- `AI_SERVER_BASE_URL` - AI 서버 URL
 - `SPRING_DB_URL` - JDBC URL
 - `SPRING_DB_USERNAME` - DB 계정
 - `SPRING_DB_PASSWORD` - DB 비밀번호
@@ -314,6 +315,8 @@ application-prod.yml    # 프로덕션 (gitignore)
 - `JWT_SECRET` - JWT 시크릿(운영 6개월 주기 로테이션 권장)
 - `REDIS_URL` - Redis 연결 URL
 - `RABBITMQ_URL` - RabbitMQ 연결 URL
+- `SPRING_FLYWAY_BASELINE_ON_MIGRATE` (선택) - 기존 스키마 baseline 처리 여부 (기본값 `true`)
+- `SPRING_FLYWAY_BASELINE_VERSION` (선택) - baseline 버전 (기본값 `0`)
 
 
 > 참고: `AI_SERVER_*`, `AI_APP_DIR`, `ANTHROPIC_API_KEY`, `SLACK_*`는 AI 배포/운영용이므로 백엔드 자동배포 필수값에서 제외했다.
@@ -329,6 +332,7 @@ application-prod.yml    # 프로덕션 (gitignore)
 1. `main` 브랜치에 `backend/**` 변경을 push한다.
 2. GitHub Actions `Deploy Backend`가 자동 실행된다.
 3. 빌드 성공 시 JAR 업로드 → `/etc/withbuddy-backend.env` 갱신 → `withbuddy-backend.service` 재시작 → 헬스체크까지 수행된다.
+4. 백엔드 기동 시 Flyway가 `db/migration` 스크립트를 자동 적용하며, 기존 스키마 환경은 baseline 설정으로 이관된다.
 
 ## 참고 문서
 
@@ -370,10 +374,11 @@ Error: Port 8080 is already in use
 
 ---
 
-**Last Updated**: 2026-04-09
+**Last Updated**: 2026-04-14
 
 ## 변경 이력
 
+- 2026-04-14: 배포 설정을 Flyway 기준으로 정리. `SPRING_SQL_INIT_MODE` 전달을 제거하고 `SPRING_FLYWAY_BASELINE_*`(선택) 운영값 안내를 추가.
 - 2026-04-09: 문서 메타데이터를 현재 수정 상태에 맞게 정리하고 변경 이력 순서를 최신 기준으로 재정렬.
 - 2026-04-07: SSH 배포 대상 시크릿을 `BACKEND_SERVER_HOST` 단일 기준으로 정리.
 - 2026-04-07: 배포 재시작 방식을 `nohup`/`pkill`에서 `withbuddy-backend.service` 단일 systemd 재시작으로 통일.
