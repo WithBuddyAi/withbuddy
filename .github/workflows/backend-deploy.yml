@@ -1,5 +1,5 @@
 name: Deploy Backend
-# Flyway repair step runs on DB server via DB_SERVER_* production secrets.
+# Flyway repair step runs on DB server via DB_SERVER_* production secrets. (trigger)
 
 on:
   push:
