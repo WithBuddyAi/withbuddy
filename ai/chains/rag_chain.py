@@ -228,7 +228,7 @@ def _format_legal_answer(docs: List[Document], question: str) -> str:
     if not docs:
         return (
             "음, 제가 가진 법령 자료에서는 해당 내용을 찾지 못했어요 🤔\n"
-            "정확한 내용은 경영지원팀 담당자 또는 경영지원팀 김*수 님께 확인해보세요!"
+            "정확한 내용은 경영지원팀 담당자 또는 경영지원팀 김지수 님께 확인해보세요!"
         )
 
     # 질문 키워드로 관련 청크만 필터링 (너무 많은 청크 출력 방지)
@@ -272,7 +272,7 @@ def _format_legal_answer(docs: List[Document], question: str) -> str:
         parts.append("\n\n".join(contents))
 
     result = "\n".join(parts)
-    result += "\n\n정확한 적용 방법은 경영지원팀 김*수 님께도 확인해보세요! 😊"
+    result += "\n\n정확한 적용 방법은 경영지원팀 김지수 님께도 확인해보세요! 😊"
     return result
 
 
