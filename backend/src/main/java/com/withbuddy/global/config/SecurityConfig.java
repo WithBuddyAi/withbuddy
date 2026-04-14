@@ -19,6 +19,14 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
+    private static final List<String> DEFAULT_ALLOWED_ORIGIN_PATTERNS = List.of(
+            "http://localhost:5173",
+            "https://*.vercel.app",
+            "https://withbuddy.itsdev.kr"
+    );
+    private static final List<String> DEFAULT_ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+    private static final List<String> DEFAULT_ALLOWED_HEADERS = List.of("*");
+
     private final StorageApiKeyAuthenticationFilter storageApiKeyAuthenticationFilter;
     private final StorageApiKeyProperties storageApiKeyProperties;
     private final CorsProperties corsProperties;
@@ -69,9 +77,25 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(filterBlank(corsProperties.getAllowedOriginPatterns()));
-        configuration.setAllowedMethods(filterBlank(corsProperties.getAllowedMethods()));
-        configuration.setAllowedHeaders(filterBlank(corsProperties.getAllowedHeaders()));
+
+        List<String> allowedOriginPatterns = filterBlank(corsProperties.getAllowedOriginPatterns());
+        if (allowedOriginPatterns.isEmpty()) {
+            allowedOriginPatterns = DEFAULT_ALLOWED_ORIGIN_PATTERNS;
+        }
+
+        List<String> allowedMethods = filterBlank(corsProperties.getAllowedMethods());
+        if (allowedMethods.isEmpty()) {
+            allowedMethods = DEFAULT_ALLOWED_METHODS;
+        }
+
+        List<String> allowedHeaders = filterBlank(corsProperties.getAllowedHeaders());
+        if (allowedHeaders.isEmpty()) {
+            allowedHeaders = DEFAULT_ALLOWED_HEADERS;
+        }
+
+        configuration.setAllowedOriginPatterns(allowedOriginPatterns);
+        configuration.setAllowedMethods(allowedMethods);
+        configuration.setAllowedHeaders(allowedHeaders);
         List<String> exposedHeaders = filterBlank(corsProperties.getExposedHeaders());
         if (!exposedHeaders.isEmpty()) {
             configuration.setExposedHeaders(exposedHeaders);
