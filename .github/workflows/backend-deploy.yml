@@ -179,11 +179,13 @@ jobs:
               exit 1
             fi
             export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+            echo "Repair host: $(hostname) user=$(whoami) uid=$(id -u)"
+            echo "PATH=${PATH}"
 
             find_mysql_bin() {
               MYSQL_BIN="$(command -v mysql || true)"
               if [ -z "${MYSQL_BIN}" ]; then
-                for c in /usr/bin/mysql /usr/local/bin/mysql /usr/local/mysql/bin/mysql; do
+                for c in /usr/bin/mysql /usr/local/bin/mysql /usr/local/mysql/bin/mysql /bin/mysql; do
                   if [ -x "${c}" ]; then
                     MYSQL_BIN="${c}"
                     break
@@ -220,14 +222,20 @@ jobs:
 
             if ! mysql8_ready; then
               echo "WARN: MySQL 8.0+ client not found on backend host. Attempting installation..."
+              echo "Package manager probe: apt-get=$(command -v apt-get || echo '<none>') dnf=$(command -v dnf || echo '<none>') yum=$(command -v yum || echo '<none>')"
               if command -v apt-get >/dev/null 2>&1; then
-                run_with_priv apt-get update -y >/dev/null 2>&1 || true
-                run_with_priv env DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-client-8.0 >/dev/null 2>&1 || true
-                run_with_priv env DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-client-core-8.0 >/dev/null 2>&1 || true
+                run_with_priv apt-get update -y || true
+                run_with_priv env DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-client-8.0 || true
+                run_with_priv env DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-client-core-8.0 || true
               elif command -v dnf >/dev/null 2>&1; then
-                run_with_priv dnf install -y mysql-community-client >/dev/null 2>&1 || true
+                run_with_priv dnf install -y mysql-community-client || true
               elif command -v yum >/dev/null 2>&1; then
-                run_with_priv yum install -y mysql-community-client >/dev/null 2>&1 || true
+                run_with_priv yum install -y mysql-community-client || true
+              else
+                echo "WARN: No supported package manager detected for mysql client installation."
+              fi
+              if find_mysql_bin; then
+                echo "Post-install mysql binary: ${MYSQL_BIN}"
               fi
             fi
 
