@@ -99,6 +99,7 @@ jobs:
             BACKEND_SERVER_HOST
             BACKEND_SERVER_USER
             BACKEND_SERVER_SSH_KEY
+            DB_SERVER_HOST
             BACKEND_APP_DIR
             SPRING_DB_URL
             SPRING_DB_USERNAME
@@ -147,9 +148,6 @@ jobs:
             echo "Missing required secrets: ${missing_vars[*]}"
             exit 1
           fi
-          if [ -z "${DB_SERVER_HOST:-}" ]; then
-            echo "DB_SERVER_HOST is not set. Flyway repair target falls back to BACKEND_SERVER_HOST."
-          fi
 
       - name: Upload app.jar to server
         uses: appleboy/scp-action@v0.1.7
@@ -168,12 +166,13 @@ jobs:
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
         with:
-          host: ${{ secrets.DB_SERVER_HOST != '' && secrets.DB_SERVER_HOST || secrets.BACKEND_SERVER_HOST }}
+          host: ${{ secrets.DB_SERVER_HOST }}
           username: ${{ secrets.DB_SERVER_USER != '' && secrets.DB_SERVER_USER || secrets.BACKEND_SERVER_USER }}
           key: ${{ secrets.DB_SERVER_SSH_KEY != '' && secrets.DB_SERVER_SSH_KEY || secrets.BACKEND_SERVER_SSH_KEY }}
           proxy_host: ${{ secrets.DB_SERVER_HOST != '' && secrets.DB_SERVER_HOST != secrets.BACKEND_SERVER_HOST && secrets.BACKEND_SERVER_HOST || '' }}
           proxy_username: ${{ secrets.DB_SERVER_HOST != '' && secrets.DB_SERVER_HOST != secrets.BACKEND_SERVER_HOST && secrets.BACKEND_SERVER_USER || '' }}
           proxy_key: ${{ secrets.DB_SERVER_HOST != '' && secrets.DB_SERVER_HOST != secrets.BACKEND_SERVER_HOST && secrets.BACKEND_SERVER_SSH_KEY || '' }}
+          debug: true
           envs: SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD
           script: |
             set -euo pipefail
