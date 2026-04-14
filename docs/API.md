@@ -356,27 +356,40 @@ Authorization: Bearer {accessToken}
       "id": 101,
       "suggestionId": null,
       "documentIds": [],
+      "documents": [],
       "senderType": "USER",
       "messageType": "user_question",
-      "content": "복지카드는 어떻게 신청하나요?",
+      "content": "복지카드 신청 양식은 어디서 받나요?",
       "createdAt": "2026-03-24T10:00:00Z"
     },
     {
       "id": 102,
       "suggestionId": null,
-      "documentIds": [1, 2, 3],
+      "documentIds": [10, 11],
+      "documents": [
+        {
+          "documentId": 10,
+          "title": "복지카드 신청 안내",
+          "documentType": "GUIDE",
+          "file": null
+        },
+        {
+          "documentId": 11,
+          "title": "복지카드 신청서",
+          "documentType": "TEMPLATE",
+          "file": {
+            "fileName": "welfare-card-application.docx",
+            "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "downloadUrl": "/api/v1/documents/11/download",
+            "fileApiPath": "/api/v1/documents/11/file",
+            "directReturn": true
+          }
+        }
+      ],
       "senderType": "BOT",
       "messageType": "rag_answer",
-      "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
+      "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
       "createdAt": "2026-03-24T10:00:02Z"
-    },
-    {
-      "id": 103,
-      "suggestionId": 3,
-      "senderType": "BOT",
-      "messageType": "suggestion",
-      "content": "입사 1일차 안내를 먼저 확인해보세요.",
-      "createdAt": "2026-03-24T10:10:00Z"
     }
   ]
 }
@@ -401,8 +414,14 @@ Authorization: Bearer {accessToken}
   - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내 메시지
   - `suggestion`: 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
-- 문서 기반 답변 메시지인 경우, 근거 문서 ID 목록은 `chat_message_documents`를 기준으로 조회하여 `documentIds` 배열로 반환할 수 있다.
-- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 `documentIds`가 빈 배열(`[]`)로 반환한다.
+- `rag_answer` 메시지인 경우, 근거 문서는 `chat_message_documents`를 기준으로 조회할 수 있다.
+- 근거 문서 ID 목록은 `documentIds` 배열로 반환할 수 있으며, 이는 답변 메시지와 연결된 문서 ID 목록을 의미한다.
+- 근거 문서 상세 정보는 `documents` 배열로 반환할 수 있다.
+- `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
+- `documents[].documentType = TEMPLATE`인 경우 `documents[].file` 객체를 포함할 수 있다.
+- 프론트엔드는 `documents[].file.downloadUrl` 또는 `documents[].file.fileApiPath`를 통해 문서를 다운로드하거나 파일 응답으로 받을 수 있다.
+- `documents[].documentType != TEMPLATE`인 경우 `documents[].file`은 `null`일 수 있다.
+- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documentIds`와 `documents`는 빈 배열(`[]`)이다.
 
 
 ### 6-2. 질문 전송
@@ -435,18 +454,39 @@ Content-Type: application/json
     "id": 201,
     "senderType": "USER",
     "messageType": "user_question",
-    "content": "복지카드는 어떻게 신청하나요?",
+    "content": "복지카드 신청 양식은 어디서 받나요?",
     "suggestionId": null,
     "documentIds": [],
+    "documents": [],
     "createdAt": "2026-03-24T10:00:00Z"
   },
   "answer": {
     "id": 202,
     "senderType": "BOT",
     "messageType": "rag_answer",
-    "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
+    "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
     "suggestionId": null,
-    "documentIds": [1, 2, 3],
+    "documentIds": [10, 11],
+    "documents": [
+      {
+        "documentId": 10,
+        "title": "복지카드 신청 안내",
+        "documentType": "GUIDE",
+        "file": null
+      },
+      {
+        "documentId": 11,
+        "title": "복지카드 신청서",
+        "documentType": "TEMPLATE",
+        "file": {
+          "fileName": "welfare-card-application.docx",
+          "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "downloadUrl": "/api/v1/documents/11/download",
+          "fileApiPath": "/api/v1/documents/11/file",
+          "directReturn": true
+        }
+      }
+    ],
     "createdAt": "2026-03-24T10:00:02Z"
   }
 }
@@ -460,9 +500,10 @@ Content-Type: application/json
     "id": 201,
     "senderType": "USER",
     "messageType": "user_question",
-    "content": "복지카드는 어떻게 신청하나요?",
+    "content": "복지카드 신청 양식은 어디서 받나요?",
     "suggestionId": null,
     "documentIds": [],
+    "documents": [],
     "createdAt": "2026-03-24T10:00:00Z"
   },
   "answer": {
@@ -472,6 +513,7 @@ Content-Type: application/json
     "content": "관련 안내 문서를 찾지 못했습니다.",
     "suggestionId": null,
     "documentIds": [],
+    "documents": [],
     "createdAt": "2026-03-24T10:00:02Z"
   }
 }
@@ -515,8 +557,17 @@ Content-Type: application/json
 - 백엔드는 질문 저장 후, 로그인한 사용자의 `companyCode`, 질문 메시지의 `id(questionId)`, 질문 `content`를 사용하여 `/internal/ai/answer`를 호출한다.
 - 내부 AI 서버는 로그인한 사용자의 회사 문서와 공통 문서만을 대상으로 답변을 생성한다.
 - 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
-- 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용해 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
+- 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용하여 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
 - 내부 AI 응답에 근거 문서 목록(`document[].documentId`)이 포함된 경우, 백엔드는 답변 메시지 저장 후 `chat_message_documents`에 답변 메시지 ID와 문서 ID를 매핑하여 저장한다.
+- 백엔드는 AI 응답의 `document[].documentId` 목록을 기준으로 `documents`를 조회할 수 있다.
+- 답변 메시지 응답에는 근거 문서 ID 목록 `documentIds`와 근거 문서 상세 정보 `documents`를 포함할 수 있다.
+- `documentIds`는 답변 메시지와 연결된 문서 ID 목록을 의미한다.
+- `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
+- 문서의 `document_type = TEMPLATE`인 경우, 파일 접근 정보는 `document_files`를 기준으로 조회하며 `documents[].file`에 포함할 수 있다.
+- 프론트엔드는 `documents[].file.downloadUrl` 또는 `documents[].fileApiPath`를 통해 파일을 다운로드하거나 파일 응답으로 받을 수 있다.
+- `document_type != TEMPLATE`인 경우, `documents[].file`은 일반적으로 포함하지 않거나 `null`로 반환할 수 있다.
+- 실제 파일 데이터는 채팅 메시지 응답 본문(JSON)에 직접 포함하지 않고, 별도 파일 API를 통해 반환한다.
+- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
 - 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
 - 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
@@ -765,10 +816,65 @@ Authorization: Bearer {accessToken}
 - 특정 문서의 상세 정보를 조회한다.
 - 문서 기본 정보와 파일 메타데이터를 함께 포함할 수 있다.
 
-### 8-4. 문서 파일 직접 다운로드 (로컬 개발용)
+### 8-4. 문서 파일 직접 다운로드
 ```http
 GET /api/v1/documents/{documentId}/file
 Authorization: Bearer {accessToken}
+```
+
+| 필드           | 타입     | 필수 | 설명             |
+| ------------ | ------ | -- | -------------- |
+| `documentId` | `Long` | Y  | 파일 반환 대상 문서 ID |
+
+#### 동작 규칙
+- `documents.id = {documentId}`인 문서를 조회한다.
+- 해당 문서가 현재 로그인한 사용자의 회사 문서이거나 공통 문서인 경우만 접근 가능하다.
+- `document_type = TEMPLATE`인 경우 프론트엔드에 파일 자체를 반환할 수 있다.
+- 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
+- 파일이 존재하면 `Content-Type`, `Content-Disposition` 헤더와 함께 바이너리 파일을 반환한다.
+- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환할 수 있다.
+
+#### Response (200 OK)
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+Content-Disposition: attachment; filename="welfare-card-application.docx"
+```
+
+#### 설명
+- Response Body: 파일 바이너리
+
+#### Error Response (404 Not Found)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00Z",
+  "status": 404,
+  "error": "Not Found",
+  "code": "NOT_FOUND",
+  "errors": [
+    {
+      "field": "documentId",
+      "message": "해당 문서를 찾을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/file"
+}
+```
+
+#### Error Response (400 Bad Request)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "documentType",
+      "message": "파일 직접 반환은 TEMPLATE 문서에만 허용됩니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/file"
+}
 ```
 
 ### 설명
