@@ -334,6 +334,39 @@ jobs:
             sudo systemctl restart "${SERVICE_NAME}"
             sudo systemctl is-active --quiet "${SERVICE_NAME}"
 
+            collect_diagnostics() {
+              echo "Collecting service diagnostics..."
+              sudo systemctl status "${SERVICE_NAME}" --no-pager -l || true
+              sudo journalctl -u "${SERVICE_NAME}" -n 300 --no-pager || true
+            }
+
+            print_flyway_recovery_hint_if_needed() {
+              if sudo journalctl -u "${SERVICE_NAME}" -n 300 --no-pager | grep -Eiq "FlywayValidateException|Detected failed migration to version|Migrations have failed validation"; then
+                echo "Detected Flyway validation failure in service logs."
+                cat <<EOF
+Suggested recovery commands on backend host (verify in production DB before executing):
+1) Stop service
+   sudo systemctl stop "${SERVICE_NAME}"
+
+2) Check Flyway history
+   SELECT installed_rank, version, description, success
+   FROM flyway_schema_history
+   WHERE version IN ('7','8','9','10')
+   ORDER BY installed_rank;
+
+3) If version 7 failed and document storage tables are safe to recreate
+   SET FOREIGN_KEY_CHECKS=0;
+   DROP TABLE IF EXISTS document_backup_jobs;
+   DROP TABLE IF EXISTS document_files;
+   SET FOREIGN_KEY_CHECKS=1;
+   DELETE FROM flyway_schema_history WHERE version='7' AND success=0;
+
+4) Start service again
+   sudo systemctl start "${SERVICE_NAME}"
+EOF
+              fi
+            }
+
             for i in {1..12}; do
               if curl -fsS "${HEALTH_URL}"; then
                 echo "Health check succeeded on attempt ${i}"
@@ -347,11 +380,21 @@ jobs:
                 echo "Health check succeeded on attempt ${i} (local liveness fallback)"
                 exit 0
               fi
+
+              if ! sudo systemctl is-active --quiet "${SERVICE_NAME}"; then
+                echo "Service became inactive while waiting for health check (attempt ${i})."
+                collect_diagnostics
+                print_flyway_recovery_hint_if_needed
+                exit 1
+              fi
+
               echo "Health check failed on attempt ${i}, retrying in 5s..."
               sleep 5
             done
 
             echo "Health check failed after retries. Collecting diagnostics..."
-            sudo systemctl status "${SERVICE_NAME}" --no-pager -l || true
-            sudo journalctl -u "${SERVICE_NAME}" -n 200 --no-pager || true
+            collect_diagnostics
+            print_flyway_recovery_hint_if_needed
             exit 1
+
+
