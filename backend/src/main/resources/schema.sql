@@ -37,6 +37,57 @@ CREATE TABLE IF NOT EXISTS `documents` (
         FOREIGN KEY (company_code) REFERENCES companies(company_code)
 );
 
+CREATE TABLE IF NOT EXISTS `document_files` (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    document_id BIGINT NOT NULL,
+    company_code VARCHAR(20) NULL,
+    original_file_name VARCHAR(255) NOT NULL,
+    stored_file_name VARCHAR(255) NOT NULL,
+    content_type VARCHAR(120) NOT NULL,
+    file_size BIGINT NOT NULL,
+    checksum_sha256 CHAR(64) NOT NULL,
+    primary_namespace VARCHAR(120) NOT NULL,
+    primary_bucket VARCHAR(120) NOT NULL,
+    primary_object_key VARCHAR(500) NOT NULL,
+    backup_namespace VARCHAR(120) NOT NULL,
+    backup_bucket VARCHAR(120) NOT NULL,
+    backup_object_key VARCHAR(500) NULL,
+    backup_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    backup_attempt_count INT NOT NULL DEFAULT 0,
+    backup_last_error VARCHAR(500) NULL,
+    backup_requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    backup_completed_at DATETIME NULL,
+    deleted_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT pk_document_files PRIMARY KEY (id),
+    CONSTRAINT uq_document_files_document_id UNIQUE (document_id),
+    CONSTRAINT fk_document_files_document
+    FOREIGN KEY (document_id) REFERENCES documents(id),
+    CONSTRAINT fk_document_files_company_code
+    FOREIGN KEY (company_code) REFERENCES companies(company_code)
+    );
+
+CREATE TABLE IF NOT EXISTS `document_backup_jobs` (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    document_file_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    attempt_no INT NOT NULL,
+    source_namespace VARCHAR(120) NOT NULL,
+    source_bucket VARCHAR(120) NOT NULL,
+    source_object_key VARCHAR(500) NOT NULL,
+    target_namespace VARCHAR(120) NOT NULL,
+    target_bucket VARCHAR(120) NOT NULL,
+    target_object_key VARCHAR(500) NULL,
+    error_message VARCHAR(1000) NULL,
+    started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_document_backup_jobs PRIMARY KEY (id),
+    CONSTRAINT fk_document_backup_jobs_document_file
+    FOREIGN KEY (document_file_id) REFERENCES document_files(id)
+    );
+
 CREATE TABLE IF NOT EXISTS `onboarding_suggestions` (
     id BIGINT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
@@ -50,7 +101,6 @@ CREATE TABLE IF NOT EXISTS `onboarding_suggestions` (
 CREATE TABLE IF NOT EXISTS `chat_messages` (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
-    document_id BIGINT NULL,
     suggestion_id BIGINT NULL,
     sender_type VARCHAR(20) NOT NULL,
     message_type VARCHAR(30) NOT NULL,
@@ -59,11 +109,23 @@ CREATE TABLE IF NOT EXISTS `chat_messages` (
     CONSTRAINT pk_chat_messages PRIMARY KEY (id),
     CONSTRAINT fk_chat_messages_user
         FOREIGN KEY (user_id) REFERENCES `users`(id),
-    CONSTRAINT fk_chat_messages_document
-        FOREIGN KEY (document_id) REFERENCES documents(id),
     CONSTRAINT fk_chat_messages_suggestion
         FOREIGN KEY (suggestion_id) REFERENCES onboarding_suggestions(id)
 );
+
+CREATE TABLE IF NOT EXISTS `chat_message_documents` (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    chat_message_id BIGINT NOT NULL,
+    document_id BIGINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_chat_message_documents PRIMARY KEY (id),
+    CONSTRAINT uq_chat_message_documents_message_document
+    UNIQUE (chat_message_id, document_id),
+    CONSTRAINT fk_chat_message_documents_chat_message
+    FOREIGN KEY (chat_message_id) REFERENCES `chat_messages`(id),
+    CONSTRAINT fk_chat_message_documents_document
+    FOREIGN KEY (document_id) REFERENCES `documents`(id)
+    );
 
 CREATE TABLE IF NOT EXISTS `user_activity_logs` (
     id BIGINT NOT NULL AUTO_INCREMENT,
