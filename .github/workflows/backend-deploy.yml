@@ -174,29 +174,69 @@ jobs:
             if [ "${DB_HOST}" = "${DB_PORT}" ] || [ -z "${DB_PORT}" ]; then
               DB_PORT="3306"
             fi
+            if [ -z "${DB_HOST// }" ] || [ -z "${DB_NAME// }" ]; then
+              echo "ERROR: Unable to parse SPRING_DB_URL for Flyway repair step."
+              exit 1
+            fi
+            if ! command -v mysql >/dev/null 2>&1; then
+              echo "ERROR: mysql client is required for Flyway repair step."
+              exit 1
+            fi
 
-            echo "Checking Flyway schema history for failed migrations..."
-            FAILED=$(mysql -h "${DB_HOST}" -P "${DB_PORT}" \
-              -u "${SPRING_DB_USERNAME}" -p"${SPRING_DB_PASSWORD}" \
-              --skip-column-names --silent \
-              "${DB_NAME}" \
-              -e "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0;" 2>/dev/null || echo "0")
-
-            if [ "${FAILED:-0}" -gt 0 ]; then
-              echo "Found ${FAILED} failed migration(s). Running repair..."
+            mysql_scalar() {
+              local sql="$1"
               mysql -h "${DB_HOST}" -P "${DB_PORT}" \
                 -u "${SPRING_DB_USERNAME}" -p"${SPRING_DB_PASSWORD}" \
-                "${DB_NAME}" <<'REPAIR_SQL'
-SET FOREIGN_KEY_CHECKS=0;
-DROP TABLE IF EXISTS document_backup_jobs;
-DROP TABLE IF EXISTS document_files;
-SET FOREIGN_KEY_CHECKS=1;
-DELETE FROM flyway_schema_history WHERE success=0;
-REPAIR_SQL
-              echo "Flyway repair completed. Tables dropped and failed history cleared."
-            else
-              echo "No failed migrations found. Skipping repair."
+                --skip-column-names --silent \
+                "${DB_NAME}" \
+                -e "${sql}"
+            }
+
+            HAS_HISTORY=$(mysql_scalar "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}' AND table_name='flyway_schema_history';")
+            if [ "${HAS_HISTORY}" -eq 0 ]; then
+              echo "No flyway_schema_history table found. Skipping repair."
+              exit 0
             fi
+
+            FAILED_ANY=$(mysql_scalar "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0;")
+            if [ "${FAILED_ANY}" -eq 0 ]; then
+              echo "No failed migrations found. Skipping repair."
+              exit 0
+            fi
+
+            FAILED_V7=$(mysql_scalar "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0 AND version='7';")
+            FAILED_V8=$(mysql_scalar "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0 AND version='8';")
+            FAILED_OTHER=$(mysql_scalar "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0 AND (version IS NULL OR version NOT IN ('7','8'));")
+
+            if [ "${FAILED_OTHER}" -gt 0 ]; then
+              FAILED_VERSIONS=$(mysql_scalar "SELECT IFNULL(GROUP_CONCAT(COALESCE(version,'<null>') ORDER BY installed_rank SEPARATOR ','), '') FROM flyway_schema_history WHERE success=0;")
+              echo "ERROR: Found unsupported failed migration versions: ${FAILED_VERSIONS}"
+              echo "This auto-repair step handles only V7/V8 document storage migrations."
+              exit 1
+            fi
+
+            if [ "${FAILED_V7}" -gt 0 ]; then
+              SUCCESS_V7=$(mysql_scalar "SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND version='7';")
+              if [ "${SUCCESS_V7}" -gt 0 ]; then
+                echo "ERROR: V7 has both success and failure records. Manual intervention required."
+                exit 1
+              fi
+
+              echo "Repairing failed V7 migration: drop document tables and clear failed V7/V8 rows."
+              mysql_scalar "SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS document_backup_jobs; DROP TABLE IF EXISTS document_files; SET FOREIGN_KEY_CHECKS=1; DELETE FROM flyway_schema_history WHERE success=0 AND version IN ('7','8');"
+              echo "V7 repair completed."
+              exit 0
+            fi
+
+            if [ "${FAILED_V8}" -gt 0 ]; then
+              echo "Repairing failed V8 migration: drop backup job table and clear failed V8 rows."
+              mysql_scalar "SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS document_backup_jobs; SET FOREIGN_KEY_CHECKS=1; DELETE FROM flyway_schema_history WHERE success=0 AND version='8';"
+              echo "V8 repair completed."
+              exit 0
+            fi
+
+            echo "No eligible failed migration versions found for auto-repair."
+            exit 0
 
       - name: Restart backend
         uses: appleboy/ssh-action@v1.2.0
@@ -444,5 +484,3 @@ EOF
             collect_diagnostics
             print_flyway_recovery_hint_if_needed
             exit 1
-
-
