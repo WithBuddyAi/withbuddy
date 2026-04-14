@@ -431,27 +431,25 @@ jobs:
             print_flyway_recovery_hint_if_needed() {
               if sudo journalctl -u "${SERVICE_NAME}" -n 300 --no-pager | grep -Eiq "FlywayValidateException|Detected failed migration to version|Migrations have failed validation"; then
                 echo "Detected Flyway validation failure in service logs."
-                cat <<EOF
-Suggested recovery commands on backend host (verify in production DB before executing):
-1) Stop service
-   sudo systemctl stop "${SERVICE_NAME}"
-
-2) Check Flyway history
-   SELECT installed_rank, version, description, success
-   FROM flyway_schema_history
-   WHERE version IN ('7','8','9','10')
-   ORDER BY installed_rank;
-
-3) If version 7 failed and document storage tables are safe to recreate
-   SET FOREIGN_KEY_CHECKS=0;
-   DROP TABLE IF EXISTS document_backup_jobs;
-   DROP TABLE IF EXISTS document_files;
-   SET FOREIGN_KEY_CHECKS=1;
-   DELETE FROM flyway_schema_history WHERE version='7' AND success=0;
-
-4) Start service again
-   sudo systemctl start "${SERVICE_NAME}"
-EOF
+                echo "Suggested recovery commands on backend host (verify in production DB before executing):"
+                echo "1) Stop service"
+                echo "   sudo systemctl stop \"${SERVICE_NAME}\""
+                echo ""
+                echo "2) Check Flyway history"
+                echo "   SELECT installed_rank, version, description, success"
+                echo "   FROM flyway_schema_history"
+                echo "   WHERE version IN ('7','8','9','10')"
+                echo "   ORDER BY installed_rank;"
+                echo ""
+                echo "3) If version 7 failed and document storage tables are safe to recreate"
+                echo "   SET FOREIGN_KEY_CHECKS=0;"
+                echo "   DROP TABLE IF EXISTS document_backup_jobs;"
+                echo "   DROP TABLE IF EXISTS document_files;"
+                echo "   SET FOREIGN_KEY_CHECKS=1;"
+                echo "   DELETE FROM flyway_schema_history WHERE version='7' AND success=0;"
+                echo ""
+                echo "4) Start service again"
+                echo "   sudo systemctl start \"${SERVICE_NAME}\""
               fi
             }
 
