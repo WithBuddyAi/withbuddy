@@ -186,7 +186,11 @@ jobs:
               if echo "${MYSQL_VERSION_RAW}" | grep -Eiq 'mariadb'; then
                 return 1
               fi
-              MYSQL_MAJOR="$(echo "${MYSQL_VERSION_RAW}" | sed -nE 's/.*Distrib ([0-9]+)\..*/\1/p' | head -n1)"
+              MYSQL_VERSION_SEMVER="$(echo "${MYSQL_VERSION_RAW}" | sed -nE 's/.*Distrib ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | head -n1)"
+              if [ -z "${MYSQL_VERSION_SEMVER}" ]; then
+                MYSQL_VERSION_SEMVER="$(echo "${MYSQL_VERSION_RAW}" | sed -nE 's/.*Ver ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | head -n1)"
+              fi
+              MYSQL_MAJOR="${MYSQL_VERSION_SEMVER%%.*}"
               [ -n "${MYSQL_MAJOR}" ] && [ "${MYSQL_MAJOR}" -ge 8 ]
             }
 
