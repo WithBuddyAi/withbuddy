@@ -49,7 +49,7 @@ public class ChatMessageService {
                 loginUserId,
                 null,
                 SenderType.USER,
-                MessageType.USER_QUESTION,
+                MessageType.user_question,
                 request.getContent()
         );
 

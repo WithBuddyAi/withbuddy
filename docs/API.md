@@ -452,19 +452,16 @@ Content-Type: application/json
 {
   "question": {
     "id": 201,
-    "senderType": "USER",
-    "messageType": "user_question",
-    "content": "복지카드 신청 양식은 어디서 받나요?",
     "suggestionId": null,
     "documentIds": [],
     "documents": [],
+    "senderType": "USER",
+    "messageType": "user_question",
+    "content": "복지카드 신청 양식은 어디서 받나요?",
     "createdAt": "2026-03-24T10:00:00Z"
   },
   "answer": {
     "id": 202,
-    "senderType": "BOT",
-    "messageType": "rag_answer",
-    "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
     "suggestionId": null,
     "documentIds": [10, 11],
     "documents": [
@@ -487,6 +484,9 @@ Content-Type: application/json
         }
       }
     ],
+    "senderType": "BOT",
+    "messageType": "rag_answer",
+    "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
     "createdAt": "2026-03-24T10:00:02Z"
   }
 }
@@ -498,22 +498,22 @@ Content-Type: application/json
 {
   "question": {
     "id": 201,
-    "senderType": "USER",
-    "messageType": "user_question",
-    "content": "복지카드 신청 양식은 어디서 받나요?",
     "suggestionId": null,
     "documentIds": [],
     "documents": [],
+    "senderType": "USER",
+    "messageType": "user_question",
+    "content": "복지카드 신청 양식은 어디서 받나요?",
     "createdAt": "2026-03-24T10:00:00Z"
   },
   "answer": {
     "id": 202,
-    "senderType": "BOT",
-    "messageType": "no_result",
-    "content": "관련 안내 문서를 찾지 못했습니다.",
     "suggestionId": null,
     "documentIds": [],
     "documents": [],
+    "senderType": "BOT",
+    "messageType": "no_result",
+    "content": "관련 안내 문서를 찾지 못했습니다.",
     "createdAt": "2026-03-24T10:00:02Z"
   }
 }
@@ -661,6 +661,7 @@ Authorization: Bearer {accessToken}
   "logged": true,
   "eventType": "SESSION_START",
   "eventTarget": "CHAT",
+  "message": null,
   "createdAt": "2026-04-13T09:00:00Z"
 }
 ```
@@ -670,7 +671,8 @@ Authorization: Bearer {accessToken}
   "logged": false,
   "eventType": "SESSION_START",
   "eventTarget": "CHAT",
-  "message": "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다."
+  "message": "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다.",
+  "createdAt": null
 }
 ```
 
