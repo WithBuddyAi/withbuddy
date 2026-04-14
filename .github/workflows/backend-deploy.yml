@@ -138,12 +138,16 @@ jobs:
             STORAGE_BACKUP_NAMESPACE
             STORAGE_BACKUP_BUCKET
           )
+          missing_vars=()
           for v in "${required_vars[@]}"; do
             if [ -z "${!v:-}" ]; then
-              echo "Missing required secret: $v"
-              exit 1
+              missing_vars+=("$v")
             fi
           done
+          if [ "${#missing_vars[@]}" -gt 0 ]; then
+            echo "Missing required secrets: ${missing_vars[*]}"
+            exit 1
+          fi
 
       - name: Upload app.jar to server
         uses: appleboy/scp-action@v0.1.7
