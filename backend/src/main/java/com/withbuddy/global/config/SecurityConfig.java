@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -20,13 +21,16 @@ public class SecurityConfig {
 
     private final StorageApiKeyAuthenticationFilter storageApiKeyAuthenticationFilter;
     private final StorageApiKeyProperties storageApiKeyProperties;
+    private final CorsProperties corsProperties;
 
     public SecurityConfig(
             StorageApiKeyAuthenticationFilter storageApiKeyAuthenticationFilter,
-            StorageApiKeyProperties storageApiKeyProperties
+            StorageApiKeyProperties storageApiKeyProperties,
+            CorsProperties corsProperties
     ) {
         this.storageApiKeyAuthenticationFilter = storageApiKeyAuthenticationFilter;
         this.storageApiKeyProperties = storageApiKeyProperties;
+        this.corsProperties = corsProperties;
     }
 
     @Bean
@@ -65,17 +69,28 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of(
-                "http://localhost:5173",
-                "https://*.vercel.app",
-                "https://withbuddy.itsdev.kr"
-        ));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowedOriginPatterns(filterBlank(corsProperties.getAllowedOriginPatterns()));
+        configuration.setAllowedMethods(filterBlank(corsProperties.getAllowedMethods()));
+        configuration.setAllowedHeaders(filterBlank(corsProperties.getAllowedHeaders()));
+        List<String> exposedHeaders = filterBlank(corsProperties.getExposedHeaders());
+        if (!exposedHeaders.isEmpty()) {
+            configuration.setExposedHeaders(exposedHeaders);
+        }
+        configuration.setAllowCredentials(corsProperties.isAllowCredentials());
+        configuration.setMaxAge(corsProperties.getMaxAgeSeconds());
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private List<String> filterBlank(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
     }
 }
