@@ -18,6 +18,7 @@ from agents.orchestrator import run_orchestrator
 from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
+from utils.sensitive_filter import check_sensitive
 
 router = APIRouter(tags=["chat"])
 
@@ -176,6 +177,7 @@ class InternalAIAnswerRequest(BaseModel):
     questionId: int
     companyCode: str
     content: str
+    userName: str = ""
 
 class InternalAIAnswerResponse(BaseModel):
     questionId: int
@@ -183,26 +185,15 @@ class InternalAIAnswerResponse(BaseModel):
     content: str
 
 
-_HARASSMENT_KEYWORDS = [
-    "성희롱", "성추행", "성폭력", "성적 괴롭힘", "직장내 성희롱",
-    "성희롱 신고", "성추행 신고", "성폭력 신고",
-]
-_HARASSMENT_ANSWER = (
-    "해당 내용은 법적·윤리적으로 민감한 사안이라 AI가 직접 안내드리기 어려워요. 😔\n\n"
-    "현재 고민하고 계신 사항은 사내 인사 규정 및 근로계약에 따라 보호받으실 수 있는 영역입니다.\n\n"
-    "먼저 **경영지원팀** 담당자와 상담을 통해 회사의 공식적인 지원과 해결 방안을 확인해 보시길 권장해 드려요.\n\n"
-    "신고자 신원은 철저히 보호되니 걱정하지 않으셔도 돼요. 용기 내셔서 꼭 도움받으세요. 💙"
-)
-
-
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
-    if any(kw in request.content for kw in _HARASSMENT_KEYWORDS):
+    action, answer = check_sensitive(request.content, request.userName)
+    if action == "block":
         return InternalAIAnswerResponse(
             questionId=request.questionId,
             messageType="out_of_scope",
-            content=_HARASSMENT_ANSWER,
+            content=answer,
         )
     try:
         async with asyncio.timeout(10):
