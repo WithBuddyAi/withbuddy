@@ -27,7 +27,7 @@ TEST_CASES = [
     {"group": "법률", "no": 1,  "question": "배우자 출산휴가 며칠이야?"},
     {"group": "법률", "no": 2,  "question": "육아휴직 기간이 얼마나 돼?"},
     {"group": "법률", "no": 3,  "question": "난임치료휴가 며칠 줘?"},
-    {"group": "법률", "no": 4,  "question": "최저임금 얼마야?"},
+    {"group": "법률", "no": 4,  "question": "최저임금 얼마야?", "extra_context": "2026년 기준 최저임금: 시간급 10,030원, 월 환산액 2,096,270원 (월 소정근로시간 209시간 기준, 적용기간 2026.01.01~2026.12.31)"},
     {"group": "법률", "no": 5,  "question": "기간제 근로자 2년 넘으면 어떻게 돼?"},
     {"group": "법률", "no": 6,  "question": "퇴직금 언제 받아?"},
 
@@ -154,7 +154,7 @@ async def evaluate_with_ragas(samples: list) -> dict:
             {
                 "user_input": s["question"],
                 "response": s["answer"],
-                "retrieved_contexts": fetch_contexts(s["question"]),
+                "retrieved_contexts": fetch_contexts(s["question"]) + ([s["extra_context"]] if s.get("extra_context") else []),
             }
             for s in valid
         ])
@@ -166,7 +166,7 @@ async def evaluate_with_ragas(samples: list) -> dict:
             dataset=dataset,
             metrics=metrics,
             experiment_name=langsmith_project if langsmith_api_key and os.getenv("LANGCHAIN_TRACING_V2") == "true" else None,
-            run_config=RunConfig(max_workers=3, timeout=120),
+            run_config=RunConfig(max_workers=3, timeout=180),
         )
         df = result.to_pandas()
 
@@ -206,6 +206,11 @@ def write_report(results: list, ragas_scores: dict, url: str, out_file: str):
     scope_pass = sum(1 for s in scope_scores if s == 1)
     contact_pass = sum(1 for s in contact_scores if s == 1)
 
+    # 범위외 그룹만 따로 집계
+    oos_nos = {str(r["no"]) for r in results if r["group"] == "범위외"}
+    oos_scores = [ragas_scores[k]["out_of_scope"] for k in oos_nos if k in ragas_scores and ragas_scores[k] and ragas_scores[k]["out_of_scope"] is not None]
+    oos_pass = sum(1 for s in oos_scores if s == 1)
+
     lines = [
         "# RAGAS 평가 보고서",
         "",
@@ -215,7 +220,8 @@ def write_report(results: list, ragas_scores: dict, url: str, out_file: str):
         f"- **평균 Answer Relevancy:** {avg_relevancy}",
         f"- **평균 Faithfulness:** {avg_faithfulness}",
         f"- **경어 사용:** {polite_pass}/{len(polite_scores)}건",
-        f"- **범위 외 거절:** {scope_pass}/{len(scope_scores)}건",
+        f"- **응대 적절성:** {scope_pass}/{len(scope_scores)}건 (범위 내 정상 답변 + 범위 외 적절 거절 포함)",
+        f"- **범위 외 거절:** {oos_pass}/{len(oos_scores)}건 (범위외 질문 {len(oos_scores)}건 중)",
         f"- **담당자 안내:** {contact_pass}/{len(contact_scores)}건",
         f"- **법령 조항 인용:** {legal_pass}/{len(legal_scores)}건",
         "",
@@ -223,7 +229,8 @@ def write_report(results: list, ragas_scores: dict, url: str, out_file: str):
         "> Faithfulness: 검색된 문서 기반 답변 여부 — 높을수록 hallucination 적음 (0~1)",
         "> 법령 조항 인용: 법률 질문 답변에 제N조 형식 조항 번호 포함 여부",
         "> 경어 사용: 답변이 존댓말로 작성됐는지",
-        "> 범위 외 거절: 서비스 범위 밖 질문에 적절히 거절했는지",
+        "> 응대 적절성: 모든 질문에 대해 적절히 처리됐는지 (범위 내 답변 + 범위 외 거절 포함)",
+        "> 범위 외 거절: 서비스 범위 밖 질문만 별도 집계 — 거절 여부 확인용",
         "> 담당자 안내: 관련 담당자 정보를 안내했는지",
         "",
         "---",

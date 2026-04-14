@@ -20,6 +20,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from core.llm import get_llm
 from memory.company_info_store import format_company_info_context, get_company_info
 from memory.profile_store import format_profile_context, get_profile
+from utils.sensitive_filter import check_sensitive
 
 # ── 타입 ─────────────────────────────────────────────────────
 
@@ -138,31 +139,17 @@ _LABOR_LAW_KEYWORDS = [
 ]
 _ARTICLE_PATTERN = _re.compile(r"제?\d+조")
 
-# ── 성희롱 키워드 감지 — RAG 생성 금지, 신고 안내로 즉시 전환 ──
-_HARASSMENT_KEYWORDS = [
-    "성희롱", "성추행", "성폭력", "성적 괴롭힘", "직장내 성희롱",
-    "성희롱 신고", "성추행 신고", "성폭력 신고",
-]
-_HARASSMENT_ANSWER = (
-    "해당 내용은 법적·윤리적으로 민감한 사안이라 AI가 직접 안내드리기 어려워요. 😔\n\n"
-    "아래 창구로 연락하시면 정확하고 안전하게 도움받으실 수 있어요.\n\n"
-    "🏢 **사내 신고처**\n"
-    "　경영지원팀 김*수 님께 직접 또는 비밀 보장 채널로 신고 가능합니다.\n\n"
-    "📞 **고용노동부 고객상담센터**\n"
-    "　☎ **1350** (평일 09:00~18:00, 무료)\n\n"
-    "🌐 **온라인 신고**\n"
-    "　고용노동부 민원마당 → 직장 내 괴롭힘·성희롱 신고\n\n"
-    "신고자 신원은 철저히 보호되니 걱정하지 않으셔도 돼요. 용기 내셔서 꼭 도움받으세요. 💙"
-)
 
 
 def classify_intent_node(state: AgentState) -> dict:
     """메시지 의도 분류."""
     msg = state["message"]
+    user_name = state.get("user_name", "")
 
-    # 성희롱 키워드 감지 → 고정 안내 메시지 (RAG 생성 금지)
-    if any(kw in msg for kw in _HARASSMENT_KEYWORDS):
-        return {"intent": "chitchat", "extra_context": "", "answer": _HARASSMENT_ANSWER}
+    # 민감 키워드 감지 → 즉시 응대 (RAG 차단)
+    action, answer = check_sensitive(msg, user_name)
+    if action == "block":
+        return {"intent": "chitchat", "extra_context": "", "answer": answer}
 
     if any(kw in msg for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(msg):
         intent = "rag"
