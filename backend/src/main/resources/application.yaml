@@ -45,6 +45,13 @@ ai:
 
 app:
   security:
+    cors:
+      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,https://*.vercel.app,https://withbuddy.itsdev.kr}
+      allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
+      allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+      exposed-headers: ${CORS_EXPOSED_HEADERS:}
+      allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+      max-age-seconds: ${CORS_MAX_AGE_SECONDS:3600}
     storage-api:
       enabled: ${STORAGE_API_AUTH_ENABLED:false}
       keys:
