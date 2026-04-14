@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -40,7 +41,7 @@ public class ChatMessageController {
     @ResponseStatus(HttpStatus.OK)
     public ChatMessageListResponse getMessages(
             @RequestHeader("Authorization") String bearerToken,
-            @RequestParam(required = false) LocalDate date
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
         return chatMessageQueryService.getMessages(bearerToken, date);
     }

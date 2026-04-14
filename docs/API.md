@@ -733,7 +733,7 @@ Content-Type: application/json
 ```json
 {
   "questionId": 201,
-  "document": [
+  "documents": [
     { "documentId": 1 },
     { "documentId": 2 },
     { "documentId": 3 }
