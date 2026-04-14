@@ -178,18 +178,30 @@ jobs:
               echo "ERROR: Unable to parse SPRING_DB_URL for Flyway repair step."
               exit 1
             fi
+            export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
+            find_mysql_bin() {
+              MYSQL_BIN="$(command -v mysql || true)"
+              if [ -z "${MYSQL_BIN}" ]; then
+                for c in /usr/bin/mysql /usr/local/bin/mysql /usr/local/mysql/bin/mysql; do
+                  if [ -x "${c}" ]; then
+                    MYSQL_BIN="${c}"
+                    break
+                  fi
+                done
+              fi
+              [ -n "${MYSQL_BIN}" ]
+            }
+
             mysql8_ready() {
-              if ! command -v mysql >/dev/null 2>&1; then
+              if ! find_mysql_bin; then
                 return 1
               fi
-              MYSQL_VERSION_RAW="$(mysql --version 2>/dev/null || true)"
+              MYSQL_VERSION_RAW="$("${MYSQL_BIN}" --version 2>/dev/null || true)"
               if echo "${MYSQL_VERSION_RAW}" | grep -Eiq 'mariadb'; then
                 return 1
               fi
-              MYSQL_VERSION_SEMVER="$(echo "${MYSQL_VERSION_RAW}" | sed -nE 's/.*Distrib ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | head -n1)"
-              if [ -z "${MYSQL_VERSION_SEMVER}" ]; then
-                MYSQL_VERSION_SEMVER="$(echo "${MYSQL_VERSION_RAW}" | sed -nE 's/.*Ver ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | head -n1)"
-              fi
+              MYSQL_VERSION_SEMVER="$(echo "${MYSQL_VERSION_RAW}" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
               MYSQL_MAJOR="${MYSQL_VERSION_SEMVER%%.*}"
               [ -n "${MYSQL_MAJOR}" ] && [ "${MYSQL_MAJOR}" -ge 8 ]
             }
@@ -221,15 +233,21 @@ jobs:
 
             if ! mysql8_ready; then
               echo "ERROR: MySQL 8.0+ client is required for Flyway repair step."
+              if find_mysql_bin; then
+                echo "       mysql binary: ${MYSQL_BIN}"
+                echo "       mysql --version: $("${MYSQL_BIN}" --version 2>/dev/null || true)"
+              else
+                echo "       mysql binary: <not found in PATH or common locations>"
+              fi
               echo "       Ensure 'mysql --version' reports MySQL 8.x (not MariaDB) on backend host."
               exit 1
             fi
 
-            echo "Using DB client: $(mysql --version)"
+            echo "Using DB client (${MYSQL_BIN}): $("${MYSQL_BIN}" --version)"
 
             mysql_scalar() {
               local sql="$1"
-              mysql -h "${DB_HOST}" -P "${DB_PORT}" \
+              "${MYSQL_BIN}" -h "${DB_HOST}" -P "${DB_PORT}" \
                 -u "${SPRING_DB_USERNAME}" -p"${SPRING_DB_PASSWORD}" \
                 --skip-column-names --silent \
                 "${DB_NAME}" \
