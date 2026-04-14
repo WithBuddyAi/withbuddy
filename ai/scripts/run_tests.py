@@ -95,16 +95,24 @@ def fetch_contexts(question: str, k: int = 3) -> list[str]:
 async def evaluate_with_ragas(samples: list) -> dict:
     """RAGAS로 답변 품질 평가 (Claude 사용)"""
     try:
+        import pandas as pd
         from ragas import EvaluationDataset, evaluate
-        from ragas.metrics.collections import AnswerRelevancy, Faithfulness, AspectCritic
-        from ragas.llms import llm_factory
-        from ragas.embeddings import HuggingFaceEmbeddings as RagasHFEmbeddings
-        from anthropic import Anthropic
+        from ragas.run_config import RunConfig
+        from ragas.metrics import AnswerRelevancy, Faithfulness, AspectCritic
+        from ragas.llms import LangchainLLMWrapper
+        from ragas.embeddings import LangchainEmbeddingsWrapper
         from langchain_anthropic import ChatAnthropic
+        from langchain_huggingface import HuggingFaceEmbeddings
 
-        anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        llm = llm_factory("claude-haiku-4-5-20251001", client=anthropic_client)
-        embeddings = RagasHFEmbeddings(model="jhgan/ko-sroberta-multitask")
+        llm = LangchainLLMWrapper(
+            ChatAnthropic(
+                model="claude-haiku-4-5-20251001",
+                api_key=os.getenv("ANTHROPIC_API_KEY"),
+            )
+        )
+        embeddings = LangchainEmbeddingsWrapper(
+            HuggingFaceEmbeddings(model_name="jhgan/ko-sroberta-multitask")
+        )
 
         # 법령 조항 번호 포함 여부 (법률 그룹만 의미 있음)
         legal_citation = AspectCritic(
@@ -154,14 +162,12 @@ async def evaluate_with_ragas(samples: list) -> dict:
         # LangSmith 연동
         langsmith_api_key = os.getenv("LANGCHAIN_API_KEY")
         langsmith_project = os.getenv("LANGCHAIN_PROJECT", "withbuddy-ai")
-        if langsmith_api_key and os.getenv("LANGCHAIN_TRACING_V2") == "true":
-            result = evaluate(
-                dataset=dataset,
-                metrics=metrics,
-                run_config={"project_name": langsmith_project},
-            )
-        else:
-            result = evaluate(dataset=dataset, metrics=metrics)
+        result = evaluate(
+            dataset=dataset,
+            metrics=metrics,
+            experiment_name=langsmith_project if langsmith_api_key and os.getenv("LANGCHAIN_TRACING_V2") == "true" else None,
+            run_config=RunConfig(max_workers=3, timeout=120),
+        )
         df = result.to_pandas()
 
         scores = {}
@@ -170,10 +176,10 @@ async def evaluate_with_ragas(samples: list) -> dict:
             scores[key] = {
                 "answer_relevancy": round(float(df.iloc[i]["answer_relevancy"]), 3) if i < len(df) else None,
                 "faithfulness": round(float(df.iloc[i]["faithfulness"]), 3) if i < len(df) else None,
-                "legal_citation": int(df.iloc[i]["legal_citation"]) if i < len(df) else None,
-                "polite_tone": int(df.iloc[i]["polite_tone"]) if i < len(df) else None,
-                "out_of_scope": int(df.iloc[i]["out_of_scope"]) if i < len(df) else None,
-                "contact_info": int(df.iloc[i]["contact_info"]) if i < len(df) else None,
+                "legal_citation": int(df.iloc[i]["legal_citation"]) if i < len(df) and not pd.isna(df.iloc[i]["legal_citation"]) else None,
+                "polite_tone": int(df.iloc[i]["polite_tone"]) if i < len(df) and not pd.isna(df.iloc[i]["polite_tone"]) else None,
+                "out_of_scope": int(df.iloc[i]["out_of_scope"]) if i < len(df) and not pd.isna(df.iloc[i]["out_of_scope"]) else None,
+                "contact_info": int(df.iloc[i]["contact_info"]) if i < len(df) and not pd.isna(df.iloc[i]["contact_info"]) else None,
             }
         return scores
 
