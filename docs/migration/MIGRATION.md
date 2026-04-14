@@ -79,17 +79,17 @@
 
 ### 4.3 documents
 
-| 컬럼 | 타입 | 제약 | 설명 |
-|---|---|---|---|
-| `id` | BIGINT | PK, AUTO_INCREMENT | 식별자 |
-| `company_code` | VARCHAR(20) | NULL, FK → companies | 소속 회사 코드 (NULL = 공통 문서) |
-| `title` | VARCHAR(200) | NOT NULL | 문서 제목 |
-| `file_path` | VARCHAR(500) | NOT NULL | 스토리지 오브젝트 경로 |
-| `document_type` | VARCHAR(50) | NOT NULL | 문서 유형 |
-| `department` | VARCHAR(50) | NOT NULL | 부서 |
-| `is_active` | BOOLEAN | NOT NULL, DEFAULT TRUE | 활성 여부 |
-| `created_at` | DATETIME | NOT NULL, DEFAULT NOW | 생성 일시 |
-| `updated_at` | DATETIME | NOT NULL, ON UPDATE NOW | 수정 일시 |
+| 컬럼 | 타입 | 제약 | 설명                                    |
+|---|---|---|---------------------------------------|
+| `id` | BIGINT | PK, AUTO_INCREMENT | 식별자                                   |
+| `company_code` | VARCHAR(20) | NULL, FK → companies | 소속 회사 코드 (NULL = 공통 문서)               |
+| `title` | VARCHAR(200) | NOT NULL | 문서 제목                                 |
+| `file_path` | VARCHAR(500) | NOT NULL | 스토리지 오브젝트 경로                          |
+| `document_type` | VARCHAR(50) | NOT NULL | 문서 유형 (HR, ADMIN, WELFARE, IT, LEGAL) |
+| `department` | VARCHAR(50) | NOT NULL | 부서                                    |
+| `is_active` | BOOLEAN | NOT NULL, DEFAULT TRUE | 활성 여부                                 |
+| `created_at` | DATETIME | NOT NULL, DEFAULT NOW | 생성 일시                                 |
+| `updated_at` | DATETIME | NOT NULL, ON UPDATE NOW | 수정 일시                                 |
 
 - `company_code = NULL`인 문서는 전체 회사 공통 문서로 처리한다.
 - `file_path`는 스토리지 업로드 메타데이터 기반 구조로 유지한다 (SCRUM 스펙의 `form_file_url`에 해당).
@@ -355,3 +355,4 @@ Flyway 마이그레이션 도입 이후 해당 파일의 DDL은 V7, V8로 이관
 
 - [ERD](../erd/erd.md)
 - [API 명세](../API.md)
+
