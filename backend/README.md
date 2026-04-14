@@ -310,9 +310,9 @@ application-prod.yml    # 프로덕션 (gitignore)
 - `BACKEND_SERVER_HOST` - SSH 배포 대상 호스트
 - `BACKEND_SERVER_USER` - SSH 사용자
 - `BACKEND_SERVER_SSH_KEY` - SSH 개인키
-- `DB_SERVER_HOST` - Flyway 복구용 DB 서버 SSH 호스트
-- `DB_SERVER_USER` - Flyway 복구용 DB 서버 SSH 사용자
-- `DB_SERVER_SSH_KEY` - Flyway 복구용 DB 서버 SSH 개인키
+- `DB_SERVER_HOST` - Flyway 복구용 DB 서버 SSH 호스트(필수)
+- `DB_SERVER_USER` - Flyway 복구용 DB 서버 SSH 사용자(선택, 미설정 시 `BACKEND_SERVER_USER` 사용)
+- `DB_SERVER_SSH_KEY` - Flyway 복구용 DB 서버 SSH 개인키(선택, 미설정 시 `BACKEND_SERVER_SSH_KEY` 사용)
 - `BACKEND_APP_DIR` - 배포 경로
 - `BACKEND_HEALTH_URL` - 헬스체크 URL
 - `JWT_SECRET` - JWT 시크릿(운영 6개월 주기 로테이션 권장)
