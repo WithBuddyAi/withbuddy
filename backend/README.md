@@ -310,8 +310,15 @@ application-prod.yml    # 프로덕션 (gitignore)
 - `BACKEND_SERVER_HOST` - SSH 배포 대상 호스트
 - `BACKEND_SERVER_USER` - SSH 사용자
 - `BACKEND_SERVER_SSH_KEY` - SSH 개인키
+- `DB_SERVER_HOST` - Flyway 복구용 DB 서버 SSH 호스트(필수)
+- `DB_SERVER_USER` - Flyway 복구용 DB 서버 SSH 사용자(선택, 미설정 시 `BACKEND_SERVER_USER` 사용)
+- `DB_SERVER_SSH_KEY` - Flyway 복구용 DB 서버 SSH 개인키(선택, 미설정 시 `BACKEND_SERVER_SSH_KEY` 사용)
+- `DB_SERVER_PROXY_HOST` - DB SSH 점프 호스트(선택)
+- `DB_SERVER_PROXY_USER` - DB SSH 점프 호스트 사용자(선택)
+- `DB_SERVER_PROXY_SSH_KEY` - DB SSH 점프 호스트 키(선택)
 - `BACKEND_APP_DIR` - 배포 경로
 - `BACKEND_HEALTH_URL` - 헬스체크 URL
+- `CORS_ALLOWED_ORIGIN_PATTERNS` (선택) - 허용 Origin 패턴 목록(쉼표 구분)
 - `JWT_SECRET` - JWT 시크릿(운영 6개월 주기 로테이션 권장)
 - `REDIS_URL` - Redis 연결 URL
 - `RABBITMQ_URL` - RabbitMQ 연결 URL
@@ -378,6 +385,7 @@ Error: Port 8080 is already in use
 
 ## 변경 이력
 
+- 2026-04-14: CORS Origin 패턴을 환경변수(`CORS_ALLOWED_ORIGIN_PATTERNS`)로 제어할 수 있도록 배포/운영 가이드 반영.
 - 2026-04-14: 배포 설정을 Flyway 기준으로 정리. `SPRING_SQL_INIT_MODE` 전달을 제거하고 `SPRING_FLYWAY_BASELINE_*`(선택) 운영값 안내를 추가.
 - 2026-04-09: 문서 메타데이터를 현재 수정 상태에 맞게 정리하고 변경 이력 순서를 최신 기준으로 재정렬.
 - 2026-04-07: SSH 배포 대상 시크릿을 `BACKEND_SERVER_HOST` 단일 기준으로 정리.
