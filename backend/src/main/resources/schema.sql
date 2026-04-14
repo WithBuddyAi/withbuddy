@@ -113,6 +113,20 @@ CREATE TABLE IF NOT EXISTS `chat_messages` (
         FOREIGN KEY (suggestion_id) REFERENCES onboarding_suggestions(id)
 );
 
+CREATE TABLE IF NOT EXISTS `chat_message_documents` (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    chat_message_id BIGINT NOT NULL,
+    document_id BIGINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_chat_message_documents PRIMARY KEY (id),
+    CONSTRAINT uq_chat_message_documents_message_document
+    UNIQUE (chat_message_id, document_id),
+    CONSTRAINT fk_chat_message_documents_chat_message
+    FOREIGN KEY (chat_message_id) REFERENCES `chat_messages`(id),
+    CONSTRAINT fk_chat_message_documents_document
+    FOREIGN KEY (document_id) REFERENCES `documents`(id)
+    );
+
 CREATE TABLE IF NOT EXISTS `user_activity_logs` (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT NOT NULL,

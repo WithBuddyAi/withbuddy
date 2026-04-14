@@ -47,7 +47,7 @@
 
 ---
 
-## 3. documents
+## 3.1 documents
 ### 역할
 사내 문서 기반 Q&A의 답변 근거가 되는 문서 저장 테이블이다.
 
@@ -73,7 +73,7 @@
 
 ---
 
-## 4.document_files
+## 3.2 document_files
 ### 역할
 문서 원본 파일의 저장 정보와 백업 상태를 관리하는 테이블이다.
 
@@ -110,7 +110,7 @@
 
 ---
 
-## 5. document_backup_jobs
+## 3.3 document_backup_jobs
 ### 역할
 문서 파일 백업 작업의 실행 이력을 저장하는 테이블이다.
 
@@ -130,7 +130,7 @@
 - `finished_at` : 작업 종료 시각, datetime, nullable
 - `created_at` : 생성 일시, datetime
 
-### 컬럼
+### 설명
 - 문서 파일 백업 작업을 실행할 때마다 이력을 남긴다.
 - 하나의 `document_file`에 대해 여러 번의 백업 시도가 가능하므로 `document_files`와 1:N 관계를 가진다.
 - 원본 저장소와 대상 저장소의 위치를 각각 기록하여 백업 추적에 활용할 수 있다.
@@ -138,7 +138,7 @@
 
 ---
 
-## 6. onboarding_suggestions
+## 4. onboarding_suggestions
 ### 역할
 입사 시점별로 사용자에게 보여줄 온보딩 가이드를 저장하는 테이블이다.
 
@@ -156,7 +156,7 @@
 
 ---
 
-## 7. chat_messages
+## 5.1 chat_messages
 ### 역할
 실제 채팅창에 표시되는 질문, 답변, 제안 메시지를 저장하는 테이블이다.
 
@@ -182,9 +182,30 @@
 - `no_result`는 질문 범위는 맞지만 답변 가능한 정보가 없는 경우로 간주한다.
 - 온보딩 가이드 기반 제안인 경우 어떤 온보딩 가이드를 참조했는지 `suggestion_id`로 연결할 수 있다.
 - 채팅형 UI에서 시간순 메시지 조회 및 대화 이력 관리에 활용할 수 있다.
+
 ---
 
-## 8. user_activity_logs
+## 5.2 chat_message_documents
+### 역할
+채팅 메시지와 근거 문서를 연결하는 매핑 테이블이다.
+
+### 컬럼
+- `id` : PK, bigint
+- `chat_message_id` : FK → `chat_messages.id`
+- `document_id` : FK → `documents.id`
+- `created_at` : 생성 일시, datetime
+
+### 설명
+- 하나의 답변 메시지에 여러 개의 근거 문서를 연결하기 위해 사용한다.
+- 문서 기반 답변(`rag_answer`)인 경우, AI 서버가 반환한 `document.documentId` 목록을 이 테이블에 저장한다.
+- 질문 메시지나 온보딩 제안 메시지는 일반적으로 이 테이블과 연결되지 않는다.
+- 하나의 채팅 메시지는 여러 개의 문서와 연결될 수 있다.
+- 하나의 문서는 여러 개의 채팅 메시지의 근거 문서로 재사용될 수 있다.
+- 동일한 채팅 메시지와 문서의 중복 연결은 허용하지 않는 것을 권장한다.
+
+---
+
+## 6. user_activity_logs
 ### 역할
 사용자의 세션 시작 기록과 버튼 클릭 로그를 저장하는 테이블이다.
 
@@ -218,6 +239,8 @@
 - `document_files` 1 : N `document_backup_jobs`
 - `users` 1 : N `chat_messages`
 - `onboarding_suggestions` 1 : N `chat_messages` (선택적 연결)
+- `chat_messages` 1 : N `chat_message_documents`
+- `documents` 1 : N `chat_message_documents`
 - `users` 1 : N `user_activity_logs`
 
 #### 관계 설명
@@ -227,8 +250,9 @@
 - 문서 1개는 현재 구조상 문서 파일 메타데이터 1개와 연결된다.
 - 문서 파일 1개는 여러 개의 백업 작업 이력을 가질 수 있다.
 - 사용자 1명은 여러 개의 채팅 메시지를 남길 수 있다.
-- 채팅 메시지는 필요 시 특정 문서와 연결될 수 있다.
 - 채팅 메시지는 필요 시 특정 온보딩 가이드와 연결될 수 있다.
+- 채팅 메시지 1개는 여러 개의 근거 문서와 연결될 수 있다.
+- 문서 1개는 여러 개의 채팅 메시지의 근거 문서로 연결될 수 있다.
 - 사용자 1명은 여러 개의 활동 로그를 가질 수 있다.
 
 ---
@@ -243,7 +267,7 @@
 - v1.3 (2026-03-30): `documents` 테이블 `content` 수정
 - v1.4 (2026-04-01): `users`와 `documents`의 회사 참조 기준을 `company_code`로 통일하고, 관련 설명 및 관계 문구를 정리
 - v1.5 (2026-04-07): `documents.document_type`, `documents.department` 표준 분류값 및 분류 기준 설명 추가, `chat_messages` 테이블 수정, `document_id` 컬럼 삭제
-- v1.6 (2026-04-14): `document_files`, `document_backup_jobs` 테이블 추가, `chat_messages.document_id` FK 반영, 문서-파일-백업 작업 관계 설명 추가
+- v1.6 (2026-04-14): `document_files`, `document_backup_jobs`, `chat_message_documents` 테이블 추가, 답변 메시지와 근거 문서의 다중 연결 구조 반영, 문서-파일-백업 작업 관계 설명 추가
 ---
 
 ## ERD 원본 링크

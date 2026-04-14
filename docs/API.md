@@ -19,13 +19,13 @@
 - 빠른 질문 목록 조회
 - 내부 AI 답변 생성 요청 규격
 - 토큰 만료 처리 규격
+- 스토리지 문서 API
 
 ### 제외 범위
 - 토큰 재발급
 - 로그아웃
 - 내 정보 조회
 - 관리자 기능
-- 문서 등록/수정/삭제
 - 체크리스트
 - 기타 미구현 기능
 
@@ -38,8 +38,11 @@
 - `companies`
 - `users`
 - `documents`
+- `document_files`
+- `document_backup_jobs`
 - `onboarding_suggestions`
 - `chat_messages`
+- `chat_message_documents`
 - `user_activity_logs`
 
 ---
@@ -352,6 +355,7 @@ Authorization: Bearer {accessToken}
     {
       "id": 101,
       "suggestionId": null,
+      "documentIds": [],
       "senderType": "USER",
       "messageType": "user_question",
       "content": "복지카드는 어떻게 신청하나요?",
@@ -360,6 +364,7 @@ Authorization: Bearer {accessToken}
     {
       "id": 102,
       "suggestionId": null,
+      "documentIds": [1, 2, 3],
       "senderType": "BOT",
       "messageType": "rag_answer",
       "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
@@ -396,6 +401,8 @@ Authorization: Bearer {accessToken}
   - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내 메시지
   - `suggestion`: 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 문서 기반 답변 메시지인 경우, 근거 문서 ID 목록은 `chat_message_documents`를 기준으로 조회하여 `documentIds` 배열로 반환할 수 있다.
+- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 `documentIds`가 빈 배열(`[]`)로 반환한다.
 
 
 ### 6-2. 질문 전송
@@ -430,6 +437,7 @@ Content-Type: application/json
     "messageType": "user_question",
     "content": "복지카드는 어떻게 신청하나요?",
     "suggestionId": null,
+    "documentIds": [],
     "createdAt": "2026-03-24T10:00:00Z"
   },
   "answer": {
@@ -438,6 +446,32 @@ Content-Type: application/json
     "messageType": "rag_answer",
     "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
     "suggestionId": null,
+    "documentIds": [1, 2, 3],
+    "createdAt": "2026-03-24T10:00:02Z"
+  }
+}
+```
+
+#### Response (201 Created, 답변 문서 없음 예시)
+
+```json
+{
+  "question": {
+    "id": 201,
+    "senderType": "USER",
+    "messageType": "user_question",
+    "content": "복지카드는 어떻게 신청하나요?",
+    "suggestionId": null,
+    "documentIds": [],
+    "createdAt": "2026-03-24T10:00:00Z"
+  },
+  "answer": {
+    "id": 202,
+    "senderType": "BOT",
+    "messageType": "no_result",
+    "content": "관련 안내 문서를 찾지 못했습니다.",
+    "suggestionId": null,
+    "documentIds": [],
     "createdAt": "2026-03-24T10:00:02Z"
   }
 }
@@ -482,6 +516,7 @@ Content-Type: application/json
 - 내부 AI 서버는 로그인한 사용자의 회사 문서와 공통 문서만을 대상으로 답변을 생성한다.
 - 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
 - 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용해 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
+- 내부 AI 응답에 근거 문서 목록(`document[].documentId`)이 포함된 경우, 백엔드는 답변 메시지 저장 후 `chat_message_documents`에 답변 메시지 ID와 문서 ID를 매핑하여 저장한다.
 - 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
 - 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
@@ -614,8 +649,8 @@ Authorization: Bearer {accessToken}
 - 백엔드가 생성된 질문 메시지의 `id`를 `questionId`로 사용함
 - 백엔드가 로그인한 사용자의 `companyCode`, `questionId`, 질문 `content`를 이용해 `/internal/ai/answer`를 호출
 - AI 서버가 공통 문서와 해당 회사 문서를 기반으로 답변을 생성함
-- AI 서버가 `questionId`, `messageType`, `content`를 반환함
-- 백엔드가 반환값으로 답변 메시지를 저장하고 최종 응답을 반환함
+- AI 서버가 `questionId`, `document`, `messageType`, `content`를 반환함
+- 백엔드가 반환값으로 답변 메시지를 저장하고, 근거 문서 목록은 `chat_message_documents`에 저장한 뒤 최종 응답을 반환함
 
 ### 7-2. 답변 생성 요청
 
@@ -647,8 +682,24 @@ Content-Type: application/json
 ```json
 {
   "questionId": 201,
+  "document": [
+    { "documentId": 1 },
+    { "documentId": 2 },
+    { "documentId": 3 }
+  ],
   "messageType": "rag_answer",
   "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다."
+}
+```
+
+#### Response (200 OK, 문서 없음 예시)
+
+```json
+{
+  "questionId": 202,
+  "document": [],
+  "messageType": "no_result",
+  "content": "관련 안내 문서를 찾지 못했습니다."
 }
 ```
 
@@ -663,10 +714,155 @@ Content-Type: application/json
   - `no_result`: 질문 범위는 맞지만 문서/정보 부족으로 답변 불가
   - `out_of_scope`: 서비스 범위를 벗어난 질문
 - `suggestion`은 온보딩 가이드 기반 메시지 유형이므로 내부 AI 답변 응답값으로 사용하지 않는다.
+- `document`는 답변 생성의 근거로 사용된 문서 목록이다.
+- `document[].documentId`는 `documents.id`를 의미한다.
+- 백엔드는 AI 응답의 `document[].documentId` 목록을 답변 메시지와 연결하여 `chat_message_documents`에 저장한다.
+- `rag_answer`인 경우 근거 문서 목록이 포함될 수 있다.
+- `no_result`, `out_of_scope`인 경우 `document`는 빈 배열(`[]`)로 반환한다.
 
 ---
 
-## 8. 변경 이력
+## 8. Documents
+
+이 항목은 문서 업로드, 조회, 다운로드, 삭제, 백업 재시도 등 스토리지 문서 관리 기능에 대한 API를 설명한다.
+이 섹션의 엔드포인트는 현재 Swagger UI 기준으로 확인된 항목을 정리한 것이며, 요청/응답의 상세 스키마는 실제 Swagger UI 정의를 우선 기준으로 한다.
+
+### 8-1. 문서 업로드
+
+```http
+POST /api/v1/documents/upload
+Authorization: Bearer {accessToken}
+Content-Type: multipart/form-data
+```
+
+### 설명
+- 문서를 업로드한다.
+- 업로드된 문서는 `documents`, `document_files`를 기준으로 저장 및 관리한다.
+- 파일 저장 후 백업 스토리지 연동 정책에 따라 백업 작업이 수행될 수 있다.
+
+### 8-2. 문서 목록 조회
+
+```http
+GET /api/v1/documents
+Authorization: Bearer {accessToken}
+```
+### 설명
+- 현재 사용자가 접근 가능한 문서 목록을 조회한다.
+- 회사 문서와 공통 문서 기준으로 조회될 수 있다.
+- 상세 검색 조건, 정렬, 필터링 여부는 Swagger UI의 실제 파라미터 정의를 따른다.
+
+### 8-3. 문서 상세 조회
+```http
+GET /api/v1/documents/{documentId}
+Authorization: Bearer {accessToken}
+```
+
+| 필드           | 타입     | 필수 | 설명        |
+| ------------ | ------ | -- | --------- |
+| `documentId` | `Long` | Y  | 조회할 문서 ID |
+
+### 설명
+- 특정 문서의 상세 정보를 조회한다.
+- 문서 기본 정보와 파일 메타데이터를 함께 포함할 수 있다.
+
+### 8-4. 문서 파일 직접 다운로드 (로컬 개발용)
+```http
+GET /api/v1/documents/{documentId}/file
+Authorization: Bearer {accessToken}
+```
+
+### 설명
+- 로컬 개발 환경에서 문서 파일을 직접 다운로드한다.
+- 운영 환경에서는 직접 파일 반환 대신 다운로드 URL 발급 방식을 사용할 수 있다.
+
+### 8-5. 다운로드 URL 발급
+```http
+GET /api/v1/documents/{documentId}/download
+Authorization: Bearer {accessToken}
+```
+
+### 설명
+- 문서 파일 다운로드를 위한 URL을 발급한다.
+- 실제 파일은 스토리지 경로를 통해 제공될 수 있다.
+
+### 8-6. 문서 삭제 전 검증
+```http
+GET /api/v1/documents/{documentId}/delete-check
+Authorization: Bearer {accessToken}
+```
+
+### 설명
+- 특정 문서를 삭제하기 전에 삭제 가능 여부를 검증한다.
+- 연관 데이터, 백업 상태, 권한 조건 등을 확인할 수 있다.
+
+### 8-7. 문서 삭제
+```http
+DELETE /api/v1/documents/{documentId}
+Authorization: Bearer {accessToken}
+```
+
+### 설명
+- 특정 문서를 삭제한다.
+- 실제 삭제 방식은 물리 삭제 또는 논리 삭제 정책을 따른다.
+- 파일 및 백업 데이터 처리 방식은 서버 정책에 따른다.
+
+### 8-8. 문서 전체 삭제 전 검증
+```http
+GET /api/v1/documents/delete-check
+Authorization: Bearer {accessToken}
+```
+
+### 설명
+- 전체 문서 삭제 전에 삭제 가능 여부를 검증한다.
+- 삭제 대상 수, 삭제 불가 사유, 확인 필요 항목 등을 반환할 수 있다.
+
+### 8-9. 문서 전체 삭제
+```http
+DELETE /api/v1/documents
+Authorization: Bearer {accessToken}
+```
+
+### 설명
+- 전체 문서를 삭제한다.
+- confirm 필요 정책이 적용될 수 있다.
+- 실제 요청 규격은 Swagger UI 정의를 따른다.
+
+### 8-10. 문서 선택 삭제 전 검증
+```http
+POST /api/v1/documents/bulk-delete/delete-check
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+### 설명
+- 선택한 문서들을 삭제하기 전에 삭제 가능 여부를 검증한다.
+- 삭제 대상 목록 기준으로 검증 결과를 반환할 수 있다.
+
+### 8-11. 문서 선택 삭제
+```http
+POST /api/v1/documents/bulk-delete
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+### 설명
+- 선택한 문서들을 일괄 삭제한다.
+- confirm 필요 정책이 적용될 수 있다.
+- 실제 요청 바디 구조는 Swagger UI 정의를 따른다.
+
+### 8-12. 백업 재시도
+```http
+POST /api/v1/documents/{documentId}/backup/retry
+Authorization: Bearer {accessToken}
+```
+
+### 설명
+- 특정 문서의 백업 작업을 재시도한다.
+- `document_files`, `document_backup_jobs` 기준으로 백업 상태를 갱신하거나 새 작업을 생성할 수 있다.
+
+---
+
+## 9. 변경 이력
 
 - **v1.0.0 (2026-03-10)**:
   - 초기 버전 작성
@@ -691,4 +887,5 @@ Content-Type: application/json
 - **v1.7.3 (2026-04-13)**:
   - 채팅 메시지 목록 조회 응답 형식 수정
 - **v1.7.4 (2026-04-13)**:
-  - `user_activity_logs`의 `SESSION_START` 이벤트 기록 규칙 정리, 로그인 성공 시 `event_target = LOGIN` 로그 기록 규칙 추가
+  - `user_activity_logs`의 `SESSION_START` 이벤트 기록 규칙 정리, 로그인 성공 시 `event_target = LOGIN` 로그 기록 규칙 추가, `chat_message_documents` 기반 근거 문서 다중 연결 구조 반영, 채팅 메시지 응답 예시에 `documentIds` 추가, 내부 AI 응답의 근거 문서 저장 규칙 보강
+  - 스토리지 문서 API 엔드포인트 목록 추가, `document_files` 및 `document_backup_jobs` 기반 문서 관리/백업 기능 설명 보강
