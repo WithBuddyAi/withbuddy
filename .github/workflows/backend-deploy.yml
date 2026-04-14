@@ -168,7 +168,7 @@ jobs:
         with:
           host: ${{ secrets.DB_SERVER_HOST }}
           username: ${{ secrets.DB_SERVER_USER != '' && secrets.DB_SERVER_USER || secrets.BACKEND_SERVER_USER }}
-          key: ${{ secrets.DB_SERVER_SSH_KEY != '' && secrets.DB_SERVER_SSH_KEY || secrets.BACKEND_SERVER_SSH_KEY }}
+          key: ${{ contains(secrets.DB_SERVER_SSH_KEY, 'PRIVATE KEY-----') && secrets.DB_SERVER_SSH_KEY || secrets.BACKEND_SERVER_SSH_KEY }}
           proxy_host: ${{ secrets.DB_SERVER_PROXY_HOST }}
           proxy_username: ${{ secrets.DB_SERVER_PROXY_USER }}
           proxy_key: ${{ secrets.DB_SERVER_PROXY_SSH_KEY }}
