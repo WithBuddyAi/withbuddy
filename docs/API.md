@@ -414,11 +414,11 @@ Authorization: Bearer {accessToken}
   - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내 메시지
   - `suggestion`: 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
-- `rag_answer` 메시지인 경우, 근거 문서는 `chat_message_documents`를 기준으로 조회할 수 있다.
-- 근거 문서 ID 목록은 `documentIds` 배열로 반환할 수 있으며, 이는 답변 메시지와 연결된 문서 ID 목록을 의미한다.
-- 근거 문서 상세 정보는 `documents` 배열로 반환할 수 있다.
+- `rag_answer` 메시지인 경우, 근거 문서는 `chat_message_documents`를 기준으로 조회한다.
+- 근거 문서 ID 목록은 `documentIds` 배열로 반환하며, 이는 답변 메시지와 연결된 문서 ID 목록을 의미한다.
+- 근거 문서 상세 정보는 `documents` 배열로 반환한다.
 - `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
-- `documents[].documentType = TEMPLATE`인 경우 `documents[].file` 객체를 포함할 수 있다.
+- `documents[].documentType = TEMPLATE`인 경우 `documents[].file` 객체를 포함한다.
 - 프론트엔드는 `documents[].file.downloadUrl` 또는 `documents[].file.fileApiPath`를 통해 문서를 다운로드하거나 파일 응답으로 받을 수 있다.
 - `documents[].documentType != TEMPLATE`인 경우 `documents[].file`은 `null`일 수 있다.
 - `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documentIds`와 `documents`는 빈 배열(`[]`)이다.
@@ -559,13 +559,13 @@ Content-Type: application/json
 - 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
 - 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용하여 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
 - 내부 AI 응답에 근거 문서 목록(`document[].documentId`)이 포함된 경우, 백엔드는 답변 메시지 저장 후 `chat_message_documents`에 답변 메시지 ID와 문서 ID를 매핑하여 저장한다.
-- 백엔드는 AI 응답의 `document[].documentId` 목록을 기준으로 `documents`를 조회할 수 있다.
-- 답변 메시지 응답에는 근거 문서 ID 목록 `documentIds`와 근거 문서 상세 정보 `documents`를 포함할 수 있다.
+- 백엔드는 AI 응답의 `document[].documentId` 목록을 기준으로 `documents`를 조회한다.
+- 답변 메시지 응답에는 근거 문서 ID 목록 `documentIds`와 근거 문서 상세 정보 `documents`를 포함한다.
 - `documentIds`는 답변 메시지와 연결된 문서 ID 목록을 의미한다.
 - `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
-- 문서의 `document_type = TEMPLATE`인 경우, 파일 접근 정보는 `document_files`를 기준으로 조회하며 `documents[].file`에 포함할 수 있다.
-- 프론트엔드는 `documents[].file.downloadUrl` 또는 `documents[].fileApiPath`를 통해 파일을 다운로드하거나 파일 응답으로 받을 수 있다.
-- `document_type != TEMPLATE`인 경우, `documents[].file`은 일반적으로 포함하지 않거나 `null`로 반환할 수 있다.
+- 문서의 `document_type = TEMPLATE`인 경우, 파일 접근 정보는 `document_files`를 기준으로 조회하며 `documents[].file`에 포함한다.
+- 프론트엔드는 `documents[].file.downloadUrl` 또는 `documents[].file.fileApiPath`를 통해 문서를 다운로드하거나 파일 응답으로 받을 수 있다.
+- `document_type != TEMPLATE`인 경우, `documents[].file`은 일반적으로 포함하지 않거나 `null`로 반환한다.
 - 실제 파일 데이터는 채팅 메시지 응답 본문(JSON)에 직접 포함하지 않고, 별도 파일 API를 통해 반환한다.
 - `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
 - 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
@@ -814,7 +814,7 @@ Authorization: Bearer {accessToken}
 
 ### 설명
 - 특정 문서의 상세 정보를 조회한다.
-- 문서 기본 정보와 파일 메타데이터를 함께 포함할 수 있다.
+- 문서 기본 정보와 파일 메타데이터를 함께 포함한다.
 
 ### 8-4. 문서 파일 직접 다운로드
 ```http
@@ -829,10 +829,10 @@ Authorization: Bearer {accessToken}
 #### 동작 규칙
 - `documents.id = {documentId}`인 문서를 조회한다.
 - 해당 문서가 현재 로그인한 사용자의 회사 문서이거나 공통 문서인 경우만 접근 가능하다.
-- `document_type = TEMPLATE`인 경우 프론트엔드에 파일 자체를 반환할 수 있다.
+- `document_type = TEMPLATE`인 경우 프론트엔드에 파일 자체를 반환한다.
 - 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
 - 파일이 존재하면 `Content-Type`, `Content-Disposition` 헤더와 함께 바이너리 파일을 반환한다.
-- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환할 수 있다.
+- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
 
 #### Response (200 OK)
 ```http
@@ -879,7 +879,8 @@ Content-Disposition: attachment; filename="welfare-card-application.docx"
 
 ### 설명
 - 로컬 개발 환경에서 문서 파일을 직접 다운로드한다.
-- 운영 환경에서는 직접 파일 반환 대신 다운로드 URL 발급 방식을 사용할 수 있다.
+- 운영 환경에서는 직접 파일 반환 대신 다운로드 URL 발급 방식을 사용한다.
+- `GET /api/v1/documents/{documentId}/file`는 파일 바이너리를 직접 반환한다.
 
 ### 8-5. 다운로드 URL 발급
 ```http
@@ -890,6 +891,7 @@ Authorization: Bearer {accessToken}
 ### 설명
 - 문서 파일 다운로드를 위한 URL을 발급한다.
 - 실제 파일은 스토리지 경로를 통해 제공될 수 있다.
+- `GET /api/v1/documents/{documentId}/download`는 다운로드에 사용할 URL 또는 접근 경로를 반환한다.
 
 ### 8-6. 문서 삭제 전 검증
 ```http
@@ -899,7 +901,7 @@ Authorization: Bearer {accessToken}
 
 ### 설명
 - 특정 문서를 삭제하기 전에 삭제 가능 여부를 검증한다.
-- 연관 데이터, 백업 상태, 권한 조건 등을 확인할 수 있다.
+- 연관 데이터, 백업 상태, 권한 조건 등을 확인한다.
 
 ### 8-7. 문서 삭제
 ```http
@@ -920,7 +922,7 @@ Authorization: Bearer {accessToken}
 
 ### 설명
 - 전체 문서 삭제 전에 삭제 가능 여부를 검증한다.
-- 삭제 대상 수, 삭제 불가 사유, 확인 필요 항목 등을 반환할 수 있다.
+- 삭제 대상 수, 삭제 불가 사유, 확인 필요 항목 등을 반환한다.
 
 ### 8-9. 문서 전체 삭제
 ```http
@@ -930,7 +932,7 @@ Authorization: Bearer {accessToken}
 
 ### 설명
 - 전체 문서를 삭제한다.
-- confirm 필요 정책이 적용될 수 있다.
+- confirm 필요 정책이 적용된다.
 - 실제 요청 규격은 Swagger UI 정의를 따른다.
 
 ### 8-10. 문서 선택 삭제 전 검증
@@ -942,7 +944,7 @@ Content-Type: application/json
 
 ### 설명
 - 선택한 문서들을 삭제하기 전에 삭제 가능 여부를 검증한다.
-- 삭제 대상 목록 기준으로 검증 결과를 반환할 수 있다.
+- 삭제 대상 목록 기준으로 검증 결과를 반환한다.
 
 ### 8-11. 문서 선택 삭제
 ```http
@@ -964,7 +966,7 @@ Authorization: Bearer {accessToken}
 
 ### 설명
 - 특정 문서의 백업 작업을 재시도한다.
-- `document_files`, `document_backup_jobs` 기준으로 백업 상태를 갱신하거나 새 작업을 생성할 수 있다.
+- `document_files`, `document_backup_jobs` 기준으로 백업 상태를 갱신하거나 새 작업을 생성한다.
 
 ---
 
@@ -989,7 +991,7 @@ Authorization: Bearer {accessToken}
 - **v1.7.1 (2026-04-06)**:
   - `company_code` 예시값 수정
 - **v1.7.2 (2026-04-08)**:
-  - 내부 AI 요청을 `questionId`, `companyCode`, `content` 기반 구조로 단순화, 내부 AI 응답을 `questionId`, `messageType`, `content` 중심으로 수정, 내부 AI 연동 규격에서 `documentId`를 제외하도록 정리
+  - 내부 AI 요청을 `questionId`, `companyCode`, `content` 기반 구조로 단순화, 내부 AI 응답을 `questionId`, `messageType`, `content` 중심으로 수정
 - **v1.7.3 (2026-04-13)**:
   - 채팅 메시지 목록 조회 응답 형식 수정
 - **v1.7.4 (2026-04-13)**:
