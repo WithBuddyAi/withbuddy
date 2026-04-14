@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://api-wh.itsdev.kr/api/$1" },
     { "source": "/(.*)", "destination": "/" }
   ] 
 }
