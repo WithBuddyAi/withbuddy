@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.7.3
-**최종 업데이트**: 2026-04-13
+**버전**: 1.7.4
+**최종 업데이트**: 2026-04-14
 
 ---
 
@@ -206,6 +206,8 @@ Content-Type: application/json
 - 서버는 입력된 `companyCode`로 `companies`를 조회한다.
 - 서버는 조회된 `company_code`와 사용자 이름, 사번을 기준으로 `users`에서 사용자를 확인한다.
 - 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
+- 로그인에 성공하면 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = LOGIN` 로그를 기록한다.
+- 로그인 성공 시의 `SESSION_START` 로그는 재로그인 시점 추적 용도로 사용한다.
 
 #### Response (200 OK)
 
@@ -556,6 +558,47 @@ Authorization: Bearer {accessToken}
 - 빠른 질문 클릭 자체가 별도의 답변 생성 API를 호출하지는 않는다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
 
+### 6-5. 채팅 화면 진입 로그 기록
+사용자가 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.  
+이때 `event_target = CHAT`으로 저장한다.  
+단, 동일 사용자가 **30분 이내에 다시 채팅 화면에 진입한 경우** 중복 기록하지 않는다.
+
+```http
+POST /api/v1/chat/session-start
+Authorization: Bearer {accessToken}
+```
+
+#### Response (201 Created)
+
+```json
+{
+  "logged": true,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "createdAt": "2026-04-13T09:00:00Z"
+}
+```
+#### Response (200 OK, 중복 기록 제외)
+```json
+{
+  "logged": false,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "message": "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다."
+}
+```
+
+#### 설명
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 채팅 화면 진입 시 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = CHAT`으로 기록한다.
+- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 동일 사용자가 최근 30분 이내에 이미 `event_target = CHAT`인 `SESSION_START` 이벤트를 기록한 경우 새로 저장하지 않는다.
+- 프론트엔드는 채팅 화면 최초 진입 시 이 API를 1회 호출한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 채팅 메시지 목록 조회 API(`GET /api/v1/chat/messages`) 호출만으로는 `SESSION_START` 로그를 자동 기록하지 않는다.
+- 채팅 화면 진입 로그는 별도 API(`POST /api/v1/chat/session-start`) 호출로 기록한다.
+
 ---
 
 ## 7. 내부 AI 연동 규격
@@ -625,7 +668,8 @@ Content-Type: application/json
 
 ## 8. 변경 이력
 
-- **v1.0.0 (2026-03-10)**: 초기 버전 작성
+- **v1.0.0 (2026-03-10)**:
+  - 초기 버전 작성
 - **v1.1.0 (2026-03-17)**:
   - 멀티 테넌시 구조 적용, 로그인 API 변경, 회사 식별 정보 응답 구조 추가, 회사 관리 API 추가, 데이터 격리 설명 추가, JWT 페이로드 구조 업데이트, 비밀번호 제거
 - **v1.2.0 (2026-03-17)**:
@@ -641,8 +685,10 @@ Content-Type: application/json
 - **v1.7.0 (2026-04-03)**:
   - 로그인 API 입력값 검증 적용에 따라 `400 Bad Request` 의미를 구체화, `POST /api/v1/auth/login`의 `200/400/401` 상태 코드 기준 정리, 예외 응답 형식 변경
 - **v1.7.1 (2026-04-06)**:
-- `company_code` 예시값 수정
+  - `company_code` 예시값 수정
 - **v1.7.2 (2026-04-08)**:
   - 내부 AI 요청을 `questionId`, `companyCode`, `content` 기반 구조로 단순화, 내부 AI 응답을 `questionId`, `messageType`, `content` 중심으로 수정, 내부 AI 연동 규격에서 `documentId`를 제외하도록 정리
 - **v1.7.3 (2026-04-13)**:
-- 채팅 메시지 목록 조회 응답 형식 수정
+  - 채팅 메시지 목록 조회 응답 형식 수정
+- **v1.7.4 (2026-04-13)**:
+  - `user_activity_logs`의 `SESSION_START` 이벤트 기록 규칙 정리, 로그인 성공 시 `event_target = LOGIN` 로그 기록 규칙 추가
