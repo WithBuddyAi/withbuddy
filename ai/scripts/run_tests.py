@@ -96,22 +96,15 @@ async def evaluate_with_ragas(samples: list) -> dict:
     """RAGAS로 답변 품질 평가 (Claude 사용)"""
     try:
         from ragas import EvaluationDataset, evaluate
-        from ragas.llms import LangchainLLMWrapper
-        from ragas.embeddings import LangchainEmbeddingsWrapper
-        from ragas.metrics import AnswerRelevancy, Faithfulness
-        from ragas.metrics import AspectCritic
+        from ragas.metrics.collections import AnswerRelevancy, Faithfulness, AspectCritic
+        from ragas.llms import llm_factory
+        from ragas.embeddings import HuggingFaceEmbeddings as RagasHFEmbeddings
+        from anthropic import Anthropic
         from langchain_anthropic import ChatAnthropic
-        from langchain_huggingface import HuggingFaceEmbeddings
 
-        llm = LangchainLLMWrapper(
-            ChatAnthropic(
-                model="claude-haiku-4-5-20251001",
-                api_key=os.getenv("ANTHROPIC_API_KEY"),
-            )
-        )
-        embeddings = LangchainEmbeddingsWrapper(
-            HuggingFaceEmbeddings(model_name="jhgan/ko-sroberta-multitask")
-        )
+        anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        llm = llm_factory("claude-haiku-4-5-20251001", client=anthropic_client)
+        embeddings = RagasHFEmbeddings(model="jhgan/ko-sroberta-multitask")
 
         # 법령 조항 번호 포함 여부 (법률 그룹만 의미 있음)
         legal_citation = AspectCritic(
