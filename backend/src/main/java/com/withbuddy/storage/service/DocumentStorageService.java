@@ -138,6 +138,14 @@ public class DocumentStorageService {
         try {
             objectStorageClient.putObject(primary.getNamespace(), primary.getBucket(), objectKey, payload);
         } catch (Exception e) {
+            log.error(
+                    "원본 스토리지 업로드 실패 (namespace={}, bucket={}, key={}, reason={})",
+                    primary.getNamespace(),
+                    primary.getBucket(),
+                    objectKey,
+                    safeMessage(e),
+                    e
+            );
             throw new StorageException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "FILE_003",
