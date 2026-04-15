@@ -1,309 +1,120 @@
 # 기여 가이드
 
-> WithBuddy 프로젝트에 기여하는 방법
-> 이 문서는 실제 작업자가 브랜치를 만들고, 커밋하고, PR을 올릴 때 따라야 하는 절차를 설명한다.
+WithBuddy 저장소 작업자가 실제로 따라야 하는 브랜치, 커밋, PR 절차를 정의한다.
 
+**최종 업데이트**: 2026-04-02  
+**버전**: 1.1.3
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.0.0
-
-## 📋 목차
-- [기여 프로세스](#기여-프로세스)
-- [브랜치 전략](#브랜치-전략)
-- [커밋 메시지 컨벤션](#커밋-메시지-컨벤션)
-- [Pull Request 가이드](#pull-request-가이드)
-- [코드 리뷰](#코드-리뷰)
-- [다음 단계](#다음-단계)
-
----
-
-## 기여 프로세스
-
-### 1. 작업 시작 전 확인
-
-1. GitHub Issue 또는 작업 범위를 확인한다.
-2. 관련 라벨과 담당자를 확인한다.
-3. 작업 기준 브랜치가 `develop` 인지 확인한다.
-
-### 2. 브랜치 생성
+## 1. 브랜치 생성
 
 ```bash
-# 기능 개발은 최신 develop 브랜치에서 시작
 git checkout develop
 git pull origin develop
-
-# 새 작업 브랜치 생성
-git checkout -b feature/123-add-feature
+git checkout -b feature/SCRUM-68-add-feature
 ```
 
-브랜치 예시:
-```text
-feature/123-add-weekly-report
-fix/456-login-error
-docs/update-readme
-refactor/improve-service-logic
-test/add-unit-tests
-chore/update-dependencies
-release/1.0.0
-hotfix/1.0.1-fix-login
-```
-
-### 3. 개발
-
-- 코드를 수정한다.
-- 필요한 테스트를 추가하거나 수정한다.
-- 로컬에서 테스트와 빌드를 먼저 확인한다.
-
-### 4. 커밋
-
-```bash
-git add .
-git commit -m "feat: Add weekly report generation feature"
-```
-
-커밋 전에 확인:
-```text
-- 불필요한 파일이 stage 되지 않았는가?
-- 커밋 메시지가 컨벤션에 맞는가?
-- 변경 의도가 한 커밋 안에서 일관적인가?
-```
-
-### 5. Push 및 Pull Request 생성
-
-```bash
-git push origin feature/123-add-feature
-```
-
-PR 생성 기준:
-- `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` 의 base 브랜치는 `develop`
-- `release/*`, `hotfix/*` 의 base 브랜치는 `main`
-
-### 6. 리뷰 반영 및 merge
-![PR base branch example](./images/branch.png)
-
-- `base`: 변경사항이 병합될 대상 브랜치
-- `compare`: 현재 작업한 브랜치
-- 기능, 문서, 리팩토링 작업은 보통 `develop` 으로 PR 생성
-- `release/*`, `hotfix/*` 는 예외적으로 `main` 으로 PR 생성
-
-### 6. 리뷰 반영 및 merge
-
-- 최소 1명 이상의 승인을 받는다.
-- CI/CD 통과 여부를 확인한다.
-- 리뷰 요청 사항을 반영한 뒤 다시 push 한다.
-- 기본 merge 방식은 `Squash and merge` 를 사용한다.
-- merge 후 작업 브랜치를 삭제한다.
-- `release/*`, `hotfix/*` 는 `main` 반영 후 반드시 `develop` 에도 동기화한다.
-
----
-
-## 브랜치 전략
+브랜치 규칙:
 
 ```text
-브랜치명이 규칙에 맞는가?
-PR 대상 브랜치가 맞는가?
-로컬 테스트가 통과하는가?
-불필요한 변경 파일이 없는가?
-리뷰어와 라벨을 지정했는가?
-관련 이슈를 연결했는가?
-```
-
-## 브랜치 명명 규칙
-
-```text
-feature/이슈번호-간단한-설명
-fix/이슈번호-버그-설명
-docs/문서-수정-내용
-refactor/리팩토링-내용
-test/테스트-추가-내용
-chore/빌드-설정-변경
-release/버전
-hotfix/버전-간단한-설명
-release/버전
-hotfix/버전-간단한-설명
-```
-
-### 예시
-```text
-feature/123-add-weekly-report
-fix/456-login-error
-docs/update-readme
-refactor/improve-service-logic
-test/add-unit-tests
-chore/update-dependencies
-release/1.0.0
-hotfix/1.0.1-fix-login
-```
-
-### 브랜치 수명
-```
-- feature/* : PR merge 후 삭제
-- fix/* : PR merge 후 삭제
-- main : 영구 유지
-```
-
----
-
-## 커밋 메시지 컨벤션
-
-### 기본 형식
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-### Type
-```
-feat     : 새로운 기능 추가
-fix      : 버그 수정
-docs     : 문서 수정
-style    : 코드 포맷팅 (세미콜론 누락 등, 코드 변경 없음)
-refactor : 코드 리팩토링
-test     : 테스트 코드 추가/수정
-chore    : 빌드, 라이브러리 업데이트 등
-```
-
-### Scope (선택사항)
-```
-record   : 기록 도메인
-user     : 사용자 도메인
-auth     : 인증
-conversation : Q&A 도메인
-progress : 진행률
-checklist : 체크리스트
-```
-
-### Subject
-```
-- 50자 이내
-- 영문으로 작성 시 첫 글자 대문자
-- 마침표 없음
-- 명령형 사용 (Add, Fix, Update)
-```
-
-### 예시
-```bash
-feat(record): Add AI summary feature for daily records
-
-- Integrate with FastAPI summarization endpoint
-- Add summary button to record detail page
-- Display summarized content with markdown support
-
-Resolves: #123
-
-feat: Implement weekly report generation
-
-fix(auth): Resolve login authentication error
-
-docs: Update API documentation
-
-refactor(record): Improve record service logic
-
-test(user): Add unit tests for UserService
-```
-
----
-
-## Pull Request 가이드
-
-### PR 제목 컨벤션
-
-```text
-[TYPE] Brief description
+feature/SCRUM-##-설명
+fix/SCRUM-##-설명
+docs/SCRUM-##-설명
+refactor/SCRUM-##-설명
+test/SCRUM-##-설명
+chore/SCRUM-##-설명
+hotfix/SCRUM-##-설명
 ```
 
 예시:
-```text
-[FEAT] Add weekly report generation
-[FIX] Resolve login authentication error
-[DOCS] Update API documentation
-[REFACTOR] Improve record service logic
-```
-
-### PR 템플릿
-```markdown
-## 요약
-- 무엇을, 왜 변경했는지 한두 줄로 간단히 작성해주세요.
-
-## 문서 버전 (문서 변경 시)
-- 업데이트된 문서 버전을 적어주세요.
-- 예시: `1.2.0`
-
-## 변경 사항
-- 변경된 동작/기능을 항목별로 적어주세요.
-- (예) 로그인 실패 시 오류 메시지 개선
-
-## 스크린샷/영상 (UI 변경 시)
-- 전/후 비교가 가능하도록 첨부해주세요.
-
-## 관련 이슈
-- `Closes #이슈번호` 형식으로 연결해주세요.
-- 예시: `Closes #123`
-
-## 체크리스트
-- [ ] 변경 의도와 범위를 이해할 수 있게 작성했다
-- [ ] 로컬 테스트를 수행했다 (또는 테스트 불가 사유를 기록했다)
-- [ ] 문서/가이드 업데이트가 필요한 경우 반영했다
-
-## 💬 리뷰어에게
-<!-- 특별히 확인해주었으면 하는 부분 -->
-```
-
-### PR 생성 시 확인사항
-```text
-브랜치명이 규칙에 맞는가?
-PR 대상 브랜치가 맞는가?
-커밋 메시지가 규칙에 맞는가?
-로컬에서 테스트가 통과하는가?
-충돌이 없는가?
-리뷰어가 지정되어 있는가?
-라벨이 추가되어 있는가?
-관련 Issue가 링크되어 있는가?
-```
-
----
-
-## 코드 리뷰
-
-### 리뷰어 역할
-```
-1. 코드 품질 확인
-2. 버그 가능성 체크
-3. 가독성 검토
-4. 테스트 충분성 확인
-5. 컨벤션 준수 확인
-```
 
 ```text
-코드 품질
-버그 가능성
-가독성
-테스트 충분성
-컨벤션 준수 여부
+feature/SCRUM-68-onboarding-roadmap
+fix/SCRUM-72-login-timeout
+docs/SCRUM-81-redis-rabbitmq-ops
 ```
 
-### 좋은 리뷰 코멘트 예시
+## 2. 개발/테스트
+
+- 변경 목적에 맞게 코드 또는 문서를 수정한다.
+- 로컬 테스트 가능한 범위에서 검증한다.
+- 불필요한 파일이 포함되지 않도록 `git status`로 확인한다.
+
+## 3. 커밋
+
+```bash
+git add .
+git commit -m "feat: Add weekly report generation"
+```
+
+커밋 메시지 규칙(Conventional Commits):
 
 ```text
-이 부분은 Optional을 사용하면 더 안전할 것 같습니다. 어떻게 생각하시나요?
+feat, fix, docs, refactor, test, chore, ci, build, perf
 ```
 
-### Approve 기준
+자동 버전 산정 기준:
+
+- `BREAKING CHANGE` 또는 `type(scope)!:` 포함 커밋이 있으면 `MAJOR` 증가
+- `feat:` 커밋이 있으면 `MINOR` 증가
+- 그 외 커밋은 `PATCH` 증가
+
+## 4. PR 생성
+
+```bash
+git push origin feature/SCRUM-68-add-feature
 ```
-- 로직이 올바른가?
-- 테스트가 충분한가?
-- 컨벤션을 지켰는가?
-- 문서가 업데이트 되었는가? (필요 시)
-- CI/CD가 통과했는가?
+
+PR base 규칙:
+
+- `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` -> `develop`
+- `develop`, `hotfix/*` -> `main`
+
+## 5. PR 본문 자동 생성
+
+- PR 생성/업데이트 시 `.github/workflows/pr-autofill.yml`이 커밋 메시지를 기반으로 PR 본문을 자동 작성한다.
+- 기본 템플릿은 `.github/pull_request_template.md` 형식을 유지한다.
+- 수동으로 본문을 고정하려면 `<!-- AUTO_FILL_LOCK -->`를 PR 본문에 추가한다.
+
+## 6. 리뷰/병합
+
+- 최소 1명 승인 후 병합
+- 필수 CI 통과 확인
+- 기본 병합 방식은 `Squash and merge`
+- `hotfix/*`는 `main` 반영 후 `develop` 동기화 필수
+
+## 7. 자동 버전 태그/릴리스
+
+- `main` 브랜치로 push(= PR merge) 되면 `.github/workflows/release-tag.yml`이 자동 실행된다.
+- 최신 태그(`v*`) 이후 커밋을 분석해 `vMAJOR.MINOR.PATCH` 태그를 자동 생성한다.
+- 릴리스 대상 커밋에 포함된 Markdown 문서 중 `**버전**`, `**최종 업데이트**` 헤더가 있는 파일은 태그 버전/당일 날짜로 자동 동기화한다.
+- 태그는 `annotated tag`로 발행된다.
+- 태그 생성 후 GitHub Release가 자동 생성되고 릴리스 노트가 자동 첨부된다.
+
+기본 원칙:
+
+- 릴리스 태그는 `main`에만 발행한다.
+- 버전 포맷은 `v0.x.y`로 시작하고, 안정화 시점에 `v1.0.0`으로 전환한다.
+- 커밋 메시지가 규칙에서 벗어나면 의도한 버전 상승이 되지 않을 수 있으므로 타입 접두사를 반드시 명시한다.
+
+수동 예외 처리:
+
+- 긴급 패치 등으로 자동 증가 결과를 조정해야 할 경우 릴리스 담당자가 수동 태그를 우선 발행한다.
+- 자동 워크플로는 이미 존재하는 태그를 재생성하지 않는다.
+
+## 8. PR 체크리스트
+
+```text
+브랜치명 규칙 준수
+PR 대상 브랜치 적합
+커밋 메시지 규칙 준수
+테스트/검증 수행
+리뷰어 지정
+관련 이슈 연결
 ```
 
----
+## 변경 이력
 
-## 다음 단계
-
-- [코딩 컨벤션](../conventions/CODING.md) - Java, JavaScript, Python 규칙
-- [개발 환경 설정](SETUP.md) - 로컬 개발 환경 구축
-- [Git Flow 설정 체크리스트](GIT-FLOW-SETUP.md) - GitHub 저장소 보호 규칙
+- 2026-03-30: 문서를 정리하고 `pr-autofill.yml` 기반 PR 본문 자동 생성 절차를 추가.
+- 2026-04-02: `release-tag.yml` 기반 자동 SemVer 태그/Release 정책을 추가했다.
+- 2026-04-02: `release/*` 브랜치 정책을 제거하고 `develop -> main` 직접 반영 규칙으로 통일했다.
+- 2026-04-02: Jira 서브태스크 브랜치 키 표기를 `SCRUM-##` 대문자로 통일했다.

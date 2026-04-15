@@ -1,0 +1,197 @@
+name: Release Tag
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "ai/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-tag-main
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Auto Version Tag
+    if: |
+      ${{
+        !startsWith(github.event.head_commit.message, 'chore(release-docs):') &&
+        !contains(github.event.head_commit.message, 'chore/release-docs-')
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute next semantic version
+        id: semver
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1 || true)"
+          if [[ -n "$latest_tag" ]]; then
+            subjects="$(git log "${latest_tag}..HEAD" --pretty=format:'%s')"
+            bodies="$(git log "${latest_tag}..HEAD" --pretty=format:'%b')"
+          else
+            subjects="$(git log --pretty=format:'%s')"
+            bodies="$(git log --pretty=format:'%b')"
+          fi
+
+          if [[ -z "${subjects// }" ]]; then
+            echo "No commits to release."
+            echo "should_tag=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if grep -Eq 'BREAKING CHANGE' <<< "$bodies" || grep -Eq '^[a-z]+(\(.+\))?!:' <<< "$subjects"; then
+            bump="major"
+          elif grep -Eq '^feat(\(.+\))?:' <<< "$subjects"; then
+            bump="minor"
+          else
+            bump="patch"
+          fi
+
+          base="${latest_tag#v}"
+          if [[ -z "$base" ]]; then
+            base="0.1.0"
+          fi
+
+          IFS='.' read -r major minor patch <<< "$base"
+          case "$bump" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          next_tag="v${major}.${minor}.${patch}"
+          if git rev-parse "$next_tag" >/dev/null 2>&1; then
+            echo "Tag already exists: $next_tag"
+            echo "should_tag=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_tag=true" >> "$GITHUB_OUTPUT"
+          echo "next_tag=$next_tag" >> "$GITHUB_OUTPUT"
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Sync document version headers
+        if: steps.semver.outputs.should_tag == 'true'
+        id: docs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          next_tag="${{ steps.semver.outputs.next_tag }}"
+          latest_tag="${{ steps.semver.outputs.latest_tag }}"
+          next_version="${next_tag#v}"
+          today="$(TZ=Asia/Seoul date +%Y-%m-%d)"
+
+          if [[ -n "$latest_tag" ]]; then
+            mapfile -t md_files < <(git diff --name-only "${latest_tag}..HEAD" -- '*.md')
+          else
+            mapfile -t md_files < <(git diff-tree --no-commit-id --name-only -r HEAD -- '*.md')
+          fi
+
+          if [[ "${#md_files[@]}" -eq 0 ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          touched=0
+          for file in "${md_files[@]}"; do
+            [[ -f "$file" ]] || continue
+
+            updated=0
+            if grep -qE '^\*\*버전\*\*:' "$file"; then
+              sed -i -E "s|^\*\*버전\*\*:.*$|**버전**: ${next_version}|" "$file"
+              updated=1
+            fi
+            if grep -qE '^\*\*최종 업데이트\*\*:' "$file"; then
+              sed -i -E "s|^\*\*최종 업데이트\*\*:.*$|**최종 업데이트**: ${today}|" "$file"
+              updated=1
+            fi
+
+            if [[ "$updated" -eq 1 ]]; then
+              touched=1
+            fi
+          done
+
+          if [[ "$touched" -eq 0 ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --quiet -- '*.md'; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create PR for document version sync
+        if: steps.docs.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(release-docs): sync document version to ${{ steps.semver.outputs.next_tag }}"
+          title: "chore(release-docs): sync document version to ${{ steps.semver.outputs.next_tag }}"
+          body: |
+            Automated sync of markdown version headers for `${{ steps.semver.outputs.next_tag }}`.
+          branch: chore/release-docs-${{ steps.semver.outputs.next_tag }}
+          base: main
+          add-paths: |
+
+            *.md
+            **/*.md
+          delete-branch: true
+
+      - name: Create and push tag
+        if: steps.semver.outputs.should_tag == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.semver.outputs.next_tag }}"
+          bump="${{ steps.semver.outputs.bump }}"
+          latest="${{ steps.semver.outputs.latest_tag }}"
+          message="release: ${tag}"
+          if [[ -n "$latest" ]]; then
+            message="${message} (${bump} from ${latest})"
+          else
+            message="${message} (${bump} initial release)"
+          fi
+
+          git tag -a "$tag" -m "$message"
+          git push origin "$tag"
+
+      - name: Create GitHub release
+        if: steps.semver.outputs.should_tag == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.semver.outputs.next_tag }}
+          generate_release_notes: true

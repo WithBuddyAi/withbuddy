@@ -2,8 +2,9 @@
 
 > 클라우드 인프라 및 네트워크 구성
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.0
+**최종 업데이트**: 2026-04-11
+**버전**: 0.6.0
+**작성일**: 2026-03-27
 
 ---
 
@@ -21,31 +22,20 @@
 
 ## 1. 인프라 개요
 
-### 1.1 클라우드 선택지
+### 1.1 클라우드 선택
 
-WithBuddy는 다음 클라우드 중 하나를 선택 예정:
+WithBuddy는 **Oracle Cloud(OCI)** 로 결정했음.
 
-| 클라우드 | 장점 | 단점 | 권장 사유 |
-|---------|------|------|----------|
-| **AWS** | 가장 많은 서비스, 풍부한 레퍼런스 | 비용 복잡 | 범용적, 안정적 |
-| **GCP** | AI/ML 특화, BigQuery | 서비스 수 적음 | AI 워크로드 최적 |
-| **Oracle Cloud** | 무료 티어 관대, 가성비 | 생태계 작음 | 스타트업 초기 |
+**선정 이유**:
+- 비용 효율 (Always Free/저비용 리소스 활용)
+- 오사카 리전 제공
+- Arm 기반 A1 인스턴스 가성비
 
 ### 1.2 인프라 구성 요소
 
-```
-┌─────────────────────────────────────────────────────┐
-│              Cloudflare (DNS & CDN)                  │
-└──────────────────────┬──────────────────────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        │                             │
-        ↓                             ↓
-┌───────────────┐            ┌─────────────────────┐
-│    Vercel     │            │  Cloud Provider     │
-│   (Frontend)  │            │  (Backend/AI/DB)    │
-└───────────────┘            └─────────────────────┘
-```
+[![Infrastructure Overview](./images/infrastructure-overview.png)](./images/infrastructure-overview.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
 ---
 
@@ -53,88 +43,95 @@ WithBuddy는 다음 클라우드 중 하나를 선택 예정:
 
 ### 2.1 VCN (Virtual Cloud Network) 설계
 
+현재 구성은 **오사카 리전**에서 **두 개 테넌시 분리**로 운영한다.
+
+[![Network Topology](./images/network-topology.png)](./images/network-topology.png)
+
+모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
+
+**중요**: 두 VCN의 CIDR은 반드시 겹치지 않아야 한다.
+
+### 2.2 Cross-Tenancy LPG 피어링
+
+**필수 정보**:
+- VCN-A CIDR, VCN-B CIDR
+- 양쪽 LPG OCID
+- 라우트 테이블 및 보안 목록/NSG
+
+**라우트 테이블 예시**:
 ```
-┌─────────────────── VCN (10.0.0.0/16) ───────────────────┐
-│                                                           │
-│  Public Subnet (10.0.1.0/24)                            │
-│  ┌──────────────────────────────────────────┐           │
-│  │  - Load Balancer (ALB/NLB)               │           │
-│  │  - NAT Gateway                            │           │
-│  │  - Bastion Host (관리용, 선택)           │           │
-│  └──────────────────────────────────────────┘           │
-│                                                           │
-│  Private Subnet - App (10.0.2.0/24)                     │
-│  ┌──────────────────────────────────────────┐           │
-│  │  - Backend Server (Spring Boot)          │           │
-│  │  - AI Server (FastAPI)                   │           │
-│  │  - Redis Cache                            │           │
-│  └──────────────────────────────────────────┘           │
-│                                                           │
-│  Private Subnet - DB (10.0.3.0/24)                      │
-│  ┌──────────────────────────────────────────┐           │
-│  │  - MySQL Database                         │           │
-│  └──────────────────────────────────────────┘           │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+VCN-A:
+Destination         Target
+10.0.0.0/16         LPG-A (to VCN-B)
+
+VCN-B:
+Destination         Target
+10.1.0.0/16         LPG-B (to VCN-A)
 ```
 
-### 2.2 Subnet 구성
+### 2.3 Subnet 구성
 
-#### Public Subnet (10.0.1.0/24)
-**용도**: 외부 인터넷과 통신하는 리소스
+#### VCN-A (AI 테넌시)
 
-| 리소스 | 용도 | 비고 |
+**Private Subnet - AI (10.1.2.0/24)**  
+용도: AI 서버 전용 (Private)
+
+| 리소스 | 포트 | 접근 |
 |-------|------|------|
-| Load Balancer | HTTPS 요청 받기 | ALB 또는 NLB |
-| NAT Gateway | Private Subnet의 아웃바운드 | 고가용성 |
-| Bastion Host | SSH 접속 (관리용) | 선택 사항 |
+| AI Server (FastAPI) | 8000 | Backend only (LPG) |
+
+**라우팅 테이블**:
+```
+Destination         Target
+10.0.0.0/16         LPG-A (to VCN-B)
+0.0.0.0/0           NAT Gateway (아웃바운드, 선택)
+```
+
+#### VCN-B (Backend/DB/Core Services 테넌시)
+
+**Public Subnet (10.0.1.0/24)**  
+용도: 외부에서 접근 가능한 Backend
+
+| 리소스 | 포트 | 접근 |
+|-------|------|------|
+| Backend (Spring Boot) | 8080 | Vercel, 운영자 |
 
 **라우팅 테이블**:
 ```
 Destination         Target
 0.0.0.0/0          Internet Gateway
 10.0.0.0/16        Local
+10.1.0.0/16        LPG-B (to VCN-A)
 ```
 
-#### Private Subnet - App (10.0.2.0/24)
-**용도**: 애플리케이션 서버
+**Private Subnet - DB (10.0.3.0/24)**  
+용도: 데이터베이스
 
 | 리소스 | 포트 | 접근 |
 |-------|------|------|
-| Backend (Spring Boot) | 8080 | Load Balancer, Vercel |
-| AI Server (FastAPI) | 8000 | Backend only |
-| Redis | 6379 | Backend, AI Server |
-
-**라우팅 테이블**:
-```
-Destination         Target
-0.0.0.0/0          NAT Gateway (아웃바운드)
-10.0.0.0/16        Local
-```
-
-#### Private Subnet - DB (10.0.3.0/24)
-**용도**: 데이터베이스
-
-| 리소스 | 포트 | 접근 |
-|-------|------|------|
-| MySQL 8.0 | 3306 | Backend, AI Server |
+| MySQL 8.0 | 3306 | Backend only |
 
 **라우팅 테이블**:
 ```
 Destination         Target
 10.0.0.0/16        Local
 ```
-**중요**: 외부 인터넷 접근 불가 (보안)
+
+### 2.4 통신 경로 요약
+
+- Frontend → Backend: Public HTTPS → Backend (8080)
+- Backend ↔ AI: LPG (VCN-B ↔ VCN-A), 8000
+- Backend → MySQL: VCN-B 내부, 3306
 
 ---
 
-## 3. 보안 그룹
+## 3. 보안 그룹 (NSG/보안 목록)
 
-### 3.1 Load Balancer Security Group
+### 3.1 Backend Public Access
 
 ```yaml
-Name: sg-withbuddy-lb
-Description: Load Balancer security group
+Name: sl-withbuddy-backend-public
+Description: Backend 공개 접근 규칙 (Public Subnet)
 
 Inbound Rules:
   - Type: HTTPS
@@ -150,51 +147,38 @@ Inbound Rules:
     Description: Redirect to HTTPS
 
 Outbound Rules:
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 8080
-    Destination: sg-withbuddy-backend
-    Description: Forward to Backend
+  - Type: All
+    Protocol: All
+    Destination: 0.0.0.0/0
+    Description: 일반 아웃바운드
 ```
 
-### 3.2 Backend Security Group
+### 3.2 Backend Security Group (VCN-B)
 
 ```yaml
-Name: sg-withbuddy-backend
+Name: nsg-withbuddy-backend
 Description: Backend (Spring Boot) security group
 
 Inbound Rules:
   - Type: Custom TCP
     Protocol: TCP
     Port: 8080
-    Source: sg-withbuddy-lb
-    Description: From Load Balancer
-    
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 8080
-    Source: <Vercel IP ranges>
-    Description: From Vercel Frontend
+    Source: 0.0.0.0/0
+    Description: Public API (필요 시 Vercel IP로 제한)
 
 Outbound Rules:
-  - Type: MySQL/Aurora
+  - Type: MySQL
     Protocol: TCP
     Port: 3306
-    Destination: sg-withbuddy-mysql
-    Description: To MySQL
-    
+    Destination: 10.0.3.0/24
+    Description: To MySQL (VCN-B)
+
   - Type: Custom TCP
     Protocol: TCP
     Port: 8000
-    Destination: sg-withbuddy-ai
-    Description: To AI Server
-    
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Destination: sg-withbuddy-redis
-    Description: To Redis
-    
+    Destination: <VCN-A CIDR>
+    Description: To AI Server via LPG
+
   - Type: HTTPS
     Protocol: TCP
     Port: 443
@@ -202,32 +186,20 @@ Outbound Rules:
     Description: Anthropic Claude API, Object Storage
 ```
 
-### 3.3 AI Server Security Group
+### 3.3 AI Server Security Group (VCN-A)
 
 ```yaml
-Name: sg-withbuddy-ai
+Name: nsg-withbuddy-ai
 Description: AI Server (FastAPI) security group
 
 Inbound Rules:
   - Type: Custom TCP
     Protocol: TCP
     Port: 8000
-    Source: sg-withbuddy-backend
-    Description: From Backend ONLY
+    Source: <VCN-B CIDR>
+    Description: From Backend via LPG only
 
 Outbound Rules:
-  - Type: MySQL/Aurora
-    Protocol: TCP
-    Port: 3306
-    Destination: sg-withbuddy-mysql
-    Description: To MySQL
-    
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Destination: sg-withbuddy-redis
-    Description: To Redis
-    
   - Type: HTTPS
     Protocol: TCP
     Port: 443
@@ -235,50 +207,45 @@ Outbound Rules:
     Description: Anthropic Claude API
 ```
 
-### 3.4 MySQL Security Group
+### 3.4 MySQL Security Group (VCN-B)
 
 ```yaml
-Name: sg-withbuddy-mysql
+Name: nsg-withbuddy-mysql
 Description: MySQL Database security group
 
 Inbound Rules:
-  - Type: MySQL/Aurora
+  - Type: MySQL
     Protocol: TCP
     Port: 3306
-    Source: sg-withbuddy-backend
-    Description: From Backend
-    
-  - Type: MySQL/Aurora
-    Protocol: TCP
-    Port: 3306
-    Source: sg-withbuddy-ai
-    Description: From AI Server
+    Source: <VCN-B CIDR>
+    Description: From Backend subnet
 
 Outbound Rules:
   - None (데이터베이스는 아웃바운드 불필요)
 ```
 
-### 3.5 Redis Security Group
+### 3.5 운영 복구 메모 (2026-04-09)
+
+로그인 API 타임아웃 장애(`Backend -> DB 3306 timeout`)를 실제 OCI 설정 기준으로 점검한 결과, 직접 원인은
+`<BACKEND_DB_SUBNET_NAME>` 보안 목록(Security List) egress 누락이었다.
+
+- 증상: `<BACKEND_PRIVATE_IP> -> <DB_PRIVATE_IP>:3306` 타임아웃, `/api/v1/auth/login` 응답 지연/타임아웃
+- 원인: DB ingress(3306)는 있었지만, 내부망 대상 egress가 `10.2.0.0/16` 위주로만 구성됨
+- 복구: 동일 서브넷 내부 통신 허용 egress 규칙 추가
 
 ```yaml
-Name: sg-withbuddy-redis
-Description: Redis Cache security group
+Mandatory Egress Rules (same-subnet/shared-subnet 운영 시):
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 3306 (MySQL)
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 6379 (Redis)
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 5672 (RabbitMQ)
+```
 
-Inbound Rules:
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Source: sg-withbuddy-backend
-    Description: From Backend
-    
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Source: sg-withbuddy-ai
-    Description: From AI Server
+검증 명령:
 
-Outbound Rules:
-  - None
+```bash
+# Backend 서버에서
+nc -vz -w 5 <DB_PRIVATE_IP> 3306
+curl -X POST https://<API_DOMAIN>/api/v1/auth/login ...
 ```
 
 ---
@@ -384,98 +351,40 @@ Maintenance:
   Window: Sun 04:00-05:00 UTC (한국시간 일요일 13:00-14:00)
 ```
 
-#### Redis Storage
-
-```yaml
-Instance Type: cache.t3.medium
-Engine Version: 7.0
-Replicas: 1 (고가용성)
-Max Memory: 3.09 GB
-Eviction Policy: allkeys-lru
-
-Snapshot:
-  Frequency: Daily
-  Retention: 7 days
-```
-
 ---
 
 ## 5. 서버 스펙
 
-### 5.1 Backend Server
+오사카 리전 기준 실제 운영 사양:
 
-#### 개발 환경
+### 5.1 Backend Server (Tenancy B)
 ```yaml
-Instance Type: t3.small
-CPU: 2 vCPU
-RAM: 2 GB
-Storage: 20 GB SSD
-OS: Ubuntu 22.04/24.04 LTS
+Shape: VM.Standard.A1.Flex
+CPU: 2 OCPU
+RAM: 12 GB
+Network Bandwidth: 2 Gbps
+OS: Canonical Ubuntu 24.04
+Subnet: Public (VCN-B)
 ```
 
-#### 프로덕션 환경
+### 5.2 AI Server (Tenancy A)
 ```yaml
-Instance Type: t3.medium
-CPU: 2 vCPU
-RAM: 4 GB
-Storage: 50 GB SSD
-OS: Ubuntu 22.04/24.04 LTS
-Auto Scaling: 2-4 instances
+Shape: VM.Standard.A1.Flex
+CPU: 4 OCPU
+RAM: 24 GB
+Network Bandwidth: 4 Gbps
+OS: Canonical Ubuntu 24.04
+Subnet: Private (VCN-A)
 ```
 
-### 5.2 AI Server
-
-#### 개발 환경
+### 5.3 Database Server (Tenancy B)
 ```yaml
-Instance Type: t3.medium
-CPU: 2 vCPU
-RAM: 4 GB
-Storage: 30 GB SSD
-OS: Ubuntu 22.04/24.04 LTS
-```
-
-#### 프로덕션 환경 (MVP)
-```yaml
-Instance Type: t3.medium
-CPU: 2 vCPU
-RAM: 4 GB
-Storage: 50 GB SSD
-OS: Ubuntu 22.04/24.04 LTS
-GPU: 없음
-```
-
-### 5.3 Database Server
-
-#### 개발 환경
-```yaml
-Instance Type: db.t3.micro
-CPU: 2 vCPU
-RAM: 1 GB
-Storage: 20 GB
-```
-
-#### 프로덕션 환경
-```yaml
-Instance Type: db.t3.medium
-CPU: 2 vCPU
-RAM: 4 GB
-Storage: 100 GB (Auto Scaling to 500 GB)
-Multi-AZ: Yes (고가용성)
-```
-
-### 5.4 Redis Cache
-
-#### 개발 환경
-```yaml
-Instance Type: cache.t3.micro
-RAM: 0.5 GB
-```
-
-#### 프로덕션 환경
-```yaml
-Instance Type: cache.t3.medium
-RAM: 3.09 GB
-Replicas: 1
+Shape: VM.Standard.A1.Flex
+CPU: 2 OCPU
+RAM: 12 GB
+Network Bandwidth: 2 Gbps
+OS: Canonical Ubuntu 24.04
+Subnet: Private - DB (VCN-B)
 ```
 
 ---
@@ -682,30 +591,32 @@ Notification:
 
 ## 부록
 
-### A. 클라우드별 서비스 매핑
+### A. OCI 서비스 매핑
 
-| 기능 | AWS | GCP | Oracle Cloud |
-|------|-----|-----|--------------|
-| 컴퓨팅 | EC2 | Compute Engine | Compute |
-| 데이터베이스 | RDS | Cloud SQL | MySQL Database |
-| 스토리지 | S3 | Cloud Storage | Object Storage |
-| 로드밸런서 | ALB/NLB | Cloud Load Balancing | Load Balancer |
-| 캐시 | ElastiCache | Memorystore | Cache (Redis) |
-| VPN | VPC | VPC | VCN |
+| 기능 | Oracle Cloud (OCI) |
+|------|---------------------|
+| 컴퓨팅 | Compute (VM.Standard.A1.Flex) |
+| 데이터베이스 | MySQL on Compute (VM.Standard.A1.Flex) |
+| 스토리지 | Object Storage |
+| 로드밸런서 | Load Balancer |
+| 네트워크 | VCN + Local VCN Peering (LPG) |
 
-### B. 비용 예측 (월간, AWS 기준)
+### B. 비용 예측 (월간, OCI 기준)
+
+MVP 기준 실제 인스턴스 스펙:
 
 ```
-Backend (t3.medium x2):        $60
-AI Server (t3.medium):         $30
-Database (db.t3.medium):       $70
-Redis (cache.t3.medium):       $40
-Load Balancer:                 $20
-Storage (S3):                  $10
-Data Transfer:                 $30
-                         ──────────
-Total:                        $260/month
+AI Server (A1.Flex 4 OCPU / 24GB):        TBD
+Backend (A1.Flex 2 OCPU / 12GB):          TBD
+Database (A1.Flex 2 OCPU / 12GB):         TBD
+Load Balancer:                            TBD
+Object Storage:                           TBD
+Data Transfer:                            TBD
+                                  ──────────
+Total:                                    TBD
 ```
+
+현재는 OCI 과금 기준에 따라 변동 폭이 커서 추정치를 보류한다.
 
 ### C. 체크리스트
 
@@ -719,12 +630,17 @@ Total:                        $260/month
 - [ ] Load Balancer 생성
 - [ ] EC2 인스턴스 생성 (Backend, AI)
 - [ ] RDS MySQL 생성
-- [ ] ElastiCache Redis 생성
 - [ ] S3 버킷 생성
 - [ ] IAM 역할 설정
 - [ ] CloudWatch 알람 설정
 
 ---
 
-**문서 버전**: 1.1.0  
-**작성일**: 2026-03-17
+## 변경 이력
+
+- 2026-04-09: OCI 운영 이슈 복구 내역을 반영하고, shared-subnet 운영 시 필수 egress(3306/6379/5672) 규칙을 명시.
+- 2026-04-09: 스토리지/백업/모니터링 섹션을 OCI 기준으로 전면 정리하고, Primary/Backup Object Storage 및 Block Volume 배분 구조를 반영. 체크리스트에 LPG/Service Gateway/DNS-TLS 단계를 추가.
+- 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 접근 규칙을 제거.
+- 2026-03-27: OCI 확정 반영, 테넌시 분리 구조와 LPG 피어링 추가, 실제 서버 스펙 반영, 보안 규칙 및 부록 업데이트, 다이어그램 이미지 추가.
+- 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 분리 운영을 반영해 통신 경로, RabbitMQ NSG, 브로커 스펙을 추가.
+- 2026-04-02: 2.1 VCN 설계 다이어그램을 현재 운영 구조(Tenancy A AI / Tenancy B Backend+DB)로 재정렬하고 미사용 구성 표기를 제거.

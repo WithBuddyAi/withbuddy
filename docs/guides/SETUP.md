@@ -2,8 +2,8 @@
 
 > WithBuddy 로컬 개발 환경 구축 완벽 가이드
 
-**최종 업데이트**: 2026-03-24  
-**버전**: 1.1.1
+**최종 업데이트**: 2026-04-11
+**버전**: 0.6.0
 
 ## 📋 목차
 - [필수 요구사항](#필수-요구사항)
@@ -23,6 +23,7 @@
 - **Node.js**: 20+ & npm/yarn
 - **Python**: 3.11+
 - **MySQL**: 8.0
+- **Docker Desktop**: 4.0+ (선택, AI 서버 컨테이너 실행 시)
 
 ### 권장 개발 도구
 - IntelliJ IDEA / VS Code
@@ -110,7 +111,7 @@ FLUSH PRIVILEGES;
 2. Environment Variables 클릭
 3. 다음 변수 추가:
 
-DB_PASSWORD=your_password
+SPRING_DB_PASSWORD=your_password
 JWT_SECRET=your-jwt-secret-key-at-least-32-characters-long
 JWT_ACCESS_EXPIRATION=7200000
 JWT_REFRESH_EXPIRATION=604800000
@@ -120,7 +121,7 @@ AI_API_URL=http://localhost:8000
 **Ubuntu 서버 (배포용)**
 ```bash
 # ~/.bashrc 또는 /etc/environment에 추가
-export DB_PASSWORD=your_password
+export SPRING_DB_PASSWORD=your_password
 export JWT_SECRET=your-jwt-secret-key
 export JWT_ACCESS_EXPIRATION=7200000
 export JWT_REFRESH_EXPIRATION=604800000
@@ -138,7 +139,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/withbuddy
     username: withbuddy
-    password: ${DB_PASSWORD}
+    password: ${SPRING_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   
   jpa:
@@ -224,7 +225,31 @@ npm run preview
 
 ## AI 서버 설정
 
-### 1. 가상환경 생성
+### 1. Docker Compose로 실행 (선택)
+
+루트 디렉토리의 `docker-compose.yml`은 AI 서버만 빠르게 띄우기 위한 로컬 개발용 설정입니다.
+
+```bash
+cd withbuddy
+
+# 필요 시 현재 셸 또는 .env 에 환경변수 설정
+# ANTHROPIC_API_KEY=your_anthropic_api_key
+# SLACK_BOT_TOKEN=xoxb-...
+# SLACK_APP_TOKEN=xapp-...
+# AI_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+
+docker compose up --build ai
+
+# 확인
+curl http://localhost:8000/health
+```
+
+기본 동작:
+- `ai/` 디렉토리를 `/app`으로 마운트해 코드 변경이 즉시 반영됩니다.
+- ChromaDB 데이터는 Docker 볼륨 `ai_chroma_db`에 저장됩니다.
+- 기본 포트는 `8000:8000`입니다.
+
+### 2. 가상환경 생성
 ```bash
 cd ai
 
@@ -303,7 +328,7 @@ uvicorn app.main:app --reload --log-level debug
 ### MySQL 연결 오류
 ```bash
 # 에러: Access denied for user
-→ DB_PASSWORD 환경변수 확인
+→ SPRING_DB_PASSWORD 환경변수 확인
 → MySQL 사용자 권한 확인
 
 # 에러: Unknown database 'withbuddy'
@@ -335,12 +360,16 @@ uvicorn app.main:app --reload --log-level debug
 
 # 에러: Anthropic API key not found
 → .env 파일 확인
+
+# 에러: docker compose 실행 시 빌드 또는 포트 충돌
+→ Docker Desktop 실행 상태 확인
+→ 8000 포트 사용 중 프로세스 종료 또는 compose 포트 변경
 ```
 
 ---
 
 ## 다음 단계
 
-- [배포 가이드](./DEPLOYMENT.md) - 실제 서버 배포
-- [API 문서](../PLANNED_API.md) - API 엔드포인트
+- [배포 가이드](../architecture/DEPLOYMENT.md) - 실제 서버 배포
+- [API 문서](../API.md) - API 엔드포인트
 - [기여 가이드](CONTRIBUTING.md) - 개발 참여 방법
