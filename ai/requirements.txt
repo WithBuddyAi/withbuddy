@@ -41,3 +41,8 @@ kaleido>=0.2.1                    # Plotly → PNG 정적 이미지 변환
 
 # ── 데이터 유효성 검사 ───────────────────────
 pydantic>=2.8.0
+
+# ── RAG 평가 ─────────────────────────────────
+ragas>=0.2.0                      # RAGAS 기반 RAG 품질 자동 평가
+pdfkit>=1.0.0                     # MD → PDF 변환 (wkhtmltopdf 필요)
+markdown>=3.5.0                   # Markdown → HTML 변환
