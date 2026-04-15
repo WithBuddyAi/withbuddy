@@ -100,15 +100,6 @@ function Login ({setIsLoggedIn}) {
     finally {
       setIsLoading(false)
     }
-    // 500 에러인 경우
-    else if (response.status === 500) {
-      setErrorMessage('일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.')
-    }
-  } catch (error) {
-      setErrorMessage('인터넷 연결을 확인하고 다시 시도해 주세요.')
-  } finally {
-      setIsLoading(false)
-  }
   }
 
   // 회사코드 정규식
