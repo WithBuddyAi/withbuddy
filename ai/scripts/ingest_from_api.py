@@ -160,13 +160,16 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
     for doc_meta in new_docs:
         doc_id = str(doc_meta["documentId"])
         title = doc_meta.get("title", doc_id)
-        file_type = doc_meta.get("fileType", "PDF")
+        original_filename = doc_meta.get("fileName", "")
+        ext = os.path.splitext(original_filename)[-1].lower() if original_filename else ".pdf"
+        if not ext:
+            ext = ".pdf"
 
         print(f"  처리 중: {title}")
 
         try:
             file_bytes = _download_file(api_url, doc_id, token)
-            filename = f"{title}.{file_type.lower()}"
+            filename = f"{title}{ext}"
             text = _extract_text(file_bytes, filename)
 
             if not text.strip():
