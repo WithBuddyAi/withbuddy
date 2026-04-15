@@ -892,7 +892,7 @@ public class DocumentStorageService {
 
         String originalFileName = Optional.ofNullable(file.getOriginalFilename()).orElse("");
         String extension = resolveExtension(originalFileName).toLowerCase(Locale.ROOT);
-        Set<String> allowed = Set.of(".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg");
+        Set<String> allowed = Set.of(".pdf", ".docx", ".pptx", ".txt", ".xls", ".xlsx", ".png", ".jpg", ".jpeg");
         if (!allowed.contains(extension)) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_002", "file", "지원하지 않는 파일 형식입니다.");
         }
@@ -919,6 +919,11 @@ public class DocumentStorageService {
 
     private String resolveExtension(String originalFileName) {
         if (!StringUtils.hasText(originalFileName) || !originalFileName.contains(".")) {
+            return "";
+        }
+
+        int lastDotIndex = originalFileName.lastIndexOf(".");
+        if (lastDotIndex == originalFileName.length() - 1) {
             return "";
         }
         return originalFileName.substring(originalFileName.lastIndexOf("."));
