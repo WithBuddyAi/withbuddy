@@ -20,6 +20,7 @@ RAG 시스템 성능 평가 스크립트
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -228,7 +229,12 @@ def evaluate_with_llm_judge(question: str, answer: str) -> dict:
     try:
         chain = _JUDGE_PROMPT | get_llm() | StrOutputParser()
         result = chain.invoke({"question": question, "answer": answer})
-        parsed = json.loads(result.strip())
+        result = result.strip()
+        json_match = re.search(r'\{.*?\}', result, re.DOTALL)
+        if json_match:
+            parsed = json.loads(json_match.group())
+        else:
+            parsed = json.loads(result)
         return {"score": parsed.get("score", 0), "reason": parsed.get("reason", "")}
     except Exception as e:
         return {"score": 0, "reason": f"평가 실패: {e}"}
