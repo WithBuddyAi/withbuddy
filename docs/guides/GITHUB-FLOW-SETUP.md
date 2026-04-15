@@ -1,10 +1,9 @@
-# Git Flow 설정 체크리스트
+# GitHub Flow 설정 체크리스트
 
-이 문서는 저장소 관리자나 어드민이 Git Flow 규칙을 GitHub 설정으로 강제할 때 사용하는 문서다.
+이 문서는 저장소 관리자나 어드민이 GitHub flow 규칙을 GitHub 설정으로 강제할 때 사용하는 문서다.
 
-
-**최종 업데이트**: 2026-04-02  
-**버전**: 1.0.4
+**최종 업데이트**: 2026-04-03  
+**버전**: 1.1.1
 
 - 팀원용 규칙 요약: [COLLABORATION.md](./COLLABORATION.md)
 - 작업자용 절차: [CONTRIBUTING.md](./CONTRIBUTING.md)
@@ -15,6 +14,11 @@
 main
 develop
 feature/*
+fix/*
+docs/*
+refactor/*
+test/*
+chore/*
 hotfix/*
 ```
 
@@ -25,7 +29,7 @@ hotfix/*
 
 - 기본 브랜치를 `main`으로 유지
 - `develop` 브랜치가 원격 저장소에 존재하는지 확인
-- 팀원이 `main` 대신 `develop`을 통합 브랜치로 사용하도록 안내
+- 팀원이 `develop`을 통합 브랜치로 사용하도록 안내
 
 확인 명령:
 ```bash
@@ -34,7 +38,7 @@ git branch -a
 
 ## 2. Branch Protection Rule 설정
 
-GitHub Repository -> Settings -> Branches 에서 다음 규칙을 추가한다.
+GitHub Repository -> Settings -> Branches에서 다음 규칙을 추가한다.
 
 ### `main` 보호 규칙
 - 대상 브랜치: `main`
@@ -71,10 +75,9 @@ GitHub Repository -> Settings -> Branches 에서 다음 규칙을 추가한다.
 - `Code Quality Check`
 
 주의:
-- required status check로 사용할 workflow는 `paths-ignore` 나 branch filter로 전체 workflow가 skip되지 않도록 구성한다
-- 문서 전용 PR도 workflow 자체는 실행되고, 관련 없는 job만 `skipped` 처리되게 만드는 것이 안전하다
-- 현재 workflow 안에는 `continue-on-error: true`가 들어간 step이 있어 일부 실패가 merge blocker가 되지 않을 수 있다
-- required check로 쓰려면 lint/test 실패가 실제 job 실패로 이어지도록 조정하는 것이 안전하다
+- required status check로 사용할 workflow는 `paths-ignore`나 branch filter로 전체 workflow가 skip되지 않도록 구성한다.
+- 문서 전용 PR도 workflow 자체는 실행되고, 관련 없는 job만 `skipped` 처리되게 만드는 것이 안전하다.
+- required check로 쓰려면 lint/test 실패가 실제 job 실패로 이어지도록 조정하는 것이 안전하다.
 
 ## 4. CODEOWNERS 강제
 
@@ -89,20 +92,18 @@ GitHub Repository -> Settings -> Branches 에서 다음 규칙을 추가한다.
 추가 권장 사항:
 - 실제 저장소 경로 기준으로 owner 경로가 맞는지 점검
 - 팀 slug가 GitHub 조직 내 실제 이름과 정확히 일치하는지 점검
-
-현재 점검 포인트:
-- AI 팀 slug는 `@WithBuddyAi/AI` 로 통일한다
+- AI 팀 slug는 `@WithBuddyAi/AI`로 통일한다
 
 ## 5. Pull Request 운영 규칙
 
-- `feature/*` PR target: `develop`
+- `feature/*`, `fix/*`, `docs/*`, `refactor/*`, `test/*`, `chore/*` PR target: `develop`
 - `develop` PR target: `main`
 - `hotfix/*` PR target: `main`
 - `main` 반영 후 `hotfix/*` 변경은 반드시 `develop`에도 동기화
 - 기본 merge 방식은 `Squash and merge`
 - Merge 후 브랜치 자동 삭제 활성화 권장
 
-GitHub Repository -> Settings -> General 에서:
+GitHub Repository -> Settings -> General에서:
 - Allow squash merging: 활성화
 - Automatically delete head branches: 활성화
 
@@ -129,7 +130,7 @@ git push origin v1.0.0
 ## 8. 현재 저장소 기준 권장 추가 작업
 
 ### 필수
-- `CONTRIBUTING.md`를 Git Flow 기준으로 유지
+- `CONTRIBUTING.md`를 GitHub flow 기준으로 유지
 - `COLLABORATION.md`와 팀 운영 규칙을 일치시킬 것
 - `main`, `develop` Branch Protection Rule 생성
 - Required status checks 등록
@@ -142,7 +143,7 @@ git push origin v1.0.0
 
 ## 9. 적용 완료 기준
 
-다음 조건이 모두 충족되면 Git Flow 기반 운영이 가능하다고 판단할 수 있다.
+다음 조건이 모두 충족되면 GitHub flow 기반 운영이 가능하다고 판단할 수 있다.
 
 - 팀 문서가 `main/develop/feature/hotfix` 흐름으로 일관된다
 - `feature/*`가 `develop`에서 분기되도록 안내된다
@@ -170,3 +171,4 @@ git push origin v1.0.0
 - 2026-03-30: `pr-autofill.yml` 운영 규칙 및 권한 요구사항 추가.
 - 2026-04-02: `release/*` 제거 및 `develop -> main` 직접 릴리스 운영 기준으로 정리.
 - 2026-04-02: Jira 서브태스크 브랜치 키 표기를 `SCRUM-##` 대문자로 통일.
+- 2026-04-03: 문서 명칭을 GitHub flow 기준으로 통일.

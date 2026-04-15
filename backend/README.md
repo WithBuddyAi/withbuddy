@@ -2,12 +2,12 @@
 
 > Java Spring Boot 기반 백엔드 서버
 
-## 👥 담당팀
+## 담당팀
 **@WithBuddyAi/backend-developers**
 - @김지원(백엔드 9회차)
 - @홍성하(백엔드 9회차)
 
-## 🛠 기술 스택
+## 기술 스택
 
 ### Core
 - **Language**: Java 21
@@ -20,6 +20,7 @@
 - **Spring Web**: RESTful API
 - **Spring Security**: 인증/인가
 - **Spring Data JPA**: ORM
+- **Flyway**: DB 마이그레이션 버전 관리
 - **MySQL Driver**: DB 연결
 
 ### Database
@@ -38,7 +39,7 @@
 ### External Communication
 - **FastAPI (AI 서버)**: REST API 통신 (팀장 준수님과 추가 논의 필요)
 
-## 🧭 프로젝트 표준
+## 프로젝트 표준
 
 | 항목 | 값 |
 |------|-----|
@@ -51,28 +52,91 @@
 
 ## 📁 프로젝트 구조
 
+### 현재 구조 (As-Is)
+
 ```
 backend/
-├── src/main/java/com/withbuddy/
-│   ├── domain/             # 도메인별 패키지
-│   │   ├── user/           # 사용자 관리
-│   │   ├── buddy/          # AI 버디
-│   │   └── chat/           # 채팅
-│   ├── global/             # 공통 기능
-│   │   ├── config/         # 설정 (Security, Swagger, JPA)
-│   │   ├── security/       # JWT 인증/인가
-│   │   ├── exception/      # 전역 예외 처리
-│   │   └── common/         # 공통 DTO/Entity
-│   └── external/           # 외부 API
-│       └── ai/             # FastAPI 통신
-└── src/main/resources/
-    ├── application.yml
-    ├── application-local.yml
-    ├── application-dev.yml
-    └── application-prod.yml
+└── src/main/java/com/withbuddy/
+    ├── auth/
+    └── global/
 ```
 
-## 🚀 시작하기
+### 목표 구조 (To-Be, 팀 표준)
+
+> 고도화 개발은 아래 구조를 기준으로 작성하고, 기존 코드는 기능 단위로 점진 전환한다.
+
+```
+backend/
+└── src/main/java/com/withbuddy/
+    ├── presentation/                  # API 입출력 계층
+    │   ├── auth/
+    │   │   ├── AuthController.java
+    │   │   ├── request/
+    │   │   └── response/
+    │   └── chat/
+    │       ├── ChatController.java
+    │       ├── request/
+    │       └── response/
+    ├── application/                   # 유스케이스/트랜잭션 계층
+    │   ├── auth/
+    │   │   ├── AuthService.java
+    │   │   └── AuthUseCase.java
+    │   └── chat/
+    │       ├── ChatService.java
+    │       └── ChatUseCase.java
+    ├── domain/                        # 핵심 도메인 계층
+    │   ├── auth/
+    │   │   ├── User.java
+    │   │   ├── Company.java
+    │   │   ├── UserRepository.java        # 도메인 포트(인터페이스)
+    │   │   └── policy/
+    │   └── chat/
+    │       ├── ChatMessage.java
+    │       ├── ChatRepository.java        # 도메인 포트(인터페이스)
+    │       └── policy/
+    ├── infrastructure/                # 외부 시스템 연동/구현체
+    │   ├── persistence/
+    │   │   ├── auth/
+    │   │   │   ├── JpaUserRepository.java
+    │   │   │   └── SpringDataUserRepository.java
+    │   │   └── chat/
+    │   ├── ai/
+    │   │   └── AiClient.java
+    │   ├── redis/
+    │   └── mq/
+    └── global/                        # 횡단 공통
+        ├── config/
+        ├── security/
+        ├── exception/
+        └── response/
+```
+
+### 폴더별 파일 규칙
+
+| 폴더 | 포함 파일 | 주의 |
+|------|-----------|-----------|
+| `presentation/*` | `*Controller`, Request/Response DTO, API 어노테이션 | 요청/응답 처리만 담당 |
+| `application/*` | `*Service`, `*UseCase`, 트랜잭션 처리 | 유스케이스 흐름만 담당 |
+| `domain/*` | Entity, Value Object, Domain Service, Repository 인터페이스(Port) | 비즈니스 규칙만 담당 |
+| `infrastructure/persistence/*` | JPA Repository 구현체, Query 구현, Mapper | DB/외부 연동만 담당 |
+| `infrastructure/ai`, `infrastructure/redis`, `infrastructure/mq` | 외부 API/캐시/메시징 클라이언트 | 연동 코드만 담당 |
+| `global/config` | Security, Swagger, Jackson, WebMvc, JPA 설정 | 전역 설정만 담당 |
+| `global/exception` | 예외 클래스, 전역 예외 처리기 | 예외 처리만 담당 |
+| `global/response` | 공통 응답 포맷, 에러 코드 | 공통 포맷만 담당 |
+
+### 리소스 규칙
+
+```
+src/main/resources/
+├── application.yaml         # 공통 기본값
+├── application-local.yml    # 로컬 개발
+├── application-prod.yml     # 운영
+└── db/migration/            # Flyway 마이그레이션 스크립트 (V1~)
+```
+
+프로필/환경변수는 운영 가이드를 따른다. 상세는 `docs/guides/ENV.md`를 참조한다.
+
+## 시작하기
 
 ### 1. 사전 요구사항
 ```bash
@@ -83,11 +147,17 @@ java -version
 gradle -version
 ```
 
-### 2. 프로젝트 클론
+### 2. 프로젝트 클론 (필요한 경우에만)
 ```bash
 git clone https://github.com/WithBuddyAi/withbuddy.git
 cd withbuddy/backend
 ```
+
+> GitHub Actions CI/CD로 자동 배포를 운영 중이라면, 위 `git clone`은 **평소 배포 단계에서는 불필요**합니다.  
+> 아래 상황에서만 필요합니다.
+> - 로컬 개발 환경 최초 세팅
+> - 신규 서버 초기 구축(최초 1회)
+> - CI 장애 시 서버 수동 복구/긴급 배포
 
 ### 3. 환경 변수 설정
 `src/main/resources/application-local.yml` 파일 생성:
@@ -96,7 +166,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/withbuddy
     username: your_username
-    password: ${DB_PASSWORD} // 환경변수 활용
+    password: ${DB_PASSWORD} # 환경변수 활용
     
 jwt:
   secret: your_jwt_secret_key_here
@@ -125,7 +195,7 @@ CREATE DATABASE withbuddy CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 http://localhost:8080/swagger-ui.html
 ```
 
-## 🔧 개발 가이드
+## 개발 가이드
 
 ### 브랜치 전략
 ```
@@ -188,7 +258,7 @@ DELETE /api/v1/users/{id}     # 사용자 삭제
 }
 ```
 
-## 🔐 보안 가이드
+## 보안 가이드
 
 ### 환경 변수 관리
 ```yaml
@@ -210,7 +280,7 @@ application-prod.yml    # 프로덕션 (gitignore)
 3. 서버에서 토큰 검증 → 사용자 인증
 ```
 
-## 📝 테스트
+## 테스트
 
 ### 단위 테스트
 ```bash
@@ -226,40 +296,59 @@ application-prod.yml    # 프로덕션 (gitignore)
 2. Environment 변수 설정 (baseUrl, token 등)
 3. 테스트 실행
 
-## 🚢 Backend CI/CD 자동배포
+## Backend CI/CD 자동배포
 
 백엔드 자동배포 워크플로우는 `.github/workflows/backend-deploy.yml`을 사용한다.
 
 ### 1. GitHub Secrets (Environment: production) 등록
-- `BACKEND_SERVER_HOST` - Backend 서버 공인 IP/DNS
-- `BACKEND_SERVER_USER` - SSH 사용자 (예: `ubuntu`)
+
+#### 현재 등록됨 (백엔드 관련)
+- `AI_SERVER_BASE_URL` - AI 서버 URL
+- `SPRING_DB_URL` - JDBC URL
+- `SPRING_DB_USERNAME` - DB 계정
+- `SPRING_DB_PASSWORD` - DB 비밀번호
+- `BACKEND_SERVER_HOST` - SSH 배포 대상 호스트
+- `BACKEND_SERVER_USER` - SSH 사용자
 - `BACKEND_SERVER_SSH_KEY` - SSH 개인키
-- `BACKEND_APP_DIR` - 배포 경로 (예: `/home/ubuntu/withbuddy`)
-- `BACKEND_HEALTH_URL` - 헬스체크 URL (선택, 기본값: `http://127.0.0.1:8080/actuator/health`)
-- `DB_PASSWORD` - DB 비밀번호(선택, `SPRING_DATASOURCE_PASSWORD` 없을 때 사용)
-- `JWT_SECRET` - JWT 시크릿(선택)
-- `AI_API_URL` - AI 서버 URL(선택)
-- `SPRING_DATASOURCE_URL` - JDBC URL(선택)
-- `SPRING_DATASOURCE_USERNAME` - DB 계정(선택)
-- `SPRING_DATASOURCE_PASSWORD` - DB 비밀번호(선택, 설정 시 최우선 사용)
+- `DB_SERVER_HOST` - Flyway 복구용 DB 서버 SSH 호스트(필수)
+- `DB_SERVER_USER` - Flyway 복구용 DB 서버 SSH 사용자(선택, 미설정 시 `BACKEND_SERVER_USER` 사용)
+- `DB_SERVER_SSH_KEY` - Flyway 복구용 DB 서버 SSH 개인키(선택, 미설정 시 `BACKEND_SERVER_SSH_KEY` 사용)
+- `DB_SERVER_PROXY_HOST` - DB SSH 점프 호스트(선택)
+- `DB_SERVER_PROXY_USER` - DB SSH 점프 호스트 사용자(선택)
+- `DB_SERVER_PROXY_SSH_KEY` - DB SSH 점프 호스트 키(선택)
+- `BACKEND_APP_DIR` - 배포 경로
+- `BACKEND_HEALTH_URL` - 헬스체크 URL
+- `CORS_ALLOWED_ORIGIN_PATTERNS` (선택) - 허용 Origin 패턴 목록(쉼표 구분)
+- `JWT_SECRET` - JWT 시크릿(운영 6개월 주기 로테이션 권장)
+- `REDIS_URL` - Redis 연결 URL
+- `RABBITMQ_URL` - RabbitMQ 연결 URL
+- `SPRING_FLYWAY_BASELINE_ON_MIGRATE` (선택) - 기존 스키마 baseline 처리 여부 (기본값 `true`)
+- `SPRING_FLYWAY_BASELINE_VERSION` (선택) - baseline 버전 (기본값 `0`)
+
+
+> 참고: `AI_SERVER_*`, `AI_APP_DIR`, `ANTHROPIC_API_KEY`, `SLACK_*`는 AI 배포/운영용이므로 백엔드 자동배포 필수값에서 제외했다.
+> 캐시/큐 기능을 운영에 포함하므로 `REDIS_URL`, `RABBITMQ_URL`는 production secrets에 반드시 등록한다.
 
 ### 2. 서버 선행 조건
 - `${BACKEND_APP_DIR}` 경로에 쓰기 권한이 있어야 한다.
-- 배포 계정이 `pkill`, `nohup`, `curl` 명령을 실행할 수 있어야 한다.
+- 배포 계정이 `sudo systemctl restart withbuddy-backend.service`를 비밀번호 없이 실행할 수 있어야 한다.
+- 운영 백엔드는 `withbuddy-backend.service` 단일 서비스로만 기동한다. (수동 `java -jar` 금지)
+- 환경변수 파일은 `/etc/withbuddy-backend.env`를 사용한다.
 
 ### 3. 배포 방법
 1. `main` 브랜치에 `backend/**` 변경을 push한다.
 2. GitHub Actions `Deploy Backend`가 자동 실행된다.
-3. 빌드 성공 시 JAR 업로드 → 서비스 재시작 → 헬스체크까지 수행된다.
+3. 빌드 성공 시 JAR 업로드 → `/etc/withbuddy-backend.env` 갱신 → `withbuddy-backend.service` 재시작 → 헬스체크까지 수행된다.
+4. 백엔드 기동 시 Flyway가 `db/migration` 스크립트를 자동 적용하며, 기존 스키마 환경은 baseline 설정으로 이관된다.
 
-## 📚 참고 문서
+## 참고 문서
 
 - [Spring Boot Documentation](https://docs.spring.io/spring-boot/reference/)
 - [Spring Security + JWT Guide](https://spring.io/guides/tutorials/spring-boot-oauth2/)
 - [Swagger/SpringDoc](https://springdoc.org/)
 - [JPA Best Practices](https://thorben-janssen.com/tips-to-boost-your-hibernate-performance/)
 
-## 🐛 트러블슈팅
+## 트러블슈팅
 
 ### MySQL 연결 오류
 ```
@@ -278,12 +367,13 @@ Error: JWT expired
 ### Port 충돌
 ```
 Error: Port 8080 is already in use
-→ application.yml에서 포트 변경
-server:
-  port: 8081
+→ 수동 java 프로세스/중복 서비스 여부 확인
+  sudo lsof -iTCP:8080 -sTCP:LISTEN -n -P
+  ps -ef | grep 'java -jar' | grep -v grep
+→ 운영 정책은 withbuddy-backend.service 단일 기동 유지
 ```
 
-## 📞 문의
+## 문의
 
 - 기술 문의: @WithBuddyAi/backend-developers
 - 이슈 등록: GitHub Issues
@@ -291,8 +381,16 @@ server:
 
 ---
 
-**Last Updated**: 2026-04-02
+**Last Updated**: 2026-04-14
 
 ## 변경 이력
 
+- 2026-04-14: CORS Origin 패턴을 환경변수(`CORS_ALLOWED_ORIGIN_PATTERNS`)로 제어할 수 있도록 배포/운영 가이드 반영.
+- 2026-04-14: 배포 설정을 Flyway 기준으로 정리. `SPRING_SQL_INIT_MODE` 전달을 제거하고 `SPRING_FLYWAY_BASELINE_*`(선택) 운영값 안내를 추가.
+- 2026-04-09: 문서 메타데이터를 현재 수정 상태에 맞게 정리하고 변경 이력 순서를 최신 기준으로 재정렬.
+- 2026-04-07: SSH 배포 대상 시크릿을 `BACKEND_SERVER_HOST` 단일 기준으로 정리.
+- 2026-04-07: 배포 재시작 방식을 `nohup`/`pkill`에서 `withbuddy-backend.service` 단일 systemd 재시작으로 통일.
+- 2026-04-06: CI/CD 환경변수 설명 정리 (`BACKEND_HEALTH_URL`, `JWT_SECRET`, `REDIS_URL`, `RABBITMQ_URL`).
+- 2026-04-06: 캐시/큐 운영 반영으로 `REDIS_URL`, `RABBITMQ_URL`를 필수값으로 상향.
 - 2026-04-02: 브랜치 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.
+
