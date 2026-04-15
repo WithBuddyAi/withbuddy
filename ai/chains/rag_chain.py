@@ -182,7 +182,9 @@ _chain = None
 def _get_chain():
     global _chain
     if _chain is None:
-        _chain = RAG_PROMPT | get_llm() | StrOutputParser()
+        _chain = (RAG_PROMPT | get_llm() | StrOutputParser()).with_config(
+            {"tags": ["rag-chain"], "run_name": "withbuddy-rag"}
+        )
     return _chain
 
 
