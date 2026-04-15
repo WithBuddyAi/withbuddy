@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emnapi/core": "^1.9.2",
+    "@emnapi/runtime": "^1.9.2",
     "axios": "^1.15.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.7.0",
