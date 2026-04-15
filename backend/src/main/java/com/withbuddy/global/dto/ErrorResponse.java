@@ -22,7 +22,6 @@ public class ErrorResponse {
     private final String code;
 
     @Schema(description = "에러 메시지", example = "입력하신 정보를 다시 확인해 주세요")
-
     private final List<FieldValidationError> errors;
 
     @Schema(description = "요청 경로", example = "/api/v1/auth/login")
