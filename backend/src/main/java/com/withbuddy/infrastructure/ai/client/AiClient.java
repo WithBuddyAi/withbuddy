@@ -3,6 +3,7 @@ package com.withbuddy.infrastructure.ai.client;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -17,6 +18,8 @@ public class AiClient {
         try {
             AiAnswerServerResponse response = aiRestClient.post()
                     .uri("/internal/ai/answer")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON)
                     .body(request)
                     .retrieve()
                     .body(AiAnswerServerResponse.class);
