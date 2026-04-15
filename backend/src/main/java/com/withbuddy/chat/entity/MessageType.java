@@ -7,11 +7,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum MessageType {
 
-    USER_QUESTION("user_question"),
-    RAG_ANSWER("rag_answer"),
-    NO_RESULT("no_result"),
-    OUT_OF_SCOPE("out_of_scope"),
-    SUGGESTION("suggestion");
+    user_question("user_question"),
+    rag_answer("rag_answer"),
+    no_result("no_result"),
+    out_of_scope("out_of_scope"),
+    suggestion("suggestion");
 
     private final String value;
 }
