@@ -9,8 +9,10 @@ import org.springframework.web.client.RestClient;
 public class AiConfig {
 
     @Bean
-    public RestClient aiRestClient(@Value("${ai.server.base-url}") String aiBaseUrl) {
-        return RestClient.builder()
+    public RestClient aiRestClient(
+        @Value("${ai.server.base-url}") String aiBaseUrl,
+        RestClient.Builder restClientBuilder) {
+        return restClientBuilder
                 .baseUrl(aiBaseUrl)
                 .build();
     }
