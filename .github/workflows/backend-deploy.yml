@@ -1,4 +1,5 @@
 name: Deploy Backend
+# Flyway repair step runs on DB server via DB_SERVER_* production secrets. (secret-refresh trigger)
 
 on:
   push:
@@ -52,6 +53,9 @@ jobs:
           BACKEND_SERVER_HOST: ${{ secrets.BACKEND_SERVER_HOST }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
           BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          DB_SERVER_HOST: ${{ secrets.DB_SERVER_HOST }}
+          DB_SERVER_USER: ${{ secrets.DB_SERVER_USER }}
+          DB_SERVER_SSH_KEY: ${{ secrets.DB_SERVER_SSH_KEY }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
@@ -95,6 +99,7 @@ jobs:
             BACKEND_SERVER_HOST
             BACKEND_SERVER_USER
             BACKEND_SERVER_SSH_KEY
+            DB_SERVER_HOST
             BACKEND_APP_DIR
             SPRING_DB_URL
             SPRING_DB_USERNAME
@@ -133,12 +138,16 @@ jobs:
             STORAGE_BACKUP_NAMESPACE
             STORAGE_BACKUP_BUCKET
           )
+          missing_vars=()
           for v in "${required_vars[@]}"; do
             if [ -z "${!v:-}" ]; then
-              echo "Missing required secret: $v"
-              exit 1
+              missing_vars+=("$v")
             fi
           done
+          if [ "${#missing_vars[@]}" -gt 0 ]; then
+            echo "Missing required secrets: ${missing_vars[*]}"
+            exit 1
+          fi
 
       - name: Upload app.jar to server
         uses: appleboy/scp-action@v0.1.7
@@ -157,9 +166,13 @@ jobs:
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
         with:
-          host: ${{ secrets.BACKEND_SERVER_HOST }}
-          username: ${{ secrets.BACKEND_SERVER_USER }}
-          key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          host: ${{ secrets.DB_SERVER_HOST }}
+          username: ${{ secrets.DB_SERVER_USER != '' && secrets.DB_SERVER_USER || secrets.BACKEND_SERVER_USER }}
+          key: ${{ contains(secrets.DB_SERVER_SSH_KEY, 'PRIVATE KEY-----') && secrets.DB_SERVER_SSH_KEY || secrets.BACKEND_SERVER_SSH_KEY }}
+          proxy_host: ${{ secrets.DB_SERVER_PROXY_HOST }}
+          proxy_username: ${{ secrets.DB_SERVER_PROXY_USER }}
+          proxy_key: ${{ secrets.DB_SERVER_PROXY_SSH_KEY }}
+          debug: true
           envs: SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD
           script: |
             set -euo pipefail
@@ -178,14 +191,84 @@ jobs:
               echo "ERROR: Unable to parse SPRING_DB_URL for Flyway repair step."
               exit 1
             fi
-            if ! command -v mysql >/dev/null 2>&1; then
-              echo "ERROR: mysql client is required for Flyway repair step."
+            export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+            echo "Repair host: $(hostname) user=$(whoami) uid=$(id -u)"
+            echo "PATH=${PATH}"
+
+            find_mysql_bin() {
+              MYSQL_BIN="$(command -v mysql || true)"
+              if [ -z "${MYSQL_BIN}" ]; then
+                for c in /usr/bin/mysql /usr/local/bin/mysql /usr/local/mysql/bin/mysql /bin/mysql; do
+                  if [ -x "${c}" ]; then
+                    MYSQL_BIN="${c}"
+                    break
+                  fi
+                done
+              fi
+              [ -n "${MYSQL_BIN}" ]
+            }
+
+            mysql8_ready() {
+              if ! find_mysql_bin; then
+                return 1
+              fi
+              MYSQL_VERSION_RAW="$("${MYSQL_BIN}" --version 2>/dev/null || true)"
+              if echo "${MYSQL_VERSION_RAW}" | grep -Eiq 'mariadb'; then
+                return 1
+              fi
+              MYSQL_VERSION_SEMVER="$(echo "${MYSQL_VERSION_RAW}" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
+              MYSQL_MAJOR="${MYSQL_VERSION_SEMVER%%.*}"
+              [ -n "${MYSQL_MAJOR}" ] && [ "${MYSQL_MAJOR}" -ge 8 ]
+            }
+
+            run_with_priv() {
+              if [ "$(id -u)" -eq 0 ]; then
+                "$@"
+                return $?
+              fi
+              if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+                sudo "$@"
+                return $?
+              fi
+              return 1
+            }
+
+            if ! mysql8_ready; then
+              echo "WARN: MySQL 8.0+ client not found on backend host. Attempting installation..."
+              echo "Package manager probe: apt-get=$(command -v apt-get || echo '<none>') dnf=$(command -v dnf || echo '<none>') yum=$(command -v yum || echo '<none>')"
+              if command -v apt-get >/dev/null 2>&1; then
+                run_with_priv apt-get update -y || true
+                run_with_priv env DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-client-8.0 || true
+                run_with_priv env DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-client-core-8.0 || true
+              elif command -v dnf >/dev/null 2>&1; then
+                run_with_priv dnf install -y mysql-community-client || true
+              elif command -v yum >/dev/null 2>&1; then
+                run_with_priv yum install -y mysql-community-client || true
+              else
+                echo "WARN: No supported package manager detected for mysql client installation."
+              fi
+              if find_mysql_bin; then
+                echo "Post-install mysql binary: ${MYSQL_BIN}"
+              fi
+            fi
+
+            if ! mysql8_ready; then
+              echo "ERROR: MySQL 8.0+ client is required for Flyway repair step."
+              if find_mysql_bin; then
+                echo "       mysql binary: ${MYSQL_BIN}"
+                echo "       mysql --version: $("${MYSQL_BIN}" --version 2>/dev/null || true)"
+              else
+                echo "       mysql binary: <not found in PATH or common locations>"
+              fi
+              echo "       Ensure 'mysql --version' reports MySQL 8.x (not MariaDB) on backend host."
               exit 1
             fi
 
+            echo "Using DB client (${MYSQL_BIN}): $("${MYSQL_BIN}" --version)"
+
             mysql_scalar() {
               local sql="$1"
-              mysql -h "${DB_HOST}" -P "${DB_PORT}" \
+              "${MYSQL_BIN}" -h "${DB_HOST}" -P "${DB_PORT}" \
                 -u "${SPRING_DB_USERNAME}" -p"${SPRING_DB_PASSWORD}" \
                 --skip-column-names --silent \
                 "${DB_NAME}" \
@@ -280,13 +363,14 @@ jobs:
           STORAGE_PRIMARY_BUCKET: ${{ secrets.STORAGE_PRIMARY_BUCKET }}
           STORAGE_BACKUP_NAMESPACE: ${{ secrets.STORAGE_BACKUP_NAMESPACE }}
           STORAGE_BACKUP_BUCKET: ${{ secrets.STORAGE_BACKUP_BUCKET }}
+          CORS_ALLOWED_ORIGIN_PATTERNS: ${{ secrets.CORS_ALLOWED_ORIGIN_PATTERNS }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         with:
           host: ${{ secrets.BACKEND_SERVER_HOST }}
           username: ${{ secrets.BACKEND_SERVER_USER }}
           key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
-          envs: DB_PASSWORD,JWT_SECRET,JWT_ACCESS_EXPIRATION,AI_SERVER_BASE_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,SPRING_DB_DRIVER_CLASS_NAME,SPRING_FLYWAY_BASELINE_ON_MIGRATE,SPRING_FLYWAY_BASELINE_VERSION,REDIS_URL,RABBITMQ_URL,RABBITMQ_EXCHANGE,RABBITMQ_QUEUE_REPORT,RABBITMQ_QUEUE_DLQ,STORAGE_API_AUTH_ENABLED,STORAGE_API_KEY_ID,STORAGE_API_KEY_VALUE,STORAGE_API_GLOBAL_ACCESS,STORAGE_API_KEY_ACTIVE,STORAGE_PROVIDER,STORAGE_LOCAL_BASE_DIR,STORAGE_MAX_DOCUMENT_SIZE_MB,STORAGE_MAX_IMAGE_SIZE_MB,STORAGE_DOWNLOAD_URL_TTL_SECONDS,STORAGE_RETRY_ENABLED,STORAGE_RETRY_MAX_ATTEMPTS,STORAGE_RETRY_INTERVAL_MS,STORAGE_RETRY_BASE_BACKOFF_SECONDS,STORAGE_RETRY_MAX_BACKOFF_SECONDS,STORAGE_RETRY_BATCH_SIZE,STORAGE_OCI_CLI_EXECUTABLE,STORAGE_OCI_PRIMARY_PROFILE,STORAGE_OCI_BACKUP_PROFILE,STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING,STORAGE_PRIMARY_NAMESPACE,STORAGE_PRIMARY_BUCKET,STORAGE_BACKUP_NAMESPACE,STORAGE_BACKUP_BUCKET,BACKEND_HEALTH_URL,BACKEND_APP_DIR
+          envs: DB_PASSWORD,JWT_SECRET,JWT_ACCESS_EXPIRATION,AI_SERVER_BASE_URL,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,SPRING_DB_DRIVER_CLASS_NAME,SPRING_FLYWAY_BASELINE_ON_MIGRATE,SPRING_FLYWAY_BASELINE_VERSION,REDIS_URL,RABBITMQ_URL,RABBITMQ_EXCHANGE,RABBITMQ_QUEUE_REPORT,RABBITMQ_QUEUE_DLQ,STORAGE_API_AUTH_ENABLED,STORAGE_API_KEY_ID,STORAGE_API_KEY_VALUE,STORAGE_API_GLOBAL_ACCESS,STORAGE_API_KEY_ACTIVE,STORAGE_PROVIDER,STORAGE_LOCAL_BASE_DIR,STORAGE_MAX_DOCUMENT_SIZE_MB,STORAGE_MAX_IMAGE_SIZE_MB,STORAGE_DOWNLOAD_URL_TTL_SECONDS,STORAGE_RETRY_ENABLED,STORAGE_RETRY_MAX_ATTEMPTS,STORAGE_RETRY_INTERVAL_MS,STORAGE_RETRY_BASE_BACKOFF_SECONDS,STORAGE_RETRY_MAX_BACKOFF_SECONDS,STORAGE_RETRY_BATCH_SIZE,STORAGE_OCI_CLI_EXECUTABLE,STORAGE_OCI_PRIMARY_PROFILE,STORAGE_OCI_BACKUP_PROFILE,STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING,STORAGE_PRIMARY_NAMESPACE,STORAGE_PRIMARY_BUCKET,STORAGE_BACKUP_NAMESPACE,STORAGE_BACKUP_BUCKET,CORS_ALLOWED_ORIGIN_PATTERNS,BACKEND_HEALTH_URL,BACKEND_APP_DIR
           script: |
             set -euo pipefail
 
@@ -413,6 +497,7 @@ jobs:
             STORAGE_PRIMARY_BUCKET=${STORAGE_PRIMARY_BUCKET}
             STORAGE_BACKUP_NAMESPACE=${STORAGE_BACKUP_NAMESPACE}
             STORAGE_BACKUP_BUCKET=${STORAGE_BACKUP_BUCKET}
+            CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS:-}
             SPRING_PROFILES_ACTIVE=prod
             EOF
             chmod 600 "${TMP_ENV_PATH}"
