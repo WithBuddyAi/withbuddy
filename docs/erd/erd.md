@@ -67,7 +67,7 @@
 - `company_code`가 `null`인 경우 회사 공통 문서로 사용한다.
 - `company_code`에 특정 회사코드가 들어 있는 경우 해당 회사 전용 문서로 사용한다.
 - `file_path`는 문서의 기본 경로 정보를 저장한다.
-- `document_type`은 문서의 유형을 구분하기 위한 표준 분류값이며, `POLICY`, `GUIDE`, `FORM`, `NOTICE`, `FAQ`, `LEGAL`, `TEMPLATE` 값을 사용한다.
+- `document_type`은 문서의 유형을 구분하기 위한 표준 분류값이며, `POLICY`, `GUIDE`, `NOTICE`, `FAQ`, `LEGAL`, `TEMPLATE` 값을 사용한다.
 - `department`는 문서의 관련 부서 또는 업무 영역을 구분하기 위한 표준 분류값이며, `HR`, `FINANCE`, `IT`, `OPS`, `LEGAL`, `GENERAL` 값을 사용한다.
 - 실제 업로드 파일의 상세 메타데이터와 백업 상태 정보는 `document_files` 테이블에서 별도로 관리한다.
 

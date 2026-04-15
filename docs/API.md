@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 0.8.0
-**최종 업데이트**: 2026-04-15
+**버전**: 1.7.4
+**최종 업데이트**: 2026-04-14
 
 ---
 
@@ -190,7 +190,7 @@ Content-Type: application/json
 
 ```json
 {
-  "companyCode": "WB1001",
+  "companyCode": "WB0001",
   "employeeNumber": "20260001",
   "name": "김지원"
 }
@@ -200,7 +200,7 @@ Content-Type: application/json
 
 | 필드 | 타입 | 필수 | 예시값          | 설명 | 상세 규칙 |
 |------|------|------|--------------|------|-----------|
-| `companyCode` | `String` | Y | `"WB1001"`   | 회사 식별 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| `companyCode` | `String` | Y | `"WB0001"`   | 회사 식별 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 | `employeeNumber` | `String` | Y | `"20260001"` | 사용자 사번 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 | `name` | `String` | Y | `"김지원"`      | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
 
@@ -219,7 +219,7 @@ Content-Type: application/json
   "accessToken": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
     "id": 1,
-    "companyCode": "WB1001",
+    "companyCode": "WB0001",
     "companyName": "테크 주식회사",
     "employeeNumber": "20260001",
     "name": "김지원",

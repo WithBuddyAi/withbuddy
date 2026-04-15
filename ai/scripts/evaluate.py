@@ -20,6 +20,7 @@ RAG 시스템 성능 평가 스크립트
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -228,7 +229,12 @@ def evaluate_with_llm_judge(question: str, answer: str) -> dict:
     try:
         chain = _JUDGE_PROMPT | get_llm() | StrOutputParser()
         result = chain.invoke({"question": question, "answer": answer})
-        parsed = json.loads(result.strip())
+        result = result.strip()
+        json_match = re.search(r'\{.*?\}', result, re.DOTALL)
+        if json_match:
+            parsed = json.loads(json_match.group())
+        else:
+            parsed = json.loads(result)
         return {"score": parsed.get("score", 0), "reason": parsed.get("reason", "")}
     except Exception as e:
         return {"score": 0, "reason": f"평가 실패: {e}"}
@@ -364,6 +370,106 @@ def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db") -> dict:
     return summary
 
 
+def generate_html(summary: dict, html_path: str) -> None:
+    m = summary["metrics"]
+    details = summary["details"]
+    evaluated_at = summary["evaluated_at"][:16].replace("T", " ")
+    cat_summary = summary.get("category_summary", {})
+
+    def score_color(score):
+        if score >= 4: return "#22c55e"
+        if score >= 3: return "#f59e0b"
+        return "#ef4444"
+
+    def pct_bar(rate, good_high=True):
+        pct = int((rate or 0) * 100)
+        color = "#22c55e" if (pct >= 70) == good_high else "#ef4444"
+        return f'<div style="display:flex;align-items:center;gap:6px"><div style="background:#e2e8f0;border-radius:4px;width:80px;height:8px"><div style="background:{color};width:{pct}%;height:8px;border-radius:4px"></div></div><span>{pct}%</span></div>'
+
+    metric_cards = f"""
+    <div class="card"><div class="num" style="color:#6366f1">{m['retrieval_hit_rate']*100:.0f}%</div><div class="label">Retrieval Hit Rate</div></div>
+    <div class="card"><div class="num" style="color:#0ea5e9">{m['avg_keyword_hit_rate']*100:.0f}%</div><div class="label">Keyword Hit Rate</div></div>
+    <div class="card"><div class="num" style="color:{score_color(m['avg_llm_judge_score'])}">{m['avg_llm_judge_score']:.2f}<span style="font-size:14px">/5</span></div><div class="label">LLM Judge Score</div></div>
+    <div class="card"><div class="num" style="color:{'#ef4444' if m['unanswered_rate']>0.1 else '#22c55e'}">{m['unanswered_rate']*100:.0f}%</div><div class="label">Unanswered Rate</div></div>
+    <div class="card"><div class="num" style="color:#64748b">{m['avg_response_time_ms']:.0f}<span style="font-size:14px">ms</span></div><div class="label">Avg Response Time</div></div>
+    """
+
+    cat_rows = ""
+    for cat, stat in cat_summary.items():
+        judge = stat.get("avg_judge_score", 0)
+        cat_rows += f"""<tr>
+          <td>{cat}</td>
+          <td>{pct_bar(stat.get('retrieval_hit_rate') or 0)}</td>
+          <td>{pct_bar(stat.get('avg_keyword_hit'))}</td>
+          <td style="color:{score_color(judge)};font-weight:bold">{judge:.1f}/5</td>
+          <td style="color:{'#ef4444' if stat['unanswered_count']>0 else '#22c55e'}">{stat['unanswered_count']}건</td>
+        </tr>"""
+
+    detail_rows = ""
+    for r in details:
+        judge = r.get("llm_judge_score", 0)
+        kw = r.get("keyword_hit_rate", 0)
+        unanswered = r.get("unanswered", False)
+        retrieval = r.get("retrieval_hit")
+        hit_icon = "✅" if retrieval else ("⬜" if retrieval is None else "❌")
+        bg = "#fef2f2" if unanswered or judge <= 2 else ("#fffbeb" if judge == 3 else "white")
+        detail_rows += f"""<tr style="background:{bg}">
+          <td style="text-align:center">{r['id']}</td>
+          <td style="color:#64748b">{r['category']}</td>
+          <td>{r['question']}</td>
+          <td style="text-align:center">{hit_icon}</td>
+          <td>{pct_bar(kw)}</td>
+          <td style="text-align:center;color:{score_color(judge)};font-weight:bold">{judge}/5</td>
+          <td style="color:#64748b;font-size:11px">{r.get('llm_judge_reason','')}</td>
+          <td style="color:{'#ef4444' if unanswered else '#22c55e'};text-align:center">{'예' if unanswered else '아니오'}</td>
+        </tr>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>WithBuddy RAG 평가 결과</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: 'Malgun Gothic', sans-serif; font-size: 12px; margin: 24px 28px; color: #1e293b; }}
+  h1 {{ font-size: 18px; margin: 0 0 4px; }}
+  h2 {{ font-size: 14px; margin: 28px 0 12px; border-bottom: 2px solid #1e293b; padding-bottom: 4px; }}
+  .meta {{ color: #64748b; margin-bottom: 16px; font-size: 11px; }}
+  .summary {{ display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }}
+  .card {{ padding: 12px 20px; border-radius: 8px; text-align: center; min-width: 100px; background: #f8fafc; border: 1px solid #e2e8f0; }}
+  .card .num {{ font-size: 26px; font-weight: bold; }}
+  .card .label {{ font-size: 11px; color: #64748b; margin-top: 2px; }}
+  table {{ border-collapse: collapse; width: 100%; margin-bottom: 8px; }}
+  th {{ background: #334155; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }}
+  td {{ padding: 6px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; font-size: 11px; line-height: 1.5; }}
+  @media print {{ body {{ margin: 10px 14px; }} tr {{ page-break-inside: avoid; }} }}
+</style>
+</head>
+<body>
+<h1>WithBuddy RAG 시스템 성능 평가</h1>
+<div class="meta">평가 일시: {evaluated_at} &nbsp;|&nbsp; 총 {summary['total_cases']}문항</div>
+
+<h2>전체 지표</h2>
+<div class="summary">{metric_cards}</div>
+
+<h2>카테고리별 요약</h2>
+<table>
+  <tr><th>카테고리</th><th>Retrieval Hit</th><th>Keyword Hit</th><th>Judge Score</th><th>미답변</th></tr>
+  {cat_rows}
+</table>
+
+<h2>문항별 상세</h2>
+<table>
+  <tr><th>#</th><th>카테고리</th><th>질문</th><th>검색히트</th><th>키워드</th><th>Judge</th><th>판정이유</th><th>미답변</th></tr>
+  {detail_rows}
+</table>
+</body>
+</html>"""
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+
 def main():
     parser = argparse.ArgumentParser(description="RAG 시스템 성능 평가")
     parser.add_argument("--output", type=str, default="./data/eval_result.json",
@@ -428,6 +534,11 @@ def main():
 
     print(f"\n  📋 누적 평가 횟수: {len(history)}회  (history: {history_path})")
     print("=" * 55)
+
+    html_path = args.output.replace(".json", ".html")
+    generate_html(summary, html_path)
+    print(f"  🌐 HTML 리포트: {html_path}")
+    print(f"  → 브라우저에서 열고 Ctrl+P → PDF로 저장하세요")
 
 
 if __name__ == "__main__":

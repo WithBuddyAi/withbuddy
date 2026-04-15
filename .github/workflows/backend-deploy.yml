@@ -567,3 +567,5 @@ jobs:
             collect_diagnostics
             print_flyway_recovery_hint_if_needed
             exit 1
+
+
