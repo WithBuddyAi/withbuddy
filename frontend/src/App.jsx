@@ -18,11 +18,13 @@ function App() {
           <Navigate to='/mybuddy'/> : <Navigate to='/login'/>
         } />
 
-        <Route path="/login" element={ <Login setIsLoggedIn={setIsLoggedIn}/> } />
+        <Route path="/login" element={ 
+          isLoggedIn ?
+          <Navigate to='/mybuddy'/> : <Login setIsLoggedIn={setIsLoggedIn}/> } />
 
         <Route path="/mybuddy" element={
           isLoggedIn ?
-          <MyBuddy/> : <Navigate to='/login'/>
+          <MyBuddy setIsLoggedIn={setIsLoggedIn}/> : <Navigate to='/login'/>
         } />
       </Routes>
     </div>
