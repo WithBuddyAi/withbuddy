@@ -4,8 +4,6 @@
 
 body {
   font-family: 'Pretendard', sans-serif;
-<<<<<<< Updated upstream
-=======
 }
 
 /* 전체 달력 */
@@ -58,5 +56,4 @@ body {
 .react-calendar__navigation button {
   font-size: 13px;
   color: #343A40;
->>>>>>> Stashed changes
 }

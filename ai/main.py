@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from routers import admin, chat, docs, knowledge, leader, mybuddy, recommend, report, slack
+from routers import admin, chat, docs, knowledge, leader, mybuddy, preboarding, profile, recommend, report, slack
 from tasks.scheduler import start_scheduler, stop_scheduler
 
 # .env 파일에서 환경변수 로드 (ANTHROPIC_API_KEY, SLACK_BOT_TOKEN 등)
@@ -93,6 +93,8 @@ app.include_router(docs.router)
 app.include_router(slack.router)
 app.include_router(knowledge.router)
 app.include_router(mybuddy.router)
+app.include_router(profile.router)
+app.include_router(preboarding.router)
 
 # ── Static 파일 서빙 ─────────────────────────
 app.mount("/static", StaticFiles(directory="static"), name="static")

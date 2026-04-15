@@ -33,6 +33,8 @@ dist/
 build/
 .vite/
 *.log
+backend/bootrun.log
+wb_cookie.txt
 
 # Database
 *.sqlite
@@ -57,9 +59,32 @@ ai/data/
 .coverage
 coverage/
 
+# Claude Code
+ai/CLAUDE.md
+.claude/
+
+# AI 런타임 데이터 (서버 로컬 전용)
+ai/docs.Zip
+ai/.streamlit/
+ai/va/
+ai/test_results_*.md
+ai/test_results_*.html
+ai/test_results_*.pdf
+ai/AI*QA*
+ai/AI_QA_*
+
 # Frontend
 frontend/.claude
 
 # Local AI tooling
 .ai/
 frontend/node_modules
+.ssh/
+
+# OneDrive 자동 생성 중복 파일
+* (1).*
+* (1)/
+
+# Codex workspace runtime artifacts
+.codex/runtime/
+.codex/logs/

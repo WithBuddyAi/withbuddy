@@ -10,13 +10,6 @@ function Login ({setIsLoggedIn}) {
   // 로딩 스피너
   const [isLoading, setIsLoading] = useState(false)
 
-<<<<<<< Updated upstream
-function Login ({setIsLoggedIn}) {
-  // 로딩 스피너
-const [isLoading, setIsLoading] = useState(false)
-
-=======
->>>>>>> Stashed changes
   // 로그인 시 필요한 정보에 대한 State
 
   const [companyCode, setCompanyCode] = useState('')
@@ -33,10 +26,6 @@ const [isLoading, setIsLoading] = useState(false)
 
   // 로그인 시 서버에 데이터 전송 및 페이지 이동
   const BASE_URL = import.meta.env.VITE_API_BASE_URL
-<<<<<<< Updated upstream
-  console.log('BASE_URL:', BASE_URL)
-=======
->>>>>>> Stashed changes
   const navigate = useNavigate()
   const handleLogin = async () => {
     // 빈 값일때 에러 문구 표시
@@ -58,28 +47,6 @@ const [isLoading, setIsLoading] = useState(false)
       nameRef.current.focus()
       return
     } 
-<<<<<<< Updated upstream
-
-  setIsLoading(true)
-  try {
-    // 서버에 데이터 전송
-    const response = await fetch(`${BASE_URL}/api/v1/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        companyCode, employeeNumber, name
-      })
-    })
-    // 응답 -> JSON으로 변환
-    const data = await response.json()
-    // 성공 시
-    if (response.ok) {
-      localStorage.setItem('accessToken', data.accessToken)
-      setIsLoggedIn(true)
-      localStorage.setItem('hireDate', data.user.hireDate)
-=======
     setIsLoading(true)
     try {
       // 서버에 데이터 전송
@@ -91,7 +58,6 @@ const [isLoading, setIsLoading] = useState(false)
         setIsLoggedIn(true)
         localStorage.setItem('hireDate', data.user.hireDate)
         localStorage.setItem('name', data.user.name)
->>>>>>> Stashed changes
 
         const today = new Date()
         const hireDate = new Date(data.user.hireDate)
@@ -100,24 +66,6 @@ const [isLoading, setIsLoading] = useState(false)
 
         navigate('/mybuddy')
     } 
-<<<<<<< Updated upstream
-    // 실패 시
-    // 400 에러인 경우
-    else if (response.status === 400) {
-      data.errors.forEach(error => {
-        if (error.field === 'companyCode') {
-          setCompanyCodeError('회사코드를 입력해 주세요.')
-        } else if (error.field === 'employeeNumber') {
-          setEmployeeNumberError('사원번호를 입력해 주세요.')
-        } else if (error.field === 'name') {
-          setNameError('이름을 입력해 주세요.')
-        }
-      })
-    } 
-    // 401 에러인 경우
-    else if (response.status === 401) {
-      setErrorMessage('입력하신 정보를 다시 확인해 주세요.')
-=======
     catch (error) {
       // 400 에러인 경우
       if (error.response?.status === 400) {
@@ -151,17 +99,7 @@ const [isLoading, setIsLoading] = useState(false)
       }
     finally {
       setIsLoading(false)
->>>>>>> Stashed changes
     }
-    // 500 에러인 경우
-    else if (response.status === 500) {
-      setErrorMessage('일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.')
-    }
-  } catch (error) {
-      setErrorMessage('인터넷 연결을 확인하고 다시 시도해 주세요.')
-  } finally {
-      setIsLoading(false)
-  }
   }
 
   // 회사코드 정규식
@@ -183,10 +121,7 @@ const [isLoading, setIsLoading] = useState(false)
   // 사원번호 정규식
   const handleEmployeeNumberChange = (e) => {
     setEmployeeNumber(e.target.value)
-<<<<<<< Updated upstream
-=======
     setEmployeeNumberError('')
->>>>>>> Stashed changes
     if(e.target.value === '') {
       setEmployeeNumberError('')
       return
@@ -287,16 +222,10 @@ const [isLoading, setIsLoading] = useState(false)
             {/* 회사코드 입력칸 */}
             <div className='flex flex-col items-center gap-[10px] rounded-[8px]'>
               <div>
-<<<<<<< Updated upstream
-                <div className='font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]'>회사코드
-                <span className='text-red-500'>*</span></div>
-                <p className='text-[#ADB5BD] text-[10px] md:text-[12px]'>회사코드는 담당자에게 확인해 주세요.</p>
-=======
                 <div className='flex items-center font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]'>회사코드
                   <span className='text-red-500'>*</span>
                   <Tooltip message='회사코드와 사원번호는 담당자에게 확인해 주세요.' />
                 </div>
->>>>>>> Stashed changes
               </div>
               <input 
               className={`${inputClass} ${companyCodeError ?
@@ -314,10 +243,6 @@ const [isLoading, setIsLoading] = useState(false)
               <div>
                 <div className='font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]'>사원번호
                 <span className='text-red-500'>*</span></div>
-<<<<<<< Updated upstream
-                <p className='text-[#ADB5BD] text-[10px] md:text-[12px]'>사원번호는 담당자에게 확인해 주세요.</p>
-=======
->>>>>>> Stashed changes
               </div>
               <input 
               className={`${inputClass} ${employeeNumberError ? 

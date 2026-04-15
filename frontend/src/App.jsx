@@ -18,13 +18,6 @@ function App() {
           <Navigate to='/mybuddy'/> : <Navigate to='/login'/>
         } />
 
-<<<<<<< Updated upstream
-        <Route path="/login" element={ <Login setIsLoggedIn={setIsLoggedIn}/> } />
-
-        <Route path="/mybuddy" element={
-          isLoggedIn ?
-          <MyBuddy/> : <Navigate to='/login'/>
-=======
         <Route path="/login" element={ 
           isLoggedIn ?
           <Navigate to='/mybuddy'/> : <Login setIsLoggedIn={setIsLoggedIn}/> } />
@@ -32,7 +25,6 @@ function App() {
         <Route path="/mybuddy" element={
           isLoggedIn ?
           <MyBuddy setIsLoggedIn={setIsLoggedIn}/> : <Navigate to='/login'/>
->>>>>>> Stashed changes
         } />
       </Routes>
     </div>
