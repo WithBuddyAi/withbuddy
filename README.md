@@ -173,19 +173,11 @@ withbuddy/
 │ 
 ├─ docs/
 │  ├─ architecture/
-<<<<<<< HEAD
-│  │  ├─ AI_ARCHITECTURE.md     # AI  (초안 - AI 아키텍처)
-│  │  ├─ ARCHITECTURE.md        # BE/CI  (초안 - 시스템 아키텍처)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - OCI 배포 가이드)
-│  │  ├─ DEPLOYMENT.md          # BE/CI  (초안 - 배포 가이드)
-│  │  └─ INFRASTRUCTURE.md      # BE/CI  (초안 - 인프라 구조)
-=======
 │  │  ├─ AI_ARCHITECTURE.md     # AI  (AI 아키텍처)
 │  │  ├─ ARCHITECTURE.md        # BE/CI  (시스템 아키텍처)
 │  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (OCI 배포 가이드)
 │  │  ├─ INFRASTRUCTURE.md      # BE/CI  (인프라 구조)
 │  │  └─ AI_SERVER_GUIDE.md     # AI/CI  (AI 서버 운영/배포 점검 가이드)
->>>>>>> 0bd6bb322ecff738d4fbaaa05ca196060fe28074
 │  │
 │  ├─ erd/                      # BE (MVP 단계에서 진행)
 │  ├─ migration/
@@ -193,31 +185,15 @@ withbuddy/
 │  ├─ storage/                  # BE/CI  (스토리지 API/운영/DDL 문서)
 │  │
 │  ├─ guides/ 
-<<<<<<< HEAD
-│  │  ├─ COLLABORATION.md         # BE/CI  (초안 - 협업 규칙 📚 필독)
-│  │  ├─ CONTRIBUTING.md          # BE/CI  (초안 - 기여 가이드 📚 필독)
-=======
 │  │  ├─ COLLABORATION.md         # BE/CI  (협업 규칙 📚 필독)
 │  │  ├─ CONTRIBUTING.md          # BE/CI  (기여 가이드 📚 필독)
->>>>>>> 0bd6bb322ecff738d4fbaaa05ca196060fe28074
 │  │  ├─ AI-DEPENDENCIES.md       # BE/AI  (AI 의존성 파일 관리 가이드)
 │  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼 📚 필독)
 │  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼📚 필독)
 │  │  ├─ ENV.md                   # BE/CI  (환경변수 및 GitHub Secrets 가이드)
 │  │  ├─ GITHUB-FLOW-SETUP.md     # BE/CI  (GitHub flow 설정 체크리스트)
 │  │  ├─ GITHUB-SSH.md            # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
-<<<<<<< HEAD
-│  │  └─ SETUP.md                 # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
-│  │  ├─ COLLABORATION.md       # BE/CI  (초안 - 협업 규칙 📚 필독)
-│  │  ├─ CONTRIBUTING.md        # BE/CI  (초안 - 기여 가이드 📚 필독)
-│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - Oracle Cloud 배포 가이드)
-│  │  ├─ ENV.md                 # BE/CI  (초안 - 환경변수)
-│  │  ├─ GIT-FLOW-SETUP.md      # BE/CI  (초안 - Git Flow 설정 체크리스트)
-│  │  ├─ GITHUB-SSH.md          # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
-│  │  └─ SETUP.md               # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
-=======
 │  │  └─ SETUP.md                 # BE/CI  (개발 환경 설정 가이드 📚 필독)
->>>>>>> 0bd6bb322ecff738d4fbaaa05ca196060fe28074
 │  │
 │  ├─ API.md                    # BE  (API 명세서)
 │  ├─ MULTI_TENANCY.md          # BE  (멀티 테넌시 아키텍처)
