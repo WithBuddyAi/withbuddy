@@ -2,8 +2,8 @@
 
 > 클라우드 인프라 및 네트워크 구성
 
-**최종 업데이트**: 2026-04-02  
-**버전**: 1.3.1  
+**최종 업데이트**: 2026-04-11
+**버전**: 0.6.0
 **작성일**: 2026-03-27
 
 ---
@@ -109,15 +109,12 @@ Destination         Target
 
 | 리소스 | 포트 | 접근 |
 |-------|------|------|
-| MySQL 8.0 | 3306 | Backend, AI Server |
-| Redis | 6379 | Backend, AI Server |
-| RabbitMQ | 5672 | Backend, AI Server |
+| MySQL 8.0 | 3306 | Backend only |
 
 **라우팅 테이블**:
 ```
 Destination         Target
 10.0.0.0/16        Local
-10.1.0.0/16        LPG-B (to VCN-A)
 ```
 
 ### 2.4 통신 경로 요약
@@ -125,9 +122,6 @@ Destination         Target
 - Frontend → Backend: Public HTTPS → Backend (8080)
 - Backend ↔ AI: LPG (VCN-B ↔ VCN-A), 8000
 - Backend → MySQL: VCN-B 내부, 3306
-- AI → MySQL: LPG (VCN-A → VCN-B), 3306
-- Backend/AI → Redis: VCN-B Private-DB 또는 LPG, 6379
-- Backend/AI → RabbitMQ: VCN-B Private-DB 또는 LPG, 5672
 
 ---
 
@@ -185,12 +179,6 @@ Outbound Rules:
     Destination: <VCN-A CIDR>
     Description: To AI Server via LPG
 
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Destination: 10.0.2.0/24
-    Description: To Redis (VCN-B)
-    
   - Type: HTTPS
     Protocol: TCP
     Port: 443
@@ -212,18 +200,6 @@ Inbound Rules:
     Description: From Backend via LPG only
 
 Outbound Rules:
-  - Type: MySQL
-    Protocol: TCP
-    Port: 3306
-    Destination: <VCN-B CIDR>
-    Description: To MySQL via LPG
-    
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Destination: <VCN-B CIDR>
-    Description: To Redis via LPG
-    
   - Type: HTTPS
     Protocol: TCP
     Port: 443
@@ -243,67 +219,33 @@ Inbound Rules:
     Port: 3306
     Source: <VCN-B CIDR>
     Description: From Backend subnet
-    
-  - Type: MySQL
-    Protocol: TCP
-    Port: 3306
-    Source: <VCN-A CIDR>
-    Description: From AI via LPG
 
 Outbound Rules:
   - None (데이터베이스는 아웃바운드 불필요)
 ```
 
-### 3.5 Redis Security Group (VCN-B)
+### 3.5 운영 복구 메모 (2026-04-09)
+
+로그인 API 타임아웃 장애(`Backend -> DB 3306 timeout`)를 실제 OCI 설정 기준으로 점검한 결과, 직접 원인은
+`<BACKEND_DB_SUBNET_NAME>` 보안 목록(Security List) egress 누락이었다.
+
+- 증상: `<BACKEND_PRIVATE_IP> -> <DB_PRIVATE_IP>:3306` 타임아웃, `/api/v1/auth/login` 응답 지연/타임아웃
+- 원인: DB ingress(3306)는 있었지만, 내부망 대상 egress가 `10.2.0.0/16` 위주로만 구성됨
+- 복구: 동일 서브넷 내부 통신 허용 egress 규칙 추가
 
 ```yaml
-Name: nsg-withbuddy-redis
-Description: Redis Cache security group
-
-Inbound Rules:
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Source: <VCN-B CIDR>
-    Description: From Backend subnet
-    
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 6379
-    Source: <VCN-A CIDR>
-    Description: From AI via LPG
-
-Outbound Rules:
-  - None
+Mandatory Egress Rules (same-subnet/shared-subnet 운영 시):
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 3306 (MySQL)
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 6379 (Redis)
+  - Destination: <VCN_B_CIDR>, Protocol: TCP, Port: 5672 (RabbitMQ)
 ```
 
-### 3.6 RabbitMQ Security Group (VCN-B)
+검증 명령:
 
-```yaml
-Name: nsg-withbuddy-rabbitmq
-Description: RabbitMQ messaging system security group
-
-Inbound Rules:
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 5672
-    Source: <VCN-B CIDR>
-    Description: From Backend subnet
-
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 5672
-    Source: <VCN-A CIDR>
-    Description: From AI via LPG
-
-  - Type: Custom TCP
-    Protocol: TCP
-    Port: 15672
-    Source: <Admin Fixed IP/CIDR>
-    Description: RabbitMQ management UI (운영자 전용)
-
-Outbound Rules:
-  - None
+```bash
+# Backend 서버에서
+nc -vz -w 5 <DB_PRIVATE_IP> 3306
+curl -X POST https://<API_DOMAIN>/api/v1/auth/login ...
 ```
 
 ---
@@ -409,20 +351,6 @@ Maintenance:
   Window: Sun 04:00-05:00 UTC (한국시간 일요일 13:00-14:00)
 ```
 
-#### Redis Storage
-
-```yaml
-Instance Type: cache.t3.medium
-Engine Version: 7.0
-Replicas: 1 (고가용성)
-Max Memory: 3.09 GB
-Eviction Policy: allkeys-lru
-
-Snapshot:
-  Frequency: Daily
-  Retention: 7 days
-```
-
 ---
 
 ## 5. 서버 스펙
@@ -457,32 +385,6 @@ RAM: 12 GB
 Network Bandwidth: 2 Gbps
 OS: Canonical Ubuntu 24.04
 Subnet: Private - DB (VCN-B)
-```
-
-### 5.4 Redis Cache (Tenancy B)
-```yaml
-Service: Redis
-Subnet: Private - DB (VCN-B)
-Host: Database Server (MySQL과 동일 인스턴스)
-Port: 6379
-Operation Policy:
-  - 인터넷 비공개
-  - Backend/AI 내부망만 접근 허용
-  - 인증(requirepass 또는 ACL) 필수
-```
-
-### 5.5 RabbitMQ Messaging System (Tenancy B)
-```yaml
-Service: RabbitMQ
-Subnet: Private - DB (VCN-B)
-Host: Database Server (MySQL/Redis와 동일 인스턴스)
-Role: 메시징 시스템 (비동기 작업 큐/재시도/DLQ)
-Protocol: AMQP 0-9-1
-Port: 5672
-Management UI: 15672 (운영자 고정 IP만 허용)
-High Availability:
-  - MVP: 단일 노드
-  - 확장: quorum queue + 다중 노드
 ```
 
 ---
@@ -697,7 +599,6 @@ Notification:
 | 데이터베이스 | MySQL on Compute (VM.Standard.A1.Flex) |
 | 스토리지 | Object Storage |
 | 로드밸런서 | Load Balancer |
-| 캐시 | Redis (Compute 또는 Managed Cache) |
 | 네트워크 | VCN + Local VCN Peering (LPG) |
 
 ### B. 비용 예측 (월간, OCI 기준)
@@ -708,7 +609,6 @@ MVP 기준 실제 인스턴스 스펙:
 AI Server (A1.Flex 4 OCPU / 24GB):        TBD
 Backend (A1.Flex 2 OCPU / 12GB):          TBD
 Database (A1.Flex 2 OCPU / 12GB):         TBD
-Redis (DB 서버 공용):                      TBD
 Load Balancer:                            TBD
 Object Storage:                           TBD
 Data Transfer:                            TBD
@@ -730,7 +630,6 @@ Total:                                    TBD
 - [ ] Load Balancer 생성
 - [ ] EC2 인스턴스 생성 (Backend, AI)
 - [ ] RDS MySQL 생성
-- [ ] ElastiCache Redis 생성
 - [ ] S3 버킷 생성
 - [ ] IAM 역할 설정
 - [ ] CloudWatch 알람 설정
@@ -739,6 +638,9 @@ Total:                                    TBD
 
 ## 변경 이력
 
+- 2026-04-09: OCI 운영 이슈 복구 내역을 반영하고, shared-subnet 운영 시 필수 egress(3306/6379/5672) 규칙을 명시.
+- 2026-04-09: 스토리지/백업/모니터링 섹션을 OCI 기준으로 전면 정리하고, Primary/Backup Object Storage 및 Block Volume 배분 구조를 반영. 체크리스트에 LPG/Service Gateway/DNS-TLS 단계를 추가.
+- 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 접근 규칙을 제거.
 - 2026-03-27: OCI 확정 반영, 테넌시 분리 구조와 LPG 피어링 추가, 실제 서버 스펙 반영, 보안 규칙 및 부록 업데이트, 다이어그램 이미지 추가.
 - 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 분리 운영을 반영해 통신 경로, RabbitMQ NSG, 브로커 스펙을 추가.
 - 2026-04-02: 2.1 VCN 설계 다이어그램을 현재 운영 구조(Tenancy A AI / Tenancy B Backend+DB)로 재정렬하고 미사용 구성 표기를 제거.

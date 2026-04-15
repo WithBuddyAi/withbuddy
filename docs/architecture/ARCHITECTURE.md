@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩 AI 통합 비서 서비스
 
-**최종 업데이트**: 2026-04-02  
-**버전**: 1.3.1  
+**최종 업데이트**: 2026-04-11
+**버전**: 0.6.14
 **작성일**: 2026-03-27
 
 ---
@@ -153,7 +153,7 @@ Cache: Redis
 ```yaml
 Cloud Provider: Oracle Cloud
 Network: VCN x2 (Tenancy 분리) + Local VCN Peering (LPG)
-Storage: S3 / Google Cloud Storage / OCI Object Storage
+Storage: OCI Block Volume + OCI Object Storage
 Cache: Redis
 Messaging System: RabbitMQ
 Domain: Cloudflare
@@ -169,7 +169,7 @@ CI/CD: GitHub Actions
 Monitoring: 
   - Application: Spring Boot Actuator
   - Error Tracking: Sentry (추천)
-  - Logging: ELK Stack / CloudWatch (추천)
+  - Logging: OCI Logging / ELK Stack (추천)
 API Testing: Postman / REST Client
 Load Testing: JMeter / k6
 ```
@@ -224,13 +224,13 @@ Messaging Layer:
 WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다.
 
 ```
-회사 A (companyCode: 1001)
+회사 A (companyCode: WB1001)
 ├── 김지원 (사원번호: 20260001)
 │   ├── 체크리스트 10개
 │   └── 기록 25개
 └── 박민수 (사원번호: 20260002)
 
-회사 B (companyCode: 1002)
+회사 B (companyCode: WB1002)
 ├── 이영희 (사원번호: 20260001)  ← 같은 사번!
 │   ├── 체크리스트 8개
 │   └── 기록 30개
@@ -306,28 +306,45 @@ WithBuddy는 **여러 회사가 동시에 사용하는 SaaS 서비스**입니다
 
 ### 5.1 API 버전 관리
 
-모든 API는 `/api/v1/` prefix 사용:
+모든 공개 API는 `/api/v1/` prefix를 사용한다.
+
+API 설계는 아래 두 범위를 함께 관리한다.
+- **현재 운영 API (MVP)**: 실제 배포/구현 기준
+- **목표 API (Planned)**: 단계적 확장 목표
 
 ```
-/api/v1/auth/*          # 인증
-/api/v1/users/*         # 사용자 관리
-/api/v1/companies/*     # 회사 정보
-/api/v1/ai/*            # AI 도우미
-/api/v1/checklists/*    # 체크리스트
-/api/v1/records/*       # 기록
-/api/v1/reports/*       # 리포트
-/api/v1/documents/*     # 문서 관리
-/api/v1/progress/*      # 진행률
+/api/v1/auth/*       # 인증
+/api/v1/ai/*         # AI 도우미(백엔드 공개 경로 기준)
+/api/v1/users/*      # 사용자 관리 (Planned)
+/api/v1/companies/*  # 회사 정보 (Planned)
+/api/v1/checklists/* # 체크리스트 (Planned)
+/api/v1/records/*    # 기록 (Planned)
+/api/v1/reports/*    # 리포트 (Planned)
+/api/v1/documents/*  # 문서 관리 (Planned)
+/api/v1/progress/*   # 진행률 (Planned)
 ```
 
 ### 5.2 주요 엔드포인트
 
-**인증**
+#### 현재 운영 API (MVP)
+
+**인증 (Backend)**
 ```http
 POST /api/v1/auth/login      # 로그인
-POST /api/v1/auth/signup     # 회원가입
-POST /api/v1/auth/refresh    # 토큰 재발급
-POST /api/v1/auth/logout     # 로그아웃
+```
+
+**AI 연동 (현재 구현 기준)**
+```http
+POST /internal/ai/answer      # Backend → AI 서버 내부 연동
+```
+
+#### 목표 API (Planned)
+
+**인증**
+```http
+POST /api/v1/auth/signup      # 회원가입
+POST /api/v1/auth/refresh     # 토큰 재발급
+POST /api/v1/auth/logout      # 로그아웃
 ```
 
 **AI Agent**
@@ -356,13 +373,15 @@ DELETE /api/v1/records/{id}               # 삭제
 POST   /api/v1/records/{id}/summary       # AI 요약 생성
 ```
 
-**상세 문서**: [API.md](../API.md)
+**상세 문서**
+- 현재 운영 API: [API.md](../API.md)
+- 목표 API: [PLANNED_API.md](../PLANNED_API.md)
 
 ---
 
 ## 6. 관련 문서
 
-### 📄 상세 기술 문서
+### 상세 기술 문서
 
 | 문서 | 설명 |
 |------|------|
@@ -372,14 +391,14 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 | [SECURITY.md](../SECURITY.md) | 보안 설계 및 인증/인가 |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | 배포 전략 및 CI/CD |
 
-### 📋 API 및 환경 설정
+### API 및 환경 설정
 
 | 문서 | 설명 |
 |------|------|
 | [API.md](../API.md) | 전체 API 명세서 |
 | [ENV.md](../guides/ENV.md) | 환경변수 가이드 |
 
-### 🚀 개발 가이드
+### 개발 가이드
 
 | 문서 | 설명 |
 |------|------|
@@ -417,7 +436,13 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 
 ## 변경 이력
 
-- 2026-03-27: 오사카 리전 기준 테넌시 분리 구조 반영, LPG 통신 경로 및 다이어그램 업데이트, Infrastructure 항목 최신화, 구조도 이미지 추가.
+- 2026-04-09: 인프라 기술 스택 표기를 OCI 기준으로 정리하고, 스토리지와 로깅 항목의 클라우드 혼합 표현을 제거.
+- 2026-04-06: API 설계를 현재 운영(MVP)과 목표(Planned)로 분리하고, 운영 API는 `API.md`, 목표 API는 `PLANNED_API.md`를 참조하도록 정리.
+- 2026-04-02: 문서 링크 경로와 서버 구성 표기를 현재 파일 구조 기준으로 정리.- 
 - 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 역할 분리 원칙 및 비동기 작업 흐름을 추가.
-- 2026-04-02: 문서 링크 경로와 서버 구성 표기를 현재 파일 구조 기준으로 정리.
+- 2026-03-27: 오사카 리전 기준 테넌시 분리 구조 반영, LPG 통신 경로 및 다이어그램 업데이트, Infrastructure 항목 최신화, 구조도 이미지 추가.
+- 
+
+
+
 

@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-03-30  
-**버전**: 1.1.3
+**최종 업데이트**: 2026-04-15
+**버전**: 0.8.0
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
@@ -49,10 +49,10 @@
 
 | 분야 | 기술 |
 |------|------|
-| **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, JWT |
+| **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, Redis, RabbitMQ, JWT, Flyway |
 | **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
 | **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
-| **배포** | Oracle Cloud (Backend/AI/MySQL), Vercel (Frontend) |
+| **배포** | Oracle Cloud (Backend/AI/MySQL/Object Storage), Vercel (Frontend) |
 | **CI/CD** | GitHub Actions |
 
 ---
@@ -71,6 +71,7 @@
 
 ### 필수 요구사항
 - Java 21, Node.js 20+, Python 3.11+, MySQL 8.0
+- Docker Desktop 4.0+ (선택, AI 서버 컨테이너 실행 시)
 
 ### 로컬 실행
 
@@ -93,11 +94,17 @@ cd backend
 # IntelliJ: Run > Edit Configurations > Environment Variables
 # DB_PASSWORD=your_password
 # JWT_SECRET=your-secret-key-min-32-chars
-# AI_API_URL=http://localhost:8000
+# AI_SERVER_BASE_URL=http://localhost:8000
+# REDIS_URL=redis://localhost:6379
+# RABBITMQ_URL=amqp://guest:guest@localhost:5672
+# STORAGE_API_AUTH_ENABLED=true
+# STORAGE_API_KEY_VALUE=<storage_admin_key>
 
 ./gradlew bootRun
 # http://localhost:8080
 ```
+
+> Backend는 기동 시 Flyway 마이그레이션(`backend/src/main/resources/db/migration`)을 자동 실행합니다.
 
 **4. Frontend 실행**
 ```bash
@@ -108,6 +115,16 @@ npm run dev
 ```
 
 **5. AI 서버 실행**
+
+옵션 A. Docker Compose로 AI 서버만 실행
+```bash
+docker compose up --build ai
+# http://localhost:8000/docs
+```
+
+> `docker-compose.yml`은 AI 서버 전용 로컬 실행 파일입니다. `ANTHROPIC_API_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `AI_CORS_ALLOWED_ORIGINS`는 현재 쉘 환경변수 또는 `.env`로 주입할 수 있습니다.
+
+옵션 B. 로컬 Python 환경에서 직접 실행
 ```bash
 cd ai
 python -m venv venv
@@ -142,29 +159,65 @@ withbuddy/
 │ 
 ├─ ai/                          # AI (기능 구현 시작 후 이 폴더에서 관리)
 │ 
-├─ backend/                     # BE (기능 구현 시작 후 이 폴더에서 관리)
+├─ backend/                     # BE
+│  ├─ src/main/resources/
+│  │  ├─ application.yaml       # 공통 설정
+│  │  ├─ application-prod.yml   # 운영 설정
+│  │  ├─ schema.sql             # 참고용 초기 스키마/시드
+│  │  └─ db/migration/          # Flyway 마이그레이션
+│  │     ├─ V1__create_companies.sql
+│  │     ├─ ...
+│  │     └─ V10__backfill_seed_rows_idempotent.sql
+│  ├─ build.gradle              # 백엔드 빌드 설정
+│  └─ README.md                 # 백엔드 개발/배포 가이드
 │ 
 ├─ docs/
 │  ├─ architecture/
+<<<<<<< HEAD
+│  │  ├─ AI_ARCHITECTURE.md     # AI  (초안 - AI 아키텍처)
+│  │  ├─ ARCHITECTURE.md        # BE/CI  (초안 - 시스템 아키텍처)
+│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - OCI 배포 가이드)
+│  │  ├─ DEPLOYMENT.md          # BE/CI  (초안 - 배포 가이드)
+│  │  └─ INFRASTRUCTURE.md      # BE/CI  (초안 - 인프라 구조)
+=======
 │  │  ├─ AI_ARCHITECTURE.md     # AI  (AI 아키텍처)
 │  │  ├─ ARCHITECTURE.md        # BE/CI  (시스템 아키텍처)
 │  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (OCI 배포 가이드)
-│  │  ├─ DEPLOYMENT.md          # BE/CI  (배포 가이드)
 │  │  ├─ INFRASTRUCTURE.md      # BE/CI  (인프라 구조)
 │  │  └─ AI_SERVER_GUIDE.md     # AI/CI  (AI 서버 운영/배포 점검 가이드)
+>>>>>>> 523f74d0033561247d09915c8f8f5e5335093b1a
 │  │
 │  ├─ erd/                      # BE (MVP 단계에서 진행)
+│  ├─ migration/
+│  │  └─ MIGRATION.md           # BE/CI  (Flyway 마이그레이션 가이드)
+│  ├─ storage/                  # BE/CI  (스토리지 API/운영/DDL 문서)
 │  │
 │  ├─ guides/ 
+<<<<<<< HEAD
+│  │  ├─ COLLABORATION.md         # BE/CI  (초안 - 협업 규칙 📚 필독)
+│  │  ├─ CONTRIBUTING.md          # BE/CI  (초안 - 기여 가이드 📚 필독)
+=======
 │  │  ├─ COLLABORATION.md         # BE/CI  (협업 규칙 📚 필독)
 │  │  ├─ CONTRIBUTING.md          # BE/CI  (기여 가이드 📚 필독)
+>>>>>>> 523f74d0033561247d09915c8f8f5e5335093b1a
 │  │  ├─ AI-DEPENDENCIES.md       # BE/AI  (AI 의존성 파일 관리 가이드)
 │  │  ├─ CONFLICT-MINIMIZATION.md # BE/CI  (충돌 최소화 작업 매뉴얼 📚 필독)
 │  │  ├─ CONFLICT-RECOVERY.md     # BE/CI  (충돌/오염 상태 복구 매뉴얼📚 필독)
 │  │  ├─ ENV.md                   # BE/CI  (환경변수 및 GitHub Secrets 가이드)
-│  │  ├─ GIT-FLOW-SETUP.md        # BE/CI  (Git Flow 설정 체크리스트)
+│  │  ├─ GITHUB-FLOW-SETUP.md     # BE/CI  (GitHub flow 설정 체크리스트)
 │  │  ├─ GITHUB-SSH.md            # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
+<<<<<<< HEAD
+│  │  └─ SETUP.md                 # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
+│  │  ├─ COLLABORATION.md       # BE/CI  (초안 - 협업 규칙 📚 필독)
+│  │  ├─ CONTRIBUTING.md        # BE/CI  (초안 - 기여 가이드 📚 필독)
+│  │  ├─ DEPLOYMENT-ORACLE.md   # BE/CI  (초안 - Oracle Cloud 배포 가이드)
+│  │  ├─ ENV.md                 # BE/CI  (초안 - 환경변수)
+│  │  ├─ GIT-FLOW-SETUP.md      # BE/CI  (초안 - Git Flow 설정 체크리스트)
+│  │  ├─ GITHUB-SSH.md          # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
+│  │  └─ SETUP.md               # BE/CI  (초안 - 개발 환경 설정 가이드 📚 필독)
+=======
 │  │  └─ SETUP.md                 # BE/CI  (개발 환경 설정 가이드 📚 필독)
+>>>>>>> 523f74d0033561247d09915c8f8f5e5335093b1a
 │  │
 │  ├─ API.md                    # BE  (API 명세서)
 │  ├─ MULTI_TENANCY.md          # BE  (멀티 테넌시 아키텍처)
@@ -190,14 +243,16 @@ withbuddy/
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
 - **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
-- **[Git Flow 설정 체크리스트](./docs/guides/GIT-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS, PR 자동 본문 설정
+- **[GitHub flow 설정 체크리스트](./docs/guides/GITHUB-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS, PR 자동 본문 설정
 - **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR, 코드 작성 기준
 
 ### 아키텍처
 - **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
 - **[AI 서버 운영 가이드](docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
 - **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
+- **[DB 마이그레이션 가이드](./docs/migration/MIGRATION.md)** - Flyway 버전 관리, 검증 쿼리, 운영 규칙
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
+- **[스토리지 문서 세트](./docs/storage/README.md)** - Storage API, 운영 Runbook, DDL, ERD
 
 ### API
 - **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
@@ -350,5 +405,7 @@ withbuddy/
 
 ## 변경 이력
 
-- 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
+- 2026-04-14: 백엔드 배포 기준을 Flyway 중심으로 업데이트. baseline 설정(`SPRING_FLYWAY_BASELINE_*`)과 V10 시드 보정 마이그레이션 반영 내용을 문서 링크와 함께 정리.
+- 2026-04-11: 스토리지(Object Storage) 반영에 맞춰 기술 스택/배포 항목을 갱신하고, 백엔드 로컬 실행 환경변수 예시에 `REDIS_URL`, `RABBITMQ_URL`, `STORAGE_API_*`를 추가. `docs/storage` 문서 경로를 디렉토리 구조와 문서 링크에 반영.
 - 2026-04-02: 브랜치 예시의 Jira 서브태스크 키 표기를 `SCRUM-##` 대문자로 통일.
+- 2026-03-30: GitHub Actions `pr-autofill.yml` 워크플로우를 디렉토리 구조/협업 문서 링크에 반영.
