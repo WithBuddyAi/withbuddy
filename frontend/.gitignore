@@ -25,3 +25,13 @@ dist-ssr
 
 # Claude
 .claude/
+
+<<<<<<< Updated upstream
+# 환병변수 파일
+=======
+# 환경변수 파일
+>>>>>>> Stashed changes
+.env
+.env.development
+.env.production
+.env.local
