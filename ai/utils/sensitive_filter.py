@@ -87,6 +87,19 @@ def _make_sensitive_answer(user_name: str, contact: str = "경영지원팀") -> 
     )
 
 
+def _make_wage_answer(user_name: str) -> str:
+    name_part = f"{user_name}님, " if user_name else ""
+    return (
+        f"{name_part}급여 지급 관련해서 걱정이 많으시겠어요. 😥\n\n"
+        "임금은 정해진 날짜에 전액 지급되는 것이 원칙입니다. "
+        "행정상의 실수나 전산 오류로 누락되는 경우도 있으니 아래 순서대로 확인해 보세요.\n\n"
+        "**1단계: 경영지원팀 확인**\n"
+        "급여 명세서와 실제 입금 내역을 대조한 뒤, 경영지원팀에 누락 여부를 먼저 확인하세요.\n\n"
+        "**2단계: 증빙 자료 준비**\n"
+        "근로계약서와 급여 명세서를 미리 챙겨두시면 상담이 수월합니다."
+    )
+
+
 def _make_profanity_answer(user_name: str) -> str:
     name_part = f"{user_name}님을 " if user_name else ""
     return (
@@ -138,6 +151,10 @@ def check_sensitive(message: str, user_name: str = "") -> tuple[str, str | None]
     # 4. 법적 리스크
     if any(kw in message for kw in _LEGAL_RISK_KEYWORDS):
         if not has_admin_intent:
+            # 임금 체불 관련은 별도 안내 문구 적용
+            wage_keywords = ["임금 체불", "월급을 못 받", "급여가 안 들어"]
+            if any(kw in message for kw in wage_keywords):
+                return ("block", _make_wage_answer(user_name))
             return ("block", _make_sensitive_answer(user_name))
         return ("pass", None)
 
