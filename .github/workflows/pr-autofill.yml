@@ -1,0 +1,70 @@
+name: Autofill PR Body
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  autofill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate PR body from commit messages
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+            const currentBody = pr.body || "";
+            const templateMarker = "<!-- AUTO_FILL_TEMPLATE -->";
+
+            // Keep manual edits when lock marker is present.
+            if (currentBody.includes("<!-- AUTO_FILL_LOCK -->")) {
+              core.info("AUTO_FILL_LOCK marker found. Skip PR body autofill.");
+              return;
+            }
+
+            // Keep user-entered body as-is.
+            // Autofill runs when body is empty or template-only body.
+            const hasContent = (currentBody || "").trim().length > 0;
+            const isTemplateBody = currentBody.includes(templateMarker);
+            if (hasContent && !isTemplateBody) {
+              core.info("PR body already has content. Skip autofill.");
+              return;
+            }
+
+            const commits = await github.paginate(
+              github.rest.pulls.listCommits,
+              { owner, repo, pull_number: pr.number, per_page: 100 }
+            );
+
+            const titles = commits
+              .map((c) => (c.commit.message || "").split("\n")[0].trim())
+              .filter(Boolean);
+
+            const cleanedTitles = titles
+              .filter((title) => !/^merge\b/i.test(title))
+              .filter((title) => !/^chore:\s*sync\b/i.test(title));
+
+            const uniqueTitles = [...new Set(cleanedTitles)];
+            const commitLines = uniqueTitles.map((title) => `- ${title}`);
+
+            const body = [
+              "## 변경 사항",
+              ...commitLines,
+            ].join("\n").trim();
+
+            if (!body) {
+              core.info("No meaningful content to autofill. Skip update.");
+              return;
+            }
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number: pr.number,
+              body
+            });

@@ -2,10 +2,16 @@
 
 > 인증, 인가, 데이터 보호 및 보안 모범 사례
 
+<<<<<<< HEAD
 **최종 업데이트**: 2026-03-23  
 **버전**: 1.1.2
 **최종 업데이트**: 2026-03-22  
 **버전**: 1.1.1
+=======
+**최종 업데이트**: 2026-04-07  
+**버전**: 1.3.2  
+**작성일**: 2026-03-27
+>>>>>>> 0bd6bb322ecff738d4fbaaa05ca196060fe28074
 
 ---
 
@@ -20,6 +26,7 @@
 - [7. 애플리케이션 보안](#7-애플리케이션-보안)
 - [8. 보안 모니터링](#8-보안-모니터링)
 - [9. Cloudflare/HTTPS/SSL 보안 설정](#9-cloudflarehttpsssl-보안-설정)
+- [10. 변경 이력](#10-변경-이력)
 
 ---
 
@@ -136,7 +143,7 @@ public class JwtService {
 [사용자]
    ↓ (1) 회사코드 + 사원번호 + 이름 입력
    {
-     "companyCode": 1001,
+     "companyCode": "WB1001",
      "employeeNumber": "20260001",
      "name": "김지원"
    }
@@ -144,7 +151,7 @@ public class JwtService {
    ↓ (2) POST /api/v1/auth/login
 [Backend]
    ↓ (3) Company 조회 (companyCode)
-   ↓ (4) User 조회 (company_id, employee_number)
+   ↓ (4) User 조회 (company_code, employee_number)
    ↓ (5) 이름 검증 (user.name == "김지원")
    ↓ (6) JWT 생성
    {
@@ -568,9 +575,8 @@ public class CorsConfig {
         
         // 허용 Origin
         configuration.setAllowedOrigins(Arrays.asList(
-            "https://withbuddy.com",
-            "https://www.withbuddy.com",
-            "https://withbuddy.vercel.app"
+            "https://withbuddy.itsdev.kr",
+            "https://withbuddy-rust.vercel.app/"
         ));
         
         // 허용 HTTP 메서드
@@ -713,33 +719,65 @@ public class CspFilter implements Filter {
 
 ## 6. 네트워크 보안
 
-### 6.1 VCN 격리
+### 6.1 VCN 격리 (Cross-Tenancy)
 
 ```
 Internet
   ↓ (HTTPS only)
-Load Balancer (Public Subnet)
-  ↓ (HTTP 8080)
-Backend/AI Server (Private Subnet)
-  ↓ (MySQL 3306)
-Database (Private Subnet - 완전 격리)
+Backend (Tenancy B, Public Subnet)
+  ├─↓ (LPG, Private)
+  │ AI Server (Tenancy A, Private Subnet)
+  └─↓ (Private)
+    Database (Tenancy B, Private Subnet)
 ```
 
 **규칙**:
 - ✅ Database는 인터넷 접근 불가
-- ✅ Backend/AI는 NAT Gateway 통해서만 아웃바운드
-- ✅ Load Balancer만 Public IP
+- ✅ AI 서버는 VCN-A 내부 Private IP만 사용
+- ✅ Backend ↔ AI 통신은 LPG로만 허용
 
 ### 6.2 보안 그룹 최소 권한
 
 ```yaml
-MySQL Security Group:
+MySQL Security List/NSG:
   Inbound:
-    - Port 3306 from Backend SG only
-    - Port 3306 from AI Server SG only
-  Outbound:
-    - None (완전 차단)
+    - Port 3306 from VCN-B CIDR (Backend)
+    Outbound:
+      - None (완전 차단)
 ```
+
+### 6.3 Redis/RabbitMQ 분리 보안 정책
+
+```yaml
+Redis:
+  Purpose:
+    - 캐시/토큰 블랙리스트/레이트리밋
+  Port: 6379
+  Access:
+    - Backend subnet
+    - AI subnet (필요 시)
+  Requirements:
+    - requirepass 또는 ACL 필수
+    - 외부 인터넷 직접 노출 금지
+
+RabbitMQ:
+  Purpose:
+    - 비동기 메시징 (작업 큐)
+  Port: 5672
+  Management Port: 15672
+  Access:
+    - 5672: Backend/AI 내부망만 허용
+    - 15672: 운영자 고정 IP만 허용
+  Requirements:
+    - 앱 계정/관리자 계정 분리
+    - DLQ 및 재시도 정책 사용
+    - 기본 guest 계정 비활성화
+```
+
+추가 원칙:
+- AI 서버는 사용자 원본 데이터를 직접 변경하지 않는다.
+- 사용자/회사 원본 데이터는 Backend를 통해 MySQL에만 저장한다.
+- Redis 데이터 유실은 허용하되, RabbitMQ 큐 유실은 운영 장애로 간주하고 모니터링한다.
 
 
 ---
@@ -769,11 +807,11 @@ public class UserRequest {
 
 ```java
 // ✅ GOOD: JPA Query Methods
-List<User> findByCompanyIdAndEmployeeNumber(Long companyId, String employeeNumber);
+List<User> findByCompanyCodeAndEmployeeNumber(String companyCode, String employeeNumber);
 
 // ✅ GOOD: JPQL with Parameters
-@Query("SELECT u FROM User u WHERE u.company.id = :companyId AND u.employeeNumber = :empNum")
-List<User> findUsers(@Param("companyId") Long companyId, @Param("empNum") String empNum);
+@Query("SELECT u FROM User u WHERE u.company.companyCode = :companyCode AND u.employeeNumber = :empNum")
+List<User> findUsers(@Param("companyCode") String companyCode, @Param("empNum") String empNum);
 
 // ❌ BAD: String concatenation
 @Query("SELECT u FROM User u WHERE u.employeeNumber = '" + empNum + "'")  // NEVER DO THIS!
@@ -872,6 +910,75 @@ Warning Alerts:
 - **개발/스테이징/운영 분리 인증서** 사용
 - **키 접근 제한** (권한 최소화, 비밀관리 도구에 보관)
 - **만료 30일 전 교체 알림** 설정 및 자동 갱신 설정
+
+### 9.4 개발 단계 AI 서버 공개 정책
+
+- AI 앱 포트(`8000`)는 외부에 직접 공개하지 않는다.
+- 외부 공개가 필요하면 `80/443`에서 리버스 프록시(Nginx/Caddy)로 연결한다.
+- Cloudflare를 사용할 때 `8000` 직결은 프록시 정책과 충돌할 수 있으므로 도메인 트래픽은 `443` 종단을 기본으로 한다.
+- 최소 공개 포트는 `22`, `80`, `443`로 제한하고 SSH는 운영자 IP 대역으로 추가 제한한다.
+- 배포 후 검증은 `systemctl is-active`와 `127.0.0.1:8000/health`를 함께 사용한다.
+
+### 9.5 Nginx 민감 경로 차단 (ai.itsdev.kr)
+
+- 적용 파일: `/etc/nginx/sites-available/ai.itsdev.kr`
+- 목적: 환경변수/버전관리/백업 파일의 직접 HTTP 접근 차단
+
+```nginx
+location ~ /\.(?!well-known).* {
+    deny all;
+    return 404;
+}
+
+location ~* /(\.git|\.svn|\.hg|CVS)(/|$) {
+    deny all;
+    return 404;
+}
+
+location ~* \.(env|ini|log|conf|sql|bak|old|orig|save|swp|swo|tmp|yml|yaml)$ {
+    deny all;
+    return 404;
+}
+```
+
+검증:
+
+```bash
+curl -i https://ai.itsdev.kr/.env
+curl -i https://ai.itsdev.kr/.git/config
+curl -i https://ai.itsdev.kr/health
+```
+
+기대 결과:
+- `/.env`, `/.git/config`는 `404`
+- `/health`는 `200`
+
+### 9.6 Nginx 버전 노출 제한
+
+- 목적: 응답 헤더/에러 페이지에서 `nginx/1.x.x` 버전 문자열 노출을 줄인다.
+- 설정 파일: `/etc/nginx/nginx.conf`
+
+```nginx
+http {
+    server_tokens off;
+}
+```
+
+적용:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+검증:
+
+```bash
+curl -I https://ai.itsdev.kr/
+```
+
+기대 결과:
+- `Server: nginx` (버전 미표기)
 ---
 
 ## 부록
@@ -900,8 +1007,24 @@ Warning Alerts:
 - [ ] 데이터베이스 Private Subnet 격리
 - [ ] 보안 그룹 최소 권한 원칙
 - [ ] NAT Gateway 아웃바운드만
+- [ ] Nginx dotfile/VCS/백업파일 차단 규칙 적용 (`ai.itsdev.kr`)
+- [ ] Nginx `server_tokens off` 적용 (버전 노출 제한)
 
 ---
 
+<<<<<<< HEAD
 **문서 버전**: 1.1.1  
 **작성일**: 2026-03-17
+=======
+## 10. 변경 이력
+
+- 2026-04-07: `ai.itsdev.kr` Nginx 민감 경로 차단 규칙(`.env`, `.git`, 백업 확장자)과 점검 항목을 추가.
+- 2026-04-07: Nginx `server_tokens off` 적용/검증 절차를 추가해 버전 노출 제한 기준을 명시.
+- 2026-04-06: 현재 운영 기준(`DB는 Backend만 접근`)에 맞춰 네트워크 보안 예시에서 AI→DB 직접 접근 규칙을 제거.
+- 2026-04-02: 개발 일지 항목을 통합 노트(`devnote.md`)로 이관하고 문서 구조를 정리.
+- 2026-04-01: Redis(캐시)와 RabbitMQ(메시징) 분리 보안 정책(포트/접근제어/계정원칙)을 추가.
+- 2026-03-30: 개발단계 AI 서버 공개 정책(8000 비공개, 80/443 리버스 프록시) 및 배포 검증 기준 문구를 보강.
+- 2026-03-27: VCN 격리/보안 규칙을 테넌시 분리 및 LPG 통신 구조에 맞게 업데이트.
+
+
+>>>>>>> 0bd6bb322ecff738d4fbaaa05ca196060fe28074

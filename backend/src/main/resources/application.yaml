@@ -1,0 +1,89 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      enabled: true
+      charset: UTF-8
+      force: true
+      force-request: true
+      force-response: true
+
+spring:
+  application:
+    name: withbuddy
+  datasource:
+    url: ${SPRING_DB_URL}
+    username: ${SPRING_DB_USERNAME}
+    password: ${SPRING_DB_PASSWORD}
+  data:
+    redis:
+      url: ${REDIS_URL}
+  rabbitmq:
+    uri: ${RABBITMQ_URL}
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    encoding: UTF-8
+    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: ${SPRING_FLYWAY_BASELINE_VERSION:0}
+
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-expiration: 7200000
+
+ai:
+  server:
+    base-url: ${AI_SERVER_BASE_URL}
+
+app:
+  security:
+    cors:
+      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,https://*.vercel.app,https://withbuddy.itsdev.kr}
+      allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
+      allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+      exposed-headers: ${CORS_EXPOSED_HEADERS:}
+      allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+      max-age-seconds: ${CORS_MAX_AGE_SECONDS:3600}
+    storage-api:
+      enabled: ${STORAGE_API_AUTH_ENABLED:false}
+      keys:
+        - id: ${STORAGE_API_KEY_ID:storage-admin}
+          value: ${STORAGE_API_KEY_VALUE:}
+          global-access: ${STORAGE_API_GLOBAL_ACCESS:true}
+          active: ${STORAGE_API_KEY_ACTIVE:true}
+  rabbitmq:
+    exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
+    queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
+    queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    local-base-dir: ${STORAGE_LOCAL_BASE_DIR:storage-data}
+    max-document-size-mb: ${STORAGE_MAX_DOCUMENT_SIZE_MB:20}
+    max-image-size-mb: ${STORAGE_MAX_IMAGE_SIZE_MB:5}
+    download-url-ttl-seconds: ${STORAGE_DOWNLOAD_URL_TTL_SECONDS:300}
+    retry:
+      enabled: ${STORAGE_RETRY_ENABLED:true}
+      max-attempts: ${STORAGE_RETRY_MAX_ATTEMPTS:5}
+      interval-ms: ${STORAGE_RETRY_INTERVAL_MS:60000}
+      base-backoff-seconds: ${STORAGE_RETRY_BASE_BACKOFF_SECONDS:60}
+      max-backoff-seconds: ${STORAGE_RETRY_MAX_BACKOFF_SECONDS:1800}
+      batch-size: ${STORAGE_RETRY_BATCH_SIZE:20}
+    oci-cli:
+      executable: ${STORAGE_OCI_CLI_EXECUTABLE:oci}
+      primary-profile: ${STORAGE_OCI_PRIMARY_PROFILE:DEFAULT}
+      backup-profile: ${STORAGE_OCI_BACKUP_PROFILE:DEFAULT}
+      suppress-file-permissions-warning: ${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING:true}
+    primary:
+      namespace: ${STORAGE_PRIMARY_NAMESPACE:primary}
+      bucket: ${STORAGE_PRIMARY_BUCKET:withbuddy-primary}
+    backup:
+      namespace: ${STORAGE_BACKUP_NAMESPACE:backup}
+      bucket: ${STORAGE_BACKUP_BUCKET:withbuddy-backup}

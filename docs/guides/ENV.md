@@ -2,8 +2,9 @@
 
 WithBuddy 프로젝트의 환경변수 설정 가이드입니다.
 
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.0
+**최종 업데이트**: 2026-04-07
+**버전**: 0.3.1
+**작성일**: 2026-03-23
 
 ## 📋 목차
 
@@ -20,10 +21,10 @@ WithBuddy 프로젝트의 환경변수 설정 가이드입니다.
 
 ```bash
 # 데이터베이스 설정
-SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/withbuddy?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-SPRING_DATASOURCE_USERNAME=root
-SPRING_DATASOURCE_PASSWORD=your_password
-SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+SPRING_DB_URL=jdbc:mysql://localhost:3306/withbuddy?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+SPRING_DB_USERNAME=root
+SPRING_DB_PASSWORD=your_password
+SPRING_DB_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
 
 # JWT 설정
 JWT_SECRET=your-secret-key-min-256-bits
@@ -43,9 +44,9 @@ SHOW_SQL=false  # SQL 쿼리 로깅
 SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.MySQL8Dialect
 
 # 커넥션 풀 설정
-SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=10
-SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=5
-SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=20000
+SPRING_DB_HIKARI_MAXIMUM_POOL_SIZE=10
+SPRING_DB_HIKARI_MINIMUM_IDLE=5
+SPRING_DB_HIKARI_CONNECTION_TIMEOUT=20000
 
 # 로깅 설정
 LOGGING_LEVEL_ROOT=INFO
@@ -71,10 +72,10 @@ SPRING_MAIL_PASSWORD=your-app-password
 ```yaml
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+    url: ${SPRING_DB_URL}
+    username: ${SPRING_DB_USERNAME}
+    password: ${SPRING_DB_PASSWORD}
+    driver-class-name: ${SPRING_DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
   jpa:
     hibernate:
       ddl-auto: ${HIBERNATE_DDL_AUTO:update}
@@ -127,12 +128,12 @@ VITE_ENABLE_MOCK_API=false
 
 ```env
 # .env.development
-VITE_API_BASE_URL=http://localhost:8080/api
+VITE_API_BASE_URL=http://localhost:8080
 VITE_APP_ENV=development
 VITE_ENABLE_MOCK_API=true
 
 # .env.production
-VITE_API_BASE_URL=https://api.withbuddy.com/api
+VITE_API_BASE_URL=https://api-wb.itsdev.kr
 VITE_APP_ENV=production
 VITE_ENABLE_ANALYTICS=true
 ```
@@ -151,7 +152,7 @@ MODEL_TEMPERATURE=0.7
 
 # 서버 설정
 AI_SERVER_PORT=8000
-AI_SERVER_HOST=0.0.0.0
+AI_BIND_HOST=0.0.0.0
 CHROMA_PERSIST_DIR=./chroma_db
 ```
 
@@ -167,6 +168,13 @@ PRESENCE_PENALTY=0.0
 # 캐싱 설정
 REDIS_URL=redis://localhost:6379
 CACHE_TTL=3600  # 1시간
+
+# 메시징 설정 (RabbitMQ)
+RABBITMQ_URL=amqp://withbuddy_app:password@localhost:5672/%2F
+RABBITMQ_EXCHANGE=wb.ai.events
+RABBITMQ_QUEUE_REPORT=wb.report.generate
+RABBITMQ_QUEUE_REINDEX=wb.docs.reindex
+RABBITMQ_QUEUE_SLACK=wb.notification.slack
 
 # 로깅
 LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
@@ -189,7 +197,33 @@ CHROMA_PERSIST_DIR=./chroma_db
 # Redis (선택)
 REDIS_URL=redis://localhost:6379
 CACHE_TTL=3600
+
+# RabbitMQ (선택)
+RABBITMQ_URL=amqp://withbuddy_app:password@localhost:5672/%2F
+RABBITMQ_EXCHANGE=wb.ai.events
+RABBITMQ_QUEUE_REPORT=wb.report.generate
 ```
+
+### 운영 권장값 (Redis/RabbitMQ)
+
+```bash
+# Redis
+REDIS_URL=redis://:CHANGE_ME_REDIS_PASSWORD@10.0.3.10:6379/0
+CACHE_TTL=300
+
+# RabbitMQ
+RABBITMQ_URL=amqp://withbuddy_app:CHANGE_ME_RMQ_PASSWORD@10.0.3.10:5672/%2F
+RABBITMQ_EXCHANGE=wb.ai.events
+RABBITMQ_QUEUE_REPORT=wb.report.generate
+RABBITMQ_QUEUE_REINDEX=wb.docs.reindex
+RABBITMQ_QUEUE_SLACK=wb.notification.slack
+RABBITMQ_QUEUE_DLQ=wb.deadletter
+```
+
+운영 원칙:
+- 채팅/간단 액션은 Redis 경로를 우선 사용한다.
+- 주간 회고/리포트/재인덱싱은 RabbitMQ 메시징 시스템 기반 비동기 작업으로 분리한다.
+- Redis/RabbitMQ 접속 정보는 코드 하드코딩 없이 Secrets/Environment로만 주입한다.
 
 ---
 
@@ -204,14 +238,38 @@ Settings → Secrets and variables → Actions → New repository secret
 ```
 
 **필수 Secrets:**
-- `DB_PASSWORD` - 데이터베이스 비밀번호
+- `SPRING_DB_PASSWORD` - 데이터베이스 비밀번호
 - `JWT_SECRET` - JWT 서명 키
 - `ANTHROPIC_API_KEY` - Anthropic Claude API 키
+
+### AI 배포용 Environment Secrets (production)
+
+`Deploy AI Server` 워크플로우(`.github/workflows/ai-deploy.yml`)는 아래 `production` 환경 시크릿을 사용한다.
+
+```bash
+${{ secrets.AI_SERVER_HOST }}=<AI_SERVER_PUBLIC_IP>
+${{ secrets.AI_SERVER_USER }}=ubuntu
+${{ secrets.AI_SERVER_SSH_KEY }}=<AI 서버 접속 개인키 전체>
+${{ secrets.AI_APP_DIR }}=/home/ubuntu/withbuddy/ai
+${{ secrets.AI_SERVICE_NAME }}=withbuddy-ai
+```
+
+등록 상태:
+- 위 5개 시크릿은 GitHub Actions `Environment: production`에 등록 완료됨 (확인일: 2026-03-30).
+
+주의:
+- 위 값은 Repository secrets가 아니라 **Environment secrets (production)** 기준이다.
+- `${{ secrets.AI_SERVER_HOST }}`는 서버 주소이며, `AI_BIND_HOST=0.0.0.0` 같은 애플리케이션 바인딩 값과 의미가 다르다.
 
 **선택 Secrets:**
 - `SENTRY_DSN` - 에러 트래킹 DSN
 - `AWS_ACCESS_KEY_ID` - AWS 액세스 키 (배포 시)
 - `AWS_SECRET_ACCESS_KEY` - AWS 시크릿 키 (배포 시)
+- `REDIS_URL` - Redis 캐시 접속 정보
+- `RABBITMQ_URL` - RabbitMQ 브로커 접속 정보
+- `RABBITMQ_EXCHANGE` - RabbitMQ exchange 이름
+- `RABBITMQ_QUEUE_REPORT` - 주간 회고/리포트 큐 이름
+- `RABBITMQ_QUEUE_DLQ` - DLQ 큐 이름
 
 ---
 
@@ -255,10 +313,10 @@ ai/.env.local
 
 ```bash
 # backend/.env.example
-SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/withbuddy?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-SPRING_DATASOURCE_USERNAME=root
-SPRING_DATASOURCE_PASSWORD=
-SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+SPRING_DB_URL=jdbc:mysql://localhost:3306/withbuddy?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+SPRING_DB_USERNAME=root
+SPRING_DB_PASSWORD=
+SPRING_DB_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
 JWT_SECRET=
 SERVER_PORT=8080
 
@@ -334,9 +392,16 @@ CORS_ALLOWED_ORIGINS=https://withbuddy.com
 REACT_APP_API_URL=xxx  # Vite는 VITE_ 접두사 필요
 
 # ✅ 올바른 사용
-VITE_API_URL=xxx
+VITE_API_BASE_URL=xxx
 ```
 
 ---
 
-**마지막 업데이트**: 2026-03-16
+## 변경 이력
+
+- 2026-04-02: 공개 저장소 기준 서버 주소 표기를 플레이스홀더로 통일하고 문서 정합성을 보강.
+- 2026-04-01: 문서 메타데이터 위치를 표준화하고(`작성일/최종 업데이트/버전` 상단, `변경 이력` 하단) 형식을 통일.
+- 2026-04-01: AI 지연 대응 설계를 반영해 Redis(캐시)와 RabbitMQ(메시징) 환경변수/Secrets 항목을 추가.
+- 2026-04-01: DB 서버 공용 Redis/RabbitMQ 운영을 위한 권장 접속값과 큐 변수(`RABBITMQ_QUEUE_DLQ` 포함)를 추가.
+- 2026-03-30: AI 배포용 `production` Environment Secrets 등록 상태를 추가하고 `${{ secrets.* }}` 표기로 통일.
+- 2026-03-23: AI/Backend/Frontend 환경변수 구조 정리.
