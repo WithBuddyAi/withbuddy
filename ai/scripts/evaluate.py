@@ -282,7 +282,7 @@ def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db") -> dict:
         # ① RAG 답변 생성 + 시간 측정
         t0 = time.time()
         try:
-            answer, source, _ = run_rag_chain("eval_user", q)
+            answer, source, _, _doc_ids = run_rag_chain("eval_user", q)
         except Exception as e:
             answer, source = f"오류: {e}", ""
         elapsed_ms = int((time.time() - t0) * 1000)
