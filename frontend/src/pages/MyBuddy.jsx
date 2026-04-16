@@ -3,7 +3,7 @@ import { MessageSquare, ChevronRight, Send, LogOut, Calendar as CalendarIcon } f
 import char from '../assets/Favicon_web.svg'
 import bot from '../assets/Bot_icon.svg'
 import bar from '../assets/side_bar.svg'
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import axios from "axios";
@@ -32,6 +32,7 @@ function MyBuddy ({setIsLoggedIn}) {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL
   const accessToken = localStorage.getItem('accessToken')
   const [errorMessage, setErrorMessage] = useState(false)
+  const chatBottomRef = useRef(null)
 
   // 대화 기록 달력
   const handleDateChange = async (date) => {
@@ -50,7 +51,6 @@ function MyBuddy ({setIsLoggedIn}) {
       }
     }
   }
-
 
   // 로그아웃
   const handleLogout = () => {
@@ -96,9 +96,24 @@ function MyBuddy ({setIsLoggedIn}) {
           })
         ])
         if (messageResponse.status === 'fulfilled') {
-          setMessageList(messageResponse.value.data.messages)
-          const dates = [...new Set(messageResponse.value.data.messages.map(m => m.createdAt.slice(0, 10)))]
+          const messages = messageResponse.value.data.messages
+          const dates = [...new Set(messages.map(m => m.createdAt.slice(0, 10)))]
           setActiveDates(dates)
+
+          const isFirstLogin = localStorage.getItem('isFirstLogin')
+
+          if (!isFirstLogin) {
+            localStorage.setItem('isFirstLogin', 'true')
+            setMessageList( [{
+              id: 'welcome',
+              senderType: 'BOT',
+              content: `${name}님, 만나서 반가워요😊\n저는 ${name}님의 회사 생활을 함께 할 위드버디예요.\n\n인사(연차/급여)부터 행정(비품/보안/시설)까지,\n회사 생활에 필요한 모든 정보를 편하게 물어봐 주세요!\n\n오늘부터 제가 ${name}님의 든든한 위드버디가 되어 드릴게요!`,
+              createdAt: new Date().toISOString()
+            }, ...messages])
+          } else {
+            setMessageList(messages)
+          }
+
         } 
         if (suggestionResponse.status === 'fulfilled') {
           setSuggestion(suggestionResponse.value.data.suggestions)
@@ -129,6 +144,23 @@ function MyBuddy ({setIsLoggedIn}) {
   }
   sessionStart()
   }, [])
+  
+  // 자동 스크롤
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({
+      behavior: messageList.length > 1 ? "smooth" : "auto",
+    })
+  }, [messageList, isLoading])
+
+  // 에러 토스트 자동 사라짐
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(false)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [errorMessage])
 
   // 사용자 질문 전송
   const handleSubmit = async (e) => {
@@ -141,6 +173,7 @@ function MyBuddy ({setIsLoggedIn}) {
         {content: text},
         {headers: { 'Authorization': `Bearer ${accessToken}` }}
       )
+      
       setMessageList(prev => [...prev, data.question, data.answer])
       setText('')
       setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
@@ -202,6 +235,15 @@ function MyBuddy ({setIsLoggedIn}) {
 
   return (
     <div className="h-screen flex relative">
+      {errorMessage && (
+        <div className="fixed bottom-[40px] left-1/2 -translate-x-1/2 z-50
+          bg-[#343A40] text-white text-[14px]
+          py-[12px] px-[24px] rounded-[9999px] drop-shadow-lg
+          whitespace-nowrap">
+          ⚠️ {errorMessage}
+        </div>
+      )}
+
       {/* 배경 이미지 적용 */}
       <div className="absolute inset-0 z-0"
       style={{
@@ -353,6 +395,22 @@ function MyBuddy ({setIsLoggedIn}) {
             )
           })}
 
+          {isLoading && (
+            <div>
+              <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
+              <div className="flex justify-start">
+                <div className={botClass}>
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}/>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={chatBottomRef}/>
         </div>
 
         {/* 빠른 질문 */}
