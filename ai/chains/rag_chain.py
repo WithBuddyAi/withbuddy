@@ -317,12 +317,12 @@ def _extract_sources(docs: List[Document]) -> str:
     return ", ".join(sources) if sources else "알 수 없음"
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict], List[int]]:
     """
-    RAG 체인을 실행하여 답변, 출처, 관련 양식 목록을 반환합니다.
+    RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
     Returns:
-        Tuple[str, str, List[dict]]: (AI 답변, 출처 문서명, 관련 양식 목록)
+        Tuple[str, str, List[dict], List[int]]: (AI 답변, 출처 문서명, 관련 양식 목록, 문서 ID 목록)
     """
     from routers.docs import find_related_docs
 
@@ -336,20 +336,21 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     # 2-7: 모호한 질문 선처리
     ambiguous = _check_ambiguous(question)
     if ambiguous:
-        return ambiguous, "", []
+        return ambiguous, "", [], []
 
     if _is_legal_question(question):
         retrieved_docs = search_legal_docs(question, k=_get_k_for_question(question))
     else:
         retrieved_docs = search_with_company_fallback(question, k=_get_k_for_question(question), company_code=company_code)
     source_names = _extract_sources(retrieved_docs)
+    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
         answer = _format_legal_answer(retrieved_docs, question)
         save_interaction(user_id, question, answer)
         related_docs = find_related_docs(question)
-        return answer, source_names, related_docs
+        return answer, source_names, related_docs, doc_ids
 
     formatted_context = _format_docs(retrieved_docs)
     if _is_legal_question(question):
@@ -389,7 +390,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
-    return answer, source_names, related_docs
+    return answer, source_names, related_docs, doc_ids
 
 
 async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
