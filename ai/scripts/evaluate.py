@@ -107,32 +107,40 @@ TEST_CASES = [
         "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 
-    # ── 직장예절 ──────────────────────────────────────
+    # ── 출산·육아 ──────────────────────────────────────
     {
-        "category": "직장예절",
-        "question": "회의할 때 지켜야 할 예절이 뭐가 있어?",
-        "expected_keywords": ["회의"],
-        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
+        "category": "출산/육아",
+        "question": "출산휴가는 며칠이야?",
+        "expected_keywords": ["출산", "휴가"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
     {
-        "category": "직장예절",
-        "question": "비즈니스 이메일은 어떻게 써야 해?",
-        "expected_keywords": ["이메일"],
-        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
-    },
-    {
-        "category": "직장예절",
-        "question": "상사한테 보고할 때 어떻게 해야 해?",
-        "expected_keywords": ["보고"],
-        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
+        "category": "출산/육아",
+        "question": "육아휴직 신청은 어떻게 해?",
+        "expected_keywords": ["육아휴직", "신청"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
 
-    # ── 보고서 작성 ───────────────────────────────────
+    # ── 병가·재택 ──────────────────────────────────────
     {
-        "category": "문서작성",
-        "question": "보고서 작성할 때 기본 구조가 어떻게 돼?",
-        "expected_keywords": ["보고서"],
-        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
+        "category": "병가/재택",
+        "question": "병가는 어떻게 신청해?",
+        "expected_keywords": ["병가", "신청"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
+    },
+    {
+        "category": "병가/재택",
+        "question": "재택근무 신청 방법이 뭐야?",
+        "expected_keywords": ["재택"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
+    },
+
+    # ── 복지카드 ──────────────────────────────────────
+    {
+        "category": "복지카드",
+        "question": "복지카드 사용 방법 알려줘",
+        "expected_keywords": ["복지카드"],
+        "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
 
     # ── 복리후생 ──────────────────────────────────────
@@ -173,18 +181,18 @@ TEST_CASES = [
         "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "퇴직급여법.txt", "index_퇴직급여법_final.txt"],
     },
 
-    # ── 사규 조항 ─────────────────────────────────────
+    # ── 명함·법인카드 ─────────────────────────────────
     {
-        "category": "사규조항",
-        "question": "취업규칙 제1조가 뭐야?",
-        "expected_keywords": ["취업규칙"],
-        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
+        "category": "명함/법인카드",
+        "question": "명함 신청은 어떻게 해?",
+        "expected_keywords": ["명함", "신청"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
     {
-        "category": "사규조항",
-        "question": "상벌규정에서 징계 종류가 어떻게 돼?",
-        "expected_keywords": ["징계"],
-        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
+        "category": "명함/법인카드",
+        "question": "법인카드 한도가 얼마야?",
+        "expected_keywords": ["법인카드"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 ]
 
