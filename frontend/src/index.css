@@ -1,3 +1,105 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  font-family: 'Pretendard', sans-serif;
+}
+
+/* 전체 달력 */
+.react-calendar {
+  width: 231px;
+  border: 0.5px solid #DEE2E6;
+  border-radius: 8px;
+  padding: 16px 10px;
+  font-family: inherit;
+  box-shadow: 0 0.8px 2.4px rgba(0,0,0,0.05);
+  font-size: 14px;
+  color: #495057;
+}
+
+/* 오늘 날짜 */
+.react-calendar__tile--now {
+  background: transparent !important;
+  color: #204867;
+  font-weight: 700 !important;
+}
+
+/* 선택된 날짜 */
+.react-calendar__tile--active {
+  background: #336B97 !important;
+  color: white;
+  font-weight: 400 !important;
+  border-radius: 9999px;
+}
+
+/* 날짜 hover */
+.react-calendar__tile:hover {
+  background: #D0EBFF;
+  border-radius: 9999px;
+}
+
+
+/* 날짜 숫자 직접 보이게 */
+.react-calendar__tile {
+  font-size: 11px !important;
+  padding: 6px 0;
+  border-radius: 9999px;
+  width: 100% !important;
+  height: 29px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 2px auto !important;
+}
+
+/* 요일 글씨 */
+.react-calendar__month-view__weekdays__weekday abbr {
+  text-decoration: none;
+  font-size: 11px;
+  color: #20486799;
+}
+
+.react-calendar__navigation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 헤더 년월 */
+.react-calendar__navigation button {
+  font-size: 13px;
+  color: #204867;
+}
+
+/* 헤더 년월 한 줄로 */
+.react-calendar__navigation__label__labelText {
+  white-space: nowrap;
+}
+
+/* disabled 날짜 스타일 */
+.react-calendar__tile:disabled {
+  background-color: transparent !important;
+  color: #CED4DA !important;
+}
+
+/* disabled hover 효과 제거 */
+.react-calendar__tile:disabled:hover {
+  background-color: transparent !important;
+  cursor: default !important;
+}
+
+/* 꺽쇄 버튼 hover */
+.react-calendar__navigation__prev-button:hover,
+.react-calendar__navigation__next-button:hover {
+  background-color: #F1F3F5 !important;
+  border-radius: 9999px !important;
+}
+
+/* 월 텍스트 hover */
+.react-calendar__navigation__label:hover {
+  background-color: #D0EBFF !important;
+  border-radius: 9999px !important;
+}
