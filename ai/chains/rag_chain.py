@@ -392,7 +392,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         "context": formatted_context,
         "chat_history": chat_history,
         "user_style": user_style,
-        "user_name": "",
+        "user_name": user_name,
     })
     answer = _fix_names(answer)
 
@@ -488,7 +488,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         "context": formatted_context,
         "chat_history": chat_history,
         "user_style": user_style,
-        "user_name": "",
+        "user_name": user_name,
     }):
         full_answer += chunk
         yield chunk, None, None
