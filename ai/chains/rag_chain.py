@@ -7,9 +7,8 @@ Claude LLM이 답변을 생성하는 LCEL 파이프라인을 제공합니다.
 """
 
 import asyncio
-import json
 import re
-from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncGenerator, Tuple, List
 
 from langchain_core.documents import Document
@@ -17,39 +16,14 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
-from core.vectorstore import get_retriever
+from core.vectorstore import search_with_company_fallback, search_legal_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
 from utils.prompts import RAG_PROMPT
 
-# ── 팀장 이름 정규화 (team_config.json 기준) ─────────────────
-def _build_name_patterns() -> list[tuple[re.Pattern, str]]:
-    """team_config.json에서 팀장 이름을 읽어 정규식 교정 패턴을 빌드합니다."""
-    config_path = Path(__file__).parent.parent / "data" / "team_config.json"
-    try:
-        teams = json.loads(config_path.read_text(encoding="utf-8")).get("teams", [])
-    except Exception:
-        return []
-    patterns = []
-    for team in teams:
-        name = team.get("leader_name", "")  # 예: "김*수"
-        if len(name) == 3 and name[1] == "*":
-            first, last = re.escape(name[0]), re.escape(name[2])
-            # 김*수, 김 수, 김수 → 김*수 님 (이미 님이 붙어 있으면 그대로)
-            pat = re.compile(rf"{first}[\s*]?{last}(?:\s*님)?")
-            patterns.append((pat, f"{name} 님"))
-    return patterns
-
-_NAME_PATTERNS = _build_name_patterns()
-
-
 def _fix_names(text: str) -> str:
-    """LLM 응답에서 팀장 이름을 '김*수 님' 형식으로 교정하고 '님 -' → '님:' 로 통일합니다."""
-    for pat, replacement in _NAME_PATTERNS:
-        text = pat.sub(replacement, text)
-    # '님 -', '님 –', '님-' → '님:'
+    """'님 -' → '님:' 통일 및 어색한 문장 교체."""
     text = re.sub(r'님\s*[-–]', '님:', text)
-    # '어떤 부분이 필요한지에 따라 연락하면 돼요' 계열 → 자연스러운 문장으로 교체
     text = re.sub(r'어떤 부분이 필요한지에 따라 연락하[^\n\.\!]*[\.\!]?', '필요한 부분 확인 후 연락해보세요!', text)
     return text
 
@@ -112,11 +86,32 @@ def _check_ambiguous(question: str) -> str | None:
     return None
 
 
+# ── 원문 직접 출력 (LLM 우회) 키워드 ────────────────────────
+_DIRECT_LEGAL_KEYWORDS = ["배우자출산휴가", "배우자 출산휴가"]
+
+def _is_direct_legal_question(question: str) -> bool:
+    """LLM 해석 없이 원문을 바로 반환해야 할 질문 감지."""
+    return any(kw in question for kw in _DIRECT_LEGAL_KEYWORDS)
+
+
+# ── 법률 문서 전용 검색 감지 ──────────────────────────────────
+_LEGAL_KEYWORDS = [
+    "최저임금", "최저시급", "퇴직금", "퇴직급여", "육아휴직", "산재", "임금체불",
+    "근로계약", "해고", "근로기준법", "노동법", "연장근로", "야간수당",
+    "주휴수당", "소정근로시간", "월 환산", "퇴직연금", "평균임금", "통상임금",
+    "출산휴가", "배우자출산휴가", "육아기단축근무", "가족돌봄휴직",
+]
+_ARTICLE_PATTERN_LEGAL = re.compile(r"제?\d+조")
+
+def _is_legal_question(question: str) -> bool:
+    """노동법/법률 관련 질문 여부 감지."""
+    return any(kw in question for kw in _LEGAL_KEYWORDS) or bool(_ARTICLE_PATTERN_LEGAL.search(question))
+
+
 # ── 2-6: 근로기준법 fallback ──────────────────────────────────
 _LABOR_LAW_KEYWORDS = ["근로기준법", "노동법", "최저임금법", "산업안전보건법", "고용노동부", "노동자 권리", "근로자 권리"]
 _LABOR_LAW_FALLBACK = (
-    "\n\n📌 근로기준법 관련 정확한 내용은 **고용노동부 고객상담센터 ☎1350** 또는 "
-    "**인사팀 김지수님**께 확인하시는 게 가장 정확해요."
+    "\n\n📌 근로기준법 관련 정확한 내용은 **경영지원팀**께 확인하시는 게 가장 정확해요."
 )
 
 
@@ -160,6 +155,19 @@ def _is_unanswered(answer: str, docs: List[Document]) -> bool:
         return True
     return any(kw in answer for kw in _NO_ANSWER_KEYWORDS)
 
+
+def _extract_contact_from_docs(docs: List[Document]) -> str | None:
+    """
+    검색된 문서 청크에서 '담당 부서 / 문의처:' 필드를 파싱합니다.
+    문서 헤더 예시: "담당 부서 / 문의처: 경영지원팀 김지수 매니저 (Slack @jisoo.kim)"
+    """
+    pattern = re.compile(r'담당 부서\s*/\s*문의처\s*:\s*(.+)')
+    for doc in docs:
+        m = pattern.search(doc.page_content)
+        if m:
+            return m.group(1).strip()
+    return None
+
 async def _fire_unanswered_alert(user_id: str, question: str) -> None:
     """미답변 저장 + Slack 알림 (백그라운드)"""
     try:
@@ -175,7 +183,9 @@ _chain = None
 def _get_chain():
     global _chain
     if _chain is None:
-        _chain = RAG_PROMPT | get_llm() | StrOutputParser()
+        _chain = (RAG_PROMPT | get_llm() | StrOutputParser()).with_config(
+            {"tags": ["rag-chain"], "run_name": "withbuddy-rag"}
+        )
     return _chain
 
 
@@ -184,18 +194,89 @@ _MAX_CONTEXT_CHARS = 2000  # 전체 컨텍스트 최대 글자 수
 
 # 문서 내 회사명 치환 목록 — PDF 원본의 회사명을 서비스명으로 변경
 _COMPANY_REPLACEMENTS = [
-    ("한전KDN", "(주)버디"),
-    ("한국전력공사", "(주)버디"),
-    ("한국전력", "(주)버디"),
-    ("KEPCO", "(주)버디"),
-    ("KDN", "(주)버디"),
-    ("한전", "(주)버디"),
+    ("한전KDN", "테크 주식회사"),
+    ("한국전력공사", "테크 주식회사"),
+    ("한국전력", "테크 주식회사"),
+    ("KEPCO", "테크 주식회사"),
+    ("KDN", "테크 주식회사"),
+    ("한전", "테크 주식회사"),
 ]
 
 def _replace_company(text: str) -> str:
     for old, new in _COMPANY_REPLACEMENTS:
         text = text.replace(old, new)
     return text
+
+
+# 법령명 축약 매핑
+_LEGAL_SOURCE_NAMES = {
+    "index_근로기준법": "근로기준법",
+    "index_최저임금법": "최저임금법",
+    "index_퇴직급여법": "근로자퇴직급여 보장법",
+    "index_남녀고용평등법": "남녀고용평등법",
+}
+
+def _get_legal_source_name(source: str) -> str:
+    for key, name in _LEGAL_SOURCE_NAMES.items():
+        if key in source:
+            return name
+    return source
+
+
+def _format_legal_answer(docs: List[Document], question: str) -> str:
+    """
+    LEGAL 문서 검색 결과를 LLM 해석 없이 원문 그대로 포맷합니다.
+    할루시네이션 방지를 위해 법령 조항은 원문만 반환합니다.
+    """
+    if not docs:
+        return (
+            "음, 제가 가진 법령 자료에서는 해당 내용을 찾지 못했어요 🤔\n"
+            "정확한 내용은 경영지원팀 담당자 또는 경영지원팀 김지수 님께 확인해보세요!"
+        )
+
+    # 질문 키워드로 관련 청크만 필터링 (너무 많은 청크 출력 방지)
+    filter_keywords = [kw for kw in _DIRECT_LEGAL_KEYWORDS if kw in question]
+    if filter_keywords:
+        filtered = [d for d in docs if any(kw in d.page_content for kw in filter_keywords)]
+        if filtered:
+            docs = filtered
+
+    # 다음 조항 헤더 이후 내용 제거 (청크 경계 문제로 다음 조항이 섞이는 경우 방지)
+    _NEXT_ARTICLE_PATTERN = re.compile(r'\n\[제\d+조', re.MULTILINE)
+
+    # 중복 청크 제거 후 출처별로 묶기
+    seen_content = set()
+    by_source: dict[str, list[str]] = {}
+    for doc in docs:
+        content = doc.page_content.strip()
+        # ingest.py에서 추가한 [doc_title] prefix 제거 (예: "[index_남녀고용평등법_v2]\n")
+        content = re.sub(r'^\[[^\]]+\]\n', '', content)
+        # 청크 첫머리의 법률명/시행일 헤더 라인 제거 (상단 📋 헤더와 중복)
+        content = re.sub(r'^.+\(약칭:.+\)\s*\n', '', content)
+        content = re.sub(r'^\[시행 \d{4}\.\s*\d+\.\s*\d+\.\]\s*\n', '', content)
+        content = content.strip()
+        # 첫 번째 조항 이후에 다음 조항 헤더가 나오면 그 앞까지만 사용
+        first_article = re.search(r'\[제\d+조', content)
+        if first_article:
+            rest = content[first_article.end():]
+            next_article = _NEXT_ARTICLE_PATTERN.search(rest)
+            if next_article:
+                content = content[:first_article.end() + next_article.start()].strip()
+        key = content[:80]
+        if key in seen_content:
+            continue
+        seen_content.add(key)
+        source = _get_legal_source_name(doc.metadata.get("source", ""))
+        by_source.setdefault(source, []).append(content)
+
+    parts = []
+    for source, contents in by_source.items():
+        parts.append(f"📋 **{source}** 관련 법령 내용이에요 😊\n")
+        parts.append("\n\n".join(contents))
+
+    result = "\n".join(parts)
+    result += "\n\n정확한 적용 방법은 경영지원팀 김지수 님께도 확인해보세요! 😊"
+    return result
 
 
 def _format_docs(docs: List[Document]) -> str:
@@ -237,12 +318,19 @@ def _extract_sources(docs: List[Document]) -> str:
     return ", ".join(sources) if sources else "알 수 없음"
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "") -> Tuple[str, str, List[dict]]:
+def _search_sub_q(sub_q: str, company_code: str) -> List[Document]:
+    """단일 서브 질문에 대한 검색 수행 (병렬 실행용)"""
+    if _is_legal_question(sub_q):
+        return search_legal_docs(sub_q, k=_get_k_for_question(sub_q))
+    return search_with_company_fallback(sub_q, k=_get_k_for_question(sub_q), company_code=company_code)
+
+
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict], List[int]]:
     """
-    RAG 체인을 실행하여 답변, 출처, 관련 양식 목록을 반환합니다.
+    RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
     Returns:
-        Tuple[str, str, List[dict]]: (AI 답변, 출처 문서명, 관련 양식 목록)
+        Tuple[str, str, List[dict], List[int]]: (AI 답변, 출처 문서명, 관련 양식 목록, 문서 ID 목록)
     """
     from routers.docs import find_related_docs
 
@@ -256,12 +344,40 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "") -> Tuple[str
     # 2-7: 모호한 질문 선처리
     ambiguous = _check_ambiguous(question)
     if ambiguous:
-        return ambiguous, "", []
+        return ambiguous, "", [], []
 
-    retriever = get_retriever(k=_get_k_for_question(question))
-    retrieved_docs = retriever.invoke(question)
-    formatted_context = _format_docs(retrieved_docs)
+    # 복합 질문 분리 검색: "?" 또는 "그리고"로 분리된 경우 각각 검색 후 합산
+    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    if len(sub_questions) < 2:
+        sub_questions = [question]
+
+    retrieved_docs = []
+    seen_contents = set()
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(_search_sub_q, sub_q, company_code) for sub_q in sub_questions]
+        for future in futures:
+            for d in future.result():
+                key = d.page_content[:80]
+                if key not in seen_contents:
+                    seen_contents.add(key)
+                    retrieved_docs.append(d)
+
     source_names = _extract_sources(retrieved_docs)
+    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
+
+    # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
+    if _is_direct_legal_question(question):
+        answer = _format_legal_answer(retrieved_docs, question)
+        save_interaction(user_id, question, answer)
+        related_docs = find_related_docs(question)
+        return answer, source_names, related_docs, doc_ids
+
+    formatted_context = _format_docs(retrieved_docs)
+    if _is_legal_question(question):
+        formatted_context = (
+            "⚠️ 아래는 법령 원문입니다. 각 항목(1., 2., 3., 4. ...)의 문장을 절대 바꾸거나 해석하지 말고 원문 그대로 전달하세요.\n\n"
+            + formatted_context
+        )
     user_style = _detect_user_style(chat_history, question)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
@@ -284,12 +400,20 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "") -> Tuple[str
     if _needs_labor_law_fallback(question, answer):
         answer += _LABOR_LAW_FALLBACK
 
+    # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입
+    if _is_unanswered(answer, retrieved_docs):
+        contact = _extract_contact_from_docs(retrieved_docs)
+        if contact:
+            answer += f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+        else:
+            answer += "\n\n이 부분은 **경영지원팀**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
-    return answer, source_names, related_docs
+    return answer, source_names, related_docs, doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None)을 yield하고, 마지막에 ("", source_names, related_docs)를 yield합니다.
@@ -311,10 +435,42 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "") -> 
         yield "", "", []              # done 시그널
         return
 
-    retriever = get_retriever(k=_get_k_for_question(question))
-    retrieved_docs = retriever.invoke(question)
-    formatted_context = _format_docs(retrieved_docs)
+    yield "__STAGE__searching", None, None
+
+    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    if len(sub_questions) < 2:
+        sub_questions = [question]
+
+    loop = asyncio.get_event_loop()
+    results = await asyncio.gather(*[
+        loop.run_in_executor(None, _search_sub_q, sub_q, company_code)
+        for sub_q in sub_questions
+    ])
+    retrieved_docs = []
+    seen_contents = set()
+    for docs in results:
+        for d in docs:
+            key = d.page_content[:80]
+            if key not in seen_contents:
+                seen_contents.add(key)
+                retrieved_docs.append(d)
     source_names = _extract_sources(retrieved_docs)
+
+    # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
+    if _is_direct_legal_question(question):
+        answer = _format_legal_answer(retrieved_docs, question)
+        save_interaction(user_id, question, answer)
+        related_docs = find_related_docs(question)
+        yield answer, None, None
+        yield "", source_names, related_docs
+        return
+
+    formatted_context = _format_docs(retrieved_docs)
+    if _is_legal_question(question):
+        formatted_context = (
+            "⚠️ 아래는 법령 원문입니다. 각 항목(1., 2., 3., 4. ...)의 문장을 절대 바꾸거나 해석하지 말고 원문 그대로 전달하세요.\n\n"
+            + formatted_context
+        )
     user_style = _detect_user_style(chat_history, question)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
@@ -323,6 +479,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "") -> 
         profile_ctx = format_profile_context(get_profile(user_id))
         if profile_ctx:
             formatted_context = f"[사용자 프로필]\n{profile_ctx}\n\n{formatted_context}"
+
+    yield "__STAGE__generating", None, None
 
     full_answer = ""
     async for chunk in _get_chain().astream({
@@ -347,8 +505,15 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "") -> 
 
     save_interaction(user_id, question, fixed)
 
-    # 미답변 감지 → 백그라운드로 Slack 알림
+    # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림
     if _is_unanswered(full_answer, retrieved_docs):
+        contact = _extract_contact_from_docs(retrieved_docs)
+        if contact:
+            contact_msg = f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+        else:
+            contact_msg = "\n\n이 부분은 **경영지원팀**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        yield contact_msg, None, None
+        fixed += contact_msg
         asyncio.create_task(_fire_unanswered_alert(user_id, question))
 
     related_docs = find_related_docs(question)

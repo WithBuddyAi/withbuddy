@@ -20,6 +20,7 @@ RAG 시스템 성능 평가 스크립트
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -49,19 +50,19 @@ TEST_CASES = [
         "category": "연차/휴가",
         "question": "연차 신청은 어떻게 해?",
         "expected_keywords": ["연차", "신청"],
-        "expected_sources": ["연차휴가_신청서", "취업규칙", "인사규정"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
     },
     {
         "category": "연차/휴가",
         "question": "연차는 1년에 며칠이야?",
         "expected_keywords": ["연차", "일"],
-        "expected_sources": ["취업규칙", "인사규정"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
     },
     {
         "category": "연차/휴가",
         "question": "반차 신청 방법이 뭐야?",
         "expected_keywords": ["반차"],
-        "expected_sources": ["연차휴가_신청서", "취업규칙"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
     },
 
     # ── 경비·재무 ──────────────────────────────────────
@@ -69,13 +70,13 @@ TEST_CASES = [
         "category": "경비처리",
         "question": "업무 경비는 어떻게 처리해?",
         "expected_keywords": ["경비", "처리"],
-        "expected_sources": ["경비지출_품의서", "여비규정"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
     {
         "category": "경비처리",
         "question": "출장비 신청 방법 알려줘",
         "expected_keywords": ["출장", "신청"],
-        "expected_sources": ["여비규정"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 
     # ── IT·장비 ──────────────────────────────────────
@@ -83,55 +84,63 @@ TEST_CASES = [
         "category": "IT장비",
         "question": "노트북 신청하려면 어떻게 해?",
         "expected_keywords": ["장비", "신청", "IT"],
-        "expected_sources": ["IT장비_신청서"],
+        "expected_sources": ["techco_IT_규정_v3.1.txt", "IT.txt"],
     },
     {
         "category": "IT장비",
         "question": "회사 이메일 계정은 어떻게 발급받아?",
         "expected_keywords": ["계정", "이메일", "IT"],
-        "expected_sources": ["IT장비_신청서", "onboarding_guide"],
+        "expected_sources": ["techco_IT_규정_v3.1.txt", "IT.txt"],
     },
 
     # ── 담당자 안내 ───────────────────────────────────
     {
         "category": "담당자",
         "question": "급여 관련해서 누구한테 물어봐야 해?",
-        "expected_keywords": ["김지수", "인사팀"],
-        "expected_sources": [],  # 담당자 지식은 프롬프트에 내장
+        "expected_keywords": ["인사팀"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
     },
     {
         "category": "담당자",
         "question": "법인카드 신청은 누가 담당이야?",
-        "expected_keywords": ["박서연", "총무"],
-        "expected_sources": [],
+        "expected_keywords": ["총무"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 
-    # ── 직장예절 ──────────────────────────────────────
+    # ── 출산·육아 ──────────────────────────────────────
     {
-        "category": "직장예절",
-        "question": "회의할 때 지켜야 할 예절이 뭐가 있어?",
-        "expected_keywords": ["회의", "예절"],
-        "expected_sources": ["직장예절_가이드"],
+        "category": "출산/육아",
+        "question": "출산휴가는 며칠이야?",
+        "expected_keywords": ["출산", "휴가"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
     {
-        "category": "직장예절",
-        "question": "비즈니스 이메일은 어떻게 써야 해?",
-        "expected_keywords": ["이메일", "제목"],
-        "expected_sources": ["직장예절_가이드"],
-    },
-    {
-        "category": "직장예절",
-        "question": "상사한테 보고할 때 어떻게 해야 해?",
-        "expected_keywords": ["보고"],
-        "expected_sources": ["직장예절_가이드", "보고서_작성법"],
+        "category": "출산/육아",
+        "question": "육아휴직 신청은 어떻게 해?",
+        "expected_keywords": ["육아휴직", "신청"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
 
-    # ── 보고서 작성 ───────────────────────────────────
+    # ── 병가·재택 ──────────────────────────────────────
     {
-        "category": "문서작성",
-        "question": "보고서 작성할 때 기본 구조가 어떻게 돼?",
-        "expected_keywords": ["보고서", "구조"],
-        "expected_sources": ["보고서_작성법"],
+        "category": "병가/재택",
+        "question": "병가는 어떻게 신청해?",
+        "expected_keywords": ["병가", "신청"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
+    },
+    {
+        "category": "병가/재택",
+        "question": "재택근무 신청 방법이 뭐야?",
+        "expected_keywords": ["재택"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
+    },
+
+    # ── 복지카드 ──────────────────────────────────────
+    {
+        "category": "복지카드",
+        "question": "복지카드 사용 방법 알려줘",
+        "expected_keywords": ["복지카드"],
+        "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
 
     # ── 복리후생 ──────────────────────────────────────
@@ -139,13 +148,13 @@ TEST_CASES = [
         "category": "복리후생",
         "question": "회사 복리후생이 어떻게 돼?",
         "expected_keywords": ["복리후생"],
-        "expected_sources": ["복리후생규정", "onboarding_guide"],
+        "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
     {
         "category": "복리후생",
         "question": "건강검진은 어떻게 신청해?",
         "expected_keywords": ["건강검진"],
-        "expected_sources": ["복리후생규정"],
+        "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
 
     # ── 사무용품 ──────────────────────────────────────
@@ -153,7 +162,7 @@ TEST_CASES = [
         "category": "사무용품",
         "question": "볼펜이랑 노트 같은 사무용품 어떻게 신청해?",
         "expected_keywords": ["사무용품", "신청"],
-        "expected_sources": ["사무용품_신청서"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 
     # ── 커뮤니케이션 ──────────────────────────────────
@@ -161,28 +170,41 @@ TEST_CASES = [
         "category": "커뮤니케이션",
         "question": "직장에서 올바른 호칭은 어떻게 써?",
         "expected_keywords": ["호칭"],
-        "expected_sources": ["직장예절_가이드", "직장내_의사소통_가이드"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
     },
 
-    # ── 사규 조항 ─────────────────────────────────────
+    # ── 퇴직 ─────────────────────────────────────────
     {
-        "category": "사규조항",
-        "question": "취업규칙 제1조가 뭐야?",
-        "expected_keywords": ["취업규칙", "제1조"],
-        "expected_sources": ["취업규칙"],
+        "category": "퇴직",
+        "question": "퇴직금은 어떻게 받아?",
+        "expected_keywords": ["퇴직금"],
+        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "퇴직급여법.txt", "index_퇴직급여법_final.txt"],
+    },
+
+    # ── 명함·법인카드 ─────────────────────────────────
+    {
+        "category": "명함/법인카드",
+        "question": "명함 신청은 어떻게 해?",
+        "expected_keywords": ["명함", "신청"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
     {
-        "category": "사규조항",
-        "question": "상벌규정에서 징계 종류가 어떻게 돼?",
-        "expected_keywords": ["징계"],
-        "expected_sources": ["상벌규정"],
+        "category": "명함/법인카드",
+        "question": "법인카드 한도가 얼마야?",
+        "expected_keywords": ["법인카드"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 ]
 
 # ── LLM Judge 프롬프트 ─────────────────────────────────────────
 _JUDGE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """당신은 RAG 시스템의 답변 품질을 평가하는 전문 평가자입니다.
+    ("system", """당신은 회사 내부 RAG 시스템의 답변 품질을 평가하는 전문 평가자입니다.
 아래 질문과 답변을 보고 1~5점으로 평가하세요.
+
+[중요 전제]
+- 이 시스템은 특정 회사의 내부 사규/규정 문서를 기반으로 답변합니다.
+- 회사 특정 정보(회사명, 내부 시스템명, 담당자 등)가 포함된 답변은 정상이며 감점 대상이 아닙니다.
+- 질문에 대해 회사 내부 기준으로 구체적으로 답변했다면 높은 점수를 부여하세요.
 
 [평가 기준]
 5점: 질문에 완벽히 답변하고 있으며 정보가 정확하고 구체적임
@@ -228,7 +250,12 @@ def evaluate_with_llm_judge(question: str, answer: str) -> dict:
     try:
         chain = _JUDGE_PROMPT | get_llm() | StrOutputParser()
         result = chain.invoke({"question": question, "answer": answer})
-        parsed = json.loads(result.strip())
+        result = result.strip()
+        json_match = re.search(r'\{.*?\}', result, re.DOTALL)
+        if json_match:
+            parsed = json.loads(json_match.group())
+        else:
+            parsed = json.loads(result)
         return {"score": parsed.get("score", 0), "reason": parsed.get("reason", "")}
     except Exception as e:
         return {"score": 0, "reason": f"평가 실패: {e}"}
@@ -263,7 +290,7 @@ def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db") -> dict:
         # ① RAG 답변 생성 + 시간 측정
         t0 = time.time()
         try:
-            answer, source, _ = run_rag_chain("eval_user", q)
+            answer, source, _, _doc_ids = run_rag_chain("eval_user", q)
         except Exception as e:
             answer, source = f"오류: {e}", ""
         elapsed_ms = int((time.time() - t0) * 1000)
@@ -364,6 +391,106 @@ def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db") -> dict:
     return summary
 
 
+def generate_html(summary: dict, html_path: str) -> None:
+    m = summary["metrics"]
+    details = summary["details"]
+    evaluated_at = summary["evaluated_at"][:16].replace("T", " ")
+    cat_summary = summary.get("category_summary", {})
+
+    def score_color(score):
+        if score >= 4: return "#22c55e"
+        if score >= 3: return "#f59e0b"
+        return "#ef4444"
+
+    def pct_bar(rate, good_high=True):
+        pct = int((rate or 0) * 100)
+        color = "#22c55e" if (pct >= 70) == good_high else "#ef4444"
+        return f'<div style="display:flex;align-items:center;gap:6px"><div style="background:#e2e8f0;border-radius:4px;width:80px;height:8px"><div style="background:{color};width:{pct}%;height:8px;border-radius:4px"></div></div><span>{pct}%</span></div>'
+
+    metric_cards = f"""
+    <div class="card"><div class="num" style="color:#6366f1">{m['retrieval_hit_rate']*100:.0f}%</div><div class="label">Retrieval Hit Rate</div></div>
+    <div class="card"><div class="num" style="color:#0ea5e9">{m['avg_keyword_hit_rate']*100:.0f}%</div><div class="label">Keyword Hit Rate</div></div>
+    <div class="card"><div class="num" style="color:{score_color(m['avg_llm_judge_score'])}">{m['avg_llm_judge_score']:.2f}<span style="font-size:14px">/5</span></div><div class="label">LLM Judge Score</div></div>
+    <div class="card"><div class="num" style="color:{'#ef4444' if m['unanswered_rate']>0.1 else '#22c55e'}">{m['unanswered_rate']*100:.0f}%</div><div class="label">Unanswered Rate</div></div>
+    <div class="card"><div class="num" style="color:#64748b">{m['avg_response_time_ms']:.0f}<span style="font-size:14px">ms</span></div><div class="label">Avg Response Time</div></div>
+    """
+
+    cat_rows = ""
+    for cat, stat in cat_summary.items():
+        judge = stat.get("avg_judge_score", 0)
+        cat_rows += f"""<tr>
+          <td>{cat}</td>
+          <td>{pct_bar(stat.get('retrieval_hit_rate') or 0)}</td>
+          <td>{pct_bar(stat.get('avg_keyword_hit'))}</td>
+          <td style="color:{score_color(judge)};font-weight:bold">{judge:.1f}/5</td>
+          <td style="color:{'#ef4444' if stat['unanswered_count']>0 else '#22c55e'}">{stat['unanswered_count']}건</td>
+        </tr>"""
+
+    detail_rows = ""
+    for r in details:
+        judge = r.get("llm_judge_score", 0)
+        kw = r.get("keyword_hit_rate", 0)
+        unanswered = r.get("unanswered", False)
+        retrieval = r.get("retrieval_hit")
+        hit_icon = "✅" if retrieval else ("⬜" if retrieval is None else "❌")
+        bg = "#fef2f2" if unanswered or judge <= 2 else ("#fffbeb" if judge == 3 else "white")
+        detail_rows += f"""<tr style="background:{bg}">
+          <td style="text-align:center">{r['id']}</td>
+          <td style="color:#64748b">{r['category']}</td>
+          <td>{r['question']}</td>
+          <td style="text-align:center">{hit_icon}</td>
+          <td>{pct_bar(kw)}</td>
+          <td style="text-align:center;color:{score_color(judge)};font-weight:bold">{judge}/5</td>
+          <td style="color:#64748b;font-size:11px">{r.get('llm_judge_reason','')}</td>
+          <td style="color:{'#ef4444' if unanswered else '#22c55e'};text-align:center">{'예' if unanswered else '아니오'}</td>
+        </tr>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>WithBuddy RAG 평가 결과</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: 'Malgun Gothic', sans-serif; font-size: 12px; margin: 24px 28px; color: #1e293b; }}
+  h1 {{ font-size: 18px; margin: 0 0 4px; }}
+  h2 {{ font-size: 14px; margin: 28px 0 12px; border-bottom: 2px solid #1e293b; padding-bottom: 4px; }}
+  .meta {{ color: #64748b; margin-bottom: 16px; font-size: 11px; }}
+  .summary {{ display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }}
+  .card {{ padding: 12px 20px; border-radius: 8px; text-align: center; min-width: 100px; background: #f8fafc; border: 1px solid #e2e8f0; }}
+  .card .num {{ font-size: 26px; font-weight: bold; }}
+  .card .label {{ font-size: 11px; color: #64748b; margin-top: 2px; }}
+  table {{ border-collapse: collapse; width: 100%; margin-bottom: 8px; }}
+  th {{ background: #334155; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }}
+  td {{ padding: 6px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; font-size: 11px; line-height: 1.5; }}
+  @media print {{ body {{ margin: 10px 14px; }} tr {{ page-break-inside: avoid; }} }}
+</style>
+</head>
+<body>
+<h1>WithBuddy RAG 시스템 성능 평가</h1>
+<div class="meta">평가 일시: {evaluated_at} &nbsp;|&nbsp; 총 {summary['total_cases']}문항</div>
+
+<h2>전체 지표</h2>
+<div class="summary">{metric_cards}</div>
+
+<h2>카테고리별 요약</h2>
+<table>
+  <tr><th>카테고리</th><th>Retrieval Hit</th><th>Keyword Hit</th><th>Judge Score</th><th>미답변</th></tr>
+  {cat_rows}
+</table>
+
+<h2>문항별 상세</h2>
+<table>
+  <tr><th>#</th><th>카테고리</th><th>질문</th><th>검색히트</th><th>키워드</th><th>Judge</th><th>판정이유</th><th>미답변</th></tr>
+  {detail_rows}
+</table>
+</body>
+</html>"""
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+
 def main():
     parser = argparse.ArgumentParser(description="RAG 시스템 성능 평가")
     parser.add_argument("--output", type=str, default="./data/eval_result.json",
@@ -428,6 +555,11 @@ def main():
 
     print(f"\n  📋 누적 평가 횟수: {len(history)}회  (history: {history_path})")
     print("=" * 55)
+
+    html_path = args.output.replace(".json", ".html")
+    generate_html(summary, html_path)
+    print(f"  🌐 HTML 리포트: {html_path}")
+    print(f"  → 브라우저에서 열고 Ctrl+P → PDF로 저장하세요")
 
 
 if __name__ == "__main__":
