@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.7.4
-**최종 업데이트**: 2026-04-14
+**버전**: 1.7.5
+**최종 업데이트**: 2026-04-16
 
 ---
 
@@ -154,6 +154,7 @@ OpenAPI Docs:     http://localhost:8080/v3/api-docs
 - `403 Forbidden`: 요청 권한 없음
 - `404 Not Found`: 리소스 없음
 - `500 Internal Server Error`: 서버 오류
+- `504 Gateway Timeout` : AI 서버 응답 시간 초과
 
 #### 로그인 API (`POST /api/v1/auth/login`) 상태 코드
 
@@ -171,6 +172,7 @@ OpenAPI Docs:     http://localhost:8080/v3/api-docs
 - `ACCESS_DENIED`: 요청 권한 없음
 - `NOT_FOUND`: 리소스 없음
 - `INTERNAL_SERVER_ERROR`: 서버 내부 오류
+- `AI_TIMEOUT`: AI 답변 생성 시간 초과
 
 ---
 
@@ -537,6 +539,24 @@ Content-Type: application/json
 }
 ```
 
+#### Error Response (504 Gateway Timeout)
+
+```json
+{
+  "timestamp": "2026-04-16T11:30:00Z",
+  "status": 504,
+  "error": "Gateway Timeout",
+  "code": "AI_TIMEOUT",
+  "errors": [
+    {
+      "field": "ai",
+      "message": "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."
+    }
+  ],
+  "path": "/api/v1/chat/messages"
+}
+```
+
 #### 값 설명
 
 - `senderType`
@@ -571,6 +591,9 @@ Content-Type: application/json
 - 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
 - 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 백엔드는 내부 AI 서버 호출 시 최대 5초까지 응답을 대기한다.
+- 5초 내 응답이 없으면 `AI_TIMEOUT` 예외를 반환한다.
+- 사용자가 재시도를 선택한 경우 동일한 질문 내용을 다시 `POST /api/v1/chat/messages`로 전송한다.
 
 ### 6-3. 온보딩 제안 조회
 현재 로그인한 사용자의 `hireDate`를 기준으로 노출 대상 온보딩 제안을 조회한다.
@@ -750,7 +773,7 @@ Content-Type: application/json
 ```json
 {
   "questionId": 202,
-  "document": [],
+  "documents": [],
   "messageType": "no_result",
   "content": "관련 안내 문서를 찾지 못했습니다."
 }
@@ -767,11 +790,11 @@ Content-Type: application/json
   - `no_result`: 질문 범위는 맞지만 문서/정보 부족으로 답변 불가
   - `out_of_scope`: 서비스 범위를 벗어난 질문
 - `suggestion`은 온보딩 가이드 기반 메시지 유형이므로 내부 AI 답변 응답값으로 사용하지 않는다.
-- `document`는 답변 생성의 근거로 사용된 문서 목록이다.
-- `document[].documentId`는 `documents.id`를 의미한다.
-- 백엔드는 AI 응답의 `document[].documentId` 목록을 답변 메시지와 연결하여 `chat_message_documents`에 저장한다.
+- `documents`는 답변 생성의 근거로 사용된 문서 목록이다.
+- `documents[].documentId`는 `documents.id`를 의미한다.
+- 백엔드는 AI 응답의 `documents[].documentId` 목록을 답변 메시지와 연결하여 `chat_message_documents`에 저장한다.
 - `rag_answer`인 경우 근거 문서 목록이 포함될 수 있다.
-- `no_result`, `out_of_scope`인 경우 `document`는 빈 배열(`[]`)로 반환한다.
+- `no_result`, `out_of_scope`인 경우 `documents`는 빈 배열(`[]`)로 반환한다.
 
 ---
 
@@ -999,3 +1022,5 @@ Authorization: Bearer {accessToken}
 - **v1.7.4 (2026-04-13)**:
   - `user_activity_logs`의 `SESSION_START` 이벤트 기록 규칙 정리, 로그인 성공 시 `event_target = LOGIN` 로그 기록 규칙 추가, `chat_message_documents` 기반 근거 문서 다중 연결 구조 반영, 채팅 메시지 응답 예시에 `documentIds` 추가, 내부 AI 응답의 근거 문서 저장 규칙 보강
   - 스토리지 문서 API 엔드포인트 목록 추가, `document_files` 및 `document_backup_jobs` 기반 문서 관리/백업 기능 설명 보강
+- **v1.7.5 (2026-04-16)**:
+  - `documents` 오타 수정, 내부 AI 응답 시간 초과 처리 규칙 추가, `504 Gateway Timeout`, `AI_TIMEOUT` 에러 코드 추가
