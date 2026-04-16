@@ -338,10 +338,24 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if ambiguous:
         return ambiguous, "", [], []
 
-    if _is_legal_question(question):
-        retrieved_docs = search_legal_docs(question, k=_get_k_for_question(question))
-    else:
-        retrieved_docs = search_with_company_fallback(question, k=_get_k_for_question(question), company_code=company_code)
+    # 복합 질문 분리 검색: "?" 또는 "그리고"로 분리된 경우 각각 검색 후 합산
+    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    if len(sub_questions) < 2:
+        sub_questions = [question]
+
+    retrieved_docs = []
+    seen_contents = set()
+    for sub_q in sub_questions:
+        if _is_legal_question(sub_q):
+            docs = search_legal_docs(sub_q, k=_get_k_for_question(sub_q))
+        else:
+            docs = search_with_company_fallback(sub_q, k=_get_k_for_question(sub_q), company_code=company_code)
+        for d in docs:
+            key = d.page_content[:80]
+            if key not in seen_contents:
+                seen_contents.add(key)
+                retrieved_docs.append(d)
+
     source_names = _extract_sources(retrieved_docs)
     doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
 
