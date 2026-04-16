@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-tag-main
@@ -20,7 +21,11 @@ concurrency:
 jobs:
   tag:
     name: Auto Version Tag
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release-docs):') }}
+    if: |
+      ${{
+        !startsWith(github.event.head_commit.message, 'chore(release-docs):') &&
+        !contains(github.event.head_commit.message, 'chore/release-docs-')
+      }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -147,10 +152,24 @@ jobs:
             exit 0
           fi
 
-          git add '*.md'
-          git commit -m "chore(release-docs): sync document version to ${next_tag}"
-          git push origin HEAD:main
           echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create PR for document version sync
+        if: steps.docs.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(release-docs): sync document version to ${{ steps.semver.outputs.next_tag }}"
+          title: "chore(release-docs): sync document version to ${{ steps.semver.outputs.next_tag }}"
+          body: |
+            Automated sync of markdown version headers for `${{ steps.semver.outputs.next_tag }}`.
+          branch: chore/release-docs-${{ steps.semver.outputs.next_tag }}
+          base: main
+          add-paths: |
+
+            *.md
+            **/*.md
+          delete-branch: true
 
       - name: Create and push tag
         if: steps.semver.outputs.should_tag == 'true'
