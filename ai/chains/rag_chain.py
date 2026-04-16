@@ -8,6 +8,7 @@ Claude LLM이 답변을 생성하는 LCEL 파이프라인을 제공합니다.
 
 import asyncio
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncGenerator, Tuple, List
 
 from langchain_core.documents import Document
@@ -317,6 +318,13 @@ def _extract_sources(docs: List[Document]) -> str:
     return ", ".join(sources) if sources else "알 수 없음"
 
 
+def _search_sub_q(sub_q: str, company_code: str) -> List[Document]:
+    """단일 서브 질문에 대한 검색 수행 (병렬 실행용)"""
+    if _is_legal_question(sub_q):
+        return search_legal_docs(sub_q, k=_get_k_for_question(sub_q))
+    return search_with_company_fallback(sub_q, k=_get_k_for_question(sub_q), company_code=company_code)
+
+
 def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
@@ -345,16 +353,14 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     retrieved_docs = []
     seen_contents = set()
-    for sub_q in sub_questions:
-        if _is_legal_question(sub_q):
-            docs = search_legal_docs(sub_q, k=_get_k_for_question(sub_q))
-        else:
-            docs = search_with_company_fallback(sub_q, k=_get_k_for_question(sub_q), company_code=company_code)
-        for d in docs:
-            key = d.page_content[:80]
-            if key not in seen_contents:
-                seen_contents.add(key)
-                retrieved_docs.append(d)
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(_search_sub_q, sub_q, company_code) for sub_q in sub_questions]
+        for future in futures:
+            for d in future.result():
+                key = d.page_content[:80]
+                if key not in seen_contents:
+                    seen_contents.add(key)
+                    retrieved_docs.append(d)
 
     source_names = _extract_sources(retrieved_docs)
     doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
@@ -431,10 +437,23 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     yield "__STAGE__searching", None, None
 
-    if _is_legal_question(question):
-        retrieved_docs = search_legal_docs(question, k=_get_k_for_question(question))
-    else:
-        retrieved_docs = search_with_company_fallback(question, k=_get_k_for_question(question), company_code=company_code)
+    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    if len(sub_questions) < 2:
+        sub_questions = [question]
+
+    loop = asyncio.get_event_loop()
+    results = await asyncio.gather(*[
+        loop.run_in_executor(None, _search_sub_q, sub_q, company_code)
+        for sub_q in sub_questions
+    ])
+    retrieved_docs = []
+    seen_contents = set()
+    for docs in results:
+        for d in docs:
+            key = d.page_content[:80]
+            if key not in seen_contents:
+                seen_contents.add(key)
+                retrieved_docs.append(d)
     source_names = _extract_sources(retrieved_docs)
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
