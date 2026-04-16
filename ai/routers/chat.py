@@ -96,6 +96,8 @@ async def chat_stream(request: ChatRequest):
             async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user_name, request.company_code):
                 if source is not None:
                     yield f"data: {json.dumps({'done': True, 'source': source, 'docs': related_docs or []}, ensure_ascii=False)}\n\n"
+                elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
+                    yield f"data: {json.dumps({'stage': chunk[9:]}, ensure_ascii=False)}\n\n"
                 else:
                     yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
         except Exception as e:
