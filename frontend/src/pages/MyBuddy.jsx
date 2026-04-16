@@ -14,9 +14,9 @@ function MyBuddy ({setIsLoggedIn}) {
   // 사이드바에 표시되는 정보 state
   const name = localStorage.getItem('name')
   const dayCount = localStorage.getItem('dayCount')
-  const hireDate = localStorage.getItem('hireDate')
-  const today = new Date()
-  const progress = Math.min(Math.round((Number(dayCount) / 90) * 100), 100)
+  // const hireDate = localStorage.getItem('hireDate')
+  const today = format(new Date(), 'yyyy-MM-dd')
+  // const progress = Math.min(Math.round((Number(dayCount) / 90) * 100), 100)
   const [selectedDate, setSelectedDate] = useState(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [activeDates, setActiveDates] = useState([])
@@ -116,13 +116,26 @@ function MyBuddy ({setIsLoggedIn}) {
       }
     } 
   fetchData()
+  const sessionStart = async () => {
+    try {
+      await axios.post(
+        `${BASE_URL}/api/v1/chat/session-start`,
+        {},
+        { headers: {'Authorization': `Bearer ${accessToken}`}}
+      )
+    } catch (error) {
+      console.error('session-start 실패:', error)
+    }
+  }
+  sessionStart()
   }, [])
 
   // 사용자 질문 전송
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!text.trim()) return
-    
+    setIsLoading(true)
+
     try {
       const {data} = await axios.post(`${BASE_URL}/api/v1/chat/messages`,
         {content: text},
@@ -130,6 +143,7 @@ function MyBuddy ({setIsLoggedIn}) {
       )
       setMessageList(prev => [...prev, data.question, data.answer])
       setText('')
+      setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
     } catch (error) {
       if (!handle401(error)) {
         if (error.response?.status === 400) {
@@ -142,6 +156,8 @@ function MyBuddy ({setIsLoggedIn}) {
           setErrorMessage('메시지 전송에 실패했어요.')
         }
       }
+    } finally {
+    setIsLoading(false)
     }
   }
 
@@ -238,6 +254,23 @@ function MyBuddy ({setIsLoggedIn}) {
             locale="ko-KR"
             formatDay={(locale, date) => date.getDate()}
             calendarType="gregory"
+            prev2Label={null}
+            next2Label={null}
+            tileDisabled={({ date, view }) => {
+              if (view === 'month') {
+                const formatted = format(date, 'yyyy-MM-dd')
+                return !activeDates.includes(formatted)
+              }
+              return false
+            }}
+            tileContent={({ date }) => {
+              const formatted = format(date, 'yyyy-MM-dd')
+              if (activeDates.includes(formatted)) {
+                return <div className="flex justify-center">
+                  <div className="w-[4px] h-[4px] rounded-full bg-[#7DC1FF]"/>
+                </div>
+              }
+            }}
             />
           </div>
         </div>
@@ -339,13 +372,23 @@ function MyBuddy ({setIsLoggedIn}) {
 
         {/* 입력 창 */}
         <form onSubmit={handleSubmit} className="flex gap-[12px] m-[10px]">
-          <input 
+          <textarea 
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="flex-1 border-[1px] border-[#E9ECEF] rounded-[8px] bg-[#FFFFFF] py-[12px] px-[16px] text-[16px] 
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleSubmit(e)
+            }
+          }}
+          disabled={isLoading}
+          className="flex-1 border-[1px] border-[#E9ECEF] rounded-[8px] bg-[#FFFFFF] py-[12px] px-[16px] text-[16px] h-[50px]
           active:border-[#204867]"
           placeholder="사소한 것도 괜찮아요, 버디에게 무엇이든 물어보세요!" />
-          <button className="flex items-center justify-center bg-[#F1F3F5] border-[1px] border-[#E9ECEF] rounded-[8px] w-[40px] h-[48px] active:bg-[#336B97]"><Send size={15} className="text-[#ADB5BD] active:text-[#FFFFFF]" /></button>
+          <button 
+          className="flex items-center justify-center bg-[#F1F3F5] border-[1px] border-[#E9ECEF] rounded-[8px] w-[40px] h-[48px] active:enabled:bg-[#336B97]"
+          disabled={!text.trim() || isLoading}>
+            <Send size={15} className="text-[#ADB5BD] active:text-[#FFFFFF]" /></button>
         </form>
       </div>
     </div>
