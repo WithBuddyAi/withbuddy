@@ -1,9 +1,12 @@
 package com.withbuddy.infrastructure.ai.dto;
 
 import com.withbuddy.chat.entity.MessageType;
+import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 
 import java.util.List;
 

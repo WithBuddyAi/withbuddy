@@ -11,7 +11,7 @@ import lombok.Getter;
 @Schema(description = "로그인 요청")
 public class LoginRequest {
 
-    @Schema(description = "회사 코드", example = "WB1001")
+    @Schema(description = "회사 코드", example = "WB0001")
     @NotBlank(message = "회사 코드를 입력해 주세요.")
     @Pattern(regexp = "^[A-Za-z0-9]{4,20}$", message = "회사코드는 영문, 숫자를 조합하여 4~20자로 입력해 주세요.")
     private String companyCode;
