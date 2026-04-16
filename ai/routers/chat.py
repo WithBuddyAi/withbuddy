@@ -58,7 +58,7 @@ class ChatResponse(BaseModel):
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
     try:
-        answer, source, related_docs = run_rag_chain(str(request.user_id), request.message, request.user_name, request.company_code)
+        answer, source, related_docs, _ = run_rag_chain(str(request.user_id), request.message, request.user_name, request.company_code)
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
@@ -183,6 +183,7 @@ class InternalAIAnswerResponse(BaseModel):
     questionId: int
     messageType: str = "rag_answer"
     content: str
+    documents: list = Field(default_factory=list, description="검색된 문서 ID 목록")
 
 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
@@ -197,7 +198,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         )
     try:
         async with asyncio.timeout(10):
-            answer, _, _ = await asyncio.get_event_loop().run_in_executor(
+            answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: run_rag_chain(
                     str(request.questionId),
@@ -222,7 +223,12 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     else:
         message_type = "rag_answer"
 
-    return InternalAIAnswerResponse(questionId=request.questionId, messageType=message_type, content=answer)
+    return InternalAIAnswerResponse(
+        questionId=request.questionId,
+        messageType=message_type,
+        content=answer,
+        documents=[{"documentId": did} for did in doc_ids],
+    )
 
 
 class SummarizeRequest(BaseModel):
