@@ -18,6 +18,7 @@ from agents.orchestrator import run_orchestrator
 from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
+from utils.sensitive_filter import check_sensitive
 
 router = APIRouter(tags=["chat"])
 
@@ -42,6 +43,7 @@ class ChatRequest(BaseModel):
     user_id: int = Field(..., description="사용자 고유 ID", example=1)
     message: str = Field(..., description="사용자 질문", example="연차 신청 방법이 뭐야?")
     user_name: str = Field("", description="사용자 이름 (로그인 시 전달)")
+    company_code: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
 
 
 class ChatResponse(BaseModel):
@@ -56,7 +58,7 @@ class ChatResponse(BaseModel):
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
     try:
-        answer, source, related_docs = run_rag_chain(str(request.user_id), request.message, request.user_name)
+        answer, source, related_docs, _ = run_rag_chain(str(request.user_id), request.message, request.user_name, request.company_code)
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
@@ -91,7 +93,7 @@ async def chat_stream(request: ChatRequest):
                 yield f"data: {json.dumps({'done': True, 'source': result.intent, 'docs': [], 'team_cards': is_team_cards}, ensure_ascii=False)}\n\n"
                 return
 
-            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user_name):
+            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user_name, request.company_code):
                 if source is not None:
                     yield f"data: {json.dumps({'done': True, 'source': source, 'docs': related_docs or []}, ensure_ascii=False)}\n\n"
                 else:
@@ -171,103 +173,62 @@ async def chat_pdf(
 
 # ── 내부 AI 연동 (백엔드 → AI 서버) ────────────────────────────
 
-class _InternalUser(BaseModel):
-    id: int
-    companyId: int
-    companyCode: str = ""
-    name: str
-    hireDate: str
-
-class _InternalMessage(BaseModel):
-    senderType: str
-    messageType: str
-    content: str
-
-class _InternalDocument(BaseModel):
-    id: int
-    title: str
-    content: str
-    documentType: str
-    department: str
-
 class InternalAIAnswerRequest(BaseModel):
-    user: _InternalUser
-    question: str
-    messageHistory: list[_InternalMessage] = []
-    documents: list[_InternalDocument] = []
+    questionId: int
+    companyCode: str
+    content: str
+    userName: str = ""
 
 class InternalAIAnswerResponse(BaseModel):
-    answer: str
+    questionId: int
     messageType: str = "rag_answer"
-    sourceDocumentId: int | None = None
-
-_OUT_OF_SCOPE_KEYWORDS = [
-    "코드 짜줘", "코드 작성", "업무 처리", "실무 조언", "커리어",
-    "사람이 싫어", "동료가 미워", "상사가 싫다", "친구", "연애", "이별",
-    "우울해", "힘들어 죽겠어", "살기 싫어", "자해", "자살", "멘탈",
-    "소송", "고소", "세금 신고", "탈세", "법적 조언", "변호사 추천",
-]
-
-_OUT_OF_SCOPE_ANSWER = (
-    "이 내용은 담당 사수님과 직접 이야기 나누는 게 가장 정확해요. "
-    "사내 규정·복지·IT 환경 관련 궁금한 건 제가 언제든지 답해드릴게요!"
-)
-
-_INTERNAL_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """당신은 With Buddy입니다. 수습사원의 온보딩을 돕는 AI 어시스턴트입니다.
-아래 문서를 참고하여 질문에 답변하세요.
-
-[참고 문서]
-{documents}
-
-- 문서에 답이 있으면 문서 내용을 바탕으로 친절하게 답변하세요.
-- 문서에 답이 없으면 모른다고 솔직하게 안내하세요.
-- 반드시 존댓말로 답변하세요."""),
-    ("placeholder", "{history}"),
-    ("human", "{question}"),
-])
+    content: str
+    documents: list = Field(default_factory=list, description="검색된 문서 ID 목록")
 
 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
-    if any(kw in request.question for kw in _OUT_OF_SCOPE_KEYWORDS):
-        return InternalAIAnswerResponse(answer=_OUT_OF_SCOPE_ANSWER, messageType="out_of_scope")
-
+    action, answer = check_sensitive(request.content, request.userName)
+    if action == "block":
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="out_of_scope",
+            content=answer,
+        )
     try:
-        docs_text = "\n\n".join(
-            f"[문서 {doc.id}] {doc.title} ({doc.department})\n{doc.content}"
-            for doc in request.documents
-        ) if request.documents else "제공된 문서 없음"
-
-        history = [
-            ("human" if m.senderType == "USER" else "assistant", m.content)
-            for m in request.messageHistory
-        ]
-
-        chain = _INTERNAL_PROMPT | get_llm() | StrOutputParser()
-        try:
-            async with asyncio.timeout(10):
-                answer = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: chain.invoke({"documents": docs_text, "history": history, "question": request.question})
+        async with asyncio.timeout(10):
+            answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: run_rag_chain(
+                    str(request.questionId),
+                    request.content,
+                    company_code=request.companyCode,
                 )
-        except asyncio.TimeoutError:
-            raise HTTPException(status_code=408, detail="AI 응답 시간이 초과되었습니다. 다시 시도해주세요.")
-
-        _NO_RESULT_KW = ["모른다", "찾을 수 없", "확인되지 않", "정보가 없", "안내가 없", "내용이 없"]
-        if not request.documents or any(kw in answer for kw in _NO_RESULT_KW):
-            message_type = "no_result"
-        else:
-            message_type = "rag_answer"
-
-        source_id = request.documents[0].id if request.documents and message_type == "rag_answer" else None
-        return InternalAIAnswerResponse(answer=answer, messageType=message_type, sourceDocumentId=source_id)
-
-    except HTTPException:
-        raise
+            )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=408, detail="AI 응답 시간이 초과되었습니다. 다시 시도해주세요.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    _NO_RESULT_KW = ["문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
+                     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
+                     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요"]
+    _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
+
+    if any(kw in answer for kw in _OUT_OF_SCOPE_KW):
+        message_type = "out_of_scope"
+    elif any(kw in answer for kw in _NO_RESULT_KW):
+        message_type = "no_result"
+    else:
+        message_type = "rag_answer"
+
+    return InternalAIAnswerResponse(
+        questionId=request.questionId,
+        messageType=message_type,
+        content=answer,
+        documents=[{"documentId": did} for did in doc_ids],
+    )
 
 
 class SummarizeRequest(BaseModel):

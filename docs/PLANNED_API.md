@@ -15,7 +15,7 @@
 - [권한 분할](#권한-분할)
 - [회사 관리 (Company)](#회사-관리-company)
 - [사용자 관리 (User)](#사용자-관리-user)
-- [AI 도우미 (AI Assistant)](#ai-도우미-ai-assistant)
+- [AI 에이전트 (AI Agent)](#ai-에이전트-ai-agent)
 - [체크리스트 (Checklist)](#체크리스트-checklist)
 - [기록 (Records)](#기록-records)
 - [리포트 (Reports)](#리포트-reports)
@@ -297,7 +297,7 @@ Query: department=개발팀&page=0&size=20
 
 ---
 
-## AI 에이젼트 (AI Agent)
+## AI 에이전트 (AI Agent)
 
 ### 대화 히스토리 조회
 
