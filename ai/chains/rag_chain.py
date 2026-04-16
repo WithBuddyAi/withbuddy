@@ -429,6 +429,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", "", []              # done 시그널
         return
 
+    yield "__STAGE__searching", None, None
+
     if _is_legal_question(question):
         retrieved_docs = search_legal_docs(question, k=_get_k_for_question(question))
     else:
@@ -458,6 +460,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         profile_ctx = format_profile_context(get_profile(user_id))
         if profile_ctx:
             formatted_context = f"[사용자 프로필]\n{profile_ctx}\n\n{formatted_context}"
+
+    yield "__STAGE__generating", None, None
 
     full_answer = ""
     async for chunk in _get_chain().astream({
