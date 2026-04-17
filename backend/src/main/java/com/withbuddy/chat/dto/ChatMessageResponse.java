@@ -17,6 +17,9 @@ public class ChatMessageResponse {
     @Schema(description = "온보딩 제안 ID", example = "1", nullable = true)
     private Long suggestionId;
 
+    @Schema(description = "근거 문서 ID 목록")
+    private List<Long> documentIds;
+
     @Schema(description = "근거 문서 상세 목록")
     private List<DocumentResponse> documents;
 
@@ -63,5 +66,11 @@ public class ChatMessageResponse {
 
         @Schema(description = "다운로드 URL", example = "/api/v1/documents/11/download")
         private String downloadUrl;
+
+        @Schema(description = "파일 API 경로", example = "/api/v1/documents/11/file")
+        private String fileApiPath;
+
+        @Schema(description = "파일 자체를 직접 반환하는지 여부", example = "true")
+        private boolean directReturn;
     }
 }
