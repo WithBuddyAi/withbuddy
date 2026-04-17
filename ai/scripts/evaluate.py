@@ -97,13 +97,13 @@ TEST_CASES = [
     {
         "category": "담당자",
         "question": "급여 관련해서 누구한테 물어봐야 해?",
-        "expected_keywords": ["인사팀"],
+        "expected_keywords": ["경영지원팀"],
         "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
     },
     {
         "category": "담당자",
         "question": "법인카드 신청은 누가 담당이야?",
-        "expected_keywords": ["총무"],
+        "expected_keywords": ["경영지원팀"],
         "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 
@@ -219,12 +219,12 @@ _JUDGE_PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 
-def evaluate_retrieval(question: str, expected_sources: list[str], k: int = 5) -> dict:
+def evaluate_retrieval(question: str, expected_sources: list[str], k: int = 5, company_code: str = "") -> dict:
     """검색된 문서에 기대 소스가 포함되는지 확인합니다."""
     if not expected_sources:
         return {"hit": None, "retrieved_sources": [], "note": "소스 미지정"}
 
-    retriever = get_retriever(k=k)
+    retriever = get_retriever(k=k, company_code=company_code)
     docs = retriever.invoke(question)
     retrieved = [
         os.path.splitext(os.path.basename(d.metadata.get("source", "")))[0].replace("+", " ")
@@ -265,7 +265,7 @@ def is_unanswered(answer: str) -> bool:
     return any(kw in answer for kw in _NO_ANSWER_KEYWORDS)
 
 
-def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db") -> dict:
+def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db", company_code: str = "") -> dict:
     """전체 테스트셋에 대해 평가를 실행합니다."""
     # ChromaDB 경로 임시 패치
     import core.vectorstore as vs
@@ -290,13 +290,13 @@ def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db") -> dict:
         # ① RAG 답변 생성 + 시간 측정
         t0 = time.time()
         try:
-            answer, source, _, _doc_ids = run_rag_chain("eval_user", q)
+            answer, source, _, _doc_ids = run_rag_chain("eval_user", q, company_code=company_code)
         except Exception as e:
             answer, source = f"오류: {e}", ""
         elapsed_ms = int((time.time() - t0) * 1000)
 
         # ② 검색 평가
-        retrieval = evaluate_retrieval(q, tc["expected_sources"])
+        retrieval = evaluate_retrieval(q, tc["expected_sources"], company_code=company_code)
 
         # ③ 키워드 평가
         keyword = evaluate_keywords(answer, tc["expected_keywords"])
@@ -497,9 +497,11 @@ def main():
                         help="결과 저장 경로 (기본: ./data/eval_result.json)")
     parser.add_argument("--chroma_dir", type=str, default="C:/withbuddy_chroma_db",
                         help="ChromaDB 경로 (기본: C:/withbuddy_chroma_db)")
+    parser.add_argument("--company_code", type=str, default="",
+                        help="회사 코드 (예: WB0001)")
     args = parser.parse_args()
 
-    summary = run_evaluation(chroma_dir=args.chroma_dir)
+    summary = run_evaluation(chroma_dir=args.chroma_dir, company_code=args.company_code)
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
 

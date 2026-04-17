@@ -357,7 +357,6 @@ Authorization: Bearer {accessToken}
     {
       "id": 101,
       "suggestionId": null,
-      "documentIds": [],
       "documents": [],
       "senderType": "USER",
       "messageType": "user_question",
@@ -367,7 +366,6 @@ Authorization: Bearer {accessToken}
     {
       "id": 102,
       "suggestionId": null,
-      "documentIds": [10, 11],
       "documents": [
         {
           "documentId": 10,
@@ -382,9 +380,7 @@ Authorization: Bearer {accessToken}
           "file": {
             "fileName": "welfare-card-application.docx",
             "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "downloadUrl": "/api/v1/documents/11/download",
-            "fileApiPath": "/api/v1/documents/11/file",
-            "directReturn": true
+            "downloadUrl": "/api/v1/documents/11/download"
           }
         }
       ],
@@ -417,13 +413,12 @@ Authorization: Bearer {accessToken}
   - `suggestion`: 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
 - `rag_answer` 메시지인 경우, 근거 문서는 `chat_message_documents`를 기준으로 조회한다.
-- 근거 문서 ID 목록은 `documentIds` 배열로 반환하며, 이는 답변 메시지와 연결된 문서 ID 목록을 의미한다.
-- 근거 문서 상세 정보는 `documents` 배열로 반환한다.
+- `documents[].documentId`는 답변 메시지와 연결된 문서 ID를 의미한다.
 - `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
 - `documents[].documentType = TEMPLATE`인 경우 `documents[].file` 객체를 포함한다.
-- 프론트엔드는 `documents[].file.downloadUrl` 또는 `documents[].file.fileApiPath`를 통해 문서를 다운로드하거나 파일 응답으로 받을 수 있다.
+- 프론트엔드는 `documents[].file.downloadUrl`을 통해 다운로드 URL 발급 API를 호출할 수 있다.
 - `documents[].documentType != TEMPLATE`인 경우 `documents[].file`은 `null`일 수 있다.
-- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documentIds`와 `documents`는 빈 배열(`[]`)이다.
+- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
 
 
 ### 6-2. 질문 전송
@@ -455,7 +450,6 @@ Content-Type: application/json
   "question": {
     "id": 201,
     "suggestionId": null,
-    "documentIds": [],
     "documents": [],
     "senderType": "USER",
     "messageType": "user_question",
@@ -465,7 +459,6 @@ Content-Type: application/json
   "answer": {
     "id": 202,
     "suggestionId": null,
-    "documentIds": [10, 11],
     "documents": [
       {
         "documentId": 10,
@@ -480,9 +473,7 @@ Content-Type: application/json
         "file": {
           "fileName": "welfare-card-application.docx",
           "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          "downloadUrl": "/api/v1/documents/11/download",
-          "fileApiPath": "/api/v1/documents/11/file",
-          "directReturn": true
+          "downloadUrl": "/api/v1/documents/11/download"
         }
       }
     ],
@@ -501,7 +492,6 @@ Content-Type: application/json
   "question": {
     "id": 201,
     "suggestionId": null,
-    "documentIds": [],
     "documents": [],
     "senderType": "USER",
     "messageType": "user_question",
@@ -511,7 +501,6 @@ Content-Type: application/json
   "answer": {
     "id": 202,
     "suggestionId": null,
-    "documentIds": [],
     "documents": [],
     "senderType": "BOT",
     "messageType": "no_result",
@@ -578,13 +567,13 @@ Content-Type: application/json
 - 내부 AI 서버는 로그인한 사용자의 회사 문서와 공통 문서만을 대상으로 답변을 생성한다.
 - 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
 - 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용하여 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
-- 내부 AI 응답에 근거 문서 목록(`document[].documentId`)이 포함된 경우, 백엔드는 답변 메시지 저장 후 `chat_message_documents`에 답변 메시지 ID와 문서 ID를 매핑하여 저장한다.
-- 백엔드는 AI 응답의 `document[].documentId` 목록을 기준으로 `documents`를 조회한다.
-- 답변 메시지 응답에는 근거 문서 ID 목록 `documentIds`와 근거 문서 상세 정보 `documents`를 포함한다.
-- `documentIds`는 답변 메시지와 연결된 문서 ID 목록을 의미한다.
+- 내부 AI 응답에 근거 문서 목록(`documents[].documentId`)이 포함된 경우, 백엔드는 답변 메시지 저장 후 chat_message_documents에 답변 메시지 ID와 문서 ID를 매핑하여 저장한다.
+- 백엔드는 AI 응답의 `documents[].documentId` 목록을 기준으로 `documents`를 조회한다.
+- 답변 메시지 응답에는 근거 문서 상세 정보 `documents`를 포함한다.
+- `documents[].documentId`는 답변 메시지와 연결된 문서 ID를 의미한다.
 - `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
-- 문서의 `document_type = TEMPLATE`인 경우, 파일 접근 정보는 `document_files`를 기준으로 조회하며 `documents[].file`에 포함한다.
-- 프론트엔드는 `documents[].file.downloadUrl` 또는 `documents[].file.fileApiPath`를 통해 문서를 다운로드하거나 파일 응답으로 받을 수 있다.
+- 문서의 document_type = TEMPLATE인 경우, 파일 접근 정보는 `document_files`를 기준으로 조회하며 `documents[].file`에 포함한다.
+- 프론트엔드는 `documents[].file.downloadUrl`을 통해 다운로드 URL 발급 API를 호출할 수 있다.
 - `document_type != TEMPLATE`인 경우, `documents[].file`은 일반적으로 포함하지 않거나 `null`로 반환한다.
 - 실제 파일 데이터는 채팅 메시지 응답 본문(JSON)에 직접 포함하지 않고, 별도 파일 API를 통해 반환한다.
 - `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
@@ -592,7 +581,7 @@ Content-Type: application/json
 - 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
 - 백엔드는 내부 AI 서버 호출 시 최대 5초까지 응답을 대기한다.
-- 5초 내 응답이 없으면 `AI_TIMEOUT` 예외를 반환한다.
+- 5초 내 응답이 없으면 `AI_TIMEOUT` `예외를 반환한다.
 - 사용자가 재시도를 선택한 경우 동일한 질문 내용을 다시 `POST /api/v1/chat/messages`로 전송한다.
 
 ### 6-3. 온보딩 제안 조회
@@ -811,7 +800,7 @@ Authorization: Bearer {accessToken}
 Content-Type: multipart/form-data
 ```
 
-### 설명
+#### 설명
 - 문서를 업로드한다.
 - 업로드된 문서는 `documents`, `document_files`를 기준으로 저장 및 관리한다.
 - 파일 저장 후 백업 스토리지 연동 정책에 따라 백업 작업이 수행될 수 있다.
@@ -822,7 +811,7 @@ Content-Type: multipart/form-data
 GET /api/v1/documents
 Authorization: Bearer {accessToken}
 ```
-### 설명
+#### 설명
 - 현재 사용자가 접근 가능한 문서 목록을 조회한다.
 - 회사 문서와 공통 문서 기준으로 조회될 수 있다.
 - 상세 검색 조건, 정렬, 필터링 여부는 Swagger UI의 실제 파라미터 정의를 따른다.
@@ -837,7 +826,7 @@ Authorization: Bearer {accessToken}
 | ------------ | ------ | -- | --------- |
 | `documentId` | `Long` | Y  | 조회할 문서 ID |
 
-### 설명
+#### 설명
 - 특정 문서의 상세 정보를 조회한다.
 - 문서 기본 정보와 파일 메타데이터를 함께 포함한다.
 
@@ -866,7 +855,10 @@ Content-Disposition: attachment; filename="welfare-card-application.docx"
 ```
 
 #### 설명
-- Response Body: 파일 바이너리
+- Response Body는 파일 바이너리다.
+- 이 API는 실제 파일 바이너리를 직접 반환하는 최종 다운로드 엔드포인트다.
+- 로컬 개발 환경에서는 프론트엔드가 이 경로를 직접 호출하여 파일을 내려받을 수 있다.
+- 운영 환경에서는 일반적으로 프론트엔드가 `GET /api/v1/documents/{documentId}/download`를 먼저 호출하고, 서버가 반환한 다운로드 URL 또는 접근 경로를 사용한다.
 
 #### Error Response (404 Not Found)
 ```json
@@ -902,21 +894,71 @@ Content-Disposition: attachment; filename="welfare-card-application.docx"
 }
 ```
 
-### 설명
-- 로컬 개발 환경에서 문서 파일을 직접 다운로드한다.
-- 운영 환경에서는 직접 파일 반환 대신 다운로드 URL 발급 방식을 사용한다.
-- `GET /api/v1/documents/{documentId}/file`는 파일 바이너리를 직접 반환한다.
-
 ### 8-5. 다운로드 URL 발급
 ```http
 GET /api/v1/documents/{documentId}/download
 Authorization: Bearer {accessToken}
 ```
 
-### 설명
-- 문서 파일 다운로드를 위한 URL을 발급한다.
-- 실제 파일은 스토리지 경로를 통해 제공될 수 있다.
-- `GET /api/v1/documents/{documentId}/download`는 다운로드에 사용할 URL 또는 접근 경로를 반환한다.
+| 필드           | 타입     | 필수 | 설명                   |
+| ------------ | ------ | -- | -------------------- |
+| `documentId` | `Long` | Y  | 다운로드 URL 발급 대상 문서 ID |
+
+#### 동작 규칙
+
+- `documents.id = {documentId}`인 문서를 조회한다.
+- 해당 문서가 현재 로그인한 사용자의 회사 문서이거나 공통 문서인 경우만 접근 가능하다.
+- `document_type = TEMPLATE`인 경우에만 다운로드 URL 또는 접근 경로를 반환한다.
+- 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
+- 운영 환경에서는 스토리지 기반 다운로드 URL 또는 파일 접근 경로를 반환할 수 있다.
+- 로컬 개발 환경에서는 `/api/v1/documents/{documentId}/file` 경로를 다운로드 URL로 반환할 수 있다.
+- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
+
+#### Response (200 OK)
+```json
+{
+  "downloadUrl": "/api/v1/documents/11/file"
+}
+```
+#### 설명
+- 프론트엔드는 TEMPLATE 문서 다운로드 시 이 API를 우선 호출한다.
+- 응답의 `downloadUrl` 값을 사용해 실제 파일 다운로드를 진행한다.
+- 채팅 메시지 응답의 `documents[].file.downloadUrl`에는 이 엔드포인트 경로(`/api/v1/documents/{documentId}/download`)를 제공한다.
+- 실제 파일 바이너리 반환은 `downloadUrl`이 가리키는 경로에서 수행된다.
+
+#### Error Response (404 Not Found)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00Z",
+  "status": 404,
+  "error": "Not Found",
+  "code": "NOT_FOUND",
+  "errors": [
+    {
+      "field": "documentId",
+      "message": "해당 문서를 찾을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/download"
+}
+```
+
+#### Error Response (400 Bad Request)
+```json
+{
+"timestamp": "2026-04-14T15:30:00Z",
+"status": 400,
+"error": "Bad Request",
+"code": "BAD_REQUEST",
+"errors": [
+{
+"field": "documentType",
+"message": "다운로드 URL 발급은 TEMPLATE 문서에만 허용됩니다."
+}
+],
+"path": "/api/v1/documents/11/download"
+}
+```
 
 ### 8-6. 문서 삭제 전 검증
 ```http
@@ -924,7 +966,7 @@ GET /api/v1/documents/{documentId}/delete-check
 Authorization: Bearer {accessToken}
 ```
 
-### 설명
+#### 설명
 - 특정 문서를 삭제하기 전에 삭제 가능 여부를 검증한다.
 - 연관 데이터, 백업 상태, 권한 조건 등을 확인한다.
 
@@ -934,7 +976,7 @@ DELETE /api/v1/documents/{documentId}
 Authorization: Bearer {accessToken}
 ```
 
-### 설명
+#### 설명
 - 특정 문서를 삭제한다.
 - 실제 삭제 방식은 물리 삭제 또는 논리 삭제 정책을 따른다.
 - 파일 및 백업 데이터 처리 방식은 서버 정책에 따른다.
@@ -945,7 +987,7 @@ GET /api/v1/documents/delete-check
 Authorization: Bearer {accessToken}
 ```
 
-### 설명
+#### 설명
 - 전체 문서 삭제 전에 삭제 가능 여부를 검증한다.
 - 삭제 대상 수, 삭제 불가 사유, 확인 필요 항목 등을 반환한다.
 
@@ -955,7 +997,7 @@ DELETE /api/v1/documents
 Authorization: Bearer {accessToken}
 ```
 
-### 설명
+#### 설명
 - 전체 문서를 삭제한다.
 - confirm 필요 정책이 적용된다.
 - 실제 요청 규격은 Swagger UI 정의를 따른다.
@@ -967,7 +1009,7 @@ Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
-### 설명
+#### 설명
 - 선택한 문서들을 삭제하기 전에 삭제 가능 여부를 검증한다.
 - 삭제 대상 목록 기준으로 검증 결과를 반환한다.
 
@@ -978,7 +1020,7 @@ Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
 
-### 설명
+#### 설명
 - 선택한 문서들을 일괄 삭제한다.
 - confirm 필요 정책이 적용될 수 있다.
 - 실제 요청 바디 구조는 Swagger UI 정의를 따른다.
@@ -989,7 +1031,7 @@ POST /api/v1/documents/{documentId}/backup/retry
 Authorization: Bearer {accessToken}
 ```
 
-### 설명
+#### 설명
 - 특정 문서의 백업 작업을 재시도한다.
 - `document_files`, `document_backup_jobs` 기준으로 백업 상태를 갱신하거나 새 작업을 생성한다.
 
