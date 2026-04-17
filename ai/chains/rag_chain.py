@@ -16,7 +16,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
-from core.vectorstore import search_with_company_fallback, search_legal_docs
+from core.vectorstore import search_with_company_fallback, search_legal_docs, rerank_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
 from utils.prompts import RAG_PROMPT
@@ -320,9 +320,12 @@ def _extract_sources(docs: List[Document]) -> str:
 
 def _search_sub_q(sub_q: str, company_code: str) -> List[Document]:
     """단일 서브 질문에 대한 검색 수행 (병렬 실행용)"""
+    k = _get_k_for_question(sub_q)
     if _is_legal_question(sub_q):
-        return search_legal_docs(sub_q, k=_get_k_for_question(sub_q))
-    return search_with_company_fallback(sub_q, k=_get_k_for_question(sub_q), company_code=company_code)
+        docs = search_legal_docs(sub_q, k=k * 2)
+    else:
+        docs = search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
+    return rerank_docs(sub_q, docs, top_k=k)
 
 
 def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict], List[int]]:
