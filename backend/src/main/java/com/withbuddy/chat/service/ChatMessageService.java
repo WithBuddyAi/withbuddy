@@ -114,7 +114,6 @@ public class ChatMessageService {
         return new ChatMessageResponse(
                 message.getId(),
                 message.getSuggestionId(),
-                documentIds,
                 documents,
                 message.getSenderType().name(),
                 message.getMessageType().getValue(),
@@ -156,9 +155,7 @@ public class ChatMessageService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-                "/api/v1/documents/" + documentId + "/download",
-                "/api/v1/documents/" + documentId + "/file",
-                true
+                "/api/v1/documents/" + documentId + "/download"
         );
     }
 
