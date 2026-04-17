@@ -1,5 +1,5 @@
-import { NavLink, useNavigate } from "react-router-dom"
-import { MessageSquare, ChevronRight, Send, LogOut, Calendar as CalendarIcon } from "lucide-react"
+import { NavLink, useLocation, useNavigate } from "react-router-dom"
+import { MessageSquare, ChevronRight, Send, LogOut, Menu, Calendar as CalendarIcon } from "lucide-react"
 import char from '../assets/Favicon_web.svg'
 import bot from '../assets/Bot_icon.svg'
 import bar from '../assets/side_bar.svg'
@@ -9,6 +9,7 @@ import { ko } from 'date-fns/locale';
 import axios from "axios";
 import Calendar from "react-calendar"
 import 'react-calendar/dist/Calendar.css'
+import ReactMarkdown from 'react-markdown'
 
 function MyBuddy ({setIsLoggedIn}) {
   // 사이드바에 표시되는 정보 state
@@ -20,6 +21,10 @@ function MyBuddy ({setIsLoggedIn}) {
   const [selectedDate, setSelectedDate] = useState(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [activeDates, setActiveDates] = useState([])
+  const location = useLocation()
+  const navItems = [
+    { path: '/mybuddy', label: '마이버디', icon: <MessageSquare size={14}/>}
+  ]
   
   const navigate = useNavigate()
 
@@ -167,14 +172,22 @@ function MyBuddy ({setIsLoggedIn}) {
     e.preventDefault()
     if (!text.trim()) return
     setIsLoading(true)
+    const sendText = text
+    setMessageList(prev => [...prev, {
+      id: `temp-${Date.now()}`,
+      senderType: 'USER',
+      content: sendText,
+      createdAt: new Date().toISOString()
+    }])
+    setText('')
 
     try {
       const {data} = await axios.post(`${BASE_URL}/api/v1/chat/messages`,
-        {content: text},
+        {content: sendText},
         {headers: { 'Authorization': `Bearer ${accessToken}` }}
       )
       
-      setMessageList(prev => [...prev, data.question, data.answer])
+      setMessageList(prev => [...prev, data.answer])
       setText('')
       setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
     } catch (error) {
@@ -197,23 +210,29 @@ function MyBuddy ({setIsLoggedIn}) {
   // User Class 정리
   const userClass = 
   `rounded-tl-[24px]
-  rounded-tr-[8px]
+  rounded-tr-[4px]
+  lg:rounded-tr-[8px]
   rounded-bl-[24px]
   rounded-br-[24px]
   text-[#FFFFFF]
-  text-[16px]
+  text-[12px]
+  md:text-[16px]
   text-left
-  max-w-[800px]
-  py-[16px]
-  px-[24px]
+  max-w-[310px]
+  lg:max-w-[800px]
+  p-[16px]
+  md:px-[24px]
   whitespace-pre-wrap
-  my-[20px]
-  mr-[42px]
+  mt-[20px]
+  mb-[12px]
+  md:mr-[42px]
   drop-shadow
   `
   // Bot Class 정리
   const botClass = 
-  `rounded-tl-[8px]
+  `
+  lg:rounded-tl-[8px]
+  rounded-tl-[4px]
   rounded-tr-[24px]
   rounded-bl-[24px]
   rounded-br-[24px]
@@ -221,20 +240,23 @@ function MyBuddy ({setIsLoggedIn}) {
   border-[1px]
   bg-[#FFFFFF]
   text-[#000000]
-  text-[16px]
+  text-[12px]
+  md:text-[16px]
   text-left
-  max-w-[800px]
-  py-[20px]
-  px-[24px]
+  max-w-[310px]
+  lg:max-w-[800px]
+  p-[16px]
+  lg:py-[20px]
+  lg:px-[24px]
   whitespace-pre-wrap
-  my-[20px]
-  ml-[67px]
+  mb-[12px]
+  ml-[16px]
   drop-shadow
   y-2
   `
 
   return (
-    <div className="h-screen flex relative">
+    <div className="h-screen flex relative overflow-hidden">
       {errorMessage && (
         <div className="fixed bottom-[40px] left-1/2 -translate-x-1/2 z-50
           bg-[#343A40] text-white text-[14px]
@@ -250,12 +272,13 @@ function MyBuddy ({setIsLoggedIn}) {
         backgroundImage: `url('/chat_bg.png')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
         opacity: 0.4
       }}>
       </div>
 
       {/* 사이드바 - 추후 컴포넌트 분리 필요 */}
-      {isSidebarOpen ? (<div className="relative z-10 w-[255px] flex flex-col mt-[32px]">
+      {isSidebarOpen ? (<div className="hidden md:flex relative z-10 w-[255px] flex-col mt-[32px]">
         {/* 사용자 정보 부분 */}
         <div>
           <div className="flex items-center justify-between py-[12px] px-[16px]">
@@ -308,9 +331,15 @@ function MyBuddy ({setIsLoggedIn}) {
             tileContent={({ date }) => {
               const formatted = format(date, 'yyyy-MM-dd')
               if (activeDates.includes(formatted)) {
-                return <div className="flex justify-center">
+                return <div className="absolute bottom-[1px] flex justify-center w-[full]">
                   <div className="w-[4px] h-[4px] rounded-full bg-[#7DC1FF]"/>
                 </div>
+              }
+            }}
+            tileClassName={({ date }) => {
+              const formatted = format(date, 'yyyy-MM-dd')
+              if (activeDates.includes(formatted)) {
+                return 'has-chat'
               }
             }}
             />
@@ -321,7 +350,7 @@ function MyBuddy ({setIsLoggedIn}) {
         <button onClick={handleLogout} className="text-[#204867] mt-auto mb-[36px] flex items-center gap-2 py-[10px] px-[8px] ml-[16px]" ><LogOut size={14} />로그아웃</button>
       </div>) 
       : 
-      (<div className="relative z-10 w-[76px] flex flex-col mt-[32px]">
+      (<div className="hidden md:flex relative z-10 w-[76px] flex-col mt-[32px]">
         {/* 사용자 정보 부분 */}
         <div>
           <div className="flex items-center justify-center py-[12px] px-[16px]">
@@ -352,8 +381,26 @@ function MyBuddy ({setIsLoggedIn}) {
 
 
       {/* 채팅 영역 */}
-      <div className="relative z-10 flex flex-1 flex-col my-[32px] ml-[8px] mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow rounded-[32px] justify-between p-[40px]">
-        <div className="flex-1 overflow-y-auto">
+      <div className="relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between  md:p-[40px]">
+        {/* 모바일 헤더 */}
+        <>
+          <div className="flex md:hidden items-center py-[16px] px-[24px] bg-[#EAF6FF]">
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+              <Menu size={16}/>
+            </button>
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[8px] text-[#336B97]">
+              {navItems.map(item => 
+              location.pathname === item.path && (
+                <div key={item.path} className="flex items-center justify-center gap-[10px]">
+                  {item.icon}
+                  <p>{item.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+
+        <div className="flex-1 overflow-y-auto px-[24px] pb-[16px]">
           {suggestion.length > 0 && (
             <div>
               <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
@@ -373,22 +420,23 @@ function MyBuddy ({setIsLoggedIn}) {
             <div key={message.id}>
               {isNewDate && (
                 <div className="flex items-center justify-center">
-                  <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[14px] text-center">
+                  <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[120px] md:w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[12px] md:text-[14px] text-center mt-[16px]">
                     {format(new Date(currentDate), 'yyyy년 M월 d일', {locale: ko})}</p>
                 </div>)}
-              {message.senderType === 'BOT' && <img src={bot} alt="WithBuddy 채팅봇 이미지"/>}
+              
               <div className={
-                message.senderType === 'USER' ? 'flex justify-end' : 'flex justify-start'}>
-                  <div className="flex flex-col">
-                <div className={
-                  message.senderType === 'USER' ? `${userClass}` : `${botClass}`}
-                  style={message.senderType === 'USER' ? {background: 'linear-gradient(to right, #7DC1FF, #6BB5F2, #57A7E4, #4F9CD7, #4791CA)'} : {}}>
-                    {message.content}
-                </div>
-                <p className={
-                  `${message.senderType === 'USER' ? 'text-right mr-[42px]' : 'text-left ml-[42px]'}`}>
-                  <p className="text-[#868E96] text-[16px] ">{format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
-                </p>
+                message.senderType === 'USER' ? 'flex justify-end' : 'flex justify-start items-start mt-[32px]'}>
+                {message.senderType === 'BOT' && <img src={bot} alt="WithBuddy 채팅봇 이미지"/>}
+                <div className="flex flex-col">
+                  <div className={
+                    message.senderType === 'USER' ? `${userClass}` : `${botClass}`}
+                    style={message.senderType === 'USER' ? {background: 'linear-gradient(to right, #7DC1FF, #6BB5F2, #57A7E4, #4F9CD7, #4791CA)'} : {}}>
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                  </div>
+                  <p className={
+                    `${message.senderType === 'USER' ? 'text-right md:mr-[48px]' : 'text-left ml-[16px]'}`}>
+                    <p className="text-[#868E96] text-[10px] md:text-[16px] ">{format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
+                  </p>
                 </div>
               </div>
             </div>
@@ -414,7 +462,7 @@ function MyBuddy ({setIsLoggedIn}) {
         </div>
 
         {/* 빠른 질문 */}
-        <div className="flex items-center gap-[10px] my-[16px]">
+        <div className="flex items-center gap-[10px] my-[16px] mx-[16px]">
           <p className="text-[#868E96] text-[14px]">빠른 질문</p>
           {quickQuestion.map((q, index) => 
           <button
@@ -429,7 +477,7 @@ function MyBuddy ({setIsLoggedIn}) {
         </div>
 
         {/* 입력 창 */}
-        <form onSubmit={handleSubmit} className="flex gap-[12px] m-[10px]">
+        <form onSubmit={handleSubmit} className="flex gap-[12px] mb-[10px] mx-[10px]">
           <textarea 
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -440,13 +488,16 @@ function MyBuddy ({setIsLoggedIn}) {
             }
           }}
           disabled={isLoading}
-          className="flex-1 border-[1px] border-[#E9ECEF] rounded-[8px] bg-[#FFFFFF] py-[12px] px-[16px] text-[16px] h-[50px]
-          active:border-[#204867]"
+          className="flex-1 border-[1px] border-[#E9ECEF] rounded-[8px] bg-[#FFFFFF] py-[16px] md:py-[8px] px-[16px] text-[12px] md:text-[14px] lg:text-[16px] h-[52px] md:h-[40px] lg:h-[44px]
+          active:border-[#204867] resize-none"
           placeholder="사소한 것도 괜찮아요, 버디에게 무엇이든 물어보세요!" />
           <button 
-          className="flex items-center justify-center bg-[#F1F3F5] border-[1px] border-[#E9ECEF] rounded-[8px] w-[40px] h-[48px] active:enabled:bg-[#336B97]"
+          className="flex items-center justify-center bg-[#F1F3F5] border-[1px] border-[#E9ECEF] rounded-[8px] w-[40px] h-[44px] md:h-[48px] active:text-[#FFFFFF] active:bg-[#336B97] active:enabled:bg-[#336B97]"
           disabled={!text.trim() || isLoading}>
-            <Send size={15} className="text-[#ADB5BD] active:text-[#FFFFFF]" /></button>
+            <span>
+            <Send size={15} className="text-[#ADB5BD] active:text-[#FFFFFF] active:bg-[#336B97]" />
+            </span>
+          </button>
         </form>
       </div>
     </div>
