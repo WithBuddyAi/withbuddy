@@ -132,8 +132,8 @@ def _get_k_for_question(question: str) -> int:
     조항 질문("제N조")은 더 많은 청크를 검색하여 해당 조항을 찾을 확률을 높입니다.
     """
     if _ARTICLE_PATTERN.search(question):
-        return 7  # 조항 질문: 넓게 검색
-    return 5      # 일반 질문: 기본값 (기존 3에서 상향)
+        return 5  # 조항 질문: 넓게 검색
+    return 3      # 일반 질문: 리랭킹이 품질 커버
 
 _NO_ANSWER_KEYWORDS = [
     "문서에서 확인되지",
