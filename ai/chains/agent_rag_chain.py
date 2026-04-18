@@ -74,6 +74,19 @@ def _make_tools(company_code: str) -> List:
     return [search_hr, search_admin, search_it, search_welfare, search_legal]
 
 
+# ── 에이전트 캐시 (company_code별 싱글톤) ────────────────────
+_agent_cache: dict = {}
+
+
+def _get_agent(company_code: str):
+    """company_code별 에이전트 캐싱 — 매 요청마다 생성하지 않음."""
+    if company_code not in _agent_cache:
+        tools = _make_tools(company_code)
+        llm = get_llm()
+        _agent_cache[company_code] = (create_react_agent(llm, tools, prompt=_AGENT_SYSTEM_PROMPT), tools)
+    return _agent_cache[company_code]
+
+
 # ── 퍼블릭 API ───────────────────────────────────────────────
 
 def run_agent_rag_chain(
@@ -91,28 +104,22 @@ def run_agent_rag_chain(
     """
     chat_history = get_chat_history(user_id)
     user_style = _detect_user_style(chat_history, question)
-    tools = _make_tools(company_code)
-    llm = get_llm()
 
-    system_prompt = _AGENT_SYSTEM_PROMPT
-    if user_name:
-        system_prompt += f"\n사용자 이름: {user_name} (이름이 있으면 '{user_name}님'으로 호칭)"
-    if user_style:
-        system_prompt += f"\n{user_style}"
+    agent, _ = _get_agent(company_code)
 
-    agent = create_react_agent(llm, tools, prompt=system_prompt)
-    from langchain_core.messages import HumanMessage
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
     messages = list(chat_history) + [HumanMessage(content=question)]
     result = agent.invoke({"messages": messages})
 
-    # 마지막 AI 메시지 추출
-    from langchain_core.messages import AIMessage, ToolMessage
     all_msgs = result.get("messages", [])
     ai_messages = [m for m in all_msgs if isinstance(m, AIMessage)]
     answer = _fix_names(ai_messages[-1].content if ai_messages else "")
 
-    # 사용된 툴 추출
+    # 툴 미사용 시 fallback
     tool_messages = [m for m in all_msgs if isinstance(m, ToolMessage)]
+    if not tool_messages:
+        answer = "관련 문서를 찾지 못했어요. 경영지원팀에 직접 문의해 주세요! 😊"
+
     used_tools = list({getattr(m, "name", "") for m in tool_messages if getattr(m, "name", "")})
     source = ", ".join(used_tools) if used_tools else "agent"
 
