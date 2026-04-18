@@ -54,6 +54,19 @@ class ChatResponse(BaseModel):
 
 # ── 엔드포인트 ──────────────────────────────
 
+@router.post("/chat/agent", response_model=ChatResponse)
+async def chat_agent(request: ChatRequest):
+    """도메인 툴 분리 AgentExecutor 기반 RAG (토큰 절감 테스트용)"""
+    try:
+        from chains.agent_rag_chain import run_agent_rag_chain
+        answer, source, related_docs, _ = run_agent_rag_chain(
+            str(request.user_id), request.message, request.user_name, request.company_code
+        )
+        return ChatResponse(answer=answer, source=source, related_docs=related_docs)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"에이전트 처리 중 오류: {str(e)}")
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
