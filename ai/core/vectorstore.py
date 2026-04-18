@@ -14,6 +14,27 @@ from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
 from core.embeddings import get_embeddings
 
+_reranker = None
+
+def get_reranker():
+    """Cross-Encoder 리랭커 싱글톤 (BAAI/bge-reranker-v2-m3)"""
+    global _reranker
+    if _reranker is None:
+        from sentence_transformers import CrossEncoder
+        _reranker = CrossEncoder("BAAI/bge-reranker-v2-m3")
+    return _reranker
+
+
+def rerank_docs(query: str, docs: List[Document], top_k: int = 5) -> List[Document]:
+    """Cross-Encoder로 문서 재정렬 후 상위 top_k개 반환."""
+    if not docs:
+        return docs
+    model = get_reranker()
+    pairs = [[query, d.page_content[:300]] for d in docs]
+    scores = model.predict(pairs)
+    ranked = sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)
+    return [doc for _, doc in ranked[:top_k]]
+
 # ChromaDB 영구 저장 경로
 CHROMA_DB_PATH = "./chroma_db"
 
@@ -72,7 +93,7 @@ def search_legal_docs(query: str, k: int = 7, score_threshold: float = 0.30) -> 
     return filtered
 
 
-def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.30) -> List[Document]:
+def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.30, category: str = "") -> List[Document]:
     """
     ST-027: company_code 기준 벡터 DB 격리 검색
     회사 특화 문서(company_code 일치) + 공통 문서(company_code 없음) OR 조건 검색.
@@ -96,7 +117,8 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
         return [doc for doc, score in results if score >= score_threshold]
 
     if not company_code:
-        raw = vs.similarity_search_with_relevance_scores(query, k=k)
+        f = {"category": category} if category else {}
+        raw = vs.similarity_search_with_relevance_scores(query, k=k, filter=f or None)
         filtered = _filter_by_score(raw)
         # 필터링 후 결과가 0개면 임계값 낮춰서 재시도 (최소 1개 보장)
         if not filtered:
@@ -104,14 +126,22 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
         return filtered
 
     # 회사 특화 문서 검색
+    if category:
+        company_filter = {"$and": [{"company_code": company_code}, {"category": category}]}
+    else:
+        company_filter = {"company_code": company_code}
     company_raw = vs.similarity_search_with_relevance_scores(
-        query, k=k, filter={"company_code": company_code}
+        query, k=k, filter=company_filter
     )
     company_docs = _filter_by_score(company_raw)
 
     # 공통 문서 검색 (company_code 메타데이터가 없는 문서)
+    if category:
+        common_filter = {"$and": [{"company_code": ""}, {"category": category}]}
+    else:
+        common_filter = {"company_code": ""}
     common_raw = vs.similarity_search_with_relevance_scores(
-        query, k=k, filter={"company_code": ""}
+        query, k=k, filter=common_filter
     )
     common_docs = _filter_by_score(common_raw)
 
