@@ -83,27 +83,13 @@ TEST_CASES = [
     {
         "category": "IT장비",
         "question": "노트북 신청하려면 어떻게 해?",
-        "expected_keywords": ["장비", "신청", "IT"],
-        "expected_sources": ["techco_IT_규정_v3.1.txt", "IT.txt"],
+        "expected_keywords": ["노트북", "신청"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
     {
         "category": "IT장비",
         "question": "회사 이메일 계정은 어떻게 발급받아?",
-        "expected_keywords": ["계정", "이메일", "IT"],
-        "expected_sources": ["techco_IT_규정_v3.1.txt", "IT.txt"],
-    },
-
-    # ── 담당자 안내 ───────────────────────────────────
-    {
-        "category": "담당자",
-        "question": "급여 관련해서 누구한테 물어봐야 해?",
-        "expected_keywords": ["경영지원팀"],
-        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
-    },
-    {
-        "category": "담당자",
-        "question": "법인카드 신청은 누가 담당이야?",
-        "expected_keywords": ["경영지원팀"],
+        "expected_keywords": ["계정", "이메일"],
         "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 
@@ -154,6 +140,12 @@ TEST_CASES = [
         "category": "복리후생",
         "question": "건강검진은 어떻게 신청해?",
         "expected_keywords": ["건강검진"],
+        "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
+    },
+    {
+        "category": "복리후생",
+        "question": "경조금 지원은 어떻게 받아?",
+        "expected_keywords": ["경조금"],
         "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
 

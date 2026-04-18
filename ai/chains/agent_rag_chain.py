@@ -131,3 +131,52 @@ def run_agent_rag_chain(
         related_docs = []
 
     return answer, source, related_docs, []
+
+
+async def stream_agent_rag_chain(
+    user_id: str,
+    question: str,
+    user_name: str = "",
+    company_code: str = "",
+):
+    """
+    에이전트 RAG 체인 스트리밍 버전 (SSE 용).
+    토큰 단위로 (텍스트, None, None)을 yield하고,
+    마지막에 (None, source, related_docs)를 yield합니다.
+    """
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+
+    chat_history = get_chat_history(user_id)
+    agent, _ = _get_agent(company_code)
+    messages = list(chat_history) + [HumanMessage(content=question)]
+
+    full_answer = ""
+    used_tools: set[str] = set()
+
+    async for event in agent.astream_events({"messages": messages}, version="v2"):
+        kind = event.get("event", "")
+        if kind == "on_tool_end":
+            tool_name = event.get("name", "")
+            if tool_name:
+                used_tools.add(tool_name)
+        if kind == "on_chat_model_stream":
+            chunk = event.get("data", {}).get("chunk")
+            if chunk and hasattr(chunk, "content") and chunk.content:
+                # seq:step:1 태그는 첫 번째 LLM 판단 단계 → 스킵
+                tags = event.get("tags", [])
+                if "seq:step:1" not in tags:
+                    text = chunk.content
+                    full_answer += text
+                    yield text, None, None
+
+    full_answer = _fix_names(full_answer)
+    source = ", ".join(used_tools) if used_tools else "agent"
+    save_interaction(user_id, question, full_answer)
+
+    try:
+        from routers.docs import find_related_docs
+        related_docs = find_related_docs(question)
+    except Exception:
+        related_docs = []
+
+    yield None, source, related_docs
