@@ -337,6 +337,7 @@ def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
     return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
 
 
+
 def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
@@ -475,6 +476,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", source, related_docs
         return
 
+
     yield "__STAGE__searching", None, None
 
     sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
@@ -501,7 +503,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
                     retrieved_docs.append(d)
         top_k = min(3 * len(sub_questions), 6)
         retrieved_docs = await loop.run_in_executor(None, rerank_docs, question, retrieved_docs, top_k)
-
     source_names = _extract_sources(retrieved_docs)
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
