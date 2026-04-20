@@ -12,7 +12,7 @@ public class AiUserContext {
     @Schema(description = "사용자 ID", example = "1")
     private Long userId;
 
-    @Schema(description = "용자 이름", example = "김지원")
+    @Schema(description = "사용자 이름", example = "김지원")
     private String name;
 
     @Schema(description = "회사 코드", example = "WB0001")
