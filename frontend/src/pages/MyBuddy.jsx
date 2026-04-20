@@ -19,8 +19,9 @@ function MyBuddy ({setIsLoggedIn}) {
   const today = format(new Date(), 'yyyy-MM-dd')
   // const progress = Math.min(Math.round((Number(dayCount) / 90) * 100), 100)
   const [selectedDate, setSelectedDate] = useState(null)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768)
   const [activeDates, setActiveDates] = useState([])
+  const [isLogoutModal, setIsLogoutModal] = useState(false)
   const location = useLocation()
   const navItems = [
     { path: '/mybuddy', label: '마이버디', icon: <MessageSquare size={14}/>}
@@ -38,6 +39,7 @@ function MyBuddy ({setIsLoggedIn}) {
   const accessToken = localStorage.getItem('accessToken')
   const [errorMessage, setErrorMessage] = useState(false)
   const chatBottomRef = useRef(null)
+  const [loadingMessage, setLoadingMessage] = useState('')
 
   // 대화 기록 달력
   const handleDateChange = async (date) => {
@@ -70,14 +72,17 @@ function MyBuddy ({setIsLoggedIn}) {
   // 401 에러 발생 시(토큰 만료)
   const handle401 = (error) => {
     if (error.response?.status === 401) {
-      const code = error.response?.data?.errors?.[0]?.field
-      if (code === 'token' || code === 'auth') {
+      const code = error.response?.data?.code
+      if (code === 'TOKEN_MISSING' || code === 'TOKEN_EXPIRED' || code === 'INVALID_TOKEN' || code === 'USER_NOT_FOUND') {
+        const tokenError = error.response?.data?.errors[0]?.message
         localStorage.removeItem('accessToken')
         localStorage.removeItem('dayCount')
         localStorage.removeItem('hireDate')
         localStorage.removeItem('name')
         setIsLoggedIn(false)
-        navigate('/login')
+        navigate('/login', {
+          state: { tokenError }
+        })
         return (true)
       }
     }
@@ -167,6 +172,19 @@ function MyBuddy ({setIsLoggedIn}) {
     }
   }, [errorMessage])
 
+  // 답변 지연 메시지
+  useEffect(() => {
+    if (isLoading) {
+      setLoadingMessage('잠시만요! 우리 사내 문서에서 관련 내용을 꼼꼼히 찾아보고 있어요!')
+      const timer1 = setTimeout(() => {setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)}, 2000)
+      return () => {
+        clearTimeout(timer1)
+      }
+    } else {
+      setLoadingMessage('')
+    }
+  }, [isLoading])
+
   // 사용자 질문 전송
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -219,6 +237,7 @@ function MyBuddy ({setIsLoggedIn}) {
   md:text-[16px]
   text-left
   max-w-[310px]
+  md:max-w-[550px]
   lg:max-w-[800px]
   p-[16px]
   md:px-[24px]
@@ -244,6 +263,7 @@ function MyBuddy ({setIsLoggedIn}) {
   md:text-[16px]
   text-left
   max-w-[310px]
+  md:max-w-[500px]
   lg:max-w-[800px]
   p-[16px]
   lg:py-[20px]
@@ -257,6 +277,7 @@ function MyBuddy ({setIsLoggedIn}) {
 
   return (
     <div className="h-screen flex relative overflow-hidden">
+      {/* 전송 실패 에러 메시지 */}
       {errorMessage && (
         <div className="fixed bottom-[40px] left-1/2 -translate-x-1/2 z-50
           bg-[#343A40] text-white text-[14px]
@@ -266,19 +287,48 @@ function MyBuddy ({setIsLoggedIn}) {
         </div>
       )}
 
+      {/* 로그아웃 모달 */}
+      {isLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#00000080]">
+          <div className="w-[289px] h-[158px] bg-[#FFFFFF] p-[24px] rounded-[10px] drop-shadow">
+            <div className="flex flex-col gap-[10px]">
+              <p className="text-[18px] font-semibold">로그아웃 하시겠어요?</p>
+              <p className="text-[14px] text-[#868E96]">도움이 필요할 때 언제든 다시 찾아주세요!</p>
+            </div>
+            <div className="flex justify-end gap-[12px] mt-[20px]">
+              <button onClick={() => setIsLogoutModal(false)} className="w-[52px] h-[32px] border-[1px] border-[#E9ECEF] px-[12px] rounded-[8px] text-[#868E96] text-[14px]">취소</button>
+              <button onClick={handleLogout} className="w-[76px] h-[32px] bg-[#868E96] px-[12px] rounded-[8px] text-[#FFFFFF] text-[14px]">로그아웃</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 배경 이미지 적용 */}
       <div className="absolute inset-0 z-0"
       style={{
         backgroundImage: `url('/chat_bg.png')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-        opacity: 0.4
+        backgroundAttachment: 'fixed'
       }}>
       </div>
 
+      {/* 모바일 사이드바 오버레이 */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-[#00000080] md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* 사이드바 - 추후 컴포넌트 분리 필요 */}
-      {isSidebarOpen ? (<div className="hidden md:flex relative z-10 w-[255px] flex-col mt-[32px]">
+      {isSidebarOpen ? (<div className="flex flex-col w-[232px] lg:w-[255px] fixed top-0 left-0 h-full z-40 md:relative md:z-10 md:top-auto md:left-auto md:h-auto md:mt-[32px]"
+      style={{
+        backgroundImage: `url('/chat_bg.png')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}>
         {/* 사용자 정보 부분 */}
         <div>
           <div className="flex items-center justify-between py-[12px] px-[16px]">
@@ -288,13 +338,21 @@ function MyBuddy ({setIsLoggedIn}) {
               <p className="text-[#20486799] text-[12px]">Day {dayCount}</p>
               </div>
             </div>
-            <img src={bar} alt="사이드바 토글 아이콘" className="w-[20px] h-[16px] cursor-pointer" onClick={() => setIsSidebarOpen(!isSidebarOpen)}/>
+            {/* 데스크탑: bar 아이콘 */}
+            <img src={bar} 
+              className="hidden md:block w-[20px] h-[16px] cursor-pointer" 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}/>
+
+            {/* 모바일: 햄버거 메뉴 */}
+            <button className="md:hidden" onClick={() => setIsSidebarOpen(false)}>
+              <Menu size={16}/>
+            </button>
           </div>
         </div>
 
         {/* 메뉴 탭 부분 */}
         <div className="py-[24px] px-[16px]">
-          <NavLink to='/mybuddy' className={({isActive}) => `flex items-center justify-between py-[10px] px-[12px] rounded-[6px] border-[1px] w-[231px] h-[46px] hover:bg-[#D0EBFFCC] hover:border-[#D0EBFF] text-[#336B97] text-[16px]
+          <NavLink to='/mybuddy' className={({isActive}) => `flex items-center justify-between py-[10px] px-[12px] rounded-[6px] border-[1px] w-[200px] lg:w-[231px] h-[48px] lg:h-[46px] hover:bg-[#D0EBFFCC] hover:border-[#D0EBFF] text-[#336B97] text-[16px]
           ${isActive ? 'bg-[#EAF6FF] border-[#4791CA]' : 'bg-[#FFFFFF] border-[#D0EBFF]'}`
           }>
             <div className="flex items-center gap-[10px]">
@@ -308,48 +366,52 @@ function MyBuddy ({setIsLoggedIn}) {
         {/* 대화 기록 달력 */}
         <div className="px-[16px] py-[24px]">
           <div className="text-[#336B97] gap-[4px] mb-[8px] px-[8px]">
-          <div className="flex items-center gap-[10px] ">
-            <CalendarIcon size={14} />대화기록</div>
-          <p className="text-[#868E96] text-[12px]">날짜를 선택하면 해당 날짜의 대화 내용을 확인할 수 있습니다.</p>
+            <div className="flex items-center gap-[10px] ">
+              <CalendarIcon size={14} />대화기록
+            </div>
+            <p className="text-[#868E96] text-[12px]">날짜를 선택하면 해당 날짜의 대화 내용을 확인할 수 있습니다.</p>
           </div>
-          <div>
-          <Calendar
-            onChange={handleDateChange}
-            value={selectedDate}
-            locale="ko-KR"
-            formatDay={(locale, date) => date.getDate()}
-            calendarType="gregory"
-            prev2Label={null}
-            next2Label={null}
-            tileDisabled={({ date, view }) => {
-              if (view === 'month') {
+
+          <div className="flex justify-center">
+            <Calendar
+              onChange={handleDateChange}
+              value={selectedDate}
+              locale="ko-KR"
+              formatDay={(locale, date) => date.getDate()}
+              calendarType="gregory"
+              prev2Label={null}
+              next2Label={null}
+              tileDisabled={({ date, view }) => {
+                if (view === 'month') {
+                  const formatted = format(date, 'yyyy-MM-dd')
+                  return !activeDates.includes(formatted)
+                }
+                return false
+              }}
+              tileContent={({ date }) => {
                 const formatted = format(date, 'yyyy-MM-dd')
-                return !activeDates.includes(formatted)
-              }
-              return false
-            }}
-            tileContent={({ date }) => {
-              const formatted = format(date, 'yyyy-MM-dd')
-              if (activeDates.includes(formatted)) {
-                return <div className="absolute bottom-[1px] flex justify-center w-[full]">
-                  <div className="w-[4px] h-[4px] rounded-full bg-[#7DC1FF]"/>
-                </div>
-              }
-            }}
-            tileClassName={({ date }) => {
-              const formatted = format(date, 'yyyy-MM-dd')
-              if (activeDates.includes(formatted)) {
-                return 'has-chat'
-              }
-            }}
+                if (activeDates.includes(formatted)) {
+                  return <div className="absolute bottom-[1px] flex justify-center w-[full]">
+                    <div className="w-[4px] h-[4px] rounded-full bg-[#7DC1FF]"/>
+                  </div>
+                }
+              }}
+              tileClassName={({ date }) => {
+                const formatted = format(date, 'yyyy-MM-dd')
+                if (activeDates.includes(formatted)) {
+                  return 'has-chat'
+                }
+              }}
             />
           </div>
         </div>
 
         {/* 로그아웃 */}
-        <button onClick={handleLogout} className="text-[#204867] mt-auto mb-[36px] flex items-center gap-2 py-[10px] px-[8px] ml-[16px]" ><LogOut size={14} />로그아웃</button>
+        <button onClick={() => setIsLogoutModal(true)} className="text-[#204867] mt-auto mb-[36px] flex items-center gap-2 py-[10px] px-[8px] ml-[16px]" ><LogOut size={14} />로그아웃</button>
       </div>) 
+
       : 
+      
       (<div className="hidden md:flex relative z-10 w-[76px] flex-col mt-[32px]">
         {/* 사용자 정보 부분 */}
         <div>
@@ -376,7 +438,7 @@ function MyBuddy ({setIsLoggedIn}) {
         </div>
 
         {/* 로그아웃 */}
-        <button onClick={handleLogout} className="text-[#204867] mt-auto mb-[36px] flex items-center gap-2 py-[10px] px-[8px] ml-[16px]" ><LogOut size={14} /></button>
+        <button onClick={() => setIsLogoutModal(true)} className="text-[#204867] mt-auto mb-[36px] flex items-center gap-2 py-[10px] px-[8px] ml-[16px]" ><LogOut size={14} /></button>
       </div>)}
 
 
@@ -401,26 +463,46 @@ function MyBuddy ({setIsLoggedIn}) {
         </>
 
         <div className="flex-1 overflow-y-auto px-[24px] pb-[16px]">
+
+          {/* 온보딩 제안 */}
           {suggestion.length > 0 && (
             <div>
-              <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
-              <div className="flex justify-start"> 
-                <div className={botClass}>
-                  {suggestion[0].content}
+              {/* 날짜 구분선 */}
+              <div className="flex items-center justify-center">
+                <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[130px] md:w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[12px] md:text-[14px] text-center mt-[16px]">
+                  {format(new Date(suggestion[0].createdAt), 'yyyy년 M월 d일', {locale: ko})}
+                </p>
+              </div>
+
+              {/* 말풍선 + 시간 */}
+              <div className="flex justify-start items-start mt-[32px]">
+                <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
+                <div className="flex flex-col">
+                  <div className={botClass}>
+                    {suggestion[0].content}
+                  </div>
+                  <p className="text-left ml-[16px]">
+                    <p className="text-[#868E96] text-[10px] md:text-[16px]">
+                      {format(new Date(suggestion[0].createdAt), 'a h:mm', {locale: ko})}
+                    </p>
+                  </p>
                 </div>
               </div>
             </div>
           )}
+
+        {/* 답변 */}
           {messageList.map((message, index) => {
             const currentDate = message.createdAt.slice(0, 10)
             const prevDate = index > 0 ? messageList[index - 1].createdAt.slice(0, 10) : null
-            const isNewDate = currentDate !== prevDate
+            const suggestionDate = suggestion.length > 0 ? suggestion[0].createdAt.slice(0, 10) : null
+            const isNewDate = currentDate !== prevDate && currentDate !== suggestionDate
 
             return(
             <div key={message.id}>
               {isNewDate && (
                 <div className="flex items-center justify-center">
-                  <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[120px] md:w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[12px] md:text-[14px] text-center mt-[16px]">
+                  <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[130px] md:w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[12px] md:text-[14px] text-center mt-[16px]">
                     {format(new Date(currentDate), 'yyyy년 M월 d일', {locale: ko})}</p>
                 </div>)}
               
@@ -453,6 +535,7 @@ function MyBuddy ({setIsLoggedIn}) {
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
                   </div>
+                  {loadingMessage && <p className="mt-[18px]">{loadingMessage}</p>}
                 </div>
               </div>
             </div>
@@ -489,14 +572,12 @@ function MyBuddy ({setIsLoggedIn}) {
           }}
           disabled={isLoading}
           className="flex-1 border-[1px] border-[#E9ECEF] rounded-[8px] bg-[#FFFFFF] py-[16px] md:py-[8px] px-[16px] text-[12px] md:text-[14px] lg:text-[16px] h-[52px] md:h-[40px] lg:h-[44px]
-          active:border-[#204867] resize-none"
+          focus:border-[#204867] fucus:border-[1px] focus:outline-none resize-none"
           placeholder="사소한 것도 괜찮아요, 버디에게 무엇이든 물어보세요!" />
           <button 
-          className="flex items-center justify-center bg-[#F1F3F5] border-[1px] border-[#E9ECEF] rounded-[8px] w-[40px] h-[44px] md:h-[48px] active:text-[#FFFFFF] active:bg-[#336B97] active:enabled:bg-[#336B97]"
+          className="flex items-center justify-center bg-[#F1F3F5] border-[1px] border-[#E9ECEF] rounded-[8px] w-[40px] h-[44px] md:h-[48px] text-[#ADB5BD] active:text-[#FFFFFF] active:bg-[#336B97] active:enabled:bg-[#336B97]"
           disabled={!text.trim() || isLoading}>
-            <span>
-            <Send size={15} className="text-[#ADB5BD] active:text-[#FFFFFF] active:bg-[#336B97]" />
-            </span>
+            <Send size={15} className="text-inherit" />
           </button>
         </form>
       </div>

@@ -222,4 +222,20 @@ public class ChatMessageService {
         }
         return bearerToken.substring(7);
     }
+
+    @Transactional
+    public void saveSuggestionMessageIfNotExists(Long userId, Long suggestionId, String content) {
+        boolean exists = chatMessageRepository.existsByUserIdAndSuggestionIdAndMessageType(
+                userId,
+                suggestionId,
+                MessageType.suggestion
+        );
+
+        if (exists) {
+            return;
+        }
+
+        ChatMessage message = ChatMessage.createSuggestionMessage(userId, suggestionId, content);
+        chatMessageRepository.save(message);
+    }
 }

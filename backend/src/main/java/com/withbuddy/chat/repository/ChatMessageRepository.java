@@ -2,6 +2,7 @@ package com.withbuddy.chat.repository;
 
 
 import com.withbuddy.chat.entity.ChatMessage;
+import com.withbuddy.chat.entity.MessageType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -17,5 +18,11 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             Long userId,
             LocalDateTime start,
             LocalDateTime end
+    );
+
+    boolean existsByUserIdAndSuggestionIdAndMessageType(
+            Long userId,
+            Long suggestionId,
+            MessageType messageType
     );
 }
