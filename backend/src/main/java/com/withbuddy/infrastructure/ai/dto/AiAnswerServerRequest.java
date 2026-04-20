@@ -12,8 +12,8 @@ public class AiAnswerServerRequest {
     @Schema(description = "질문 ID", example = "201")
     private Long questionId;
 
-    @Schema(description = "회사 코드", example = "WB0001")
-    private String companyCode;
+    @Schema(description = "답변 생성에 사용할 사용자 정보")
+    private AiUserContext user;
 
     @Schema(description = "질문 내용", example = "복지카드는 어떻게 신청하나요?")
     private String content;
