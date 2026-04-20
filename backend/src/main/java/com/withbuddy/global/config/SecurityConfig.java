@@ -60,7 +60,8 @@ public class SecurityConfig {
                             "/actuator/health/**",
                             "/swagger-ui.html",
                             "/swagger-ui/**",
-                            "/v3/api-docs/**"
+                            "/v3/api-docs/**",
+                            "/api/v1/onboarding-suggestions/me"
                     ).permitAll();
 
                     auth.requestMatchers(request -> request.getRequestURI().startsWith("/api/v1/documents")).permitAll();
