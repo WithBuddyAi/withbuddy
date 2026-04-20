@@ -1,6 +1,7 @@
 package com.withbuddy.onboarding.service;
 
 import com.withbuddy.auth.repository.UserRepository;
+import com.withbuddy.chat.service.ChatMessageService;
 import com.withbuddy.onboarding.dto.OnboardingSuggestionItemResponse;
 import com.withbuddy.onboarding.dto.OnboardingSuggestionListResponse;
 import com.withbuddy.onboarding.entity.OnboardingSuggestion;
@@ -8,7 +9,6 @@ import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -17,13 +17,13 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class OnboardingSuggestionService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final UserRepository userRepository;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
+    private final ChatMessageService chatMessageService;
 
     public OnboardingSuggestionListResponse getMyOnboardingSuggestions(Long userId) {
         User user = userRepository.findById(userId)
@@ -42,51 +42,31 @@ public class OnboardingSuggestionService {
         OnboardingSuggestion suggestion = onboardingSuggestionRepository.findById(suggestionId)
                 .orElseThrow(() -> new IllegalArgumentException("온보딩 제안을 찾을 수 없습니다."));
 
-        OnboardingSuggestionItemResponse response = toResponse(
-                suggestion,
-                user.getName(),
-                dayOffset
+        String content = replacePlaceholders(suggestion.getContent(), user.getName(), dayOffset);
+
+        chatMessageService.saveSuggestionMessageIfNotExists(
+                userId,
+                suggestion.getId(),
+                content
+        );
+
+        OnboardingSuggestionItemResponse response = new OnboardingSuggestionItemResponse(
+                suggestion.getTitle(),
+                content,
+                dayOffset,
+                suggestion.getCreatedAt()
         );
 
         return new OnboardingSuggestionListResponse(List.of(response));
     }
 
     private Long resolveSuggestionId(int dayOffset) {
-        if (dayOffset >= -7 && dayOffset <= -4) {
-            return 1L;
-        }
-        if (dayOffset >= -3 && dayOffset <= -1) {
-            return 2L;
-        }
-        if (dayOffset == 0) {
-            return 3L;
-        }
-        if (dayOffset >= 1 && dayOffset <= 7) {
-            return 4L;
-        }
-        if (dayOffset >= 8) {
-            return 5L;
-        }
+        if (dayOffset >= -7 && dayOffset <= -4) return 1L;
+        if (dayOffset >= -3 && dayOffset <= -1) return 2L;
+        if (dayOffset == 0) return 3L;
+        if (dayOffset >= 1 && dayOffset <= 7) return 4L;
+        if (dayOffset >= 8) return 5L;
         return null;
-    }
-
-    private OnboardingSuggestionItemResponse toResponse(
-            OnboardingSuggestion suggestion,
-            String userName,
-            int dayOffset
-    ) {
-        String replacedContent = replacePlaceholders(
-                suggestion.getContent(),
-                userName,
-                dayOffset
-        );
-
-        return new OnboardingSuggestionItemResponse(
-                suggestion.getTitle(),
-                replacedContent,
-                dayOffset,
-                suggestion.getCreatedAt()
-        );
     }
 
     private String replacePlaceholders(String content, String userName, int dayOffset) {
