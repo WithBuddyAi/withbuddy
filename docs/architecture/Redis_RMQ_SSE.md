@@ -295,25 +295,38 @@ public class RedisConfig {
 public class RedisLockManager {
 
     private final StringRedisTemplate redisTemplate;
+    private static final DefaultRedisScript<Long> UNLOCK_SCRIPT =
+        new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+            "return redis.call('del', KEYS[1]) " +
+            "else return 0 end",
+            Long.class
+        );
 
-    public boolean tryLock(String key, long timeoutSeconds) {
+    public String tryLock(String key, long timeoutSeconds) {
+        String token = UUID.randomUUID().toString();
         Boolean result = redisTemplate.opsForValue()
-            .setIfAbsent("lock:" + key, "locked", Duration.ofSeconds(timeoutSeconds));
-        return Boolean.TRUE.equals(result);
+            .setIfAbsent("lock:" + key, token, Duration.ofSeconds(timeoutSeconds));
+        return Boolean.TRUE.equals(result) ? token : null;
     }
 
-    public void unlock(String key) {
-        redisTemplate.delete("lock:" + key);
+    public void unlock(String key, String lockToken) {
+        redisTemplate.execute(
+            UNLOCK_SCRIPT,
+            Collections.singletonList("lock:" + key),
+            lockToken
+        );
     }
 
     public <T> T withLock(String key, long timeoutSec, Supplier<T> action) {
-        if (!tryLock(key, timeoutSec)) {
+        String lockToken = tryLock(key, timeoutSec);
+        if (lockToken == null) {
             throw new ConflictException("이미 처리 중인 요청입니다.");
         }
         try {
             return action.get();
         } finally {
-            unlock(key);
+            unlock(key, lockToken);
         }
     }
 }
@@ -472,6 +485,12 @@ public class SseEventRouter {
         );
     }
 
+    // Pub/Sub 구독자 전용: 재발행 없이 현재 인스턴스에서만 전달 시도
+    public void deliverLocally(Long userId, String eventName, Object data) {
+        sessionManager.get(userId)
+            .ifPresent(emitter -> sendToEmitter(emitter, eventName, data));
+    }
+
     private void sendToEmitter(SseEmitter emitter, String eventName, Object data) {
         try {
             emitter.send(SseEmitter.event().name(eventName).data(data));
@@ -512,7 +531,7 @@ public class RedisPubSubConfig {
                 Long userId    = Long.valueOf(payload.get("userId").toString());
                 String evtName = payload.get("eventName").toString();
                 Object data    = payload.get("data");
-                router.route(userId, evtName, data);
+                router.deliverLocally(userId, evtName, data);
             } catch (IOException e) {
                 log.error("[PubSub] 역직렬화 실패", e);
             }
@@ -522,6 +541,12 @@ public class RedisPubSubConfig {
     }
 }
 ```
+
+### 5-3. 안정성 보강 체크포인트
+
+- **분산 락 소유권 보장**: `lock:{key}` 값에 UUID 토큰을 저장하고, `unlock` 시 Lua compare-and-delete를 사용해 현재 락 소유자만 해제한다.
+- **Pub/Sub 재귀 차단**: Subscriber는 `route()` 대신 `deliverLocally()`를 호출해 재발행 경로를 타지 않도록 한다.
+- **기대 효과**: 락 오삭제로 인한 임계구역 동시 실행과, stale 세션 상태에서의 메시지 루프/과부하를 방지한다.
 
 ```java
 // 로컬 SSE 세션 레지스트리
