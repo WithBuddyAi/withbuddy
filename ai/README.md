@@ -24,8 +24,10 @@
 
 | 분류 | 기술 |
 |------|------|
-| **AI** | Python 3.11, FastAPI, LangChain, ChromaDB, Claude (Anthropic), Streamlit |
+| **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude (Anthropic), Streamlit |
 | **임베딩** | `jhgan/ko-sroberta-multitask` (한국어 특화), kiwipiepy |
+| **리랭킹** | `BAAI/bge-reranker-v2-m3` (Cross-Encoder) |
+| **평가** | RAGAS, LangSmith |
 | **Slack** | slack_sdk, slack_bolt (Socket Mode) |
 | **스케줄러** | APScheduler |
 
@@ -58,7 +60,7 @@ ai/
 ├── memory/                  # 로컬 데이터 저장소 (JSON)
 ├── tasks/                   # 스케줄러 / Slack 자동 알림
 ├── utils/                   # 프롬프트 템플릿
-├── scripts/                 # 문서 임베딩 스크립트
+├── scripts/                 # 문서 임베딩·평가 스크립트 (ingest, evaluate, test_agent)
 ├── docs/                    # 사내 문서 (RAG 소스, 사규 PDF 49개)
 ├── data/                    # 런타임 데이터 (대화 히스토리, 프로필)
 
@@ -112,6 +114,8 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | Method | Path | 설명 |
 |--------|------|------|
 | POST | `/chat` | RAG 기반 질의응답 |
+| POST | `/chat/stream` | RAG 질의응답 (SSE 스트리밍) |
+| POST | `/chat/agent` | ReAct 에이전트 기반 도메인별 검색 질의응답 |
 | POST | `/report` | 주간 리포트 생성 |
 | POST | `/recommend` | 담당자 추천 |
 | GET | `/knowledge/unanswered` | 미답변 질문 목록 |

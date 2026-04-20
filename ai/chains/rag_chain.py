@@ -8,6 +8,7 @@ Claude LLM이 답변을 생성하는 LCEL 파이프라인을 제공합니다.
 
 import asyncio
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncGenerator, Tuple, List
 
 from langchain_core.documents import Document
@@ -15,7 +16,8 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
-from core.vectorstore import search_with_company_fallback, search_legal_docs
+from core.semantic_cache import get_semantic_cache
+from core.vectorstore import search_with_company_fallback, search_legal_docs, rerank_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
 from utils.prompts import RAG_PROMPT
@@ -131,8 +133,8 @@ def _get_k_for_question(question: str) -> int:
     조항 질문("제N조")은 더 많은 청크를 검색하여 해당 조항을 찾을 확률을 높입니다.
     """
     if _ARTICLE_PATTERN.search(question):
-        return 7  # 조항 질문: 넓게 검색
-    return 5      # 일반 질문: 기본값 (기존 3에서 상향)
+        return 5  # 조항 질문: 넓게 검색
+    return 3      # 일반 질문: 리랭킹이 품질 커버
 
 _NO_ANSWER_KEYWORDS = [
     "문서에서 확인되지",
@@ -317,12 +319,30 @@ def _extract_sources(docs: List[Document]) -> str:
     return ", ".join(sources) if sources else "알 수 없음"
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict]]:
+def _search_sub_q(sub_q: str, company_code: str) -> List[Document]:
+    """단일 서브 질문에 대한 검색 수행 (병렬 실행용)"""
+    k = _get_k_for_question(sub_q)
+    if _is_legal_question(sub_q):
+        docs = search_legal_docs(sub_q, k=k * 2)
+    else:
+        docs = search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
+    return rerank_docs(sub_q, docs, top_k=k)
+
+
+def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
+    """단일 서브 질문 검색만 수행 (리랭킹 없음, 복합 질문 병렬 실행용)"""
+    k = _get_k_for_question(sub_q)
+    if _is_legal_question(sub_q):
+        return search_legal_docs(sub_q, k=k * 2)
+    return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
+
+
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict], List[int]]:
     """
-    RAG 체인을 실행하여 답변, 출처, 관련 양식 목록을 반환합니다.
+    RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
     Returns:
-        Tuple[str, str, List[dict]]: (AI 답변, 출처 문서명, 관련 양식 목록)
+        Tuple[str, str, List[dict], List[int]]: (AI 답변, 출처 문서명, 관련 양식 목록, 문서 ID 목록)
     """
     from routers.docs import find_related_docs
 
@@ -336,20 +356,47 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     # 2-7: 모호한 질문 선처리
     ambiguous = _check_ambiguous(question)
     if ambiguous:
-        return ambiguous, "", []
+        return ambiguous, "", [], []
 
-    if _is_legal_question(question):
-        retrieved_docs = search_legal_docs(question, k=_get_k_for_question(question))
+    # 시맨틱 캐시 체크
+    cached = get_semantic_cache().get(question, company_code)
+    if cached:
+        answer, source, related_docs, doc_ids = cached
+        save_interaction(user_id, question, answer)
+        return answer, source, related_docs, doc_ids
+
+    # 복합 질문 분리 검색: "?" 또는 "그리고"로 분리된 경우 각각 검색 후 합산
+    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    if len(sub_questions) < 2:
+        sub_questions = [question]
+
+    retrieved_docs = []
+    seen_contents = set()
+
+    if len(sub_questions) == 1:
+        retrieved_docs = _search_sub_q(sub_questions[0], company_code)
     else:
-        retrieved_docs = search_with_company_fallback(question, k=_get_k_for_question(question), company_code=company_code)
+        # 복합 질문: 각 서브 질문 검색만 병렬 실행 → 머지 → 리랭킹 1번
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(_search_sub_q_raw, sub_q, company_code) for sub_q in sub_questions]
+            for future in futures:
+                for d in future.result():
+                    key = d.page_content[:80]
+                    if key not in seen_contents:
+                        seen_contents.add(key)
+                        retrieved_docs.append(d)
+        top_k = min(3 * len(sub_questions), 6)
+        retrieved_docs = rerank_docs(question, retrieved_docs, top_k=top_k)
+
     source_names = _extract_sources(retrieved_docs)
+    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
         answer = _format_legal_answer(retrieved_docs, question)
         save_interaction(user_id, question, answer)
         related_docs = find_related_docs(question)
-        return answer, source_names, related_docs
+        return answer, source_names, related_docs, doc_ids
 
     formatted_context = _format_docs(retrieved_docs)
     if _is_legal_question(question):
@@ -371,7 +418,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         "context": formatted_context,
         "chat_history": chat_history,
         "user_style": user_style,
-        "user_name": "",
+        "user_name": user_name,
     })
     answer = _fix_names(answer)
 
@@ -389,7 +436,12 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
-    return answer, source_names, related_docs
+
+    # 캐시 저장 (미답변 제외)
+    if not _is_unanswered(answer, retrieved_docs):
+        get_semantic_cache().set(question, company_code, answer, source_names, related_docs, doc_ids)
+
+    return answer, source_names, related_docs, doc_ids
 
 
 async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
@@ -414,10 +466,42 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", "", []              # done 시그널
         return
 
-    if _is_legal_question(question):
-        retrieved_docs = search_legal_docs(question, k=_get_k_for_question(question))
+    # 시맨틱 캐시 체크
+    cached = get_semantic_cache().get(question, company_code)
+    if cached:
+        answer, source, related_docs, doc_ids = cached
+        save_interaction(user_id, question, answer)
+        yield answer, None, None
+        yield "", source, related_docs
+        return
+
+    yield "__STAGE__searching", None, None
+
+    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    if len(sub_questions) < 2:
+        sub_questions = [question]
+
+    loop = asyncio.get_event_loop()
+    retrieved_docs = []
+    seen_contents = set()
+
+    if len(sub_questions) == 1:
+        retrieved_docs = await loop.run_in_executor(None, _search_sub_q, sub_questions[0], company_code)
     else:
-        retrieved_docs = search_with_company_fallback(question, k=_get_k_for_question(question), company_code=company_code)
+        # 복합 질문: 각 서브 질문 검색만 병렬 실행 → 머지 → 리랭킹 1번
+        results = await asyncio.gather(*[
+            loop.run_in_executor(None, _search_sub_q_raw, sub_q, company_code)
+            for sub_q in sub_questions
+        ])
+        for docs in results:
+            for d in docs:
+                key = d.page_content[:80]
+                if key not in seen_contents:
+                    seen_contents.add(key)
+                    retrieved_docs.append(d)
+        top_k = min(3 * len(sub_questions), 6)
+        retrieved_docs = await loop.run_in_executor(None, rerank_docs, question, retrieved_docs, top_k)
+
     source_names = _extract_sources(retrieved_docs)
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
@@ -444,13 +528,15 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         if profile_ctx:
             formatted_context = f"[사용자 프로필]\n{profile_ctx}\n\n{formatted_context}"
 
+    yield "__STAGE__generating", None, None
+
     full_answer = ""
     async for chunk in _get_chain().astream({
         "question": question,
         "context": formatted_context,
         "chat_history": chat_history,
         "user_style": user_style,
-        "user_name": "",
+        "user_name": user_name,
     }):
         full_answer += chunk
         yield chunk, None, None
@@ -479,4 +565,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         asyncio.create_task(_fire_unanswered_alert(user_id, question))
 
     related_docs = find_related_docs(question)
+
+    # 캐시 저장 (미답변 제외)
+    if not _is_unanswered(fixed, retrieved_docs):
+        get_semantic_cache().set(question, company_code, fixed, source_names, related_docs, [])
+
     yield "", source_names, related_docs

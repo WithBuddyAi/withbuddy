@@ -3,6 +3,7 @@ package com.withbuddy.global.exception;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.auth.exception.LoginFailedException;
+import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -84,5 +85,26 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(e.getStatus()).body(response);
+    }
+
+    @ExceptionHandler(AiTimeoutException.class)
+    public ResponseEntity<ErrorResponse> handleAiTimeout(
+            AiTimeoutException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("ai", "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                504,
+                "Gateway Timeout",
+                "AI_TIMEOUT",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(504).body(response);
     }
 }

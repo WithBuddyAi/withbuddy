@@ -8,52 +8,122 @@ body {
 
 /* 전체 달력 */
 .react-calendar {
-  width: 223px;
-  border: 0.5px solid #DEE2E6;
+  background-color: white !important;
+  width: 231px;
+  height: 253px;
+  border: 0.5px solid #DBE7F4 !important;
   border-radius: 8px;
   padding: 16px 10px;
-  font-family: inherit;
+  font-family: sans-serif !important;
   box-shadow: 0 0.8px 2.4px rgba(0,0,0,0.05);
   font-size: 14px;
 }
 
+/* 날짜 기본 스타일 */
+.react-calendar__tile {
+  font-size: 14px !important;
+  border-radius: 9999px;
+  width: 100% !important;
+  height: 29px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 2px auto !important;
+  background-color: transparent !important;
+  position: relative !important;
+}
+
+/* 기본 날짜 색상 */
+.react-calendar__month-view__days__day {
+  color: #204867 !important;
+}
+
 /* 오늘 날짜 */
 .react-calendar__tile--now {
-  background: transparent;
-  color: #204867;
-  font-weight: 700;
+  background: transparent !important;
+  color: #204867 !important;
+  font-weight: 700 !important;
+}
+
+/* 대화 기록 있는 날 */
+.has-chat {
+  color: #495057 !important;
 }
 
 /* 선택된 날짜 */
 .react-calendar__tile--active {
   background: #336B97 !important;
-  color: white;
+  color: white !important;
   border-radius: 9999px;
 }
 
-/* 날짜 hover */
-.react-calendar__tile:hover {
-  background: #D0EBFF;
-  border-radius: 9999px;
+/* hover */
+.react-calendar__tile:not(.react-calendar__tile--active):hover {
+  background: #D0EBFF !important;
 }
 
+.react-calendar__tile--active:hover {
+  background: #336B97 !important;
+  color: #FFFFFF !important;
+}
 
-/* 날짜 숫자 직접 보이게 */
-.react-calendar__tile {
-  font-size: 13px;
-  padding: 6px 0;
-  border-radius: 9999px;
+/* disabled */
+.react-calendar__tile:disabled {
+  background-color: transparent !important;
+  color: #204867 !important;
+}
+
+.react-calendar__tile:disabled:hover {
+  background-color: transparent !important;
+  cursor: default !important;
+}
+
+/* 이웃 달 날짜 (disabled보다 우선순위 높게!) */
+.react-calendar__month-view__days__day--neighboringMonth,
+.react-calendar__month-view__days__day--neighboringMonth:disabled {
+  color: #CED4DA !important;
 }
 
 /* 요일 글씨 */
 .react-calendar__month-view__weekdays__weekday abbr {
   text-decoration: none;
-  font-size: 12px;
-  color: #868E96;
+  font-size: 11px;
+  color: #20486799;
 }
 
-/* 헤더 년월 */
+/* 네비게이션 높이 줄이기 */
+.react-calendar__navigation {
+  margin-bottom: 12px !important;
+  height: auto !important;
+}
+
+/* 요일 헤더 간격 줄이기 */
+.react-calendar__month-view__weekdays {
+  margin-bottom: 0 !important;
+}
+
+/* 연월 글씨 */
 .react-calendar__navigation button {
-  font-size: 13px;
-  color: #343A40;
+  font-size: 15px;
+  color: #204867;
+}
+
+/* 연월 글씨 줄바꿈 방지 */
+.react-calendar__navigation__label__labelText {
+  white-space: nowrap;
+}
+
+/* 월 이동 꺽쇄 호버 스타일링 */
+.react-calendar__navigation__prev-button:hover,
+.react-calendar__navigation__next-button:hover {
+  background-color: #F1F3F5 !important;
+  border-radius: 5px !important;
+}
+
+/* 연월 글씨 호버 스타일링 */
+.react-calendar__navigation__label:hover {
+  background-color: #D0EBFF !important;
+  border-radius: 5px !important;
 }

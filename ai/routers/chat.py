@@ -39,11 +39,16 @@ _SUMMARIZE_PROMPT = ChatPromptTemplate.from_messages([
 
 # ── 요청 / 응답 스키마 ──────────────────────
 
+class ChatUser(BaseModel):
+    userId: int = Field(..., description="사용자 고유 ID", example=1)
+    name: str = Field("", description="사용자 이름")
+    companyCode: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
+
+
 class ChatRequest(BaseModel):
-    user_id: int = Field(..., description="사용자 고유 ID", example=1)
-    message: str = Field(..., description="사용자 질문", example="연차 신청 방법이 뭐야?")
-    user_name: str = Field("", description="사용자 이름 (로그인 시 전달)")
-    company_code: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
+    questionId: int = Field(None, description="질문 ID")
+    user: ChatUser = Field(..., description="사용자 정보")
+    content: str = Field(..., description="사용자 질문", example="연차 신청 방법이 뭐야?")
 
 
 class ChatResponse(BaseModel):
@@ -54,11 +59,24 @@ class ChatResponse(BaseModel):
 
 # ── 엔드포인트 ──────────────────────────────
 
+@router.post("/chat/agent", response_model=ChatResponse)
+async def chat_agent(request: ChatRequest):
+    """도메인 툴 분리 AgentExecutor 기반 RAG (토큰 절감 테스트용)"""
+    try:
+        from chains.agent_rag_chain import run_agent_rag_chain
+        answer, source, related_docs, _ = run_agent_rag_chain(
+            str(request.user.userId), request.content, request.user.name, request.user.companyCode
+        )
+        return ChatResponse(answer=answer, source=source, related_docs=related_docs)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"에이전트 처리 중 오류: {str(e)}")
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
     try:
-        answer, source, related_docs = run_rag_chain(str(request.user_id), request.message, request.user_name, request.company_code)
+        answer, source, related_docs, _ = run_rag_chain(str(request.user.userId), request.content, request.user.name, request.user.companyCode)
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
@@ -77,13 +95,13 @@ async def chat_stream(request: ChatRequest):
             from chains.rag_chain import _resolve_selection
             from memory.chat_history import get_chat_history as _get_history
             # 2-7: 숫자 선택("1"~"4")을 이전 ambiguous 응답과 매핑
-            uid = str(request.user_id)
-            message = request.message
+            uid = str(request.user.userId)
+            message = request.content
             resolved = _resolve_selection(message, _get_history(uid))
             if resolved:
                 message = resolved
 
-            result = run_orchestrator(uid, request.user_name, message)
+            result = run_orchestrator(uid, request.user.name, message)
             if result.intent != "rag":
                 from chains.rag_chain import _fix_names
                 is_team_cards = result.metadata.get("type") == "team_cards"
@@ -93,9 +111,11 @@ async def chat_stream(request: ChatRequest):
                 yield f"data: {json.dumps({'done': True, 'source': result.intent, 'docs': [], 'team_cards': is_team_cards}, ensure_ascii=False)}\n\n"
                 return
 
-            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user_name, request.company_code):
+            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user.name, request.user.companyCode):
                 if source is not None:
                     yield f"data: {json.dumps({'done': True, 'source': source, 'docs': related_docs or []}, ensure_ascii=False)}\n\n"
+                elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
+                    yield f"data: {json.dumps({'stage': chunk[9:]}, ensure_ascii=False)}\n\n"
                 else:
                     yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
         except Exception as e:
@@ -183,6 +203,7 @@ class InternalAIAnswerResponse(BaseModel):
     questionId: int
     messageType: str = "rag_answer"
     content: str
+    documents: list = Field(default_factory=list, description="검색된 문서 ID 목록")
 
 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
@@ -197,7 +218,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         )
     try:
         async with asyncio.timeout(10):
-            answer, _, _ = await asyncio.get_event_loop().run_in_executor(
+            answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: run_rag_chain(
                     str(request.questionId),
@@ -222,7 +243,12 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     else:
         message_type = "rag_answer"
 
-    return InternalAIAnswerResponse(questionId=request.questionId, messageType=message_type, content=answer)
+    return InternalAIAnswerResponse(
+        questionId=request.questionId,
+        messageType=message_type,
+        content=answer,
+        documents=[{"documentId": did} for did in doc_ids],
+    )
 
 
 class SummarizeRequest(BaseModel):
