@@ -18,14 +18,11 @@ public class AiClient {
 
     public AiAnswerServerResponse requestAnswer(AiAnswerServerRequest request) {
         try {AiClient.java
-
-            String json = objectMapper.writeValueAsString(request);
-
             AiAnswerServerResponse response = aiRestClient.post()
                     .uri("/internal/ai/answer")
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .body(json)
+                    .body(request)
                     .retrieve()
                     .body(AiAnswerServerResponse.class);
 
