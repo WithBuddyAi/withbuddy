@@ -1,11 +1,10 @@
-package com.withbuddy.chat.entity;
+package com.withbuddy.onboarding.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -26,13 +25,18 @@ public class OnboardingSuggestion {
     private String content;
 
     @Column(name = "day_offset", nullable = false)
-    private int dayOffset;
+    private Integer dayOffset;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
+    @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime updatedAt;
+
+    @Builder
+    public OnboardingSuggestion(String title, String content, Integer dayOffset) {
+        this.title = title;
+        this.content = content;
+        this.dayOffset = dayOffset;
+    }
 }

@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.7.5
-**최종 업데이트**: 2026-04-16
+**버전**: 1.7.6
+**최종 업데이트**: 2026-04-20
 
 ---
 
@@ -580,8 +580,8 @@ Content-Type: application/json
 - 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
 - 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
-- 백엔드는 내부 AI 서버 호출 시 최대 5초까지 응답을 대기한다.
-- 5초 내 응답이 없으면 `AI_TIMEOUT` `예외를 반환한다.
+- 백엔드는 내부 AI 서버 호출 시 최대 10초까지 응답을 대기한다.
+- 10초 내 응답이 없으면 `AI_TIMEOUT` `예외를 반환한다.
 - 사용자가 재시도를 선택한 경우 동일한 질문 내용을 다시 `POST /api/v1/chat/messages`로 전송한다.
 
 ### 6-3. 온보딩 제안 조회
@@ -593,7 +593,7 @@ Authorization: Bearer {accessToken}
 ```
 #### 동작 기준
 
-- `dayOffset = (KST 기준 오늘 날짜 - hireDate) + 1`
+- `dayOffset = (KST 기준 오늘 날짜 - hireDate)`
 - 일치하는 제안이 있으면 반환한다.
 - 일치하는 제안이 없으면 빈 배열을 반환한다.
 
@@ -603,12 +603,10 @@ Authorization: Bearer {accessToken}
 {
   "suggestions": [
     {
-      "id": 3,
-      "title": "입사 1일차 안내",
+      "title": "입사 당일 안내",
       "content": "복지 제도와 사내 규정 문서를 먼저 확인해보세요.",
-      "dayOffset": 1,
-      "createdAt": "2026-03-20T09:00:00Z",
-      "updatedAt": "2026-03-23T12:00:00Z"
+      "dayOffset": 0,
+      "createdAt": "2026-03-20T09:00:00Z"
     }
   ]
 }
@@ -1069,3 +1067,5 @@ Authorization: Bearer {accessToken}
   - 스토리지 문서 API 엔드포인트 목록 추가, `document_files` 및 `document_backup_jobs` 기반 문서 관리/백업 기능 설명 보강
 - **v1.7.5 (2026-04-16)**:
   - `documents` 오타 수정, 내부 AI 응답 시간 초과 처리 규칙 추가, `504 Gateway Timeout`, `AI_TIMEOUT` 에러 코드 추가
+- **v1.7.6 (2026-04-20)**:
+  - 온보딩 제안 조회 API의 `dayOffset` 기준을 입사일 당일 `D+0` 기준으로 수정하고, 응답 필드 및 노출 규칙을 최신 구현 기준으로 정리
