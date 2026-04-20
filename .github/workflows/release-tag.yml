@@ -112,40 +112,31 @@ jobs:
           next_version="${next_tag#v}"
           today="$(TZ=Asia/Seoul date +%Y-%m-%d)"
 
+          # README.md는 릴리스마다 항상 업데이트
+          readme="README.md"
+          if [[ -f "$readme" ]]; then
+            sed -i -E "s|^\*\*버전\*\*:.*$|**버전**: ${next_version}|" "$readme"
+            sed -i -E "s|^\*\*최종 업데이트\*\*:.*$|**최종 업데이트**: ${today}|" "$readme"
+          fi
+
+          # 이번 릴리스에서 변경된 다른 .md 파일도 헤더 동기화
           if [[ -n "$latest_tag" ]]; then
             mapfile -t md_files < <(git diff --name-only "${latest_tag}..HEAD" -- '*.md')
           else
             mapfile -t md_files < <(git diff-tree --no-commit-id --name-only -r HEAD -- '*.md')
           fi
 
-          if [[ "${#md_files[@]}" -eq 0 ]]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          touched=0
           for file in "${md_files[@]}"; do
             [[ -f "$file" ]] || continue
+            [[ "$file" == "$readme" ]] && continue  # README.md는 위에서 처리
 
-            updated=0
             if grep -qE '^\*\*버전\*\*:' "$file"; then
               sed -i -E "s|^\*\*버전\*\*:.*$|**버전**: ${next_version}|" "$file"
-              updated=1
             fi
             if grep -qE '^\*\*최종 업데이트\*\*:' "$file"; then
               sed -i -E "s|^\*\*최종 업데이트\*\*:.*$|**최종 업데이트**: ${today}|" "$file"
-              updated=1
-            fi
-
-            if [[ "$updated" -eq 1 ]]; then
-              touched=1
             fi
           done
-
-          if [[ "$touched" -eq 0 ]]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
 
           if git diff --quiet -- '*.md'; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
