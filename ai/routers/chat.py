@@ -193,11 +193,16 @@ async def chat_pdf(
 
 # ── 내부 AI 연동 (백엔드 → AI 서버) ────────────────────────────
 
+class InternalAIAnswerUser(BaseModel):
+    userId: int
+    name: str = ""
+    companyCode: str = ""
+
+
 class InternalAIAnswerRequest(BaseModel):
     questionId: int
-    companyCode: str
+    user: InternalAIAnswerUser
     content: str
-    userName: str = ""
 
 class InternalAIAnswerResponse(BaseModel):
     questionId: int
@@ -209,7 +214,7 @@ class InternalAIAnswerResponse(BaseModel):
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
-    action, answer = check_sensitive(request.content, request.userName)
+    action, answer = check_sensitive(request.content, request.user.name)
     if action == "block":
         return InternalAIAnswerResponse(
             questionId=request.questionId,
@@ -221,9 +226,10 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: run_rag_chain(
-                    str(request.questionId),
+                    str(request.user.userId),
                     request.content,
-                    company_code=request.companyCode,
+                    user_name=request.user.name,
+                    company_code=request.user.companyCode,
                 )
             )
     except asyncio.TimeoutError:
