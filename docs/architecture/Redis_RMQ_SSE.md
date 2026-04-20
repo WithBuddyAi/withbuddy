@@ -1,6 +1,6 @@
 # Redis & RabbitMQ 상세 아키텍처 가이드 (v2.5)
 
-이 문서는 WithBuddy 백엔드에서 Redis 캐싱과 RabbitMQ 메시징을 실제 구현하기 위한 상세 아키텍처 가이드 v2.5 완성형이다. OCI A1.Flex 환경(12GB RAM, MySQL + Redis + RabbitMQ + Object Storage 공존)을 전제로 한다.
+이 문서는 WithBuddy 백엔드에서 Redis 캐싱과 RabbitMQ 메시징을 실제 구현하기 위한 상세 아키텍처 가이드 v2.5 완성형이다. OCI A1.Flex 환경(12GB RAM, 인스턴스 내 MySQL + Redis + RabbitMQ 공존, 파일 저장은 외부 OCI Object Storage 사용)을 전제로 한다.
 
 ---
 
