@@ -56,6 +56,7 @@ public class JwtService {
                 .subject(String.valueOf(user.getId()))
                 .claim("companyCode", user.getCompany().getCompanyCode())
                 .claim("employeeNumber", user.getEmployeeNumber())
+                .claim("name", user.getName())
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)
@@ -92,5 +93,9 @@ public class JwtService {
 
     public String getEmployeeNumber(String token) {
         return getClaims(token).get("employeeNumber", String.class);
+    }
+
+    public String getName(String token) {
+        return getClaims(token).get("name", String.class);
     }
 }
