@@ -127,3 +127,31 @@ body {
   background-color: #D0EBFF !important;
   border-radius: 5px !important;
 }
+
+@media (max-width: 767px) {
+  .react-calendar {
+    width: 190px !important;
+    height: auto !important;
+    font-size: 11px !important;
+    padding: 10px 6px !important;
+  }
+
+  .react-calendar__tile {
+    font-size: 11px !important;
+    height: 26px !important;  /* 👈 높이 늘려서 동그라미 완전하게 */
+    width: 26px !important;   /* 👈 너비도 같이 맞춰요 */
+  }
+
+  .react-calendar__navigation button {
+    font-size: 12px !important;
+  }
+
+  .react-calendar__month-view__weekdays__weekday abbr {
+    font-size: 9px !important;
+  }
+
+  /* 하늘색 점 위치 조정 */
+  .react-calendar__tile .absolute {
+    bottom: 2px !important;  /* 👈 숫자랑 간격 띄우기 */
+  }
+}
