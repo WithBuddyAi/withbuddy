@@ -32,11 +32,4 @@ public class OnboardingSuggestion {
 
     @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime updatedAt;
-
-    @Builder
-    public OnboardingSuggestion(String title, String content, Integer dayOffset) {
-        this.title = title;
-        this.content = content;
-        this.dayOffset = dayOffset;
-    }
 }
