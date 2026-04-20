@@ -138,8 +138,8 @@ body {
 
   .react-calendar__tile {
     font-size: 11px !important;
-    height: 26px !important;  /* 👈 높이 늘려서 동그라미 완전하게 */
-    width: 26px !important;   /* 👈 너비도 같이 맞춰요 */
+    height: 26px !important;
+    width: 26px !important;
   }
 
   .react-calendar__navigation button {
@@ -152,6 +152,6 @@ body {
 
   /* 하늘색 점 위치 조정 */
   .react-calendar__tile .absolute {
-    bottom: 2px !important;  /* 👈 숫자랑 간격 띄우기 */
+    bottom: 2px !important;
   }
 }
