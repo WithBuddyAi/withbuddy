@@ -18,7 +18,7 @@ public class AiConfig {
         RestClient.Builder restClientBuilder
     ) {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory();
-        requestFactory.setReadTimeout(Duration.ofSeconds(5));
+        requestFactory.setReadTimeout(Duration.ofSeconds(10));
 
         return restClientBuilder
             .requestFactory(requestFactory)
