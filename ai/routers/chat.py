@@ -39,11 +39,16 @@ _SUMMARIZE_PROMPT = ChatPromptTemplate.from_messages([
 
 # ── 요청 / 응답 스키마 ──────────────────────
 
+class ChatUser(BaseModel):
+    userId: int = Field(..., description="사용자 고유 ID", example=1)
+    name: str = Field("", description="사용자 이름")
+    companyCode: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
+
+
 class ChatRequest(BaseModel):
-    user_id: int = Field(..., description="사용자 고유 ID", example=1)
-    message: str = Field(..., description="사용자 질문", example="연차 신청 방법이 뭐야?")
-    user_name: str = Field("", description="사용자 이름 (로그인 시 전달)")
-    company_code: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
+    questionId: int = Field(None, description="질문 ID")
+    user: ChatUser = Field(..., description="사용자 정보")
+    content: str = Field(..., description="사용자 질문", example="연차 신청 방법이 뭐야?")
 
 
 class ChatResponse(BaseModel):
@@ -60,7 +65,7 @@ async def chat_agent(request: ChatRequest):
     try:
         from chains.agent_rag_chain import run_agent_rag_chain
         answer, source, related_docs, _ = run_agent_rag_chain(
-            str(request.user_id), request.message, request.user_name, request.company_code
+            str(request.user.userId), request.content, request.user.name, request.user.companyCode
         )
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except Exception as e:
@@ -71,7 +76,7 @@ async def chat_agent(request: ChatRequest):
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
     try:
-        answer, source, related_docs, _ = run_rag_chain(str(request.user_id), request.message, request.user_name, request.company_code)
+        answer, source, related_docs, _ = run_rag_chain(str(request.user.userId), request.content, request.user.name, request.user.companyCode)
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
@@ -90,13 +95,13 @@ async def chat_stream(request: ChatRequest):
             from chains.rag_chain import _resolve_selection
             from memory.chat_history import get_chat_history as _get_history
             # 2-7: 숫자 선택("1"~"4")을 이전 ambiguous 응답과 매핑
-            uid = str(request.user_id)
-            message = request.message
+            uid = str(request.user.userId)
+            message = request.content
             resolved = _resolve_selection(message, _get_history(uid))
             if resolved:
                 message = resolved
 
-            result = run_orchestrator(uid, request.user_name, message)
+            result = run_orchestrator(uid, request.user.name, message)
             if result.intent != "rag":
                 from chains.rag_chain import _fix_names
                 is_team_cards = result.metadata.get("type") == "team_cards"
@@ -106,7 +111,7 @@ async def chat_stream(request: ChatRequest):
                 yield f"data: {json.dumps({'done': True, 'source': result.intent, 'docs': [], 'team_cards': is_team_cards}, ensure_ascii=False)}\n\n"
                 return
 
-            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user_name, request.company_code):
+            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user.name, request.user.companyCode):
                 if source is not None:
                     yield f"data: {json.dumps({'done': True, 'source': source, 'docs': related_docs or []}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
