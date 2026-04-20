@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import char from '../assets/Favicon_web.svg'
 import withbuddy from '../assets/WithBuddy_web.svg'
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { differenceInDays } from 'date-fns';
 import Tooltip from '../components/Tooltip'
 import axios from 'axios';
@@ -22,11 +22,15 @@ function Login ({setIsLoggedIn}) {
   const [nameError, setNameError] = useState('')
   const nameRef = useRef(null)
 
-  const [errorMessage, setErrorMessage] = useState('')
+  const location = useLocation()
+  const tokenError = location.state?.tokenError
+
+  const [errorMessage, setErrorMessage] = useState(tokenError || '')
 
   // 로그인 시 서버에 데이터 전송 및 페이지 이동
   const BASE_URL = import.meta.env.VITE_API_BASE_URL
   const navigate = useNavigate()
+
   const handleLogin = async () => {
     // 빈 값일때 에러 문구 표시
     if (!companyCode) {

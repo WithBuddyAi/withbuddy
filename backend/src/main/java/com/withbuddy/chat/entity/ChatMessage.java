@@ -48,4 +48,14 @@ public class ChatMessage {
         this.messageType = messageType;
         this.content = content;
     }
+
+    public static ChatMessage createSuggestionMessage(Long userId, Long suggestionId, String content) {
+        ChatMessage message = new ChatMessage();
+        message.userId = userId;
+        message.suggestionId = suggestionId;
+        message.senderType = SenderType.BOT;
+        message.messageType = MessageType.suggestion;
+        message.content = content;
+        return message;
+    }
 }

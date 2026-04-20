@@ -13,6 +13,7 @@ import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
+import com.withbuddy.infrastructure.ai.dto.AiUserContext;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -43,6 +44,7 @@ public class ChatMessageService {
     public ChatMessageCreateResponse saveUserMessage(String bearerToken, ChatMessageRequest request) {
         String token = extractToken(bearerToken);
         Long loginUserId = jwtService.getUserId(token);
+        String loginUserName = jwtService.getName(token);
         String companyCode = jwtService.getCompanyCode(token);
 
         ChatMessage questionMessage = new ChatMessage(
@@ -55,9 +57,15 @@ public class ChatMessageService {
 
         ChatMessage savedQuestionMessage = chatMessageRepository.save(questionMessage);
 
+        AiUserContext userContext = new AiUserContext(
+                loginUserId,
+                loginUserName,
+                companyCode
+        );
+
         AiAnswerServerRequest aiRequest = new AiAnswerServerRequest(
                 savedQuestionMessage.getId(),
-                companyCode,
+                userContext,
                 savedQuestionMessage.getContent()
         );
 
@@ -213,5 +221,21 @@ public class ChatMessageService {
             throw new IllegalArgumentException("Authorization 헤더 형식이 올바르지 않습니다.");
         }
         return bearerToken.substring(7);
+    }
+
+    @Transactional
+    public void saveSuggestionMessageIfNotExists(Long userId, Long suggestionId, String content) {
+        boolean exists = chatMessageRepository.existsByUserIdAndSuggestionIdAndMessageType(
+                userId,
+                suggestionId,
+                MessageType.suggestion
+        );
+
+        if (exists) {
+            return;
+        }
+
+        ChatMessage message = ChatMessage.createSuggestionMessage(userId, suggestionId, content);
+        chatMessageRepository.save(message);
     }
 }
