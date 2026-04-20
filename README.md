@@ -2,7 +2,7 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-04-16
+**최종 업데이트**: 2026-04-20
 **버전**: 0.8.1
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
@@ -182,7 +182,8 @@ withbuddy/
 │  │  ├─ ARCHITECTURE.md                            # BE/CI  (시스템 아키텍처)
 │  │  ├─ DEPLOYMENT-ORACLE.md                       # BE/CI  (OCI 배포 가이드)
 │  │  ├─ INFRASTRUCTURE.md                          # BE/CI  (인프라 구조)
-│  │  └─ AI_SERVER_GUIDE.md                         # AI/CI  (AI 서버 운영/배포 점검 가이드)
+│  │  ├─ AI_SERVER_GUIDE.md                         # AI/CI  (AI 서버 운영/배포 점검 가이드)
+│  │  └─ Redis_RMQ_SSE.md                           # BE     (Redis & RabbitMQ 상세 아키텍처 가이드)
 │  │
 │  ├─ erd/                                          # BE (MVP 단계에서 진행)
 │  ├─ migration/
@@ -239,6 +240,7 @@ withbuddy/
 ### 아키텍처
 - **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
 - **[AI 서버 운영 가이드](docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
+- **[Redis & RabbitMQ 아키텍처](docs/architecture/Redis_RMQ_SSE.md)** - Redis 캐싱, RabbitMQ 메시징 상세 설계 (v2.5)
 - **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
 - **[DB 마이그레이션 가이드](./docs/migration/MIGRATION.md)** - Flyway 버전 관리, 검증 쿼리, 운영 규칙
 - **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
@@ -394,6 +396,7 @@ withbuddy/
 
 ## 변경 이력
 
+- 2026-04-20: `docs/architecture/Redis_RMQ_SSE.md` 추가에 따라 디렉토리 구조 및 문서 링크 반영. Redis 캐싱·RabbitMQ 메시징 상세 아키텍처 가이드 (v2.5).
 - 2026-04-14: 백엔드 배포 기준을 Flyway 중심으로 업데이트. baseline 설정(`SPRING_FLYWAY_BASELINE_*`)과 V10 시드 보정 마이그레이션 반영 내용을 문서 링크와 함께 정리.
 - 2026-04-11: 스토리지(Object Storage) 반영에 맞춰 기술 스택/배포 항목을 갱신하고, 백엔드 로컬 실행 환경변수 예시에 `REDIS_URL`, `RABBITMQ_URL`, `STORAGE_API_*`를 추가. `docs/storage` 문서 경로를 디렉토리 구조와 문서 링크에 반영.
 - 2026-04-02: 브랜치 예시의 Jira 서브태스크 키 표기를 `SCRUM-##` 대문자로 통일.
