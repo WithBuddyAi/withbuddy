@@ -16,6 +16,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
+from core.semantic_cache import get_semantic_cache
 from core.vectorstore import search_with_company_fallback, search_legal_docs, rerank_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
@@ -328,6 +329,15 @@ def _search_sub_q(sub_q: str, company_code: str) -> List[Document]:
     return rerank_docs(sub_q, docs, top_k=k)
 
 
+def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
+    """단일 서브 질문 검색만 수행 (리랭킹 없음, 복합 질문 병렬 실행용)"""
+    k = _get_k_for_question(sub_q)
+    if _is_legal_question(sub_q):
+        return search_legal_docs(sub_q, k=k * 2)
+    return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
+
+
+
 def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
@@ -349,6 +359,13 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if ambiguous:
         return ambiguous, "", [], []
 
+    # 시맨틱 캐시 체크
+    cached = get_semantic_cache().get(question, company_code)
+    if cached:
+        answer, source, related_docs, doc_ids = cached
+        save_interaction(user_id, question, answer)
+        return answer, source, related_docs, doc_ids
+
     # 복합 질문 분리 검색: "?" 또는 "그리고"로 분리된 경우 각각 검색 후 합산
     sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
     if len(sub_questions) < 2:
@@ -356,14 +373,21 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     retrieved_docs = []
     seen_contents = set()
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(_search_sub_q, sub_q, company_code) for sub_q in sub_questions]
-        for future in futures:
-            for d in future.result():
-                key = d.page_content[:80]
-                if key not in seen_contents:
-                    seen_contents.add(key)
-                    retrieved_docs.append(d)
+
+    if len(sub_questions) == 1:
+        retrieved_docs = _search_sub_q(sub_questions[0], company_code)
+    else:
+        # 복합 질문: 각 서브 질문 검색만 병렬 실행 → 머지 → 리랭킹 1번
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(_search_sub_q_raw, sub_q, company_code) for sub_q in sub_questions]
+            for future in futures:
+                for d in future.result():
+                    key = d.page_content[:80]
+                    if key not in seen_contents:
+                        seen_contents.add(key)
+                        retrieved_docs.append(d)
+        top_k = min(3 * len(sub_questions), 6)
+        retrieved_docs = rerank_docs(question, retrieved_docs, top_k=top_k)
 
     source_names = _extract_sources(retrieved_docs)
     doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
@@ -413,6 +437,11 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
+
+    # 캐시 저장 (미답변 제외)
+    if not _is_unanswered(answer, retrieved_docs):
+        get_semantic_cache().set(question, company_code, answer, source_names, related_docs, doc_ids)
+
     return answer, source_names, related_docs, doc_ids
 
 
@@ -438,6 +467,16 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", "", []              # done 시그널
         return
 
+    # 시맨틱 캐시 체크
+    cached = get_semantic_cache().get(question, company_code)
+    if cached:
+        answer, source, related_docs, doc_ids = cached
+        save_interaction(user_id, question, answer)
+        yield answer, None, None
+        yield "", source, related_docs
+        return
+
+
     yield "__STAGE__searching", None, None
 
     sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
@@ -445,18 +484,25 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         sub_questions = [question]
 
     loop = asyncio.get_event_loop()
-    results = await asyncio.gather(*[
-        loop.run_in_executor(None, _search_sub_q, sub_q, company_code)
-        for sub_q in sub_questions
-    ])
     retrieved_docs = []
     seen_contents = set()
-    for docs in results:
-        for d in docs:
-            key = d.page_content[:80]
-            if key not in seen_contents:
-                seen_contents.add(key)
-                retrieved_docs.append(d)
+
+    if len(sub_questions) == 1:
+        retrieved_docs = await loop.run_in_executor(None, _search_sub_q, sub_questions[0], company_code)
+    else:
+        # 복합 질문: 각 서브 질문 검색만 병렬 실행 → 머지 → 리랭킹 1번
+        results = await asyncio.gather(*[
+            loop.run_in_executor(None, _search_sub_q_raw, sub_q, company_code)
+            for sub_q in sub_questions
+        ])
+        for docs in results:
+            for d in docs:
+                key = d.page_content[:80]
+                if key not in seen_contents:
+                    seen_contents.add(key)
+                    retrieved_docs.append(d)
+        top_k = min(3 * len(sub_questions), 6)
+        retrieved_docs = await loop.run_in_executor(None, rerank_docs, question, retrieved_docs, top_k)
     source_names = _extract_sources(retrieved_docs)
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
@@ -520,4 +566,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         asyncio.create_task(_fire_unanswered_alert(user_id, question))
 
     related_docs = find_related_docs(question)
+
+    # 캐시 저장 (미답변 제외)
+    if not _is_unanswered(fixed, retrieved_docs):
+        get_semantic_cache().set(question, company_code, fixed, source_names, related_docs, [])
+
     yield "", source_names, related_docs

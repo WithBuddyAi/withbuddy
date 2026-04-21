@@ -5,6 +5,7 @@ import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.auth.exception.LoginFailedException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,8 +17,13 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(LoginFailedException.class)
     public ResponseEntity<ErrorResponse> handleLoginFailedException(
@@ -84,6 +90,8 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
 
+        log.warn("스토리지 예외: path={}, field={}, message={}", request.getRequestURI(), e.getField(), e.getMessage());
+
         return ResponseEntity.status(e.getStatus()).body(response);
     }
 
@@ -105,6 +113,54 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
 
+        log.warn("AI timeout: path={}, message={}", request.getRequestURI(), e.getMessage());
+
         return ResponseEntity.status(504).body(response);
+    }
+
+    @ExceptionHandler(ExpiredJwtException.class)
+    public ResponseEntity<ErrorResponse> handleExpiredJwtException(
+            ExpiredJwtException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("token", "로그인 정보가 만료됐어요. 다시 로그인해주세요.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "TOKEN_EXPIRED",
+                errors,
+                request.getRequestURI()
+        );
+
+        log.warn("토큰 만료: path={}, message={}", request.getRequestURI(), e.getMessage());
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleException(
+            Exception e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("server", "일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                "INTERNAL_SERVER_ERROR",
+                errors,
+                request.getRequestURI()
+        );
+
+        log.error("서버 오류: path={}", request.getRequestURI(), e);
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }

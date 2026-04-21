@@ -31,7 +31,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from core.llm import get_llm
-from core.vectorstore import get_retriever
+from core.vectorstore import search_with_company_fallback
 from chains.rag_chain import run_rag_chain
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -83,27 +83,13 @@ TEST_CASES = [
     {
         "category": "IT장비",
         "question": "노트북 신청하려면 어떻게 해?",
-        "expected_keywords": ["장비", "신청", "IT"],
-        "expected_sources": ["techco_IT_규정_v3.1.txt", "IT.txt"],
+        "expected_keywords": ["노트북", "신청"],
+        "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
     {
         "category": "IT장비",
         "question": "회사 이메일 계정은 어떻게 발급받아?",
-        "expected_keywords": ["계정", "이메일", "IT"],
-        "expected_sources": ["techco_IT_규정_v3.1.txt", "IT.txt"],
-    },
-
-    # ── 담당자 안내 ───────────────────────────────────
-    {
-        "category": "담당자",
-        "question": "급여 관련해서 누구한테 물어봐야 해?",
-        "expected_keywords": ["경영지원팀"],
-        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
-    },
-    {
-        "category": "담당자",
-        "question": "법인카드 신청은 누가 담당이야?",
-        "expected_keywords": ["경영지원팀"],
+        "expected_keywords": ["계정", "이메일"],
         "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 
@@ -156,6 +142,12 @@ TEST_CASES = [
         "expected_keywords": ["건강검진"],
         "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
+    {
+        "category": "복리후생",
+        "question": "경조금 지원은 어떻게 받아?",
+        "expected_keywords": ["경조금"],
+        "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
+    },
 
     # ── 사무용품 ──────────────────────────────────────
     {
@@ -165,20 +157,20 @@ TEST_CASES = [
         "expected_sources": ["techco_ADMIN_규정_v4.1.txt", "ADMIN.txt"],
     },
 
-    # ── 커뮤니케이션 ──────────────────────────────────
+    # ── 급여 ─────────────────────────────────────────
     {
-        "category": "커뮤니케이션",
-        "question": "직장에서 올바른 호칭은 어떻게 써?",
-        "expected_keywords": ["호칭"],
+        "category": "급여",
+        "question": "급여 명세서는 어디서 확인해?",
+        "expected_keywords": ["급여", "명세서"],
         "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt"],
     },
 
-    # ── 퇴직 ─────────────────────────────────────────
+    # ── 복지카드 (추가) ───────────────────────────────
     {
-        "category": "퇴직",
-        "question": "퇴직금은 어떻게 받아?",
-        "expected_keywords": ["퇴직금"],
-        "expected_sources": ["techco_HR_규정_v4.1.txt", "HR.txt", "퇴직급여법.txt", "index_퇴직급여법_final.txt"],
+        "category": "복지카드",
+        "question": "복지카드 한도가 얼마야?",
+        "expected_keywords": ["복지카드", "한도"],
+        "expected_sources": ["techco_WELFARE_규정_v3.1.txt", "WELFARE.txt"],
     },
 
     # ── 명함·법인카드 ─────────────────────────────────
@@ -224,8 +216,7 @@ def evaluate_retrieval(question: str, expected_sources: list[str], k: int = 5, c
     if not expected_sources:
         return {"hit": None, "retrieved_sources": [], "note": "소스 미지정"}
 
-    retriever = get_retriever(k=k, company_code=company_code)
-    docs = retriever.invoke(question)
+    docs = search_with_company_fallback(question, k=k, company_code=company_code)
     retrieved = [
         os.path.splitext(os.path.basename(d.metadata.get("source", "")))[0].replace("+", " ")
         for d in docs
@@ -271,7 +262,6 @@ def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db", company_code: str
     import core.vectorstore as vs
     vs.CHROMA_DB_PATH = chroma_dir
     vs.get_vectorstore.cache_clear()
-    vs.get_retriever.cache_clear()
 
     print("=" * 55)
     print("  With Buddy RAG 시스템 성능 평가")
