@@ -236,7 +236,7 @@ WHERE NOT EXISTS (SELECT 1 FROM {table} LIMIT 1);
 | company_code | name |
 |---|---|
 | WB0001 | 테크 주식회사 |
-| WB0002 | 넥스트스텝 주식회사 |
+| WB0002 | 스튜디오 프리즘 (Studio Prism) |
 
 ### users
 
