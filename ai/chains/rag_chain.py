@@ -178,6 +178,15 @@ async def _fire_unanswered_alert(user_id: str, question: str) -> None:
     except Exception:
         pass  # 알림 실패가 채팅 응답에 영향주지 않도록
 
+_COMPANY_NAMES: dict[str, str] = {
+    "WB0001": "테크 주식회사",
+    "WB0002": "스튜디오 프리즘",
+}
+
+def _get_company_name(company_code: str) -> str:
+    return _COMPANY_NAMES.get(company_code, "우리 회사")
+
+
 _chain = None
 
 
@@ -406,6 +415,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
+    company_name = _get_company_name(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
@@ -420,6 +430,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         "chat_history": chat_history,
         "user_style": user_style,
         "user_name": user_name,
+        "company_name": company_name,
     })
     answer = _fix_names(answer)
 
@@ -521,6 +532,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
+    company_name = _get_company_name(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
@@ -538,6 +550,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         "chat_history": chat_history,
         "user_style": user_style,
         "user_name": user_name,
+        "company_name": company_name,
     }):
         full_answer += chunk
         yield chunk, None, None
