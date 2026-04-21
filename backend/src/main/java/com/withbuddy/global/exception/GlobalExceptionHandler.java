@@ -106,8 +106,8 @@ public class GlobalExceptionHandler {
 
         ErrorResponse response = new ErrorResponse(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
-                504,
-                "Gateway Timeout",
+                HttpStatus.GATEWAY_TIMEOUT.value(),
+                HttpStatus.GATEWAY_TIMEOUT.getReasonPhrase(),
                 "AI_TIMEOUT",
                 errors,
                 request.getRequestURI()
@@ -115,7 +115,7 @@ public class GlobalExceptionHandler {
 
         log.warn("AI timeout: path={}, message={}", request.getRequestURI(), e.getMessage());
 
-        return ResponseEntity.status(504).body(response);
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(response);
     }
 
     @ExceptionHandler(ExpiredJwtException.class)
