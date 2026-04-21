@@ -7,7 +7,7 @@ SELECT 'WB0001', '테크 주식회사'
 WHERE NOT EXISTS (SELECT 1 FROM companies LIMIT 1);
 
 INSERT INTO companies (company_code, name)
-SELECT 'WB0002', '넥스트스텝 주식회사'
+SELECT 'WB0002', '스튜디오 프리즘 (Studio Prism)'
 WHERE NOT EXISTS (SELECT 1 FROM companies LIMIT 1);
 
 -- =============================================================

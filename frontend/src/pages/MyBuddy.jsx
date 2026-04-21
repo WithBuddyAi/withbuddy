@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom"
-import { MessageSquare, ChevronRight, Send, LogOut, Menu, Calendar as CalendarIcon } from "lucide-react"
+import { MessageSquare, RotateCw, ChevronRight, Send, LogOut, Menu, Calendar as CalendarIcon } from "lucide-react"
 import char from '../assets/Favicon_web.svg'
 import bot from '../assets/Bot_icon.svg'
 import bar from '../assets/side_bar.svg'
@@ -32,7 +32,6 @@ function MyBuddy ({setIsLoggedIn}) {
   // 채팅 화면
   const [messageList, setMessageList] = useState([])
   const [text, setText] = useState('')
-  const [suggestion, setSuggestion] = useState([])
   const [quickQuestion, setQuickQuestion] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const BASE_URL = import.meta.env.VITE_API_BASE_URL
@@ -40,6 +39,7 @@ function MyBuddy ({setIsLoggedIn}) {
   const [errorMessage, setErrorMessage] = useState(false)
   const chatBottomRef = useRef(null)
   const [loadingMessage, setLoadingMessage] = useState('')
+  const [suggestionMessages, setSuggestionMessages] = useState([])
 
   // 대화 기록 달력
   const handleDateChange = async (date) => {
@@ -50,7 +50,10 @@ function MyBuddy ({setIsLoggedIn}) {
         `${BASE_URL}/api/v1/chat/messages?date=${formattedDate}`,
         { headers: { 'Authorization' : `Bearer ${accessToken}` } }
       )
-      setMessageList(message.messages)
+      setMessageList([
+        ...message.messages,
+        ...suggestionMessages.filter(s => s.createdAt.slice(0, 10) === formattedDate)
+      ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)))
     } catch (error) {
       if (!handle401(error)) {
         const serverMessage = error.response?.data?.errors?.[0]?.message
@@ -105,29 +108,40 @@ function MyBuddy ({setIsLoggedIn}) {
           headers: { 'Authorization': `Bearer ${accessToken}` }
           })
         ])
-        if (messageResponse.status === 'fulfilled') {
+        if (messageResponse.status === 'fulfilled' && suggestionResponse.status === 'fulfilled') {
           const messages = messageResponse.value.data.messages
-          const dates = [...new Set(messages.map(m => m.createdAt.slice(0, 10)))]
+          const suggestions = suggestionResponse.value.data.suggestions
+          const suggestionMessages = suggestions.map(s => ({
+            id: `suggestion-${s.id}`,
+            senderType: 'BOT',
+            messageType: 'suggestion',
+            content: s.content,
+            createdAt: s.createdAt
+          }))
+          setSuggestionMessages(suggestionMessages)
+          const dates = [...new Set([...messages.map(m => m.createdAt.slice(0, 10)),
+          ...suggestionMessages.map(s => s.createdAt.slice(0, 10))]
+          )]
           setActiveDates(dates)
+          
+          setMessageList([...messages, ...suggestionMessages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)))
 
-          const isFirstLogin = localStorage.getItem('isFirstLogin')
+          // // 환영메시지 작성 (suggestion이랑 기능이 유사해서 우선 주석 처리함)
+          // const isFirstLogin = localStorage.getItem('isFirstLogin')
 
-          if (!isFirstLogin) {
-            localStorage.setItem('isFirstLogin', 'true')
-            setMessageList( [{
-              id: 'welcome',
-              senderType: 'BOT',
-              content: `${name}님, 만나서 반가워요😊\n저는 ${name}님의 회사 생활을 함께 할 위드버디예요.\n\n인사(연차/급여)부터 행정(비품/보안/시설)까지,\n회사 생활에 필요한 모든 정보를 편하게 물어봐 주세요!\n\n오늘부터 제가 ${name}님의 든든한 위드버디가 되어 드릴게요!`,
-              createdAt: new Date().toISOString()
-            }, ...messages])
-          } else {
-            setMessageList(messages)
-          }
+          // if (!isFirstLogin) {
+          //   localStorage.setItem('isFirstLogin', 'true')
+          //   setMessageList( [{
+          //     id: 'welcome',
+          //     senderType: 'BOT',
+          //     content: `${name}님, 만나서 반가워요😊\n저는 ${name}님의 회사 생활을 함께 할 위드버디예요.\n\n인사(연차/급여)부터 행정(비품/보안/시설)까지,\n회사 생활에 필요한 모든 정보를 편하게 물어봐 주세요!\n\n오늘부터 제가 ${name}님의 든든한 위드버디가 되어 드릴게요!`,
+          //     createdAt: new Date().toISOString()
+          //   }, ...messages])
+          // } else {
+          //   setMessageList(messages)
+          // }
 
         } 
-        if (suggestionResponse.status === 'fulfilled') {
-          setSuggestion(suggestionResponse.value.data.suggestions)
-        }
         if (quickResponse.status === 'fulfilled') {
           setQuickQuestion(quickResponse.value.data.quickQuestions)
         }
@@ -216,12 +230,30 @@ function MyBuddy ({setIsLoggedIn}) {
               setErrorMessage(err.message)
             }
           })
+        } else if (error.response?.status === 504 || (!error.response && error.message?.includes('504'))) {
+            const timeoutMessage = error.response?.data?.errors?.[0]?.message
+            setMessageList(prev => [...prev, {
+              id: `error-${Date.now()}`,
+              senderType: 'BOT',
+              messageType: 'ai_timeout',
+              content: timeoutMessage || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
+              createdAt: new Date().toISOString()
+            }])
         } else {
           setErrorMessage('메시지 전송에 실패했어요.')
         }
       }
     } finally {
     setIsLoading(false)
+    }
+  }
+
+  // 응답 지연 시 재시도
+  const handleRetry = () => {
+    const lastUserMessage = [...messageList].reverse().find(msg => msg.senderType === 'USER')
+    if (lastUserMessage) {
+      setMessageList(prev => prev.filter(msg => msg.messageType !== 'ai_timeout' && msg.id !== lastUserMessage.id))
+      setText(lastUserMessage.content)
     }
   }
 
@@ -463,40 +495,11 @@ function MyBuddy ({setIsLoggedIn}) {
         </>
 
         <div className="flex-1 overflow-y-auto px-[24px] pb-[16px]">
-
-          {/* 온보딩 제안 */}
-          {suggestion.length > 0 && (
-            <div>
-              {/* 날짜 구분선 */}
-              <div className="flex items-center justify-center">
-                <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[130px] md:w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[12px] md:text-[14px] text-center mt-[16px]">
-                  {format(new Date(suggestion[0].createdAt), 'yyyy년 M월 d일', {locale: ko})}
-                </p>
-              </div>
-
-              {/* 말풍선 + 시간 */}
-              <div className="flex justify-start items-start mt-[32px]">
-                <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
-                <div className="flex flex-col">
-                  <div className={botClass}>
-                    {suggestion[0].content}
-                  </div>
-                  <p className="text-left ml-[16px]">
-                    <p className="text-[#868E96] text-[10px] md:text-[16px]">
-                      {format(new Date(suggestion[0].createdAt), 'a h:mm', {locale: ko})}
-                    </p>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-        {/* 답변 */}
+        {/* 답변(messageList에 온보딩 제안도 포함됨) */}
           {messageList.map((message, index) => {
             const currentDate = message.createdAt.slice(0, 10)
             const prevDate = index > 0 ? messageList[index - 1].createdAt.slice(0, 10) : null
-            const suggestionDate = suggestion.length > 0 ? suggestion[0].createdAt.slice(0, 10) : null
-            const isNewDate = currentDate !== prevDate && currentDate !== suggestionDate
+            const isNewDate = currentDate !== prevDate
 
             return(
             <div key={message.id}>
@@ -513,8 +516,19 @@ function MyBuddy ({setIsLoggedIn}) {
                   <div className={
                     message.senderType === 'USER' ? `${userClass}` : `${botClass}`}
                     style={message.senderType === 'USER' ? {background: 'linear-gradient(to right, #7DC1FF, #6BB5F2, #57A7E4, #4F9CD7, #4791CA)'} : {}}>
-                      <ReactMarkdown>{message.content}</ReactMarkdown>
+
+                    {message.messageType === 'ai_timeout' ? (
+                      <div className="flex gap-[10px]">
+                        <p className="text-[#495057] text-[16px]">{message.content}</p>
+                        <button onClick={handleRetry} className="bg-blue-100 rounded-[9999px] py-[6px] px-[12px] text-[#204867] text-[12px]">
+                          <RotateCw size={14} />다시 시도하기
+                        </button>
+                      </div>)
+                      :
+                      (<ReactMarkdown>{message.content}</ReactMarkdown>)
+                    }
                   </div>
+
                   <p className={
                     `${message.senderType === 'USER' ? 'text-right md:mr-[48px]' : 'text-left ml-[16px]'}`}>
                     <p className="text-[#868E96] text-[10px] md:text-[16px] ">{format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
@@ -525,22 +539,22 @@ function MyBuddy ({setIsLoggedIn}) {
             )
           })}
 
+          {/* 로딩 인디케이터 */}
           {isLoading && (
-            <div>
+            <div className="flex justify-start items-start mt-[32px]">
               <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
-              <div className="flex justify-start">
-                <div className={botClass}>
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}/>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
-                  </div>
-                  {loadingMessage && <p className="mt-[18px]">{loadingMessage}</p>}
+              <div className={botClass}>
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}/>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
                 </div>
+                {loadingMessage && <p className="mt-[18px]">{loadingMessage}</p>}
               </div>
             </div>
           )}
 
+          {/* 질문 전송 시 하단으로 자동 스크롤 */}
           <div ref={chatBottomRef}/>
         </div>
 
