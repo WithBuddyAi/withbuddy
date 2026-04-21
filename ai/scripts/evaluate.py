@@ -529,6 +529,174 @@ _JUDGE_PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 
+# ── WB0002(스튜디오 프리즘) 테스트 케이스 ────────────────────────
+WB0002_TEST_CASES = [
+    # ── HR: 인사·근태 ────────────────────────
+    {
+        "category": "HR",
+        "question": "수습 기간이 얼마나 돼요?",
+        "expected_keywords": ["2개월"],
+        "expected_sources": ["prism_HR_v1.0.md"],
+    },
+    {
+        "category": "HR",
+        "question": "급여일이 언제예요?",
+        "expected_keywords": ["20일"],
+        "expected_sources": ["prism_HR_v1.0.md"],
+    },
+    {
+        "category": "HR",
+        "question": "연차는 어떻게 신청해요?",
+        "expected_keywords": ["Gmail", "PDF"],
+        "expected_sources": ["prism_HR_v1.0.md"],
+    },
+    {
+        "category": "HR",
+        "question": "재택근무 신청은 어떻게 해요?",
+        "expected_keywords": ["팀장", "PDF"],
+        "expected_sources": ["prism_HR_v1.0.md"],
+    },
+    {
+        "category": "HR",
+        "question": "연차는 언제부터 생겨요?",
+        "expected_keywords": ["매월", "1일"],
+        "expected_sources": ["prism_HR_v1.0.md"],
+    },
+    # ── WELFARE: 복지·식대 ────────────────────────
+    {
+        "category": "WELFARE",
+        "question": "야근 식대가 얼마예요?",
+        "expected_keywords": ["12,000원"],
+        "expected_sources": ["prism_WELFARE_v1.0.md"],
+    },
+    {
+        "category": "WELFARE",
+        "question": "야근 식대는 몇 시 이후부터 지원돼요?",
+        "expected_keywords": ["20:30"],
+        "expected_sources": ["prism_WELFARE_v1.0.md"],
+    },
+    {
+        "category": "WELFARE",
+        "question": "복지 혜택이 어떻게 되나요?",
+        "expected_keywords": ["문화상품권", "5만원"],
+        "expected_sources": ["prism_WELFARE_v1.0.md"],
+    },
+    {
+        "category": "WELFARE",
+        "question": "경비 청구는 언제까지 제출해야 해요?",
+        "expected_keywords": ["20일"],
+        "expected_sources": ["prism_ADMIN_v1.0.md"],
+    },
+    # ── IT: 계정·장비 ────────────────────────
+    {
+        "category": "IT",
+        "question": "프로젝트 관리 툴이 뭐예요?",
+        "expected_keywords": ["Notion"],
+        "expected_sources": ["prism_IT_v1.0.md"],
+    },
+    {
+        "category": "IT",
+        "question": "어떤 장비가 지급되나요?",
+        "expected_keywords": ["Mac"],
+        "expected_sources": ["prism_IT_v1.0.md"],
+    },
+    {
+        "category": "IT",
+        "question": "IT 문제가 생기면 누구한테 연락해요?",
+        "expected_keywords": ["박소연"],
+        "expected_sources": ["prism_IT_v1.0.md"],
+    },
+    # ── CREATIVE: 저작권·자산 ────────────────────────
+    {
+        "category": "CREATIVE",
+        "question": "폰트는 어디서 받아요?",
+        "expected_keywords": ["산돌구름"],
+        "expected_sources": ["prism_CREATIVE_ASSET_v1.0.md"],
+    },
+    {
+        "category": "CREATIVE",
+        "question": "포트폴리오에 작업물 올려도 되나요?",
+        "expected_keywords": ["고객사 공개"],
+        "expected_sources": ["prism_CREATIVE_ASSET_v1.0.md"],
+    },
+    # ── EQUIPMENT: 촬영 장비 ────────────────────────
+    {
+        "category": "EQUIPMENT",
+        "question": "촬영 장비 빌리려면 어떻게 해요?",
+        "expected_keywords": ["장비 대여 장부", "minji.cho"],
+        "expected_sources": ["prism_EQUIPMENT_v1.0.md"],
+    },
+]
+
+# ── WB0002 멀티테넌시 격리 검증 케이스 ────────────────────────────
+# 회사 A(WB0001) 정보가 회사 B(WB0002) 사용자 답변에 섞이면 FAIL
+WB0002_ISOLATION_CASES = [
+    {
+        "id": "ISO-01", "type": "격리검증",
+        "question": "복지카드 어디서 신청해요?",
+        "induced_question": None,
+        "expected_keywords": ["문화상품권", "없습니다"],
+        "expected_sources": ["prism_WELFARE_v1.0.md"],
+        "fail_keywords": ["Flex", "복지카드 신청"],
+        "induced_fail_keywords": [],
+    },
+    {
+        "id": "ISO-02", "type": "격리검증",
+        "question": "Jira 권한 주세요",
+        "induced_question": None,
+        "expected_keywords": ["Notion", "사용하지 않습니다"],
+        "expected_sources": ["prism_IT_v1.0.md"],
+        "fail_keywords": ["Jira 권한", "Jira 사용"],
+        "induced_fail_keywords": [],
+    },
+    {
+        "id": "ISO-03", "type": "격리검증",
+        "question": "VPN 연결이 안 돼요",
+        "induced_question": None,
+        "expected_keywords": ["미운영", "운영하지 않습니다"],
+        "expected_sources": ["prism_IT_v1.0.md"],
+        "fail_keywords": ["자가진단", "VPN 연결 방법"],
+        "induced_fail_keywords": [],
+    },
+    {
+        "id": "ISO-04", "type": "격리검증",
+        "question": "연차 어디서 신청해요?",
+        "induced_question": None,
+        "expected_keywords": ["Gmail", "PDF"],
+        "expected_sources": ["prism_HR_v1.0.md"],
+        "fail_keywords": ["Flex에서"],
+        "induced_fail_keywords": [],
+    },
+    {
+        "id": "ISO-05", "type": "격리검증",
+        "question": "급여일이 언제예요?",
+        "induced_question": None,
+        "expected_keywords": ["20일"],
+        "expected_sources": ["prism_HR_v1.0.md"],
+        "fail_keywords": ["25일"],
+        "induced_fail_keywords": [],
+    },
+    {
+        "id": "ISO-06", "type": "격리검증",
+        "question": "야근 식대 얼마예요?",
+        "induced_question": None,
+        "expected_keywords": ["12,000원"],
+        "expected_sources": ["prism_WELFARE_v1.0.md"],
+        "fail_keywords": ["1만원", "10,000원"],
+        "induced_fail_keywords": [],
+    },
+    {
+        "id": "ISO-07", "type": "격리검증",
+        "question": "수습 기간이 얼마예요?",
+        "induced_question": None,
+        "expected_keywords": ["2개월"],
+        "expected_sources": ["prism_HR_v1.0.md"],
+        "fail_keywords": ["3개월"],
+        "induced_fail_keywords": [],
+    },
+]
+
+
 def evaluate_retrieval(question: str, expected_sources: list[str], k: int = 5, company_code: str = "") -> dict:
     """검색된 문서에 기대 소스가 포함되는지 확인합니다."""
     if not expected_sources:
@@ -583,19 +751,24 @@ def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db", company_code: str
     vs.get_vectorstore.cache_clear()
     vs.get_retriever.cache_clear()
 
+    # company_code에 따라 테스트 케이스 선택
+    is_wb0002 = company_code.upper() == "WB0002"
+    test_cases = WB0002_TEST_CASES if is_wb0002 else TEST_CASES
+    conflict_cases = WB0002_ISOLATION_CASES if is_wb0002 else CONFLICT_CASES
+
     print("=" * 55)
     print("  With Buddy RAG 시스템 성능 평가")
     print(f"  실행 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  테스트 케이스: {len(TEST_CASES)}개")
+    print(f"  테스트 케이스: {len(test_cases)}개")
     print("=" * 55)
 
     results = []
     category_stats: dict[str, list] = {}
 
-    for i, tc in enumerate(TEST_CASES, 1):
+    for i, tc in enumerate(test_cases, 1):
         q = tc["question"]
         cat = tc["category"]
-        print(f"\n[{i:02d}/{len(TEST_CASES)}] [{cat}] {q}")
+        print(f"\n[{i:02d}/{len(test_cases)}] [{cat}] {q}")
 
         # ① RAG 답변 생성 + 시간 측정
         t0 = time.time()
@@ -698,14 +871,17 @@ def run_evaluation(chroma_dir: str = "C:/withbuddy_chroma_db", company_code: str
         print(f"  {cat:<14} {judge_str}{unanswered_str}")
     print("=" * 55)
 
-    # ── 충돌 시나리오 평가 ─────────────────────────────────────
+    # ── 충돌/격리 시나리오 평가 ──────────────────────────────────
     print("\n" + "=" * 55)
-    print("  ⚖️  회사 특화 vs 법령 충돌 시나리오 평가")
-    print(f"  케이스: {len(CONFLICT_CASES)}개")
+    if is_wb0002:
+        print("  🔒  멀티테넌시 격리 검증")
+    else:
+        print("  ⚖️  회사 특화 vs 법령 충돌 시나리오 평가")
+    print(f"  케이스: {len(conflict_cases)}개")
     print("=" * 55)
 
     conflict_results = []
-    for cc in CONFLICT_CASES:
+    for cc in conflict_cases:
         cid = cc["id"]
         ctype = cc["type"]
 
