@@ -70,8 +70,16 @@ public class OnboardingSuggestionService {
     }
 
     private String replacePlaceholders(String content, String userName, int dayOffset) {
+        String nValue;
+
+        if (dayOffset < 0) {
+            nValue = String.valueOf(Math.abs(dayOffset));
+        } else {
+            nValue = String.valueOf(dayOffset + 1);
+        }
+
         return content
                 .replace("{이름}", userName)
-                .replace("{N}", String.valueOf(Math.abs(dayOffset)));
+                .replace("{N}", nValue);
     }
 }
