@@ -965,6 +965,36 @@ def generate_html(summary: dict, html_path: str) -> None:
           <td style="color:{'#ef4444' if stat['unanswered_count']>0 else '#22c55e'}">{stat['unanswered_count']}건</td>
         </tr>"""
 
+    conflict_rows = ""
+    for r in summary.get("conflict_results", []):
+        judge = r.get("llm_judge_score", 0)
+        kw = r.get("keyword_hit_rate", 0)
+        retrieval = r.get("retrieval_hit")
+        hit_icon = "✅" if retrieval else ("⬜" if retrieval is None else "❌")
+        fail_triggered = r.get("fail_triggered", [])
+        fail_str = f"⚠️ {', '.join(fail_triggered)}" if fail_triggered else ""
+        bg = "#fef2f2" if fail_triggered or judge <= 2 else ("#fffbeb" if judge == 3 else "white")
+        conflict_rows += f"""<tr style="background:{bg}">
+          <td style="text-align:center">{r['id']}</td>
+          <td style="color:#64748b">{r.get('type','')}</td>
+          <td style="color:#64748b">{r.get('question_type','')}</td>
+          <td>{r['question']}</td>
+          <td style="text-align:center">{hit_icon}</td>
+          <td>{pct_bar(kw)}</td>
+          <td style="text-align:center;color:{score_color(judge)};font-weight:bold">{judge}/5</td>
+          <td style="color:#64748b;font-size:11px">{r.get('llm_judge_reason','')}</td>
+          <td style="color:#ef4444;font-size:11px">{fail_str}</td>
+        </tr>"""
+
+    conflict_section = ""
+    if conflict_rows:
+        conflict_section = f"""
+<h2>충돌 · 격리 시나리오</h2>
+<table>
+  <tr><th>ID</th><th>유형</th><th>질문 유형</th><th>질문</th><th>검색히트</th><th>키워드</th><th>Judge</th><th>판정이유</th><th>FAIL 키워드</th></tr>
+  {conflict_rows}
+</table>"""
+
     detail_rows = ""
     for r in details:
         judge = r.get("llm_judge_score", 0)
@@ -1023,6 +1053,7 @@ def generate_html(summary: dict, html_path: str) -> None:
   <tr><th>#</th><th>카테고리</th><th>질문</th><th>검색히트</th><th>키워드</th><th>Judge</th><th>판정이유</th><th>미답변</th></tr>
   {detail_rows}
 </table>
+{conflict_section}
 </body>
 </html>"""
 
