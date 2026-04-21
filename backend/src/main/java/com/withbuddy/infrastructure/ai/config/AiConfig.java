@@ -13,15 +13,11 @@ public class AiConfig {
 
     @Bean
     public RestClient aiRestClient(
-        @Value("${ai.server.base-url}") String aiBaseUrl,
-        RestClient.Builder restClientBuilder
+            @Value("${ai.server.base-url}") String aiBaseUrl,
+            RestClient.Builder restClientBuilder
     ) {
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory();
-        requestFactory.setReadTimeout(Duration.ofSeconds(5));
-
         return restClientBuilder
-            .requestFactory(requestFactory)
-            .baseUrl(aiBaseUrl)
-            .build();
+                .baseUrl(aiBaseUrl)
+                .build();
     }
 }
