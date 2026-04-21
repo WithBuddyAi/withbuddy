@@ -10,7 +10,7 @@ body {
 .react-calendar {
   background-color: white !important;
   width: 231px;
-  height: 253px;
+  height: auto;
   border: 0.5px solid #DBE7F4 !important;
   border-radius: 8px;
   padding: 16px 10px;
