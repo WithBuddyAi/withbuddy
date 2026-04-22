@@ -17,7 +17,25 @@ from chains.checklist_chain import run_checklist_chain
 from core.llm import get_llm
 from utils.prompts import RECOMMEND_PROMPT
 
-_recommend_chain = None
+_recommend_chains: dict = {}
+
+_COMPANY_CONTACTS: dict[str, str] = {
+    "WB0001": (
+        "- 경영지원팀: 김지수 (인사, 연차/휴가, 급여, 복리후생, 근태, 채용, 총무, 경비, 사무용품, 법인카드, 계약, 사내 규정, 온보딩)\n"
+        "- IT담당: 박민준 (IT 장비, 계정 세팅, MFA, VPN, 소프트웨어 설치, IT 장애 대응)"
+    ),
+    "WB0002": (
+        "- 운영팀(HR): 김현아 (입퇴사, 인사, 수습, 연차/휴가, 급여, 복리후생, 온보딩)\n"
+        "- 운영팀(IT): 박소연 (계정, 장비, 권한, Slack, Notion, Adobe, IT 문의)\n"
+        "- 크리에이티브팀: 박서준 (Figma, Canva, 디자인 툴, 크리에이티브 업무)\n"
+        "- 퍼포먼스마케팅팀: 이도윤 (Meta Ads, Google Ads, GA4, 광고 계정)"
+    ),
+}
+
+_COMPANY_DEFAULT_PERSON: dict[str, str] = {
+    "WB0001": "김지수",
+    "WB0002": "김현아",
+}
 
 router = APIRouter(tags=["recommend"])
 
@@ -27,6 +45,7 @@ router = APIRouter(tags=["recommend"])
 class RecommendRequest(BaseModel):
     user_id: int = Field(..., description="사용자 고유 ID", example=1)
     message: str = Field(..., description="문의 내용", example="이거 누구한테 물어봐요?")
+    company_code: str = Field("", description="회사 고유 ID")
 
 
 class RecommendResponse(BaseModel):
@@ -65,8 +84,8 @@ def _parse_recommendation(raw: str) -> dict:
         except json.JSONDecodeError:
             pass
 
-    # 파싱 실패 → 기본값 (인사팀) 반환
-    return {"department": "인사팀", "person": "김지수"}
+    # 파싱 실패 → 기본값 반환
+    return {"department": "담당 부서", "person": "담당자"}
 
 
 # ── 엔드포인트 ──────────────────────────────
@@ -80,18 +99,25 @@ async def recommend_person(request: RecommendRequest):
     - 인사, IT, 총무, 재무, 법무팀 담당자 정보를 기반으로 판단합니다.
     """
     try:
-        global _recommend_chain
-        if _recommend_chain is None:
-            _recommend_chain = RECOMMEND_PROMPT | get_llm() | StrOutputParser()
+        global _recommend_chains
+        code = request.company_code or "WB0001"
+        if code not in _recommend_chains:
+            _recommend_chains[code] = RECOMMEND_PROMPT | get_llm() | StrOutputParser()
 
-        raw_result = _recommend_chain.invoke({"message": request.message})
+        contacts_info = _COMPANY_CONTACTS.get(code, _COMPANY_CONTACTS["WB0001"])
+        default_person = _COMPANY_DEFAULT_PERSON.get(code, "담당자")
+
+        raw_result = _recommend_chains[code].invoke({
+            "message": request.message,
+            "contacts_info": contacts_info,
+        })
 
         # JSON 파싱으로 부서/담당자 추출
         parsed = _parse_recommendation(raw_result)
 
         return RecommendResponse(
-            department=parsed.get("department", "인사팀"),
-            person=parsed.get("person", "김지수"),
+            department=parsed.get("department", "담당 부서"),
+            person=parsed.get("person", default_person),
             reason=parsed.get("reason", ""),
         )
 
