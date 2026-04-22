@@ -197,7 +197,7 @@ def _get_hr_contact(company_code: str) -> tuple[str, str]:
     return info["team"], info["contact"]
 
 _COMPANY_IT_CONTACTS: dict[str, str] = {
-    "WB0001": "Slack @minjun.park 또는 #help-it 채널로 문의해 주세요.",
+    "WB0001": "Slack @minjun.park (IT담당 박민준)으로 문의해 주세요.",
     "WB0002": "Slack @soyeon.park (운영팀 박소연 담당)으로 문의해 주세요.",
 }
 
