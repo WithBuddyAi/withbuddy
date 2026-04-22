@@ -224,25 +224,29 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
 
     # 오케스트레이터 intent 체크 — out_of_scope/chitchat은 RAG 건너뜀
     from agents.orchestrator import (
-        _get_intent_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE,
+        _get_intent_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
     )
     if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
         raw_intent = await asyncio.get_event_loop().run_in_executor(
             None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
         )
-        if "out_of_scope" in raw_intent:
+        if "out_of_scope_internal" in raw_intent:
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
                 content=_OUT_OF_SCOPE_MESSAGE,
             )
-        if "chitchat" in raw_intent:
-            name = request.user.name or ""
-            prefix = f"{name}님, " if name else ""
+        if "out_of_scope_external" in raw_intent:
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
-                content=f"{prefix}저는 회사 규정·복지·IT 환경 전문가라서 맛집이나 인간관계 꿀팁 같은 건 자신 있게 추천드리기가 어려워요. 😄 그런 건 팀 동료분들이 훨씬 잘 알고 계실 거예요!\n\n사내 규정이나 복지 관련 궁금한 건 언제든 물어봐 주세요. 제가 제일 잘하는 영역이거든요!",
+                content=_OUT_OF_SCOPE_EXTERNAL_MESSAGE,
+            )
+        if "chitchat" in raw_intent:
+            return InternalAIAnswerResponse(
+                questionId=request.questionId,
+                messageType="out_of_scope",
+                content="반가워요! 저랑 대화하고 싶으셨나요? 😊 저는 우리 회사 신입사원분들이 빠르게 적응하실 수 있게 돕는 온보딩 도우미 위드버디에요. 사내 규정이나 복지, IT 환경 같이 회사 생활에 대해 궁금한 게 생기면 언제든 편하게 저를 찾아주세요!",
             )
 
     try:
