@@ -705,7 +705,7 @@ def evaluate_retrieval(question: str, expected_sources: list[str], k: int = 5, c
     retriever = get_retriever(k=k, company_code=company_code)
     docs = retriever.invoke(question)
     retrieved = [
-        os.path.splitext(os.path.basename(d.metadata.get("source", "")))[0].replace("+", " ")
+        os.path.splitext(os.path.basename(d.metadata.get("source", "")))[0].replace("+", " ").replace("_", " ")
         for d in docs
     ]
 
