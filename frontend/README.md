@@ -79,6 +79,8 @@ With Buddy는?
 src/
 ├── App.jsx                  # 라우팅 설정, 전체 앱 진입점
 ├── ProtectedRoute.jsx       # 로그인 여부 확인 후 페이지 접근 제어
+├── api/
+│   └── axiosInstance.js     # axios 공통 설정 (토큰 자동 첨부, 401 자동 로그아웃)
 ├── contexts/
 │   └── Context.jsx          # 전역 상태 관리 (Context API)
 ├── components/
@@ -91,6 +93,10 @@ src/
 > 💡 **ProtectedRoute란?**  
 > 로그인하지 않은 사용자가 메인 페이지 URL을 직접 입력해서 들어오려고 하면,  
 > 자동으로 로그인 페이지로 돌려보내는 역할
+
+> 💡 **axiosInstance란?**  
+> 모든 API 요청에 토큰을 자동으로 첨부하고,  
+> 토큰 만료 등 401 에러 발생 시 자동으로 로그아웃 처리하는 axios 공통 설정 파일
 
 <br>
 
@@ -157,3 +163,4 @@ git commit -m "ㅇㅇ"
 ## 변경 이력
 
 - 2026-04-02: 브랜치 전략 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.
+- 2026-04-22: 프로젝트 구조에 `api/axiosInstance.js` 추가.
