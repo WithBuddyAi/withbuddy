@@ -10,14 +10,10 @@ import com.withbuddy.chat.entity.MessageType;
 import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
-import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.AiUserContext;
-import com.withbuddy.infrastructure.redis.RedisCacheKeys;
-import com.withbuddy.infrastructure.redis.RedisCacheService;
-import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -30,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -44,7 +39,6 @@ public class ChatMessageService {
     private final DocumentFileRepository documentFileRepository;
     private final JwtService jwtService;
     private final AiClient aiClient;
-    private final RedisCacheService redisCacheService;
 
     @Transactional
     public ChatMessageCreateResponse saveUserMessage(String bearerToken, ChatMessageRequest request) {
@@ -62,16 +56,6 @@ public class ChatMessageService {
         );
 
         ChatMessage savedQuestionMessage = chatMessageRepository.save(questionMessage);
-        redisCacheService.put(
-                RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
-                "PENDING",
-                RedisCacheTtl.RAG_STATUS
-        );
-        redisCacheService.put(
-                RedisCacheKeys.conversation(String.valueOf(loginUserId)),
-                savedQuestionMessage.getContent(),
-                RedisCacheTtl.CONVERSATION
-        );
 
         AiUserContext userContext = new AiUserContext(
                 loginUserId,
@@ -85,29 +69,14 @@ public class ChatMessageService {
                 savedQuestionMessage.getContent()
         );
 
-        AiAnswerServerResponse aiResponse;
-        try {
-            aiResponse = aiClient.requestAnswer(aiRequest);
-        } catch (RuntimeException ex) {
-            redisCacheService.put(
-                    RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
-                    "TIMEOUT",
-                    RedisCacheTtl.RAG_STATUS
-            );
-            throw ex;
-        }
+        AiAnswerServerResponse aiResponse = aiClient.requestAnswer(aiRequest);
 
         if (!savedQuestionMessage.getId().equals(aiResponse.getQuestionId())) {
             throw new IllegalStateException("AI 응답의 questionId가 저장된 질문 ID와 일치하지 않습니다.");
         }
-        redisCacheService.put(
-                RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
-                "COMPLETED",
-                RedisCacheTtl.RAG_STATUS
-        );
 
         MessageType answerMessageType = aiResponse.getMessageType();
-        List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
+        List<Long> answerDocumentIds = extractDocumentIds(aiResponse);
 
         ChatMessage answerMessage = new ChatMessage(
                 loginUserId,
@@ -232,20 +201,6 @@ public class ChatMessageService {
                 .toList();
     }
 
-    private List<Long> filterExistingDocumentIds(List<Long> documentIds) {
-        if (documentIds == null || documentIds.isEmpty()) {
-            return List.of();
-        }
-
-        Set<Long> existingIds = documentRepository.findByIdInAndIsActiveTrue(documentIds).stream()
-                .map(Document::getId)
-                .collect(Collectors.toSet());
-
-        return documentIds.stream()
-                .filter(existingIds::contains)
-                .toList();
-    }
-
     private void saveDocumentMappings(Long chatMessageId, List<Long> documentIds) {
         if (documentIds == null || documentIds.isEmpty()) {
             return;
@@ -263,7 +218,7 @@ public class ChatMessageService {
 
     private String extractToken(String bearerToken) {
         if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
-            throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
+            throw new IllegalArgumentException("Authorization 헤더 형식이 올바르지 않습니다.");
         }
         return bearerToken.substring(7);
     }
