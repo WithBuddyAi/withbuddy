@@ -6,7 +6,7 @@ import bar from '../assets/side_bar.svg'
 import { useEffect, useRef, useState } from "react"
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import axios from "axios";
+import axiosInstance from "../api/axiosInstance"
 import Calendar from "react-calendar"
 import 'react-calendar/dist/Calendar.css'
 import ReactMarkdown from 'react-markdown'
@@ -34,8 +34,6 @@ function MyBuddy ({setIsLoggedIn}) {
   const [text, setText] = useState('')
   const [quickQuestion, setQuickQuestion] = useState([])
   const [isLoading, setIsLoading] = useState(false)
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL
-  const accessToken = localStorage.getItem('accessToken')
   const [errorMessage, setErrorMessage] = useState(false)
   const chatBottomRef = useRef(null)
   const [loadingMessage, setLoadingMessage] = useState('')
@@ -46,19 +44,16 @@ function MyBuddy ({setIsLoggedIn}) {
     setSelectedDate(date)
     const formattedDate = format(date, 'yyyy-MM-dd')
     try {
-      const {data: message } = await axios.get(
-        `${BASE_URL}/api/v1/chat/messages?date=${formattedDate}`,
-        { headers: { 'Authorization' : `Bearer ${accessToken}` } }
+      const {data: message } = await axiosInstance.get(
+        `/api/v1/chat/messages?date=${formattedDate}`
       )
       setMessageList([
         ...message.messages,
         ...suggestionMessages.filter(s => s.createdAt.slice(0, 10) === formattedDate)
       ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)))
     } catch (error) {
-      if (!handle401(error)) {
-        const serverMessage = error.response?.data?.errors?.[0]?.message
-        setErrorMessage(serverMessage || '에러가 발생했어요')
-      }
+      const serverMessage = error.response?.data?.errors?.[0]?.message
+      setErrorMessage(serverMessage || '에러가 발생했어요')
     }
   }
 
@@ -72,41 +67,15 @@ function MyBuddy ({setIsLoggedIn}) {
     navigate('/login')
   }
 
-  // 401 에러 발생 시(토큰 만료)
-  const handle401 = (error) => {
-    if (error.response?.status === 401) {
-      const code = error.response?.data?.code
-      if (code === 'TOKEN_MISSING' || code === 'TOKEN_EXPIRED' || code === 'INVALID_TOKEN' || code === 'USER_NOT_FOUND') {
-        const tokenError = error.response?.data?.errors[0]?.message
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('dayCount')
-        localStorage.removeItem('hireDate')
-        localStorage.removeItem('name')
-        setIsLoggedIn(false)
-        navigate('/login', {
-          state: { tokenError }
-        })
-        return (true)
-      }
-    }
-    return (false)
-  }
-
   // 첫 렌딩 시 화면
   useEffect (() => {
     setIsLoading(true)
     const fetchData = async () => {
       try {
         const [messageResponse, suggestionResponse, quickResponse] = await Promise.allSettled([
-          axios.get(`${BASE_URL}/api/v1/chat/messages`, {
-          headers: { 'Authorization': `Bearer ${accessToken}` }
-          }),
-          axios.get(`${BASE_URL}/api/v1/onboarding-suggestions/me`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-          }),
-          axios.get(`${BASE_URL}/api/v1/chat/quick-questions`, {
-          headers: { 'Authorization': `Bearer ${accessToken}` }
-          })
+          axiosInstance.get('/api/v1/chat/messages', {}),
+          axiosInstance.get('/api/v1/onboarding-suggestions/me', {}),
+          axiosInstance.get('/api/v1/chat/quick-questions', {})
         ])
         if (messageResponse.status === 'fulfilled' && suggestionResponse.status === 'fulfilled') {
           const messages = messageResponse.value.data.messages
@@ -141,15 +110,16 @@ function MyBuddy ({setIsLoggedIn}) {
           //   setMessageList(messages)
           // }
 
-        } 
+        } else {
+          const error = messageResponse.reason || suggestionResponse.reason
+          throw error
+        }
         if (quickResponse.status === 'fulfilled') {
           setQuickQuestion(quickResponse.value.data.quickQuestions)
         }
       } catch (error) {
-        if (!handle401(error)) {
-          const serverMessage = error.response?.data?.errors?.[0]?.message
-          setErrorMessage(serverMessage || '에러가 발생했어요. 다시 시도해 주세요.')
-        }
+        const serverMessage = error.response?.data?.errors?.[0]?.message
+        setErrorMessage(serverMessage || '에러가 발생했어요. 다시 시도해 주세요.')
       } finally {
         setIsLoading(false)
       }
@@ -157,10 +127,9 @@ function MyBuddy ({setIsLoggedIn}) {
   fetchData()
   const sessionStart = async () => {
     try {
-      await axios.post(
-        `${BASE_URL}/api/v1/chat/session-start`,
-        {},
-        { headers: {'Authorization': `Bearer ${accessToken}`}}
+      await axiosInstance.post(
+        '/api/v1/chat/session-start',
+        {}
       )
     } catch (error) {
       console.error('session-start 실패:', error)
@@ -214,34 +183,31 @@ function MyBuddy ({setIsLoggedIn}) {
     setText('')
 
     try {
-      const {data} = await axios.post(`${BASE_URL}/api/v1/chat/messages`,
-        {content: sendText},
-        {headers: { 'Authorization': `Bearer ${accessToken}` }}
+      const {data} = await axiosInstance.post('/api/v1/chat/messages',
+        {content: sendText}
       )
       
       setMessageList(prev => [...prev, data.answer])
       setText('')
       setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
     } catch (error) {
-      if (!handle401(error)) {
-        if (error.response?.status === 400) {
-          error.response.data.errors.forEach(err => {
-            if (err.field === 'content') {
-              setErrorMessage(err.message)
-            }
-          })
-        } else if (error.response?.status === 504 || (!error.response && error.message?.includes('504'))) {
-            const timeoutMessage = error.response?.data?.errors?.[0]?.message
-            setMessageList(prev => [...prev, {
-              id: `error-${Date.now()}`,
-              senderType: 'BOT',
-              messageType: 'ai_timeout',
-              content: timeoutMessage || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
-              createdAt: new Date().toISOString()
-            }])
-        } else {
-          setErrorMessage('메시지 전송에 실패했어요.')
-        }
+      if (error.response?.status === 400) {
+        error.response.data.errors.forEach(err => {
+          if (err.field === 'content') {
+            setErrorMessage(err.message)
+          }
+        })
+      } else if (error.response?.status === 504 || (!error.response && error.message?.includes('504'))) {
+        const timeoutMessage = error.response?.data?.errors?.[0]?.message
+        setMessageList(prev => [...prev, {
+          id: `error-${Date.now()}`,
+          senderType: 'BOT',
+          messageType: 'ai_timeout',
+          content: timeoutMessage || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
+          createdAt: new Date().toISOString()
+        }])
+      } else {
+        setErrorMessage('메시지 전송에 실패했어요.')
       }
     } finally {
     setIsLoading(false)
@@ -529,10 +495,10 @@ function MyBuddy ({setIsLoggedIn}) {
                     }
                   </div>
 
-                  <p className={
+                  <div className={
                     `${message.senderType === 'USER' ? 'text-right md:mr-[48px]' : 'text-left ml-[16px]'}`}>
                     <p className="text-[#868E96] text-[10px] md:text-[16px] ">{format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
-                  </p>
+                  </div>
                 </div>
               </div>
             </div>
