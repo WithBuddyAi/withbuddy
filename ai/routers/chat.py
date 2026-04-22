@@ -237,10 +237,12 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 content=_OUT_OF_SCOPE_MESSAGE,
             )
         if "chitchat" in raw_intent:
+            name = request.user.name or ""
+            prefix = f"{name}님, " if name else ""
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
-                content="저는 회사 생활과 관련된 질문을 도와드리는 역할이에요 😊 사내 규정·복지·IT 환경 관련해서 궁금한 게 있으면 편하게 물어봐 주세요!",
+                content=f"{prefix}저는 회사 규정·복지·IT 환경 전문가라서 맛집이나 인간관계 꿀팁 같은 건 자신 있게 추천드리기가 어려워요. 😄 그런 건 팀 동료분들이 훨씬 잘 알고 계실 거예요!\n\n사내 규정이나 복지 관련 궁금한 건 언제든 물어봐 주세요. 제가 제일 잘하는 영역이거든요!",
             )
 
     try:
