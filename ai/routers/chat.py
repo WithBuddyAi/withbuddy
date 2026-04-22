@@ -240,7 +240,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
-                content=_OUT_OF_SCOPE_MESSAGE,
+                content="저는 회사 생활과 관련된 질문을 도와드리는 역할이에요 😊 사내 규정·복지·IT 환경 관련해서 궁금한 게 있으면 편하게 물어봐 주세요!",
             )
 
     try:
