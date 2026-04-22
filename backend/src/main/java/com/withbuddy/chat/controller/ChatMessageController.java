@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/chat")
@@ -56,5 +58,11 @@ public class ChatMessageController {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         }
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/quick-questions")
+    @ResponseStatus(HttpStatus.OK)
+    public Map<String, List<Map<String, String>>> getQuickQuestions() {
+        return Map.of("quickQuestions", List.of());
     }
 }
