@@ -62,14 +62,8 @@ app:
           active: ${STORAGE_API_KEY_ACTIVE:true}
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
-    dlx-exchange: ${RABBITMQ_DLX_EXCHANGE:withbuddy.dlx}
     queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
-    queue-nudge: ${RABBITMQ_QUEUE_NUDGE:q.nudge}
-    queue-analytics: ${RABBITMQ_QUEUE_ANALYTICS:q.analytics}
     queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}
-    queue-dlq-nudge: ${RABBITMQ_QUEUE_DLQ_NUDGE:q.dlq.nudge}
-    queue-dlq-analytics: ${RABBITMQ_QUEUE_DLQ_ANALYTICS:q.dlq.analytics}
-    nudge-ttl-ms: ${RABBITMQ_NUDGE_TTL_MS:86400000}
   storage:
     provider: ${STORAGE_PROVIDER:local}
     local-base-dir: ${STORAGE_LOCAL_BASE_DIR:storage-data}
