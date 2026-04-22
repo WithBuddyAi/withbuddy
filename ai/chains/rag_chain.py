@@ -111,9 +111,9 @@ def _is_legal_question(question: str) -> bool:
 
 # ── 2-6: 근로기준법 fallback ──────────────────────────────────
 _LABOR_LAW_KEYWORDS = ["근로기준법", "노동법", "최저임금법", "산업안전보건법", "고용노동부", "노동자 권리", "근로자 권리"]
-_LABOR_LAW_FALLBACK = (
-    "\n\n📌 근로기준법 관련 정확한 내용은 **경영지원팀**께 확인하시는 게 가장 정확해요."
-)
+def _get_labor_law_fallback(company_code: str) -> str:
+    team, _ = _get_hr_contact(company_code)
+    return f"\n\n📌 근로기준법 관련 정확한 내용은 **{team}**께 확인하시는 게 가장 정확해요."
 
 
 def _needs_labor_law_fallback(question: str, answer: str) -> bool:
@@ -178,6 +178,40 @@ async def _fire_unanswered_alert(user_id: str, question: str) -> None:
     except Exception:
         pass  # 알림 실패가 채팅 응답에 영향주지 않도록
 
+_COMPANY_NAMES: dict[str, str] = {
+    "WB0001": "테크 주식회사",
+    "WB0002": "스튜디오 프리즘",
+}
+
+def _get_company_name(company_code: str) -> str:
+    return _COMPANY_NAMES.get(company_code, "우리 회사")
+
+_COMPANY_HR_CONTACTS: dict[str, dict] = {
+    "WB0001": {"team": "경영지원팀", "contact": "경영지원팀 김지수 매니저"},
+    "WB0002": {"team": "운영팀", "contact": "운영팀 김현아 매니저"},
+}
+
+def _get_hr_contact(company_code: str) -> tuple[str, str]:
+    """(팀명, 담당자명) 반환. 미등록 회사는 기본값."""
+    info = _COMPANY_HR_CONTACTS.get(company_code, {"team": "담당 부서", "contact": "담당자"})
+    return info["team"], info["contact"]
+
+_COMPANY_IT_CONTACTS: dict[str, str] = {
+    "WB0001": "Slack @minjun.park (IT담당 박민준)으로 문의해 주세요.",
+    "WB0002": "Slack @soyeon.park (운영팀 박소연 담당)으로 문의해 주세요.",
+}
+
+def _get_it_contact(company_code: str) -> str:
+    return _COMPANY_IT_CONTACTS.get(company_code, "담당 IT 담당자에게 문의해 주세요.")
+
+_COMPANY_SPECIFIC_RULES: dict[str, str] = {
+    "WB0001": "    ⚠️ 이 회사 사용자에게는 수습 감액 분기를 적용하지 않습니다. 이 회사는 수습 기간 중에도 급여 100%를 지급합니다.",
+}
+
+def _get_company_specific_rules(company_code: str) -> str:
+    return _COMPANY_SPECIFIC_RULES.get(company_code, "")
+
+
 _chain = None
 
 
@@ -224,15 +258,16 @@ def _get_legal_source_name(source: str) -> str:
     return source
 
 
-def _format_legal_answer(docs: List[Document], question: str) -> str:
+def _format_legal_answer(docs: List[Document], question: str, company_code: str = "") -> str:
     """
     LEGAL 문서 검색 결과를 LLM 해석 없이 원문 그대로 포맷합니다.
     할루시네이션 방지를 위해 법령 조항은 원문만 반환합니다.
     """
+    _, hr_contact = _get_hr_contact(company_code)
     if not docs:
         return (
-            "음, 제가 가진 법령 자료에서는 해당 내용을 찾지 못했어요 🤔\n"
-            "정확한 내용은 경영지원팀 담당자 또는 경영지원팀 김지수 님께 확인해보세요!"
+            f"음, 제가 가진 법령 자료에서는 해당 내용을 찾지 못했어요 🤔\n"
+            f"정확한 내용은 {hr_contact}께 확인해보세요!"
         )
 
     # 질문 키워드로 관련 청크만 필터링 (너무 많은 청크 출력 방지)
@@ -276,7 +311,7 @@ def _format_legal_answer(docs: List[Document], question: str) -> str:
         parts.append("\n\n".join(contents))
 
     result = "\n".join(parts)
-    result += "\n\n정확한 적용 방법은 경영지원팀 김지수 님께도 확인해보세요! 😊"
+    result += f"\n\n정확한 적용 방법은 {hr_contact}께도 확인해보세요! 😊"
     return result
 
 
@@ -393,7 +428,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
-        answer = _format_legal_answer(retrieved_docs, question)
+        answer = _format_legal_answer(retrieved_docs, question, company_code)
         save_interaction(user_id, question, answer)
         related_docs = find_related_docs(question)
         return answer, source_names, related_docs, doc_ids
@@ -405,6 +440,8 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
+    company_name = _get_company_name(company_code)
+    hr_team, _ = _get_hr_contact(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
@@ -419,12 +456,16 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         "chat_history": chat_history,
         "user_style": user_style,
         "user_name": user_name,
+        "company_name": company_name,
+        "hr_team": hr_team,
+        "it_contact": _get_it_contact(company_code),
+        "company_specific_rules": _get_company_specific_rules(company_code),
     })
     answer = _fix_names(answer)
 
     # 2-6: 근로기준법 fallback
     if _needs_labor_law_fallback(question, answer):
-        answer += _LABOR_LAW_FALLBACK
+        answer += _get_labor_law_fallback(company_code)
 
     # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입
     if _is_unanswered(answer, retrieved_docs):
@@ -432,7 +473,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         if contact:
             answer += f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
         else:
-            answer += "\n\n이 부분은 **경영지원팀**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+            answer += f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
 
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
@@ -506,7 +547,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
-        answer = _format_legal_answer(retrieved_docs, question)
+        answer = _format_legal_answer(retrieved_docs, question, company_code)
         save_interaction(user_id, question, answer)
         related_docs = find_related_docs(question)
         yield answer, None, None
@@ -520,6 +561,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
+    company_name = _get_company_name(company_code)
+    hr_team, _ = _get_hr_contact(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
@@ -537,14 +580,19 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         "chat_history": chat_history,
         "user_style": user_style,
         "user_name": user_name,
+        "company_name": company_name,
+        "hr_team": hr_team,
+        "it_contact": _get_it_contact(company_code),
+        "company_specific_rules": _get_company_specific_rules(company_code),
     }):
         full_answer += chunk
         yield chunk, None, None
 
     # 2-6: 근로기준법 fallback
     if _needs_labor_law_fallback(question, full_answer):
-        yield _LABOR_LAW_FALLBACK, None, None
-        full_answer += _LABOR_LAW_FALLBACK
+        labor_fallback = _get_labor_law_fallback(company_code)
+        yield labor_fallback, None, None
+        full_answer += labor_fallback
 
     # 이름 교정: 스트리밍 완료 후 전체 텍스트 기준으로 교정본 전송
     fixed = _fix_names(full_answer)
@@ -559,7 +607,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         if contact:
             contact_msg = f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
         else:
-            contact_msg = "\n\n이 부분은 **경영지원팀**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+            contact_msg = f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
         yield contact_msg, None, None
         fixed += contact_msg
         asyncio.create_task(_fire_unanswered_alert(user_id, question))
