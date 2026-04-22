@@ -495,10 +495,10 @@ function MyBuddy ({setIsLoggedIn}) {
                     }
                   </div>
 
-                  <p className={
+                  <div className={
                     `${message.senderType === 'USER' ? 'text-right md:mr-[48px]' : 'text-left ml-[16px]'}`}>
                     <p className="text-[#868E96] text-[10px] md:text-[16px] ">{format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
-                  </p>
+                  </div>
                 </div>
               </div>
             </div>
