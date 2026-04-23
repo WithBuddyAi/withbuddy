@@ -381,10 +381,11 @@ public class ChatMessageService {
 
     private void saveConversationPair(Long userId, String userQuestion, String assistantAnswer) {
         String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        writeConversationTurn(key, new ConversationTurn("user", userQuestion));
-        writeConversationTurn(key, new ConversationTurn("assistant", assistantAnswer));
-        redisCacheService.listTrim(key, -MAX_HISTORY_MESSAGES, -1);
-        redisCacheService.expire(key, RedisCacheTtl.CONVERSATION);
+        List<ConversationTurn> turns = List.of(
+                new ConversationTurn("user", userQuestion),
+                new ConversationTurn("assistant", assistantAnswer)
+        );
+        writeConversationTurnsWithRecovery(key, turns);
     }
 
     private void saveConversationHistoryList(Long userId, List<ConversationTurn> history) {
@@ -392,7 +393,25 @@ public class ChatMessageService {
             return;
         }
         String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        for (ConversationTurn turn : history) {
+        writeConversationTurnsWithRecovery(key, history);
+    }
+
+    private void writeConversationTurnsWithRecovery(String key, List<ConversationTurn> turns) {
+        try {
+            writeConversationTurns(key, turns);
+        } catch (RuntimeException ex) {
+            if (isRedisWrongType(ex)) {
+                // 롤링 배포 구간에서 legacy String key가 재생성될 수 있어 쓰기 경로도 복구 처리한다.
+                redisCacheService.delete(key);
+                writeConversationTurns(key, turns);
+                return;
+            }
+            throw ex;
+        }
+    }
+
+    private void writeConversationTurns(String key, List<ConversationTurn> turns) {
+        for (ConversationTurn turn : turns) {
             writeConversationTurn(key, turn);
         }
         redisCacheService.listTrim(key, -MAX_HISTORY_MESSAGES, -1);
