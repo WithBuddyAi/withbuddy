@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom"
-import { MessageSquare, RotateCw, ChevronRight, Send, LogOut, Menu, Calendar as CalendarIcon } from "lucide-react"
+import { MessageSquare, Paperclip, RotateCw, ChevronRight, Send, LogOut, Menu, Calendar as CalendarIcon, Download } from "lucide-react"
 import char from '../assets/Favicon_web.svg'
 import bot from '../assets/Bot_icon.svg'
 import bar from '../assets/side_bar.svg'
@@ -159,7 +159,7 @@ function MyBuddy ({setIsLoggedIn}) {
   useEffect(() => {
     if (isLoading) {
       setLoadingMessage('잠시만요! 우리 사내 문서에서 관련 내용을 꼼꼼히 찾아보고 있어요!')
-      const timer1 = setTimeout(() => {setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)}, 2000)
+      const timer1 = setTimeout(() => {setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)}, 3000)
       return () => {
         clearTimeout(timer1)
       }
@@ -220,6 +220,30 @@ function MyBuddy ({setIsLoggedIn}) {
     if (lastUserMessage) {
       setMessageList(prev => prev.filter(msg => msg.messageType !== 'ai_timeout' && msg.id !== lastUserMessage.id))
       setText(lastUserMessage.content)
+    }
+  }
+
+  // 파일 다운로드
+  const handleDownload = async (downloadUrl, fileName) => {
+    try {
+      const response = await axiosInstance.get(downloadUrl, {
+        responseType: 'blob'
+      })
+
+      const blob = new Blob([response.data])
+      const objectUrl = URL.createObjectURL(blob)
+
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+
+    } catch (error) {
+      setErrorMessage('파일 다운로드에 실패했어요. 다시 시도해 주세요.')
     }
   }
 
@@ -491,7 +515,31 @@ function MyBuddy ({setIsLoggedIn}) {
                         </button>
                       </div>)
                       :
-                      (<ReactMarkdown>{message.content}</ReactMarkdown>)
+                      (<>
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                      {message.documents && message.documents.length > 0 && message.messageType !== 'no_result' && message.messageType !== 'out_of_scope' && (
+                        <div>
+                          <br/>
+                          <p className="font-bold">문서 출처</p>
+                          <div className="inline-flex flex-col items-start py-[10px] px-[16px] rounded-[8px] gap-[8px] border-[1px] border-[#336B971A] bg-[#F7FBFF] h-auto mt-[8px]">
+                          {message.documents.map((doc) => (
+                            <div key={doc.documentId} className="flex flex-wrap gap-[12px]">
+                              <p className={`text-[12px] ${doc.file ? 'pr-[12px] border-r-[1px]' : ''}`}>{doc.title}</p>
+                              {doc.file && (
+                                <div className="flex flex-wrap gap-[8px]">
+                                  <div className="flex items-start gap-[2px] text-[#495057] text-[12px]">
+                                    <Paperclip size={12} className="mt-[3px]"/>
+                                    <p className="break-all">{doc.file.fileName}</p>
+                                  </div>
+                                  <button onClick={() => handleDownload(doc.file.downloadUrl, doc.file.fileName)} className="text-[11px] text-[#336B97] underline">다운로드</button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          </div>
+                        </div>
+                      )}
+                      </>)
                     }
                   </div>
 
@@ -511,9 +559,9 @@ function MyBuddy ({setIsLoggedIn}) {
               <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
               <div className={botClass}>
                 <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}/>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
+                  <div className="w-2 h-2 bg-[#CED4DA] rounded-full animate-bounce" style={{animationDelay: '0ms'}}/>
+                  <div className="w-2 h-2 bg-[#868E96] rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
+                  <div className="w-2 h-2 bg-[#868E96] rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
                 </div>
                 {loadingMessage && <p className="mt-[18px]">{loadingMessage}</p>}
               </div>
