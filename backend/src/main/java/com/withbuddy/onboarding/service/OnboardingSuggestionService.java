@@ -2,6 +2,8 @@ package com.withbuddy.onboarding.service;
 
 import com.withbuddy.auth.repository.UserRepository;
 import com.withbuddy.chat.service.ChatMessageService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
@@ -29,12 +31,12 @@ public class OnboardingSuggestionService {
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
     private final ChatMessageService chatMessageService;
     private final RedisCacheService redisCacheService;
+    private final ObjectMapper objectMapper;
 
     public OnboardingSuggestionListResponse getMyOnboardingSuggestions(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+        UserProfile userProfile = getUserProfile(userId);
 
-        int dayOffset = getOrCacheDayOffset(user);
+        int dayOffset = getOrCacheDayOffset(userId, userProfile.hireDate());
 
         Long suggestionId = getOrCacheQuickTapSuggestionId(dayOffset);
 
@@ -49,7 +51,7 @@ public class OnboardingSuggestionService {
             return new OnboardingSuggestionListResponse(List.of());
         }
 
-        String content = replacePlaceholders(suggestion.getContent(), user.getName(), dayOffset);
+        String content = replacePlaceholders(suggestion.getContent(), userProfile.name(), dayOffset);
 
         String nudgeSentKey = RedisCacheKeys.nudgeSent(userId, dayOffset);
         if (redisCacheService.putIfAbsent(nudgeSentKey, "1", RedisCacheTtl.NUDGE_SENT)) {
@@ -70,14 +72,49 @@ public class OnboardingSuggestionService {
         return new OnboardingSuggestionListResponse(List.of(response));
     }
 
-    private int getOrCacheDayOffset(User user) {
-        String key = RedisCacheKeys.buddyDay(user.getId());
+    private UserProfile getUserProfile(Long userId) {
+        Optional<UserProfile> cached = getCachedUserProfile(userId);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+        return new UserProfile(user.getName(), user.getHireDate());
+    }
+
+    private Optional<UserProfile> getCachedUserProfile(Long userId) {
+        Optional<String> cached = redisCacheService.get(RedisCacheKeys.userProfile(userId));
+        if (cached.isEmpty()) {
+            return Optional.empty();
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(cached.get());
+            JsonNode nameNode = root.get("name");
+            JsonNode hireDateNode = root.get("hireDate");
+
+            if (nameNode == null || nameNode.asText().isBlank()
+                    || hireDateNode == null || hireDateNode.asText().isBlank()) {
+                return Optional.empty();
+            }
+
+            return Optional.of(new UserProfile(
+                    nameNode.asText(),
+                    LocalDate.parse(hireDateNode.asText())
+            ));
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+    }
+
+    private int getOrCacheDayOffset(Long userId, LocalDate hireDate) {
+        String key = RedisCacheKeys.buddyDay(userId);
         Optional<String> cached = redisCacheService.get(key);
         if (cached.isPresent()) {
             return Integer.parseInt(cached.get());
         }
 
-        LocalDate hireDate = user.getHireDate();
         LocalDate today = LocalDate.now(KST);
         int dayOffset = (int) ChronoUnit.DAYS.between(hireDate, today);
         redisCacheService.put(key, String.valueOf(dayOffset), RedisCacheTtl.BUDDY_DAY);
@@ -120,5 +157,8 @@ public class OnboardingSuggestionService {
         return content
                 .replace("{이름}", userName)
                 .replace("{N}", String.valueOf(Math.abs(dayOffset)));
+    }
+
+    private record UserProfile(String name, LocalDate hireDate) {
     }
 }
