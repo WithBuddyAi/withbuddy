@@ -47,7 +47,7 @@ class OnboardingCacheBenchmarkTest {
     // ── 테스트 픽스처 ──────────────────────────────────────────────────
     private static final Long USER_ID       = 1L;
     private static final int  DAY_OFFSET    = 5;    // 입사 5일차
-    private static final Long SUGGESTION_ID = 2L;   // resolveSuggestionId(5) == 2L
+    private static final Long SUGGESTION_ID = 4L;   // resolveSuggestionId(5) == 4L
 
     private UserRepository                userRepo;
     private OnboardingSuggestionRepository suggestionRepo;
