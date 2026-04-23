@@ -5,12 +5,13 @@ import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -39,9 +40,15 @@ public class AiClient {
             }
             return response;
 
-        } catch (HttpClientErrorException e) {
+        } catch (RestClientResponseException e) {
+            HttpStatusCode status = e.getStatusCode();
+            if (status.value() == 408 || status.value() == 504) {
+                log.warn("AI timeout response. status={}, body={}", status, e.getResponseBodyAsString(), e);
+                throw new AiTimeoutException("AI 서버 응답 시간이 초과되었습니다.", e);
+            }
+
             log.error("AI call failed. status={}, body={}",
-                    e.getStatusCode(),
+                    status,
                     e.getResponseBodyAsString(),
                     e);
             throw new RuntimeException("AI 서버 호출 중 오류가 발생했습니다.", e);
