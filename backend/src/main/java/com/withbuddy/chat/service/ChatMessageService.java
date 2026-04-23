@@ -321,7 +321,17 @@ public class ChatMessageService {
 
     private List<ConversationTurn> loadConversationHistoryFromRedis(Long userId) {
         String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        List<String> serialized = redisCacheService.listRange(key, 0, -1);
+        List<String> serialized;
+        try {
+            serialized = redisCacheService.listRange(key, 0, -1);
+        } catch (RuntimeException ex) {
+            if (isRedisWrongType(ex)) {
+                // 배포 전환 구간에서 legacy String key를 정리하고 DB fallback 경로를 사용한다.
+                redisCacheService.delete(key);
+                return List.of();
+            }
+            throw ex;
+        }
         if (serialized.isEmpty()) {
             return List.of();
         }
@@ -338,6 +348,18 @@ public class ChatMessageService {
             }
         }
         return history;
+    }
+
+    private boolean isRedisWrongType(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("WRONGTYPE")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private List<ConversationTurn> loadConversationHistoryFromDb(Long userId) {
