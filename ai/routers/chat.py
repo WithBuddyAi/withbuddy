@@ -221,6 +221,50 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             messageType="out_of_scope",
             content=answer,
         )
+
+    # 오케스트레이터 intent 체크 — out_of_scope/chitchat은 RAG 건너뜀
+    from agents.orchestrator import (
+        _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
+    )
+    if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
+        raw_intent = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+        )
+        if "out_of_scope_internal" in raw_intent:
+            return InternalAIAnswerResponse(
+                questionId=request.questionId,
+                messageType="out_of_scope",
+                content=_OUT_OF_SCOPE_MESSAGE,
+            )
+        if "out_of_scope_external" in raw_intent:
+            return InternalAIAnswerResponse(
+                questionId=request.questionId,
+                messageType="out_of_scope",
+                content=_OUT_OF_SCOPE_EXTERNAL_MESSAGE,
+            )
+        if "chitchat" in raw_intent:
+            user_id = str(request.user.userId)
+            from memory.chat_history import get_chat_history, save_interaction
+            chat_history = get_chat_history(user_id)
+            history_text = "\n".join(
+                f"{'사용자' if m['role'] == 'human' else 'AI'}: {m['content']}"
+                for m in chat_history[-6:]
+            ) if chat_history else ""
+            chitchat_answer = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: _get_chitchat_chain().invoke({
+                    "message": request.content,
+                    "user_style": "",
+                    "chat_history": history_text,
+                }),
+            )
+            save_interaction(user_id, request.content, chitchat_answer)
+            return InternalAIAnswerResponse(
+                questionId=request.questionId,
+                messageType="chitchat",
+                content=chitchat_answer,
+            )
+
     try:
         async with asyncio.timeout(10):
             answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(

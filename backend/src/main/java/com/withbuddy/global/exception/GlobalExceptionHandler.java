@@ -3,6 +3,8 @@ package com.withbuddy.global.exception;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.auth.exception.LoginFailedException;
+import com.withbuddy.global.jwt.SessionNotActiveException;
+import io.jsonwebtoken.JwtException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -10,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -32,6 +35,27 @@ public class GlobalExceptionHandler {
     ) {
         List<FieldValidationError> errors = List.of(
                 new FieldValidationError("login", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "UNAUTHORIZED",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler({UnauthorizedException.class, JwtException.class, SessionNotActiveException.class})
+    public ResponseEntity<ErrorResponse> handleUnauthorizedException(
+            RuntimeException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("auth", "유효하지 않은 인증 정보입니다. 다시 로그인해 주세요.")
         );
 
         ErrorResponse response = new ErrorResponse(
@@ -70,6 +94,27 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
+            MissingRequestHeaderException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("auth", "유효하지 않은 인증 정보입니다. 다시 로그인해 주세요.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "UNAUTHORIZED",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @ExceptionHandler(StorageException.class)
