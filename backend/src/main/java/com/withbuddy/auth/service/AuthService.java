@@ -40,6 +40,10 @@ public class AuthService {
                 normalizedEmployeeNumber
         ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요"));
 
+        // 기존 활성 세션 토큰이 있으면 역방향(reverse) 키(session:token:{oldToken})를 삭제해 누적을 방지한다.
+        redisCacheService.get(RedisCacheKeys.userSession(user.getId()))
+                .ifPresent(oldToken -> redisCacheService.delete(RedisCacheKeys.sessionToken(oldToken)));
+
         String accessToken = jwtService.generateAccessToken(user);
         redisCacheService.put(
                 RedisCacheKeys.sessionToken(accessToken),
