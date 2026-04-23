@@ -11,11 +11,13 @@ public class AiConfig {
 
     @Bean
     public RestClient aiRestClient(
-            @Value("${ai.server.base-url}") String aiBaseUrl
+            @Value("${ai.server.base-url}") String aiBaseUrl,
+            @Value("${ai.server.connect-timeout-ms:5000}") int connectTimeoutMs,
+            @Value("${ai.server.read-timeout-ms:20000}") int readTimeoutMs
     ) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(5000);
-        requestFactory.setReadTimeout(5000);
+        requestFactory.setConnectTimeout(connectTimeoutMs);
+        requestFactory.setReadTimeout(readTimeoutMs);
 
         return RestClient.builder()
                 .baseUrl(aiBaseUrl)

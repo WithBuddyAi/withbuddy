@@ -24,7 +24,7 @@ from utils.sensitive_filter import check_sensitive
 
 # ── 타입 ─────────────────────────────────────────────────────
 
-Intent = Literal["rag", "communication", "preboarding", "company_info", "chitchat", "out_of_scope"]
+Intent = Literal["rag", "communication", "preboarding", "company_info", "chitchat", "out_of_scope_internal", "out_of_scope_external"]
 
 
 class AgentState(TypedDict):
@@ -48,10 +48,12 @@ _INTENT_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """사용자 메시지의 의도를 분류하세요. 반드시 아래 키워드 중 하나만 출력하세요.
 
 chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다")
-out_of_scope : 회사 업무와 완전히 무관한 질문 — 아래 중 하나라도 해당되면 out_of_scope
-  - 직무 실무·기술 (예: "코딩 어떻게 해", "엑셀 수식 알려줘")
+  ⚠️ "대화가 안 돼", "메시지가 안 보내져", "연결이 끊겼어" 같은 서비스 오류 문의는 out_of_scope_external로 분류
+out_of_scope_internal : 직무 실무·기술 등 사수님이 답할 수 있는 업무 관련 질문
+  예) "코딩 어떻게 해", "엑셀 수식 알려줘", "SQL 쿼리 짜줘"
+out_of_scope_external : 회사와 완전히 무관한 외부 주제 — 사수님도 답하기 어려운 것
   - 개인 재무·투자 (예: "투자 조언", "주식 추천") — ⚠️ 최저임금·퇴직금·연차·육아휴직·임금 등 노동법 관련은 절대 out_of_scope 아님, 반드시 rag로 분류
-  - 회사 외부 일상·취미·개인사 (예: "여행지 추천", "연애 상담")
+  - 회사 외부 일상·취미·개인사 (예: "여행지 추천", "연애 상담", "맛집 알려줘")
 rag          : 회사 규정·문서·절차 질문 + 담당자·팀장 질문
   - 회사 규정·절차: 연차 신청 방법, 경비 처리, IT장비, 계약서, 취업규칙 등
   - 담당자·팀장 질문: "XX팀장 누구야", "XX담당", "XX팀 담당자", "PM 팀장님", "백엔드 담당", "프론트엔드 담당" 등 특정 팀/역할의 담당자를 묻는 모든 질문
@@ -66,7 +68,7 @@ preboarding  : 입사 전 안내, 환영 레터, 팀 소개 카드 명시적 요
   ⚠️ "온보딩이 뭐야?", "온보딩이 뭔데?" 같이 온보딩 개념을 묻는 질문은 chitchat으로 분류
 company_info : 기본 회사 생활 정보 (점심시간, 급여일, 근무시간, 복지혜택, 사무실 주소, 드레스코드)
 
-판단 우선순위: chitchat > out_of_scope > communication > company_info > preboarding > rag
+판단 우선순위: chitchat > out_of_scope_internal > out_of_scope_external > communication > company_info > preboarding > rag
 출력 예시: chitchat"""),
     ("human", "{message}"),
 ])
@@ -155,7 +157,7 @@ def classify_intent_node(state: AgentState) -> dict:
         intent = "rag"
     else:
         raw = _get_intent_chain().invoke({"message": msg}).strip().lower()
-        valid = {"rag", "communication", "preboarding", "company_info", "chitchat", "out_of_scope"}
+        valid = ["out_of_scope_internal", "out_of_scope_external", "communication", "preboarding", "company_info", "chitchat", "rag"]
         intent = next((v for v in valid if v in raw), "rag")
 
     extra_context = ""
@@ -268,10 +270,21 @@ _OUT_OF_SCOPE_MESSAGE = (
     "사내 규정·복지·IT 환경 관련 궁금한 건 제가 언제든지 답해드릴게요!"
 )
 
+_OUT_OF_SCOPE_EXTERNAL_MESSAGE = (
+    "저는 회사 규정·복지·IT 환경 전문가라서 맛집이나 인간관계 꿀팁 같은 건 자신 있게 추천드리기가 어려워요. 😄 "
+    "그런 건 팀 동료분들이 훨씬 잘 알고 계실 거예요!\n\n"
+    "사내 규정이나 복지 관련 궁금한 건 언제든 물어봐 주세요. 제가 제일 잘하는 영역이거든요!"
+)
+
 
 def out_of_scope_node(state: AgentState) -> dict:
-    """OUT OF SCOPE — LLM 호출 없이 고정 문구 즉시 반환."""
+    """OUT OF SCOPE INTERNAL — 사수님 문구."""
     return {"answer": _OUT_OF_SCOPE_MESSAGE, "metadata": {"message_type": "out_of_scope"}}
+
+
+def out_of_scope_external_node(state: AgentState) -> dict:
+    """OUT OF SCOPE EXTERNAL — 유형 6 주관적 추천 문구."""
+    return {"answer": _OUT_OF_SCOPE_EXTERNAL_MESSAGE, "metadata": {"message_type": "out_of_scope"}}
 
 
 def chitchat_agent_node(state: AgentState) -> dict:
@@ -307,7 +320,8 @@ def _build_graph():
     g.add_node("load_context", load_context_node)
     g.add_node("classify_intent", classify_intent_node)
     g.add_node("chitchat", chitchat_agent_node)
-    g.add_node("out_of_scope", out_of_scope_node)
+    g.add_node("out_of_scope_internal", out_of_scope_node)
+    g.add_node("out_of_scope_external", out_of_scope_external_node)
     g.add_node("communication", communication_agent_node)
     g.add_node("preboarding", preboarding_agent_node)
     g.add_node("company_info", company_info_agent_node)
@@ -320,14 +334,16 @@ def _build_graph():
         {
             "rag": END,
             "chitchat": "chitchat",
-            "out_of_scope": "out_of_scope",
+            "out_of_scope_internal": "out_of_scope_internal",
+            "out_of_scope_external": "out_of_scope_external",
             "communication": "communication",
             "preboarding": "preboarding",
             "company_info": "company_info",
         },
     )
     g.add_edge("chitchat", END)
-    g.add_edge("out_of_scope", END)
+    g.add_edge("out_of_scope_internal", END)
+    g.add_edge("out_of_scope_external", END)
     g.add_edge("communication", END)
     g.add_edge("preboarding", END)
     g.add_edge("company_info", END)

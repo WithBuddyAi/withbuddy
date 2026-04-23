@@ -1,21 +1,30 @@
 package com.withbuddy.global.jwt;
 
+import com.withbuddy.infrastructure.redis.RedisCacheKeys;
+import com.withbuddy.infrastructure.redis.RedisCacheService;
+import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.user.entity.User;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Date;
+import java.util.Objects;
 
 @Service
+@RequiredArgsConstructor
 public class JwtService {
 
     @Value("${jwt.secret}")
@@ -23,6 +32,8 @@ public class JwtService {
 
     @Value("${jwt.access-expiration}")
     private Long accessExpiration;
+
+    private final RedisCacheService redisCacheService;
 
     private SecretKey secretKey;
 
@@ -65,22 +76,15 @@ public class JwtService {
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
-                    .parseSignedClaims(token);
+            validateAndTouchSession(token);
             return true;
-        } catch (Exception e) {
+        } catch (JwtException | SessionNotActiveException e) {
             return false;
         }
     }
 
     public Claims getClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        return validateAndTouchSession(token);
     }
 
     public Long getUserId(String token) {
@@ -97,5 +101,47 @@ public class JwtService {
 
     public String getName(String token) {
         return getClaims(token).get("name", String.class);
+    }
+
+    private Claims validateAndTouchSession(String token) {
+        Claims claims = parseClaimsAllowExpired(token);
+        Long userId = parseUserId(claims);
+        String activeToken = redisCacheService.get(RedisCacheKeys.userSession(userId))
+                .orElseThrow(() -> new SessionNotActiveException("활성 세션이 만료되었거나 존재하지 않습니다."));
+
+        if (!Objects.equals(activeToken, token)) {
+            throw new SessionNotActiveException("다른 기기에서 다시 로그인되어 현재 세션이 종료되었습니다.");
+        }
+
+        redisCacheService.put(
+                RedisCacheKeys.userSession(userId),
+                token,
+                RedisCacheTtl.SESSION_TOKEN
+        );
+        return claims;
+    }
+
+    private Claims parseClaimsAllowExpired(String token) {
+        if (!StringUtils.hasText(token)) {
+            throw new SessionNotActiveException("인증 토큰이 비어 있습니다.");
+        }
+
+        try {
+            return Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (ExpiredJwtException e) {
+            return e.getClaims();
+        }
+    }
+
+    private Long parseUserId(Claims claims) {
+        try {
+            return Long.parseLong(claims.getSubject());
+        } catch (Exception e) {
+            throw new SessionNotActiveException("토큰 사용자 정보를 해석할 수 없습니다.");
+        }
     }
 }
