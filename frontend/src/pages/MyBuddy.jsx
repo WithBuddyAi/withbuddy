@@ -226,7 +226,9 @@ function MyBuddy ({setIsLoggedIn}) {
   // 파일 다운로드
   const handleDownload = async (downloadUrl, fileName) => {
     try {
-      const response = await axiosInstance.get(downloadUrl, {
+      const { data } = await axiosInstance.get(downloadUrl)
+
+      const response = await axiosInstance.get(data.downloadUrl, {
         responseType: 'blob'
       })
 
