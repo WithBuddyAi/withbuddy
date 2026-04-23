@@ -4,12 +4,15 @@ import com.withbuddy.infrastructure.ai.client.AiClient;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
 import com.withbuddy.chat.dto.ChatMessageResponse;
+import com.withbuddy.infrastructure.ai.dto.ConversationTurn;
 import com.withbuddy.chat.entity.ChatMessageDocument;
 import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.entity.MessageType;
 import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
@@ -22,21 +25,30 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ChatMessageService {
+
+    private static final int MAX_HISTORY_MESSAGES = 10;
+    private static final Duration CONVERSATION_LOCK_TTL = Duration.ofSeconds(5);
+    private static final List<MessageType> HISTORY_TYPES = List.of(MessageType.user_question, MessageType.rag_answer);
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
@@ -45,32 +57,24 @@ public class ChatMessageService {
     private final JwtService jwtService;
     private final AiClient aiClient;
     private final RedisCacheService redisCacheService;
+    private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
     public ChatMessageCreateResponse saveUserMessage(String bearerToken, ChatMessageRequest request) {
         String token = extractToken(bearerToken);
         Long loginUserId = jwtService.getUserId(token);
         String loginUserName = jwtService.getName(token);
         String companyCode = jwtService.getCompanyCode(token);
+        List<ConversationTurn> conversationHistory = resolveConversationHistory(loginUserId);
 
-        ChatMessage questionMessage = new ChatMessage(
-                loginUserId,
-                null,
-                SenderType.USER,
-                MessageType.user_question,
-                request.getContent()
-        );
-
-        ChatMessage savedQuestionMessage = chatMessageRepository.save(questionMessage);
+        ChatMessage savedQuestionMessage = transactionTemplate.execute(status -> saveQuestionMessage(loginUserId, request.getContent()));
+        if (savedQuestionMessage == null) {
+            throw new IllegalStateException("질문 메시지 저장에 실패했습니다.");
+        }
         redisCacheService.put(
                 RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
                 "PENDING",
                 RedisCacheTtl.RAG_STATUS
-        );
-        redisCacheService.put(
-                RedisCacheKeys.conversation(String.valueOf(loginUserId)),
-                savedQuestionMessage.getContent(),
-                RedisCacheTtl.CONVERSATION
         );
 
         AiUserContext userContext = new AiUserContext(
@@ -82,7 +86,8 @@ public class ChatMessageService {
         AiAnswerServerRequest aiRequest = new AiAnswerServerRequest(
                 savedQuestionMessage.getId(),
                 userContext,
-                savedQuestionMessage.getContent()
+                savedQuestionMessage.getContent(),
+                conversationHistory
         );
 
         AiAnswerServerResponse aiResponse;
@@ -108,20 +113,16 @@ public class ChatMessageService {
 
         MessageType answerMessageType = aiResponse.getMessageType();
         List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
-
-        ChatMessage answerMessage = new ChatMessage(
-                loginUserId,
-                null,
-                SenderType.BOT,
-                answerMessageType,
-                aiResponse.getContent()
+        ChatMessage savedAnswerMessage = transactionTemplate.execute(
+                status -> saveAnswerMessage(loginUserId, answerMessageType, aiResponse.getContent(), answerDocumentIds)
         );
-
-        ChatMessage savedAnswerMessage = chatMessageRepository.save(answerMessage);
-        saveDocumentMappings(savedAnswerMessage.getId(), answerDocumentIds);
+        if (savedAnswerMessage == null) {
+            throw new IllegalStateException("답변 메시지 저장에 실패했습니다.");
+        }
 
         Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
         Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
+        saveConversationPair(loginUserId, savedQuestionMessage.getContent(), savedAnswerMessage.getContent());
 
         return new ChatMessageCreateResponse(
                 toResponse(
@@ -137,6 +138,30 @@ public class ChatMessageService {
                         documentFileMap
                 )
         );
+    }
+
+    private ChatMessage saveQuestionMessage(Long userId, String content) {
+        ChatMessage questionMessage = new ChatMessage(
+                userId,
+                null,
+                SenderType.USER,
+                MessageType.user_question,
+                content
+        );
+        return chatMessageRepository.save(questionMessage);
+    }
+
+    private ChatMessage saveAnswerMessage(Long userId, MessageType answerMessageType, String answerContent, List<Long> answerDocumentIds) {
+        ChatMessage answerMessage = new ChatMessage(
+                userId,
+                null,
+                SenderType.BOT,
+                answerMessageType,
+                answerContent
+        );
+        ChatMessage savedAnswerMessage = chatMessageRepository.save(answerMessage);
+        saveDocumentMappings(savedAnswerMessage.getId(), answerDocumentIds);
+        return savedAnswerMessage;
     }
 
     private ChatMessageResponse toResponse(
@@ -259,6 +284,113 @@ public class ChatMessageService {
                 .toList();
 
         chatMessageDocumentRepository.saveAll(mappings);
+    }
+
+    private List<ConversationTurn> resolveConversationHistory(Long userId) {
+        List<ConversationTurn> redisHistory = loadConversationHistoryFromRedis(userId);
+        if (!redisHistory.isEmpty()) {
+            return redisHistory;
+        }
+
+        String lockKey = RedisCacheKeys.conversationLock(userId);
+        String lockValue = UUID.randomUUID().toString();
+
+        if (redisCacheService.putIfAbsent(lockKey, lockValue, CONVERSATION_LOCK_TTL)) {
+            try {
+                List<ConversationTurn> dbHistory = loadConversationHistoryFromDb(userId);
+                if (!dbHistory.isEmpty()) {
+                    saveConversationHistoryList(userId, dbHistory);
+                }
+                return dbHistory;
+            } finally {
+                redisCacheService.releaseLock(lockKey, lockValue);
+            }
+        }
+
+        sleepBriefly();
+        return loadConversationHistoryFromRedis(userId);
+    }
+
+    private void sleepBriefly() {
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private List<ConversationTurn> loadConversationHistoryFromRedis(Long userId) {
+        String key = RedisCacheKeys.conversation(String.valueOf(userId));
+        List<String> serialized = redisCacheService.listRange(key, 0, -1);
+        if (serialized.isEmpty()) {
+            return List.of();
+        }
+
+        List<ConversationTurn> history = new ArrayList<>();
+        for (String item : serialized) {
+            try {
+                ConversationTurn turn = objectMapper.readValue(item, ConversationTurn.class);
+                if (isValidRole(turn.role()) && hasText(turn.content())) {
+                    history.add(turn);
+                }
+            } catch (JsonProcessingException ignored) {
+                // invalid history entry는 건너뛰고 가능한 항목만 사용
+            }
+        }
+        return history;
+    }
+
+    private List<ConversationTurn> loadConversationHistoryFromDb(Long userId) {
+        List<ChatMessage> recent = chatMessageRepository.findTop10ByUserIdAndMessageTypeInOrderByCreatedAtDesc(userId, HISTORY_TYPES);
+        if (recent.isEmpty()) {
+            return List.of();
+        }
+
+        return recent.stream()
+                .sorted(Comparator.comparing(ChatMessage::getCreatedAt))
+                .map(this::toConversationTurn)
+                .toList();
+    }
+
+    private ConversationTurn toConversationTurn(ChatMessage message) {
+        String role = message.getSenderType() == SenderType.USER ? "user" : "assistant";
+        return new ConversationTurn(role, message.getContent());
+    }
+
+    private void saveConversationPair(Long userId, String userQuestion, String assistantAnswer) {
+        String key = RedisCacheKeys.conversation(String.valueOf(userId));
+        writeConversationTurn(key, new ConversationTurn("user", userQuestion));
+        writeConversationTurn(key, new ConversationTurn("assistant", assistantAnswer));
+        redisCacheService.listTrim(key, -MAX_HISTORY_MESSAGES, -1);
+        redisCacheService.expire(key, RedisCacheTtl.CONVERSATION);
+    }
+
+    private void saveConversationHistoryList(Long userId, List<ConversationTurn> history) {
+        if (history.isEmpty()) {
+            return;
+        }
+        String key = RedisCacheKeys.conversation(String.valueOf(userId));
+        for (ConversationTurn turn : history) {
+            writeConversationTurn(key, turn);
+        }
+        redisCacheService.listTrim(key, -MAX_HISTORY_MESSAGES, -1);
+        redisCacheService.expire(key, RedisCacheTtl.CONVERSATION);
+    }
+
+    private void writeConversationTurn(String key, ConversationTurn turn) {
+        try {
+            redisCacheService.listRightPush(key, objectMapper.writeValueAsString(turn));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("대화 이력 직렬화에 실패했습니다.", e);
+        }
+    }
+
+    private boolean isValidRole(String role) {
+        return "user".equals(role) || "assistant".equals(role);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String extractToken(String bearerToken) {
