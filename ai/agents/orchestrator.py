@@ -48,6 +48,7 @@ _INTENT_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """사용자 메시지의 의도를 분류하세요. 반드시 아래 키워드 중 하나만 출력하세요.
 
 chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다")
+  ⚠️ "대화가 안 돼", "메시지가 안 보내져", "연결이 끊겼어" 같은 서비스 오류 문의는 out_of_scope_external로 분류
 out_of_scope_internal : 직무 실무·기술 등 사수님이 답할 수 있는 업무 관련 질문
   예) "코딩 어떻게 해", "엑셀 수식 알려줘", "SQL 쿼리 짜줘"
 out_of_scope_external : 회사와 완전히 무관한 외부 주제 — 사수님도 답하기 어려운 것
