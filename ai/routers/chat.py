@@ -244,7 +244,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             )
         if "chitchat" in raw_intent:
             user_id = str(request.user.userId)
-            from memory.chat_history import get_chat_history
+            from memory.chat_history import get_chat_history, save_interaction
             chat_history = get_chat_history(user_id)
             history_text = "\n".join(
                 f"{'사용자' if m['role'] == 'human' else 'AI'}: {m['content']}"
@@ -258,6 +258,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "chat_history": history_text,
                 }),
             )
+            save_interaction(user_id, request.content, chitchat_answer)
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="chitchat",
