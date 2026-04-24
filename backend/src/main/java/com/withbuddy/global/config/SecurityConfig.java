@@ -55,19 +55,17 @@ public class SecurityConfig {
                     auth.requestMatchers(
                             "/api/v1/auth/login",
                             "/api/v1/auth/logout",
-                            "/api/v1/chat/**",
                             "/error",
                             "/actuator/health",
                             "/actuator/health/**",
                             "/swagger-ui.html",
                             "/swagger-ui/**",
-                            "/v3/api-docs/**",
-                            "/api/v1/onboarding-suggestions/me"
+                            "/v3/api-docs/**"
                     ).permitAll();
 
                     auth.requestMatchers(request -> request.getRequestURI().startsWith("/api/v1/documents")).permitAll();
 
-                    auth.anyRequest().authenticated();
+                    auth.anyRequest().permitAll();
                 });
 
         if (storageApiKeyProperties.isEnabled()) {
