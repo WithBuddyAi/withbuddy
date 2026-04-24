@@ -13,7 +13,6 @@ import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
@@ -61,7 +60,7 @@ public class ChatMessageService {
     private final TransactionTemplate transactionTemplate;
 
     public ChatMessageCreateResponse saveUserMessage(String bearerToken, ChatMessageRequest request) {
-        String token = extractToken(bearerToken);
+        String token = jwtService.extractBearerToken(bearerToken);
         Long loginUserId = jwtService.getUserId(token);
         String loginUserName = jwtService.getName(token);
         String companyCode = jwtService.getCompanyCode(token);
@@ -432,13 +431,6 @@ public class ChatMessageService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
-    }
-
-    private String extractToken(String bearerToken) {
-        if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
-            throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
-        }
-        return bearerToken.substring(7);
     }
 
     @Transactional
