@@ -29,9 +29,13 @@ public class ChatMessageResponse {
     @Schema(description = "메시지 내용", example = "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.")
     private String content;
 
+    @Schema(description = "추천 담당자 목록")
+    private List<RecommendedContactResponse> recommendedContacts;
+
     @Schema(description = "생성 시각", example = "2026-03-24T10:00:02")
     private String createdAt;
 
+    //DocumentResponse 내부 클래스
     @Getter
     @AllArgsConstructor
     @Schema(description = "근거 문서 정보")
@@ -50,6 +54,7 @@ public class ChatMessageResponse {
         private FileResponse file;
     }
 
+    //FileResponse 내부 클래스
     @Getter
     @AllArgsConstructor
     @Schema(description = "문서 파일 정보")
@@ -63,5 +68,45 @@ public class ChatMessageResponse {
 
         @Schema(description = "다운로드 URL", example = "/api/v1/documents/11/download")
         private String downloadUrl;
+    }
+
+    //RecommendedContactResponse 내부 클래스
+    @Getter
+    @AllArgsConstructor
+    @Schema(description = "추천 담당자 정보")
+    public static class RecommendedContactResponse {
+
+        @Schema(description = "담당 부서명", example = "경영지원팀")
+        private String department;
+
+        @Schema(description = "담당자 이름", example = "김지수")
+        private String name;
+
+        @Schema(description = "담당자 직급", example = "매니저")
+        private String position;
+
+        @Schema(description = "연락 수단 목록")
+        private List<ContactMethodResponse> connects;
+    }
+
+    //ContactMethodResponse 내부 클래스
+    @Getter
+    @AllArgsConstructor
+    @Schema(description = "연락 수단 정보")
+    public static class ContactMethodResponse {
+
+        @Schema(description = "연락 수단 유형", example = "email")
+        private ContactType type;
+
+        @Schema(description = "연락 값", example = "jisoo.kim@withbuddy.ai")
+        private String value;
+
+        // ContactType Enum 클래스
+        public enum ContactType {
+            SLACK,
+            EMAIL,
+            PHONE,
+            EXTENSION
+        }
     }
 }

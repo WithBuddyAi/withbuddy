@@ -451,6 +451,17 @@ public class DocumentStorageService {
         );
     }
 
+    private void validateTemplateDocument(Document document) {
+        if (!"TEMPLATE".equals(document.getDocumentType())) {
+            throw new StorageException(
+                    HttpStatus.FORBIDDEN,
+                    "RESOURCE_004",
+                    "documentType",
+                    "TEMPLATE 문서만 다운로드할 수 있습니다."
+            );
+        }
+    }
+
     public DocumentDownloadResponse getDownloadUrl(String authorizationHeader, Long documentId) {
         RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
 
@@ -458,6 +469,7 @@ public class DocumentStorageService {
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
         validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        validateTemplateDocument(document);
 
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
@@ -475,6 +487,7 @@ public class DocumentStorageService {
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
         validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        validateTemplateDocument(document);
 
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
@@ -817,11 +830,8 @@ public class DocumentStorageService {
         if (!StringUtils.hasText(authorizationHeader) || !authorizationHeader.startsWith("Bearer ")) {
             throw new StorageException(HttpStatus.UNAUTHORIZED, "TOKEN_MISSING", "auth", "인증 토큰이 없습니다.");
         }
-        String token = authorizationHeader.substring(7);
-        if (!jwtService.validateToken(token)) {
-            throw new StorageException(HttpStatus.UNAUTHORIZED, "INVALID_TOKEN", "auth", "유효하지 않은 인증 정보입니다.");
-        }
-        return token;
+
+        return authorizationHeader.substring(7);
     }
 
     private void compensatePrimaryObject(String namespace, String bucket, String objectKey, Exception rootCause) {

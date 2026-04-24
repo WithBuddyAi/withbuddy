@@ -145,18 +145,20 @@ public class OnboardingSuggestionService {
     }
 
     private Long resolveSuggestionId(int dayOffset) {
-        // onboarding_suggestions 시드(day_offset: 1, 4, 8, 31)에 맞춘 단계 매핑
-        if (dayOffset >= 31) return 4L;   // 입사 31일차 안내
-        if (dayOffset >= 8) return 3L;    // 입사 8일차 안내
-        if (dayOffset >= 4) return 2L;    // 입사 4일차 안내
-        if (dayOffset >= 1) return 1L;    // 입사 1일차 안내
+        if (dayOffset >= -7 && dayOffset <= -4) return 1L;
+        if (dayOffset >= -3 && dayOffset <= -1) return 2L;
+        if (dayOffset == 0) return 3L;
+        if (dayOffset >= 1 && dayOffset <= 7) return 4L;
+        if (dayOffset >= 8) return 5L;
         return null;
     }
 
     private String replacePlaceholders(String content, String userName, int dayOffset) {
+        int displayDay = dayOffset >= 0 ? dayOffset + 1 : Math.abs(dayOffset);
+
         return content
                 .replace("{이름}", userName)
-                .replace("{N}", String.valueOf(Math.abs(dayOffset)));
+                .replace("{N}", String.valueOf(displayDay));
     }
 
     private record UserProfile(String name, LocalDate hireDate) {

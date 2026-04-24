@@ -1,7 +1,7 @@
 # WithBuddy API 명세서
 
 > WithBuddy MVP 기준 REST API 문서
->
+> 
 **버전**: 1.7.7
 **최종 업데이트**: 2026-04-23
 
@@ -200,10 +200,10 @@ Content-Type: application/json
 
 #### Request Field
 
-| 필드 | 타입 | 필수 | 예시값          | 설명 | 상세 규칙 |
-|------|------|------|--------------|------|-----------|
-| `companyCode` | `String` | Y | `"WB0001"`   | 회사 식별 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
-| `employeeNumber` | `String` | Y | `"20260001"` | 사용자 사번 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| 필드 | 타입 | 필수 | 예시값          | 설명 | 상세 규칙                                           |
+|------|------|------|--------------|------|-------------------------------------------------|
+| `companyCode` | `String` | Y | `"WB0001"`   | 회사 식별 코드 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가    |
+| `employeeNumber` | `String` | Y | `"20260001"` | 사용자 사번 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가    |
 | `name` | `String` | Y | `"김지원"`      | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
 
 #### 동작 규칙
@@ -520,15 +520,15 @@ Content-Type: application/json
         "position": "매니저",
         "connects": [
           {
-            "type": "slack",
+            "type": "SLACK",
             "value": "@jisoo.kim"
           },
           {
-            "type": "email",
+            "type": "EMAIL",
             "value": "jisoo.kim@withbuddy.ai"
           },
           {
-            "type": "extension",
+            "type": "EXTENSION",
             "value": "635"
           }
         ]
@@ -600,6 +600,12 @@ Content-Type: application/json
   - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내
   - `suggestion`: 온보딩 제안 메시지
 
+- `ContactType`
+  - `phone`: 핸드폰 번호
+  - `email`: 이메일 주소
+  - `slack`: 슬랙 아이디
+  - `extension`: 내선 번호
+
 #### 동작 규칙
 
 - 질문 메시지는 `chat_messages`에 `sender_type = USER`, `message_type = user_question`으로 저장한다.
@@ -641,8 +647,8 @@ GET /api/v1/onboarding-suggestions/me
 Authorization: Bearer {accessToken}
 ```
 #### 동작 기준
-
-- `dayOffset = (KST 기준 오늘 날짜 - hireDate)`
+- 입사 전
+  - `dayOffset = (KST 기준 오늘 날짜 - hireDate)`
 - 일치하는 제안이 있으면 반환한다.
 - 일치하는 제안이 없으면 빈 배열을 반환한다.
 
@@ -792,15 +798,15 @@ Content-Type: application/json
 | `user` | `Object` | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별 및 회사 문서 범위 판별에 필요한 정보 |
 | `content` | `String` | Y | `"복지카드는 어떻게 신청하나요?"` | 사용자가 입력한 질문 내용 | 길이: 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
 
-#### Request Field (`user`)
+  #### Request Field (`user`)
 
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+  | 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
   |------|------|------|-------|------|-----------|
-| `user.userId` | `Long` | Y | `1` | 로그인한 사용자 ID | 양의 정수 |
-| `user.name` | `String` | Y | `"김지원"` | 로그인한 사용자 이름 | 길이: 1~100자 |
-| `user.companyCode` | `String` | Y | `"WB0001"` | 로그인한 사용자의 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+  | `user.userId` | `Long` | Y | `1` | 로그인한 사용자 ID | 양의 정수 |
+  | `user.name` | `String` | Y | `"김지원"` | 로그인한 사용자 이름 | 길이: 1~100자 |
+  | `user.companyCode` | `String` | Y | `"WB0001"` | 로그인한 사용자의 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 
-#### Response (200 OK)
+  #### Response (200 OK)
 
   ```json
 {
