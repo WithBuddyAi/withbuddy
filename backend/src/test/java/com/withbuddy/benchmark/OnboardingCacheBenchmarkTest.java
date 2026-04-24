@@ -2,6 +2,7 @@ package com.withbuddy.benchmark;
 
 import com.withbuddy.auth.repository.UserRepository;
 import com.withbuddy.chat.service.ChatMessageService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.onboarding.entity.OnboardingSuggestion;
 import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
@@ -30,8 +31,8 @@ import static org.mockito.Mockito.*;
  *     - 결과: 매 요청마다 user + suggestion + nudge(existsBy+save) 전체 DB 경로 실행
  *
  * [B] After Redis (Warm Cache)
- *     - buddy:day / quicktap / nudge:sent 모두 캐시됨
- *     - 결과: user + suggestion DB만 실행, nudge DB 쿼리 스킵
+ *     - user:profile / buddy:day / quicktap / nudge:sent 모두 캐시됨
+ *     - 결과: suggestion DB만 실행, user + nudge DB 쿼리 스킵
  *
  * DB 레이턴시 시뮬레이션: Thread.sleep(DB_LATENCY_MS)으로 실제 MySQL ~5ms 모사
  * 외부 의존성 없음 — Redis/MySQL 없이 로컬 실행 가능
@@ -111,12 +112,13 @@ class OnboardingCacheBenchmarkTest {
 
     /**
      * Warm Cache (After).
-     * buddy:day / quicktap / nudge:sent 모두 사전 적재.
+     * user:profile / buddy:day / quicktap / nudge:sent 모두 사전 적재.
      * putIfAbsent("nudge:sent:...") → false (이미 존재)
      *   → chatService.saveSuggestionMessageIfNotExists() 호출 안 함
      */
     private RedisCacheService buildWarmCache() {
         Map<String, String> store = new ConcurrentHashMap<>();
+        store.put("user:profile:" + USER_ID, "{\"name\":\"테스트유저\",\"hireDate\":\"" + LocalDate.now().minusDays(DAY_OFFSET) + "\"}");
         store.put("buddy:day:"  + USER_ID,                    String.valueOf(DAY_OFFSET));
         store.put("quicktap:"   + DAY_OFFSET,                 String.valueOf(SUGGESTION_ID));
         store.put("nudge:sent:" + USER_ID + ":" + DAY_OFFSET, "1");
@@ -136,7 +138,7 @@ class OnboardingCacheBenchmarkTest {
 
     private long[] measure(RedisCacheService redis) throws Exception {
         OnboardingSuggestionService service =
-            new OnboardingSuggestionService(userRepo, suggestionRepo, chatService, redis);
+            new OnboardingSuggestionService(userRepo, suggestionRepo, chatService, redis, new ObjectMapper());
 
         // 웜업 (JIT 컴파일 안정화)
         for (int i = 0; i < WARMUP_ITERS; i++) {
@@ -179,11 +181,10 @@ class OnboardingCacheBenchmarkTest {
         System.out.println("║    (chatMessageRepository.existsBy + optional save 생략)              ║");
         System.out.println("╠═══════════════════════════════════════════════════════════════════════╣");
         System.out.println("║  [미절감 — 항상 DB 호출]                                              ║");
-        System.out.println("║    userRepo.findById()        → user:profile 읽기 경로 미구현          ║");
         System.out.println("║    suggestionRepo.findById()  → suggestion 캐싱 미구현                 ║");
         System.out.println("╠═══════════════════════════════════════════════════════════════════════╣");
         System.out.println("║  [추가 개선 가능]                                                     ║");
-        System.out.println("║    user:profile / quicktap suggestion 읽기 캐싱 시 3쿼리 → 0쿼리      ║");
+        System.out.println("║    suggestion 읽기 캐싱 시 1쿼리 → 0쿼리                               ║");
         System.out.println("╚═══════════════════════════════════════════════════════════════════════╝");
         System.out.println();
     }

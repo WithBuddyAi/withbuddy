@@ -1,6 +1,6 @@
 package com.withbuddy.chat.controller;
 
-import com.withbuddy.activity.dto.SessionStartLogResponse;
+import com.withbuddy.activity.dto.LogResponse;
 import com.withbuddy.activity.service.UserActivityLogService;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
@@ -49,10 +49,10 @@ public class ChatMessageController {
     }
 
     @PostMapping("/session-start")
-    public ResponseEntity<SessionStartLogResponse> saveSessionStart(
+    public ResponseEntity<LogResponse> saveSessionStart(
             @RequestHeader("Authorization") String bearerToken
     ) {
-        SessionStartLogResponse response = userActivityLogService.saveChatSessionStart(bearerToken);
+        LogResponse response = userActivityLogService.saveChatSessionStart(bearerToken);
 
         if (response.isLogged()) {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -62,7 +62,17 @@ public class ChatMessageController {
 
     @GetMapping("/quick-questions")
     @ResponseStatus(HttpStatus.OK)
-    public Map<String, List<Map<String, String>>> getQuickQuestions() {
-        return Map.of("quickQuestions", List.of());
+    public Map<String, List<Map<String, String>>> getQuickQuestions(
+            @RequestHeader("Authorization") String authorizationHeader
+    ) {
+        return chatMessageService.getQuickQuestions(authorizationHeader);
+    }
+
+    @PostMapping("/quick-questions/click")
+    @ResponseStatus(HttpStatus.CREATED)
+    public LogResponse saveQuickQuestionClick(
+            @RequestHeader("Authorization") String bearerToken
+    ) {
+        return userActivityLogService.saveQuickQuestionClick(bearerToken);
     }
 }
