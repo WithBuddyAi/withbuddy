@@ -4,6 +4,7 @@ import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.auth.exception.LoginFailedException;
 import com.withbuddy.global.jwt.SessionNotActiveException;
+import com.withbuddy.global.jwt.TokenMissingException;
 import io.jsonwebtoken.JwtException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
@@ -76,7 +77,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("token", "로그인 정보가 만료됐어요. 다시 로그인해주세요.")
+                new FieldValidationError("token", "액세스 토큰이 만료되었습니다.")
         );
 
         ErrorResponse response = new ErrorResponse(
@@ -169,7 +170,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("auth", "인증 토큰이 없습니다.")
+                new FieldValidationError("auth", "인증 토큰이 누락되었습니다.")
         );
 
         ErrorResponse response = new ErrorResponse(
@@ -251,5 +252,26 @@ public class GlobalExceptionHandler {
         log.error("서버 오류: path={}", request.getRequestURI(), e);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
+    @ExceptionHandler(TokenMissingException.class)
+    public ResponseEntity<ErrorResponse> handleTokenMissingException(
+            TokenMissingException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("auth", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "TOKEN_MISSING",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 }
