@@ -37,6 +37,11 @@ _COMPANY_DEFAULT_PERSON: dict[str, str] = {
     "WB0002": "김현아",
 }
 
+_COMPANY_DEFAULT_CONTACT: dict[str, dict] = {
+    "WB0001": {"department": "경영지원팀", "name": "김지수", "position": "", "connects": []},
+    "WB0002": {"department": "운영팀(HR)", "name": "김현아", "position": "", "connects": []},
+}
+
 router = APIRouter(tags=["recommend"])
 
 
