@@ -82,7 +82,7 @@ src/
 ├── api/
 │   └── axiosInstance.js     # axios 공통 설정 (토큰 자동 첨부, 401 자동 로그아웃)
 ├── contexts/
-│   └── Context.jsx          # 전역 상태 관리 (Context API)
+│   └── UserContext.jsx      # 사용자 정보 전역 상태 관리 (hireDate, dayOffset)
 ├── components/
 │   └── Layout.jsx           # 공통 레이아웃 (헤더 등 반복 UI)
 └── pages/
@@ -97,6 +97,10 @@ src/
 > 💡 **axiosInstance란?**  
 > 모든 API 요청에 토큰을 자동으로 첨부하고,  
 > 토큰 만료 등 401 에러 발생 시 자동으로 로그아웃 처리하는 axios 공통 설정 파일
+
+> 💡 **UserContext란?**  
+> 로그인한 사용자의 hireDate, dayOffset 등을 전역으로 관리하여  
+> 여러 컴포넌트에서 공통으로 사용할 수 있도록 하는 Context API 파일
 
 <br>
 
@@ -164,3 +168,4 @@ git commit -m "ㅇㅇ"
 
 - 2026-04-02: 브랜치 전략 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.
 - 2026-04-22: 프로젝트 구조에 `api/axiosInstance.js` 추가.
+- 2026-04-25: `contexts/UserContext.jsx` 추가 (hireDate·dayOffset 전역 상태 관리), dayOffset 계산 로직 개선, SSoT 인증 상태 통합.
