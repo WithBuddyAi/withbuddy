@@ -7,7 +7,7 @@ public final class RedisCacheTtl {
     private RedisCacheTtl() {
     }
 
-    public static final Duration SESSION_TOKEN = Duration.ofHours(9);
+    public static final Duration SESSION_TOKEN = Duration.ofHours(24);
     public static final Duration USER_PROFILE = Duration.ofMinutes(30);
     public static final Duration SSE_SESSION = Duration.ofMinutes(32);
     public static final Duration SSE_MISSED = Duration.ofMinutes(5);

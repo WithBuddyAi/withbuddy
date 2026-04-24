@@ -45,6 +45,10 @@ public final class RedisCacheKeys {
         return "conversation:" + sessionId;
     }
 
+    public static String conversationLock(Long userId) {
+        return "lock:conv:" + userId;
+    }
+
     public static String presignedUrl(Long fileId) {
         return "presigned:url:" + fileId;
     }
