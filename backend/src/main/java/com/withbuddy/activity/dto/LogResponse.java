@@ -5,7 +5,7 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public class SessionStartLogResponse {
+public class LogResponse {
     private boolean logged;
     private String eventType;
     private String eventTarget;
