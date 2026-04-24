@@ -199,10 +199,15 @@ class InternalAIAnswerUser(BaseModel):
     companyCode: str = ""
 
 
+class ConversationTurn(BaseModel):
+    role: str
+    content: str
+
 class InternalAIAnswerRequest(BaseModel):
     questionId: int
     user: InternalAIAnswerUser
     content: str
+    conversationHistory: list[ConversationTurn] = Field(default_factory=list)
 
 class InternalAIAnswerResponse(BaseModel):
     questionId: int
@@ -228,14 +233,21 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
     )
     if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
-        raw_intent = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
-        )
+        try:
+            async with asyncio.timeout(3):
+                raw_intent = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+                )
+        except asyncio.TimeoutError:
+            raw_intent = "rag"  # intent 체크 지연 시 RAG로 폴백
         if "out_of_scope_internal" in raw_intent:
+            from routers.recommend import get_contact_for_question
+            contact = await get_contact_for_question(request.user.companyCode, request.content)
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
                 content=_OUT_OF_SCOPE_MESSAGE,
+                recommendedContacts=[contact],
             )
         if "out_of_scope_external" in raw_intent:
             return InternalAIAnswerResponse(
@@ -266,8 +278,18 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 content=chitchat_answer,
             )
 
+    from langchain_core.messages import HumanMessage, AIMessage
+    injected_history = None
+    if request.conversationHistory:
+        injected_history = []
+        for turn in request.conversationHistory:
+            if turn.role == "user":
+                injected_history.append(HumanMessage(content=turn.content))
+            else:
+                injected_history.append(AIMessage(content=turn.content))
+
     try:
-        async with asyncio.timeout(10):
+        async with asyncio.timeout(18):
             answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: run_rag_chain(
@@ -275,6 +297,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     request.content,
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
+                    injected_history=injected_history,
                 )
             )
     except asyncio.TimeoutError:
@@ -296,7 +319,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         message_type = "rag_answer"
 
     recommended_contacts = []
-    if message_type == "no_result":
+    if message_type in ("no_result", "out_of_scope"):
         from routers.recommend import get_contact_for_question
         contact = await get_contact_for_question(request.user.companyCode, request.content)
         recommended_contacts = [contact]
