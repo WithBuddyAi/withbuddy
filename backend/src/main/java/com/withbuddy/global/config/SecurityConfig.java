@@ -65,7 +65,7 @@ public class SecurityConfig {
 
                     auth.requestMatchers(request -> request.getRequestURI().startsWith("/api/v1/documents")).permitAll();
 
-                    auth.anyRequest().authenticated();
+                    auth.anyRequest().permitAll();
                 });
 
         if (storageApiKeyProperties.isEnabled()) {
