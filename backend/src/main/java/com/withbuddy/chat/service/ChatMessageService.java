@@ -490,6 +490,6 @@ public class ChatMessageService {
                         Map.of("content", "재직증명서 신청 방법 알려줘요"),
                         Map.of("content", "장비 세팅하는 방법 알려주세요")
                 )
-        )
+        );
     }
 }
