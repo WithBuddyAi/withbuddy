@@ -233,9 +233,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
     )
     if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
-        raw_intent = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
-        )
+        try:
+            async with asyncio.timeout(3):
+                raw_intent = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+                )
+        except asyncio.TimeoutError:
+            raw_intent = "rag"  # intent 체크 지연 시 RAG로 폴백
         if "out_of_scope_internal" in raw_intent:
             from routers.recommend import get_contact_for_question
             contact = await get_contact_for_question(request.user.companyCode, request.content)
@@ -285,7 +289,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 injected_history.append(AIMessage(content=turn.content))
 
     try:
-        async with asyncio.timeout(10):
+        async with asyncio.timeout(18):
             answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: run_rag_chain(
