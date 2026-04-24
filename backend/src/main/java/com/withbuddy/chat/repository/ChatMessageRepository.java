@@ -20,6 +20,11 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             LocalDateTime end
     );
 
+    List<ChatMessage> findTop10ByUserIdAndMessageTypeInOrderByCreatedAtDesc(
+            Long userId,
+            List<MessageType> messageTypes
+    );
+
     boolean existsByUserIdAndSuggestionIdAndMessageType(
             Long userId,
             Long suggestionId,

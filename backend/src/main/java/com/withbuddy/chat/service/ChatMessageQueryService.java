@@ -31,7 +31,7 @@ public class ChatMessageQueryService {
     private final JwtService jwtService;
 
     public ChatMessageListResponse getMessages(String bearerToken, LocalDate date) {
-        String token = bearerToken.replace("Bearer ", "");
+        String token = jwtService.extractBearerToken(bearerToken);
         Long userId = jwtService.getUserId(token);
 
         List<ChatMessage> chatMessages = findChatMessages(userId, date);

@@ -1,5 +1,6 @@
 package com.withbuddy.global.jwt;
 
+import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
@@ -101,6 +102,13 @@ public class JwtService {
 
     public String getName(String token) {
         return getClaims(token).get("name", String.class);
+    }
+
+    public String extractBearerToken(String bearerToken) {
+        if (!StringUtils.hasText(bearerToken) || !bearerToken.startsWith("Bearer ")) {
+            throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
+        }
+        return bearerToken.substring(7);
     }
 
     private Claims validateAndTouchSession(String token) {
