@@ -284,7 +284,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
 
     _NO_RESULT_KW = ["문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
                      "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
-                     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요"]
+                     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요",
+                     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵"]
     _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
     if any(kw in answer for kw in _OUT_OF_SCOPE_KW):
@@ -296,10 +297,9 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
 
     recommended_contacts = []
     if message_type == "no_result":
-        from routers.recommend import _COMPANY_DEFAULT_CONTACT
-        contact = _COMPANY_DEFAULT_CONTACT.get(request.user.companyCode)
-        if contact:
-            recommended_contacts = [contact]
+        from routers.recommend import get_contact_for_question
+        contact = await get_contact_for_question(request.user.companyCode, request.content)
+        recommended_contacts = [contact]
 
     return InternalAIAnswerResponse(
         questionId=request.questionId,
