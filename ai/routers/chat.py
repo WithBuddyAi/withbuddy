@@ -237,10 +237,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
         )
         if "out_of_scope_internal" in raw_intent:
+            from routers.recommend import get_contact_for_question
+            contact = await get_contact_for_question(request.user.companyCode, request.content)
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
                 content=_OUT_OF_SCOPE_MESSAGE,
+                recommendedContacts=[contact],
             )
         if "out_of_scope_external" in raw_intent:
             return InternalAIAnswerResponse(
@@ -312,7 +315,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         message_type = "rag_answer"
 
     recommended_contacts = []
-    if message_type == "no_result":
+    if message_type in ("no_result", "out_of_scope"):
         from routers.recommend import get_contact_for_question
         contact = await get_contact_for_question(request.user.companyCode, request.content)
         recommended_contacts = [contact]
