@@ -1,6 +1,6 @@
 package com.withbuddy.activity.service;
 
-import com.withbuddy.activity.dto.SessionStartLogResponse;
+import com.withbuddy.activity.dto.LogResponse;
 import com.withbuddy.activity.entity.EventTarget;
 import com.withbuddy.activity.entity.EventType;
 import com.withbuddy.activity.entity.UserActivityLog;
@@ -33,8 +33,8 @@ public class UserActivityLogService {
     }
 
     @Transactional
-    public SessionStartLogResponse saveChatSessionStart(String bearerToken) {
-        String token = bearerToken.replace("Bearer ", "");
+    public LogResponse saveChatSessionStart(String bearerToken) {
+        String token = jwtService.extractBearerToken(bearerToken);
         Long userId = jwtService.getUserId(token);
 
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
@@ -49,7 +49,7 @@ public class UserActivityLogService {
                         );
 
         if (recentLog.isPresent()) {
-            return new SessionStartLogResponse(
+            return new LogResponse(
                     false,
                     EventType.SESSION_START.name(),
                     EventTarget.CHAT.name(),
@@ -67,7 +67,29 @@ public class UserActivityLogService {
                 )
         );
 
-        return new SessionStartLogResponse(
+        return new LogResponse(
+                true,
+                savedLog.getEventType().name(),
+                savedLog.getEventTarget().name(),
+                null,
+                savedLog.getCreatedAt().toString()
+        );
+    }
+    @Transactional
+    public LogResponse saveQuickQuestionClick(String bearerToken) {
+        String token = jwtService.extractBearerToken(bearerToken);
+        Long userId = jwtService.getUserId(token);
+
+        UserActivityLog log = new UserActivityLog(
+                userId,
+                EventType.BUTTON_CLICK,
+                EventTarget.QUICK_TAP,
+                LocalDateTime.now()
+        );
+
+        UserActivityLog savedLog = userActivityLogRepository.save(log);
+
+        return new LogResponse(
                 true,
                 savedLog.getEventType().name(),
                 savedLog.getEventTarget().name(),
