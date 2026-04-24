@@ -10,11 +10,10 @@ import com.withbuddy.chat.service.ChatMessageService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
-
 
 import java.time.LocalDate;
 import java.util.List;
@@ -33,7 +32,7 @@ public class ChatMessageController {
     @PostMapping("/messages")
     @ResponseStatus(HttpStatus.CREATED)
     public ChatMessageCreateResponse sendMessage(
-            @RequestHeader("Authorization") String bearerToken,
+            @RequestHeader(value = "Authorization", required = false) String bearerToken,
             @Valid @RequestBody ChatMessageRequest request
     ) {
         return chatMessageService.saveUserMessage(bearerToken, request);
@@ -42,36 +41,38 @@ public class ChatMessageController {
     @GetMapping("/messages")
     @ResponseStatus(HttpStatus.OK)
     public ChatMessageListResponse getMessages(
-            @RequestHeader("Authorization") String bearerToken,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+            @RequestHeader(value = "Authorization", required = false) String bearerToken,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
         return chatMessageQueryService.getMessages(bearerToken, date);
     }
 
     @PostMapping("/session-start")
     public ResponseEntity<LogResponse> saveSessionStart(
-            @RequestHeader("Authorization") String bearerToken
+            @RequestHeader(value = "Authorization", required = false) String bearerToken
     ) {
         LogResponse response = userActivityLogService.saveChatSessionStart(bearerToken);
 
         if (response.isLogged()) {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         }
+
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/quick-questions")
     @ResponseStatus(HttpStatus.OK)
     public Map<String, List<Map<String, String>>> getQuickQuestions(
-            @RequestHeader("Authorization") String authorizationHeader
+            @RequestHeader(value = "Authorization", required = false) String bearerToken
     ) {
-        return chatMessageService.getQuickQuestions(authorizationHeader);
+        return chatMessageService.getQuickQuestions(bearerToken);
     }
 
     @PostMapping("/quick-questions/click")
     @ResponseStatus(HttpStatus.CREATED)
     public LogResponse saveQuickQuestionClick(
-            @RequestHeader("Authorization") String bearerToken
+            @RequestHeader(value = "Authorization", required = false) String bearerToken
     ) {
         return userActivityLogService.saveQuickQuestionClick(bearerToken);
     }

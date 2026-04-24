@@ -51,6 +51,7 @@ public class JwtService {
             if (raw.length >= 32) {
                 return raw;
             }
+
             try {
                 return MessageDigest.getInstance("SHA-256").digest(raw);
             } catch (NoSuchAlgorithmException e) {
@@ -78,7 +79,7 @@ public class JwtService {
         try {
             validateAndTouchSession(token);
             return true;
-        } catch (JwtException | SessionNotActiveException e) {
+        } catch (JwtException | SessionNotActiveException | UnauthorizedException | TokenMissingException e) {
             return false;
         }
     }
@@ -100,15 +101,29 @@ public class JwtService {
     }
 
     public String extractBearerToken(String bearerToken) {
-        if (!StringUtils.hasText(bearerToken) || !bearerToken.startsWith("Bearer ")) {
+        if (!StringUtils.hasText(bearerToken)) {
+            throw new TokenMissingException("인증 토큰이 누락되었습니다.");
+        }
+
+        String trimmedBearerToken = bearerToken.trim();
+
+        if (!trimmedBearerToken.regionMatches(true, 0, "Bearer ", 0, 7)) {
             throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
         }
-        return bearerToken.substring(7);
+
+        String token = trimmedBearerToken.substring(7).trim();
+
+        if (!StringUtils.hasText(token)) {
+            throw new TokenMissingException("인증 토큰이 누락되었습니다.");
+        }
+
+        return token;
     }
 
     private Claims validateAndTouchSession(String token) {
         Claims claims = parseValidClaims(token);
         Long userId = parseUserId(claims);
+
         String activeToken = redisCacheService.get(RedisCacheKeys.userSession(userId))
                 .orElseThrow(() -> new SessionNotActiveException("활성 세션이 만료되었거나 존재하지 않습니다."));
 
@@ -121,12 +136,13 @@ public class JwtService {
                 token,
                 RedisCacheTtl.SESSION_TOKEN
         );
+
         return claims;
     }
 
     private Claims parseValidClaims(String token) {
         if (!StringUtils.hasText(token)) {
-            throw new SessionNotActiveException("인증 토큰이 비어 있습니다.");
+            throw new TokenMissingException("인증 토큰이 누락되었습니다.");
         }
 
         return Jwts.parser()
@@ -140,7 +156,7 @@ public class JwtService {
         try {
             return Long.parseLong(claims.getSubject());
         } catch (Exception e) {
-            throw new SessionNotActiveException("토큰 사용자 정보를 해석할 수 없습니다.");
+            throw new UnauthorizedException("토큰 사용자 정보를 해석할 수 없습니다.");
         }
     }
 }
