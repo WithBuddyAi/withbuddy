@@ -42,6 +42,43 @@ _COMPANY_DEFAULT_CONTACT: dict[str, dict] = {
     "WB0002": {"department": "운영팀(HR)", "name": "김현아", "position": "", "connects": []},
 }
 
+_COMPANY_CONTACTS_STRUCTURED: dict[str, list] = {
+    "WB0001": [
+        {"department": "경영지원팀", "name": "김지수", "position": "", "connects": []},
+        {"department": "IT담당", "name": "박민준", "position": "", "connects": []},
+    ],
+    "WB0002": [
+        {"department": "운영팀(HR)", "name": "김현아", "position": "", "connects": []},
+        {"department": "운영팀(IT)", "name": "박소연", "position": "", "connects": []},
+        {"department": "크리에이티브팀", "name": "박서준", "position": "", "connects": []},
+        {"department": "퍼포먼스마케팅팀", "name": "이도윤", "position": "", "connects": []},
+    ],
+}
+
+
+async def get_contact_for_question(company_code: str, message: str) -> dict:
+    code = company_code or "WB0001"
+    contacts = _COMPANY_CONTACTS_STRUCTURED.get(code, [])
+    default = _COMPANY_DEFAULT_CONTACT.get(code, {"department": "담당 부서", "name": "담당자", "position": "", "connects": []})
+
+    if not contacts:
+        return default
+
+    try:
+        if code not in _recommend_chains:
+            _recommend_chains[code] = RECOMMEND_PROMPT | get_llm() | StrOutputParser()
+        contacts_info = _COMPANY_CONTACTS.get(code, _COMPANY_CONTACTS["WB0001"])
+        raw = await _recommend_chains[code].ainvoke({"message": message, "contacts_info": contacts_info})
+        parsed = _parse_recommendation(raw)
+        person_name = parsed.get("person", "")
+        for contact in contacts:
+            if contact["name"] == person_name:
+                return contact
+    except Exception:
+        pass
+
+    return default
+
 router = APIRouter(tags=["recommend"])
 
 
