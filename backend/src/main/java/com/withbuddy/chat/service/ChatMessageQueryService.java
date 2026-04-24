@@ -4,8 +4,11 @@ import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageResponse;
 import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.entity.ChatMessageDocument;
+import com.withbuddy.chat.entity.MessageType;
+import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
+import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
@@ -85,7 +88,8 @@ public class ChatMessageQueryService {
                 .map(ChatMessage::getId)
                 .toList();
 
-        List<ChatMessageDocument> mappings = chatMessageDocumentRepository.findByChatMessageIdIn(messageIds);
+        List<ChatMessageDocument> mappings =
+                chatMessageDocumentRepository.findByChatMessageIdIn(messageIds);
 
         return mappings.stream()
                 .sorted(Comparator.comparing(ChatMessageDocument::getId))
@@ -117,6 +121,30 @@ public class ChatMessageQueryService {
                 ));
     }
 
+    private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
+        if (message.getSenderType() != SenderType.BOT || message.getMessageType() != MessageType.no_result) {
+            return Collections.emptyList();
+        }
+
+        return List.of(
+                new ChatMessageResponse.RecommendedContactResponse(
+                        "경영지원팀",
+                        "김지수",
+                        "매니저",
+                        List.of(
+                                new ChatMessageResponse.ContactMethodResponse(
+                                        ChatMessageResponse.ContactMethodResponse.ContactType.EMAIL,
+                                        "jisoo.kim@withbuddy.ai"
+                                ),
+                                new ChatMessageResponse.ContactMethodResponse(
+                                        ChatMessageResponse.ContactMethodResponse.ContactType.SLACK,
+                                        "@jisoo.kim"
+                                )
+                        )
+                )
+        );
+    }
+
     private ChatMessageResponse toResponse(
             ChatMessage message,
             List<Long> documentIds,
@@ -128,6 +156,9 @@ public class ChatMessageQueryService {
                 .filter(Objects::nonNull)
                 .toList();
 
+        List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
+                resolveRecommendedContacts(message);
+
         return new ChatMessageResponse(
                 message.getId(),
                 message.getSuggestionId(),
@@ -135,6 +166,7 @@ public class ChatMessageQueryService {
                 message.getSenderType().name(),
                 message.getMessageType().getValue(),
                 message.getContent(),
+                recommendedContacts,
                 message.getCreatedAt().toString()
         );
     }
@@ -174,5 +206,12 @@ public class ChatMessageQueryService {
                 documentFile.getContentType(),
                 "/api/v1/documents/" + documentId + "/download"
         );
+    }
+
+    private String extractToken(String bearerToken) {
+        if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
+            throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
+        }
+        return bearerToken.substring(7);
     }
 }

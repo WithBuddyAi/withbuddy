@@ -174,6 +174,9 @@ public class ChatMessageService {
                 .filter(Objects::nonNull)
                 .toList();
 
+        List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
+                resolveRecommendedContacts(message);
+
         return new ChatMessageResponse(
                 message.getId(),
                 message.getSuggestionId(),
@@ -181,6 +184,7 @@ public class ChatMessageService {
                 message.getSenderType().name(),
                 message.getMessageType().getValue(),
                 message.getContent(),
+                recommendedContacts,
                 message.getCreatedAt().toString()
         );
     }
@@ -447,5 +451,43 @@ public class ChatMessageService {
 
         ChatMessage message = ChatMessage.createSuggestionMessage(userId, suggestionId, content);
         chatMessageRepository.save(message);
+    }
+
+    private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
+        if (message.getSenderType() != SenderType.BOT || message.getMessageType() != MessageType.no_result) {
+            return List.of();
+        }
+
+        return List.of(
+                new ChatMessageResponse.RecommendedContactResponse(
+                        "경영지원팀",
+                        "김지수",
+                        "매니저",
+                        List.of(
+                                new ChatMessageResponse.ContactMethodResponse(
+                                        ChatMessageResponse.ContactMethodResponse.ContactType.EMAIL,
+                                        "jisoo.kim@withbuddy.ai"
+                                ),
+                                new ChatMessageResponse.ContactMethodResponse(
+                                        ChatMessageResponse.ContactMethodResponse.ContactType.SLACK,
+                                        "@jisoo.kim"
+                                )
+                        )
+                )
+        );
+    }
+
+    public Map<String, List<Map<String, String>>> getQuickQuestions(String bearerToken) {
+        String token = extractToken(bearerToken);
+        jwtService.getUserId(token);
+
+        return Map.of(
+                "quickQuestions",
+                List.of(
+                        Map.of("content", "연차는 어떻게 신청하나요?"),
+                        Map.of("content", "급여일이 언제인가요?"),
+                        Map.of("content", "건강검진은 어떻게 받나요?")
+                )
+        );
     }
 }

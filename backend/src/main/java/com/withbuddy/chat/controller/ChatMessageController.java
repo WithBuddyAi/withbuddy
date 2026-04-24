@@ -62,7 +62,9 @@ public class ChatMessageController {
 
     @GetMapping("/quick-questions")
     @ResponseStatus(HttpStatus.OK)
-    public Map<String, List<Map<String, String>>> getQuickQuestions() {
-        return Map.of("quickQuestions", List.of());
+    public Map<String, List<Map<String, String>>> getQuickQuestions(
+            @RequestHeader("Authorization") String authorizationHeader
+    ) {
+        return chatMessageService.getQuickQuestions(authorizationHeader);
     }
 }

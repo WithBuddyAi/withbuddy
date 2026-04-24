@@ -154,9 +154,11 @@ public class OnboardingSuggestionService {
     }
 
     private String replacePlaceholders(String content, String userName, int dayOffset) {
+        int displayDay = dayOffset >= 0 ? dayOffset + 1 : Math.abs(dayOffset);
+
         return content
                 .replace("{이름}", userName)
-                .replace("{N}", String.valueOf(Math.abs(dayOffset)));
+                .replace("{N}", String.valueOf(displayDay));
     }
 
     private record UserProfile(String name, LocalDate hireDate) {
