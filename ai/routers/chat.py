@@ -199,10 +199,15 @@ class InternalAIAnswerUser(BaseModel):
     companyCode: str = ""
 
 
+class ConversationTurn(BaseModel):
+    role: str
+    content: str
+
 class InternalAIAnswerRequest(BaseModel):
     questionId: int
     user: InternalAIAnswerUser
     content: str
+    conversationHistory: list[ConversationTurn] = Field(default_factory=list)
 
 class InternalAIAnswerResponse(BaseModel):
     questionId: int
@@ -266,6 +271,16 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 content=chitchat_answer,
             )
 
+    from langchain_core.messages import HumanMessage, AIMessage
+    injected_history = None
+    if request.conversationHistory:
+        injected_history = []
+        for turn in request.conversationHistory:
+            if turn.role == "user":
+                injected_history.append(HumanMessage(content=turn.content))
+            else:
+                injected_history.append(AIMessage(content=turn.content))
+
     try:
         async with asyncio.timeout(10):
             answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
@@ -275,6 +290,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     request.content,
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
+                    injected_history=injected_history,
                 )
             )
     except asyncio.TimeoutError:
