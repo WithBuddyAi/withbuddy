@@ -690,7 +690,9 @@ Authorization: Bearer {accessToken}
   "quickQuestions": [
     { "content": "연차는 어떻게 신청하나요?" },
     { "content": "급여일이 언제인가요?" },
-    { "content": "건강검진은 어떻게 받나요?" }
+    { "content": "건강검진은 어떻게 받나요?" },
+    { "content": "재직증명서 신청 방법 알려줘요" },
+    { "content": "장비 세팅하는 방법 알려주세요" }
   ]
 }
 ```
@@ -709,7 +711,37 @@ Authorization: Bearer {accessToken}
 - 빠른 질문 클릭 자체가 별도의 답변 생성 API를 호출하지는 않는다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
 
-### 6-5. 채팅 화면 진입 로그 기록
+### 6-5. 빠른 질문 클릭 로그 기록
+사용자가 빠른 질문 버튼을 클릭하면 `user_activity_logs`에 `BUTTON_CLICK` 이벤트를 기록한다.
+이때 `event_target = QUICK_TAP`으로 저장한다.
+
+```http
+POST /api/v1/chat/quick-questions/click
+Authorization: Bearer {accessToken}
+```
+
+#### Response (201 Created)
+
+```json
+{
+  "logged": true,
+  "eventType": "BUTTON_CLICK",
+  "eventTarget": "QUICK_TAP",
+  "message": null,
+  "createdAt": "2026-04-24T09:30:00Z"
+}
+```
+
+#### 설명
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 빠른 질문 버튼 클릭 시 `user_activity_logs`에 `event_type = BUTTON_CLICK`, `event_target = QUICK_TAP`으로 기록한다.
+- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 이 API는 클릭 로그만 저장하며, 채팅 메시지 생성이나 AI 답변 생성을 수행하지 않는다.
+- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드가 별도로 `POST /api/v1/chat/messages`를 호출한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+### 6-6. 채팅 화면 진입 로그 기록
 사용자가 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.  
 이때 `event_target = CHAT`으로 저장한다.  
 단, 동일 사용자가 **30분 이내에 다시 채팅 화면에 진입한 경우** 중복 기록하지 않는다.
