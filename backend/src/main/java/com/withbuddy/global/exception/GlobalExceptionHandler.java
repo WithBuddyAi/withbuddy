@@ -49,7 +49,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
-    @ExceptionHandler({UnauthorizedException.class, SessionNotActiveException.class})
+    @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorizedException(
             UnauthorizedException e,
             HttpServletRequest request
@@ -89,27 +89,6 @@ public class GlobalExceptionHandler {
         );
 
         log.warn("토큰 만료: path={}, message={}", request.getRequestURI(), e.getMessage());
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
-
-    @ExceptionHandler(JwtException.class)
-    public ResponseEntity<ErrorResponse> handleJwtException(
-            JwtException e,
-            HttpServletRequest request
-    ) {
-        List<FieldValidationError> errors = List.of(
-                new FieldValidationError("token", "유효하지 않은 토큰입니다. 다시 로그인해 주세요.")
-        );
-
-        ErrorResponse response = new ErrorResponse(
-                OffsetDateTime.now(ZoneOffset.UTC).toString(),
-                HttpStatus.UNAUTHORIZED.value(),
-                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "INVALID_TOKEN",
-                errors,
-                request.getRequestURI()
-        );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
