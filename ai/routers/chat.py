@@ -209,6 +209,7 @@ class InternalAIAnswerResponse(BaseModel):
     messageType: str = "rag_answer"
     content: str
     documents: list = Field(default_factory=list, description="검색된 문서 ID 목록")
+    recommendedContacts: list = Field(default_factory=list, description="no_result 시 추천 담당자 목록")
 
 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
@@ -293,11 +294,19 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     else:
         message_type = "rag_answer"
 
+    recommended_contacts = []
+    if message_type == "no_result":
+        from routers.recommend import _COMPANY_DEFAULT_CONTACT
+        contact = _COMPANY_DEFAULT_CONTACT.get(request.user.companyCode)
+        if contact:
+            recommended_contacts = [contact]
+
     return InternalAIAnswerResponse(
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
         documents=[{"documentId": did} for did in doc_ids],
+        recommendedContacts=recommended_contacts,
     )
 
 
