@@ -1,19 +1,18 @@
 package com.withbuddy.auth.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.activity.service.UserActivityLogService;
 import com.withbuddy.auth.dto.request.LoginRequest;
 import com.withbuddy.auth.dto.response.LoginResponse;
 import com.withbuddy.auth.dto.response.LoginUserResponse;
+import com.withbuddy.auth.exception.LoginFailedException;
+import com.withbuddy.auth.repository.UserRepository;
+import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.user.entity.User;
-import com.withbuddy.auth.exception.LoginFailedException;
-import com.withbuddy.auth.repository.UserRepository;
-import com.withbuddy.global.exception.UnauthorizedException;
-import com.withbuddy.global.jwt.JwtService;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -38,9 +37,8 @@ public class AuthService {
                 normalizedCompanyCode,
                 normalizedName,
                 normalizedEmployeeNumber
-        ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요"));
+        ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."));
 
-        // 기존 활성 세션 토큰이 있으면 역방향(reverse) 키(session:token:{oldToken})를 삭제해 누적을 방지한다.
         redisCacheService.get(RedisCacheKeys.userSession(user.getId()))
                 .ifPresent(oldToken -> redisCacheService.delete(RedisCacheKeys.sessionToken(oldToken)));
 
@@ -71,11 +69,12 @@ public class AuthService {
         return new LoginResponse(accessToken, userResponse);
     }
 
-    public void logout(String bearerToken) {
-        String token = extractToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
+    public void logout(Long userId) {
+        String token = redisCacheService.get(RedisCacheKeys.userSession(userId)).orElse(null);
         redisCacheService.delete(RedisCacheKeys.userSession(userId));
-        redisCacheService.delete(RedisCacheKeys.sessionToken(token));
+        if (token != null) {
+            redisCacheService.delete(RedisCacheKeys.sessionToken(token));
+        }
     }
 
     private void cacheUserProfile(Long userId, LoginUserResponse userResponse) {
@@ -96,12 +95,5 @@ public class AuthService {
 
     private String normalizeValue(String value) {
         return value == null ? "" : value.trim();
-    }
-
-    private String extractToken(String bearerToken) {
-        if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
-            throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
-        }
-        return bearerToken.substring(7);
     }
 }
