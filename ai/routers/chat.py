@@ -260,7 +260,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             from memory.chat_history import get_chat_history, save_interaction
             chat_history = get_chat_history(user_id)
             history_text = "\n".join(
-                f"{'사용자' if m['role'] == 'human' else 'AI'}: {m['content']}"
+                f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
                 for m in chat_history[-6:]
             ) if chat_history else ""
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
@@ -274,7 +274,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             save_interaction(user_id, request.content, chitchat_answer)
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
-                messageType="chitchat",
+                messageType="out_of_scope",
                 content=chitchat_answer,
             )
 
@@ -303,6 +303,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 content=clarifying_q,
             )
         rag_query = request.content
+
 
     injected_history = None
     if request.conversationHistory:

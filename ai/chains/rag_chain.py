@@ -516,7 +516,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", source, related_docs
         return
 
-
     yield "__STAGE__searching", None, None
 
     sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
