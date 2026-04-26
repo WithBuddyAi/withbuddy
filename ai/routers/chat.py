@@ -279,6 +279,31 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             )
 
     from langchain_core.messages import HumanMessage, AIMessage
+    from utils.clarifying import (
+        is_post_clarifying, check_and_generate_clarifying, expand_clarifying_query,
+    )
+
+    # ── Clarifying 처리 ──────────────────────────────────────────
+    is_clarifying_followup, last_clarifying_q = is_post_clarifying(request.conversationHistory)
+
+    if is_clarifying_followup:
+        # 이전 턴이 clarifying 질문 → 사용자 답변을 확장 쿼리로 변환 후 RAG 호출
+        rag_query = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: expand_clarifying_query(last_clarifying_q, request.content)
+        )
+    else:
+        # clarifying 필요 여부 체크 (LLM 1회, ~1s)
+        clarifying_q = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
+        )
+        if clarifying_q:
+            return InternalAIAnswerResponse(
+                questionId=request.questionId,
+                messageType="clarifying",
+                content=clarifying_q,
+            )
+        rag_query = request.content
+
     injected_history = None
     if request.conversationHistory:
         injected_history = []
@@ -294,7 +319,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 None,
                 lambda: run_rag_chain(
                     str(request.user.userId),
-                    request.content,
+                    rag_query,
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
                     injected_history=injected_history,
