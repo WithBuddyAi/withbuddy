@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/onboarding-suggestions")
-public class OnboardingSuggestionController {
+public class OnboardingSuggestionController implements OnboardingSuggestionControllerDocs {
 
     private final OnboardingSuggestionService onboardingSuggestionService;
     private final JwtService jwtService;
