@@ -291,8 +291,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         rag_query = await asyncio.get_event_loop().run_in_executor(
             None, lambda: expand_clarifying_query(last_clarifying_q, request.content)
         )
-    else:
-        # clarifying 필요 여부 체크 (LLM 1회, ~1s)
+    elif not request.conversationHistory:
+        # 대화 첫 질문일 때만 clarifying 체크 (대화 중간이면 건너뜀)
         clarifying_q = await asyncio.get_event_loop().run_in_executor(
             None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
         )
@@ -302,6 +302,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 messageType="clarifying",
                 content=clarifying_q,
             )
+        rag_query = request.content
+    else:
         rag_query = request.content
 
     injected_history = None
