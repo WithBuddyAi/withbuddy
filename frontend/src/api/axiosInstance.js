@@ -1,5 +1,11 @@
 import axios from "axios"
 
+let logoutHandler = null
+
+export const setLogoutHandler = (handler) => {
+  logoutHandler = handler
+}
+
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL
 })
@@ -32,7 +38,9 @@ axiosInstance.interceptors.response.use(
           localStorage.removeItem('dayCount')
           localStorage.removeItem('hireDate')
           localStorage.removeItem('name')
-          window.location.href = '/login'
+          if (logoutHandler) {
+            logoutHandler()
+          }
         return Promise.reject(error)
       }
     }
