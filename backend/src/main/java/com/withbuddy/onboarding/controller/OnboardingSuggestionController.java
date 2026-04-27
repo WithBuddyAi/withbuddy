@@ -1,5 +1,6 @@
 package com.withbuddy.onboarding.controller;
 
+import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.onboarding.dto.OnboardingSuggestionListResponse;
 import com.withbuddy.onboarding.service.OnboardingSuggestionService;
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/onboarding-suggestions")
-public class OnboardingSuggestionController {
+public class OnboardingSuggestionController implements OnboardingSuggestionControllerDocs {
 
     private final OnboardingSuggestionService onboardingSuggestionService;
     private final JwtService jwtService;
@@ -33,7 +34,7 @@ public class OnboardingSuggestionController {
 
     private String extractToken(String authorizationHeader) {
         if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Authorization 헤더 형식이 올바르지 않습니다.");
+            throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
         }
         return authorizationHeader.substring(7);
     }

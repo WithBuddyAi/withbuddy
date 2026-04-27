@@ -199,16 +199,22 @@ class InternalAIAnswerUser(BaseModel):
     companyCode: str = ""
 
 
+class ConversationTurn(BaseModel):
+    role: str
+    content: str
+
 class InternalAIAnswerRequest(BaseModel):
     questionId: int
     user: InternalAIAnswerUser
     content: str
+    conversationHistory: list[ConversationTurn] = Field(default_factory=list)
 
 class InternalAIAnswerResponse(BaseModel):
     questionId: int
     messageType: str = "rag_answer"
     content: str
     documents: list = Field(default_factory=list, description="검색된 문서 ID 목록")
+    recommendedContacts: list = Field(default_factory=list, description="no_result 시 추천 담당자 목록")
 
 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
@@ -227,14 +233,21 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
     )
     if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
-        raw_intent = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
-        )
+        try:
+            async with asyncio.timeout(3):
+                raw_intent = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+                )
+        except asyncio.TimeoutError:
+            raw_intent = "rag"  # intent 체크 지연 시 RAG로 폴백
         if "out_of_scope_internal" in raw_intent:
+            from routers.recommend import get_contact_for_question
+            contact = await get_contact_for_question(request.user.companyCode, request.content)
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
                 content=_OUT_OF_SCOPE_MESSAGE,
+                recommendedContacts=[contact],
             )
         if "out_of_scope_external" in raw_intent:
             return InternalAIAnswerResponse(
@@ -265,15 +278,53 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 content=chitchat_answer,
             )
 
+    from langchain_core.messages import HumanMessage, AIMessage
+    from utils.clarifying import (
+        is_post_clarifying, check_and_generate_clarifying, expand_clarifying_query,
+    )
+
+    # ── Clarifying 처리 ──────────────────────────────────────────
+    is_clarifying_followup, last_clarifying_q = is_post_clarifying(request.conversationHistory)
+
+    if is_clarifying_followup:
+        # 이전 턴이 clarifying 질문 → 사용자 답변을 확장 쿼리로 변환 후 RAG 호출
+        rag_query = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: expand_clarifying_query(last_clarifying_q, request.content)
+        )
+    elif not request.conversationHistory:
+        # 대화 첫 질문일 때만 clarifying 체크 (대화 중간이면 건너뜀)
+        clarifying_q = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
+        )
+        if clarifying_q:
+            return InternalAIAnswerResponse(
+                questionId=request.questionId,
+                messageType="clarifying",
+                content=clarifying_q,
+            )
+        rag_query = request.content
+    else:
+        rag_query = request.content
+
+    injected_history = None
+    if request.conversationHistory:
+        injected_history = []
+        for turn in request.conversationHistory:
+            if turn.role == "user":
+                injected_history.append(HumanMessage(content=turn.content))
+            else:
+                injected_history.append(AIMessage(content=turn.content))
+
     try:
-        async with asyncio.timeout(10):
+        async with asyncio.timeout(18):
             answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: run_rag_chain(
                     str(request.user.userId),
-                    request.content,
+                    rag_query,
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
+                    injected_history=injected_history,
                 )
             )
     except asyncio.TimeoutError:
@@ -283,7 +334,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
 
     _NO_RESULT_KW = ["문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
                      "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
-                     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요"]
+                     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요",
+                     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵"]
     _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
     if any(kw in answer for kw in _OUT_OF_SCOPE_KW):
@@ -293,11 +345,18 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     else:
         message_type = "rag_answer"
 
+    recommended_contacts = []
+    if message_type in ("no_result", "out_of_scope"):
+        from routers.recommend import get_contact_for_question
+        contact = await get_contact_for_question(request.user.companyCode, request.content)
+        recommended_contacts = [contact]
+
     return InternalAIAnswerResponse(
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
         documents=[{"documentId": did} for did in doc_ids],
+        recommendedContacts=recommended_contacts,
     )
 
 

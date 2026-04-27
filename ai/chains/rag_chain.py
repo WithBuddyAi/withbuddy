@@ -372,8 +372,7 @@ def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
     return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
 
 
-
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> Tuple[str, str, List[dict], List[int]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
@@ -382,7 +381,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     """
     from routers.docs import find_related_docs
 
-    chat_history = get_chat_history(user_id)
+    chat_history = injected_history if injected_history is not None else get_chat_history(user_id)
 
     # 2-7: 숫자 선택 해석 (이전 ambiguous 응답 매핑)
     resolved = _resolve_selection(question, chat_history)
