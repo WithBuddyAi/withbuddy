@@ -316,7 +316,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 injected_history.append(AIMessage(content=turn.content))
 
     try:
-        async with asyncio.timeout(18):
+        async with asyncio.timeout(40):
             answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: run_rag_chain(
