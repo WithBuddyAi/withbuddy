@@ -25,10 +25,14 @@ def get_reranker():
     return _reranker
 
 
+RERANKING_ENABLED = True  # False로 바꾸면 리랭킹 비활성화 (속도 테스트용)
+
 def rerank_docs(query: str, docs: List[Document], top_k: int = 5) -> List[Document]:
     """Cross-Encoder로 문서 재정렬 후 상위 top_k개 반환."""
     if not docs:
         return docs
+    if not RERANKING_ENABLED:
+        return docs[:top_k]
     model = get_reranker()
     pairs = [[query, d.page_content[:300]] for d in docs]
     scores = model.predict(pairs)
