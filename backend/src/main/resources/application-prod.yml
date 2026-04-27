@@ -31,7 +31,7 @@ ai:
     base-url: ${AI_SERVER_BASE_URL}
     connect-timeout-ms: ${AI_SERVER_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${AI_SERVER_READ_TIMEOUT_MS:10000}
-    async-read-timeout-ms: ${AI_SERVER_ASYNC_READ_TIMEOUT_MS:55000}
+    async-read-timeout-ms: ${AI_SERVER_ASYNC_READ_TIMEOUT_MS:10000}
 
 app:
   security:
