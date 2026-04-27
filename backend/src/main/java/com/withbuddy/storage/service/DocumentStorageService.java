@@ -23,7 +23,7 @@ import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentBackupJobRepository;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
-import com.withbuddy.global.jwt.JwtService;
+import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -82,34 +82,30 @@ public class DocumentStorageService {
     private final DocumentBackupJobRepository documentBackupJobRepository;
     private final ObjectStorageClient objectStorageClient;
     private final StorageProperties storageProperties;
-    private final JwtService jwtService;
 
     public DocumentStorageService(
             DocumentRepository documentRepository,
             DocumentFileRepository documentFileRepository,
             DocumentBackupJobRepository documentBackupJobRepository,
             ObjectStorageClient objectStorageClient,
-            StorageProperties storageProperties,
-            JwtService jwtService
+            StorageProperties storageProperties
     ) {
         this.documentRepository = documentRepository;
         this.documentFileRepository = documentFileRepository;
         this.documentBackupJobRepository = documentBackupJobRepository;
         this.objectStorageClient = objectStorageClient;
         this.storageProperties = storageProperties;
-        this.jwtService = jwtService;
     }
 
     @Transactional
     public DocumentUploadResponse upload(
-            String authorizationHeader,
             MultipartFile file,
             String title,
             String documentType,
             String department,
             String requestCompanyCode
     ) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+        RequesterScope requesterScope = resolveRequesterScope();
         validateFile(file);
 
         String finalCompanyCode;
@@ -211,8 +207,8 @@ public class DocumentStorageService {
         );
     }
 
-    public DocumentBackupRetryResponse retryBackup(String authorizationHeader, Long documentId) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    public DocumentBackupRetryResponse retryBackup(Long documentId) {
+        RequesterScope requesterScope = resolveRequesterScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -230,8 +226,8 @@ public class DocumentStorageService {
     }
 
     @Transactional
-    public DocumentDeleteResponse deleteDocument(String authorizationHeader, Long documentId, boolean confirm) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    public DocumentDeleteResponse deleteDocument(Long documentId, boolean confirm) {
+        RequesterScope requesterScope = resolveRequesterScope();
         if (!confirm) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "문서 삭제는 confirm=true가 필요합니다.");
         }
@@ -247,8 +243,8 @@ public class DocumentStorageService {
         return new DocumentDeleteResponse(documentId, "문서가 성공적으로 삭제되었습니다.");
     }
 
-    public DocumentDeleteCheckResponse getDeleteCheck(String authorizationHeader, Long documentId) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    public DocumentDeleteCheckResponse getDeleteCheck(Long documentId) {
+        RequesterScope requesterScope = resolveRequesterScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -269,8 +265,8 @@ public class DocumentStorageService {
         );
     }
 
-    public DocumentBulkDeleteCheckResponse getBulkDeleteCheck(String authorizationHeader, DocumentBulkDeleteRequest request) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    public DocumentBulkDeleteCheckResponse getBulkDeleteCheck(DocumentBulkDeleteRequest request) {
+        RequesterScope requesterScope = resolveRequesterScope();
         LinkedHashSet<Long> deduplicatedIds = deduplicateDocumentIds(request.getDocumentIds());
 
         DeleteInspection inspection = inspectDeleteOutcomes(requesterScope, deduplicatedIds);
@@ -292,8 +288,8 @@ public class DocumentStorageService {
         );
     }
 
-    public DocumentBulkDeleteCheckResponse getDeleteAllCheck(String authorizationHeader) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    public DocumentBulkDeleteCheckResponse getDeleteAllCheck() {
+        RequesterScope requesterScope = resolveRequesterScope();
         List<Long> allDocumentIds = requesterScope.globalAccess()
                 ? documentRepository.findAllActiveDocumentIds()
                 : documentRepository.findActiveDocumentIdsByCompanyCode(requesterScope.companyCode());
@@ -318,11 +314,10 @@ public class DocumentStorageService {
 
     @Transactional
     public DocumentBulkDeleteResponse bulkDeleteDocuments(
-            String authorizationHeader,
             DocumentBulkDeleteRequest request,
             boolean confirm
     ) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+        RequesterScope requesterScope = resolveRequesterScope();
         if (!confirm) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "선택 삭제는 confirm=true가 필요합니다.");
         }
@@ -331,8 +326,8 @@ public class DocumentStorageService {
     }
 
     @Transactional
-    public DocumentBulkDeleteResponse deleteAllDocuments(String authorizationHeader, boolean confirm) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    public DocumentBulkDeleteResponse deleteAllDocuments(boolean confirm) {
+        RequesterScope requesterScope = resolveRequesterScope();
         if (!confirm) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "전체 삭제는 confirm=true가 필요합니다.");
         }
@@ -365,13 +360,12 @@ public class DocumentStorageService {
     }
 
     public DocumentListResponse list(
-            String authorizationHeader,
             int page,
             int size,
             String documentType,
             String search
     ) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+        RequesterScope requesterScope = resolveRequesterScope();
 
         Page<Document> documentPage;
         if (requesterScope.globalAccess()) {
@@ -421,8 +415,8 @@ public class DocumentStorageService {
         );
     }
 
-    public DocumentDetailResponse getDetail(String authorizationHeader, Long documentId) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    public DocumentDetailResponse getDetail(Long documentId) {
+        RequesterScope requesterScope = resolveRequesterScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -451,13 +445,25 @@ public class DocumentStorageService {
         );
     }
 
-    public DocumentDownloadResponse getDownloadUrl(String authorizationHeader, Long documentId) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    private void validateTemplateDocument(Document document) {
+        if (!"TEMPLATE".equals(document.getDocumentType())) {
+            throw new StorageException(
+                    HttpStatus.FORBIDDEN,
+                    "RESOURCE_004",
+                    "documentType",
+                    "TEMPLATE 문서만 다운로드할 수 있습니다."
+            );
+        }
+    }
+
+    public DocumentDownloadResponse getDownloadUrl(Long documentId) {
+        RequesterScope requesterScope = resolveRequesterScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
         validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        validateTemplateDocument(document);
 
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
@@ -468,13 +474,14 @@ public class DocumentStorageService {
         return new DocumentDownloadResponse(downloadUrl, storageProperties.getDownloadUrlTtlSeconds(), source.name());
     }
 
-    public byte[] downloadFile(String authorizationHeader, Long documentId, StorageSource source) {
-        RequesterScope requesterScope = resolveRequesterScope(authorizationHeader);
+    public byte[] downloadFile(Long documentId, StorageSource source) {
+        RequesterScope requesterScope = resolveRequesterScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
         validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        validateTemplateDocument(document);
 
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
@@ -790,14 +797,18 @@ public class DocumentStorageService {
         }
     }
 
-    private RequesterScope resolveRequesterScope(String authorizationHeader) {
+    private RequesterScope resolveRequesterScope() {
         RequesterScope scopeFromApiKey = resolveScopeFromApiKeyAuthentication();
         if (scopeFromApiKey != null) {
             return scopeFromApiKey;
         }
 
-        String token = extractToken(authorizationHeader);
-        return new RequesterScope(jwtService.getCompanyCode(token), false);
+        RequesterScope scopeFromJwt = resolveScopeFromJwtAuthentication();
+        if (scopeFromJwt != null) {
+            return scopeFromJwt;
+        }
+
+        throw new StorageException(HttpStatus.UNAUTHORIZED, "TOKEN_MISSING", "auth", "인증 토큰이 없습니다.");
     }
 
     private RequesterScope resolveScopeFromApiKeyAuthentication() {
@@ -817,11 +828,21 @@ public class DocumentStorageService {
         if (!StringUtils.hasText(authorizationHeader) || !authorizationHeader.startsWith("Bearer ")) {
             throw new StorageException(HttpStatus.UNAUTHORIZED, "TOKEN_MISSING", "auth", "인증 토큰이 없습니다.");
         }
-        String token = authorizationHeader.substring(7);
-        if (!jwtService.validateToken(token)) {
-            throw new StorageException(HttpStatus.UNAUTHORIZED, "INVALID_TOKEN", "auth", "유효하지 않은 인증 정보입니다.");
+
+        return authorizationHeader.substring(7);
+    }
+
+    private RequesterScope resolveScopeFromJwtAuthentication() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
         }
-        return token;
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof JwtAuthenticationPrincipal jwtPrincipal) {
+            return new RequesterScope(jwtPrincipal.companyCode(), false);
+        }
+        return null;
     }
 
     private void compensatePrimaryObject(String namespace, String bucket, String objectKey, Exception rootCause) {

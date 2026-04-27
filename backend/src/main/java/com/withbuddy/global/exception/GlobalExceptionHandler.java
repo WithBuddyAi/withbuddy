@@ -4,6 +4,7 @@ import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.auth.exception.LoginFailedException;
 import com.withbuddy.global.jwt.SessionNotActiveException;
+import com.withbuddy.global.jwt.TokenMissingException;
 import io.jsonwebtoken.JwtException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
@@ -49,23 +50,90 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
-    @ExceptionHandler({UnauthorizedException.class, JwtException.class, SessionNotActiveException.class})
+    @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorizedException(
-            RuntimeException e,
+            UnauthorizedException e,
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("auth", "유효하지 않은 인증 정보입니다. 다시 로그인해 주세요.")
+                new FieldValidationError("auth", e.getMessage())
         );
 
         ErrorResponse response = new ErrorResponse(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "UNAUTHORIZED",
+                "INVALID_TOKEN",
                 errors,
                 request.getRequestURI()
         );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(ExpiredJwtException.class)
+    public ResponseEntity<ErrorResponse> handleExpiredJwtException(
+            ExpiredJwtException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("token", "액세스 토큰이 만료되었습니다.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "TOKEN_EXPIRED",
+                errors,
+                request.getRequestURI()
+        );
+
+        log.warn("토큰 만료: path={}, message={}", request.getRequestURI(), e.getMessage());
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(SessionNotActiveException.class)
+    public ResponseEntity<ErrorResponse> handleSessionNotActiveException(
+            SessionNotActiveException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("auth", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "INVALID_TOKEN",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ErrorResponse> handleJwtException(
+            JwtException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("token", "유효하지 않은 토큰입니다. 다시 로그인해 주세요.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "INVALID_TOKEN",
+                errors,
+                request.getRequestURI()
+        );
+
+        log.warn("유효하지 않은 토큰: path={}, message={}", request.getRequestURI(), e.getMessage());
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
@@ -102,14 +170,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("auth", "유효하지 않은 인증 정보입니다. 다시 로그인해 주세요.")
+                new FieldValidationError("auth", "인증 토큰이 누락되었습니다.")
         );
 
         ErrorResponse response = new ErrorResponse(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "UNAUTHORIZED",
+                "TOKEN_MISSING",
                 errors,
                 request.getRequestURI()
         );
@@ -163,29 +231,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(response);
     }
 
-    @ExceptionHandler(ExpiredJwtException.class)
-    public ResponseEntity<ErrorResponse> handleExpiredJwtException(
-            ExpiredJwtException e,
-            HttpServletRequest request
-    ) {
-        List<FieldValidationError> errors = List.of(
-                new FieldValidationError("token", "로그인 정보가 만료됐어요. 다시 로그인해주세요.")
-        );
-
-        ErrorResponse response = new ErrorResponse(
-                OffsetDateTime.now(ZoneOffset.UTC).toString(),
-                HttpStatus.UNAUTHORIZED.value(),
-                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "TOKEN_EXPIRED",
-                errors,
-                request.getRequestURI()
-        );
-
-        log.warn("토큰 만료: path={}, message={}", request.getRequestURI(), e.getMessage());
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-    }
-
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(
             Exception e,
@@ -207,5 +252,26 @@ public class GlobalExceptionHandler {
         log.error("서버 오류: path={}", request.getRequestURI(), e);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
+    @ExceptionHandler(TokenMissingException.class)
+    public ResponseEntity<ErrorResponse> handleTokenMissingException(
+            TokenMissingException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("auth", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "TOKEN_MISSING",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 }

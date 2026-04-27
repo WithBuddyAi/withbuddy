@@ -4,9 +4,10 @@ import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageResponse;
 import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.entity.ChatMessageDocument;
+import com.withbuddy.chat.entity.MessageType;
+import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
-import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -16,7 +17,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -28,12 +33,8 @@ public class ChatMessageQueryService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final JwtService jwtService;
 
-    public ChatMessageListResponse getMessages(String bearerToken, LocalDate date) {
-        String token = bearerToken.replace("Bearer ", "");
-        Long userId = jwtService.getUserId(token);
-
+    public ChatMessageListResponse getMessages(Long userId, LocalDate date) {
         List<ChatMessage> chatMessages = findChatMessages(userId, date);
 
         if (chatMessages.isEmpty()) {
@@ -85,7 +86,8 @@ public class ChatMessageQueryService {
                 .map(ChatMessage::getId)
                 .toList();
 
-        List<ChatMessageDocument> mappings = chatMessageDocumentRepository.findByChatMessageIdIn(messageIds);
+        List<ChatMessageDocument> mappings =
+                chatMessageDocumentRepository.findByChatMessageIdIn(messageIds);
 
         return mappings.stream()
                 .sorted(Comparator.comparing(ChatMessageDocument::getId))
@@ -117,6 +119,30 @@ public class ChatMessageQueryService {
                 ));
     }
 
+    private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
+        if (message.getSenderType() != SenderType.BOT || message.getMessageType() != MessageType.no_result) {
+            return Collections.emptyList();
+        }
+
+        return List.of(
+                new ChatMessageResponse.RecommendedContactResponse(
+                        "경영지원팀",
+                        "김지수",
+                        "매니저",
+                        List.of(
+                                new ChatMessageResponse.ContactMethodResponse(
+                                        ChatMessageResponse.ContactMethodResponse.ContactType.EMAIL,
+                                        "jisoo.kim@withbuddy.ai"
+                                ),
+                                new ChatMessageResponse.ContactMethodResponse(
+                                        ChatMessageResponse.ContactMethodResponse.ContactType.SLACK,
+                                        "@jisoo.kim"
+                                )
+                        )
+                )
+        );
+    }
+
     private ChatMessageResponse toResponse(
             ChatMessage message,
             List<Long> documentIds,
@@ -128,6 +154,9 @@ public class ChatMessageQueryService {
                 .filter(Objects::nonNull)
                 .toList();
 
+        List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
+                resolveRecommendedContacts(message);
+
         return new ChatMessageResponse(
                 message.getId(),
                 message.getSuggestionId(),
@@ -135,6 +164,7 @@ public class ChatMessageQueryService {
                 message.getSenderType().name(),
                 message.getMessageType().getValue(),
                 message.getContent(),
+                recommendedContacts,
                 message.getCreatedAt().toString()
         );
     }

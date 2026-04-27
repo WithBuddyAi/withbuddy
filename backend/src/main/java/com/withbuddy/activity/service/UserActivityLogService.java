@@ -1,11 +1,10 @@
 package com.withbuddy.activity.service;
 
-import com.withbuddy.activity.dto.SessionStartLogResponse;
+import com.withbuddy.activity.dto.LogResponse;
 import com.withbuddy.activity.entity.EventTarget;
 import com.withbuddy.activity.entity.EventType;
 import com.withbuddy.activity.entity.UserActivityLog;
 import com.withbuddy.activity.repository.UserActivityLogRepository;
-import com.withbuddy.global.jwt.JwtService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +17,6 @@ import java.util.Optional;
 public class UserActivityLogService {
 
     private final UserActivityLogRepository userActivityLogRepository;
-    private final JwtService jwtService;
 
     @Transactional
     public void saveLoginSessionStart(Long userId) {
@@ -33,10 +31,7 @@ public class UserActivityLogService {
     }
 
     @Transactional
-    public SessionStartLogResponse saveChatSessionStart(String bearerToken) {
-        String token = bearerToken.replace("Bearer ", "");
-        Long userId = jwtService.getUserId(token);
-
+    public LogResponse saveChatSessionStart(Long userId) {
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 
         Optional<UserActivityLog> recentLog =
@@ -49,7 +44,7 @@ public class UserActivityLogService {
                         );
 
         if (recentLog.isPresent()) {
-            return new SessionStartLogResponse(
+            return new LogResponse(
                     false,
                     EventType.SESSION_START.name(),
                     EventTarget.CHAT.name(),
@@ -67,7 +62,27 @@ public class UserActivityLogService {
                 )
         );
 
-        return new SessionStartLogResponse(
+        return new LogResponse(
+                true,
+                savedLog.getEventType().name(),
+                savedLog.getEventTarget().name(),
+                null,
+                savedLog.getCreatedAt().toString()
+        );
+    }
+
+    @Transactional
+    public LogResponse saveQuickQuestionClick(Long userId) {
+        UserActivityLog log = new UserActivityLog(
+                userId,
+                EventType.BUTTON_CLICK,
+                EventTarget.QUICK_TAP,
+                LocalDateTime.now()
+        );
+
+        UserActivityLog savedLog = userActivityLogRepository.save(log);
+
+        return new LogResponse(
                 true,
                 savedLog.getEventType().name(),
                 savedLog.getEventTarget().name(),
