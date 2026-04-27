@@ -5,6 +5,7 @@ import com.withbuddy.activity.service.UserActivityLogService;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.chat.service.ChatMessageQueryService;
 import com.withbuddy.chat.service.ChatMessageService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -75,5 +76,14 @@ public class ChatMessageController {
             @RequestHeader(value = "Authorization", required = false) String bearerToken
     ) {
         return userActivityLogService.saveQuickQuestionClick(bearerToken);
+    }
+
+    @GetMapping("/messages/{questionId}/status")
+    @ResponseStatus(HttpStatus.OK)
+    public ChatMessageStatusResponse getMessageStatus(
+            @RequestHeader(value = "Authorization", required = false) String bearerToken,
+            @PathVariable Long questionId
+    ) {
+        return chatMessageQueryService.getMessageStatus(bearerToken, questionId);
     }
 }

@@ -8,4 +8,5 @@ import lombok.Getter;
 public class ChatMessageCreateResponse {
     private ChatMessageResponse question;
     private ChatMessageResponse answer;
+    private String status;
 }

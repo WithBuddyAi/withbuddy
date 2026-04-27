@@ -2,6 +2,7 @@ package com.withbuddy.chat.service;
 
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageResponse;
+import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.entity.ChatMessageDocument;
 import com.withbuddy.chat.entity.MessageType;
@@ -10,6 +11,8 @@ import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
+import com.withbuddy.infrastructure.redis.RedisCacheKeys;
+import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -32,6 +35,7 @@ public class ChatMessageQueryService {
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
     private final JwtService jwtService;
+    private final RedisCacheService redisCacheService;
 
     public ChatMessageListResponse getMessages(String bearerToken, LocalDate date) {
         String token = jwtService.extractBearerToken(bearerToken);
@@ -206,6 +210,50 @@ public class ChatMessageQueryService {
                 documentFile.getContentType(),
                 "/api/v1/documents/" + documentId + "/download"
         );
+    }
+
+    public ChatMessageStatusResponse getMessageStatus(String bearerToken, Long questionId) {
+        String token = jwtService.extractBearerToken(bearerToken);
+        Long userId = jwtService.getUserId(token);
+
+        chatMessageRepository.findById(questionId)
+                .filter(message -> userId.equals(message.getUserId()))
+                .orElseThrow(() -> new UnauthorizedException("해당 메시지에 접근 권한이 없습니다."));
+
+        String status = redisCacheService.get(RedisCacheKeys.ragStatus(questionId))
+                .orElse("TIMEOUT");
+
+        if (!"COMPLETED".equals(status)) {
+            return new ChatMessageStatusResponse(status, null);
+        }
+
+        Optional<Long> answerId = redisCacheService.get(ragAnswerIdKey(questionId))
+                .map(Long::parseLong);
+        if (answerId.isEmpty()) {
+            return new ChatMessageStatusResponse("COMPLETED", null);
+        }
+
+        Optional<ChatMessage> answer = chatMessageRepository.findById(answerId.get());
+        if (answer.isEmpty()) {
+            return new ChatMessageStatusResponse("COMPLETED", null);
+        }
+
+        List<Long> documentIds = chatMessageDocumentRepository
+                .findByChatMessageIdIn(List.of(answerId.get()))
+                .stream()
+                .map(ChatMessageDocument::getDocumentId)
+                .toList();
+        Map<Long, Document> documentMap = resolveDocumentMap(documentIds);
+        Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(documentIds);
+
+        return new ChatMessageStatusResponse(
+                "COMPLETED",
+                toResponse(answer.get(), documentIds, documentMap, documentFileMap)
+        );
+    }
+
+    private static String ragAnswerIdKey(Long questionId) {
+        return "rag:answer:" + questionId;
     }
 
     private String extractToken(String bearerToken) {
