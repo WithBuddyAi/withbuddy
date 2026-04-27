@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 > 
-**버전**: 1.7.7
-**최종 업데이트**: 2026-04-23
+**버전**: 1.7.8
+**최종 업데이트**: 2026-04-27
 
 ---
 
@@ -610,7 +610,7 @@ Content-Type: application/json
 
 - 질문 메시지는 `chat_messages`에 `sender_type = USER`, `message_type = user_question`으로 저장한다.
 - 백엔드는 질문 저장 후 생성된 질문 메시지의 `id`를 `questionId`로 사용한다.
-- 백엔드는 질문 저장 후, 로그인한 사용자의 `companyCode`, 질문 메시지의 `id(questionId)`, 질문 `content`를 사용하여 `/internal/ai/answer`를 호출한다.
+- 백엔드는 질문 저장 후, 로그인한 사용자 정보(`user`), 질문 메시지의 `id(questionId)`, 질문 `content`, 이전 대화 이력(`conversationHistory`)을 사용하여 `/internal/ai/answer`를 호출한다.
 - 내부 AI 서버는 로그인한 사용자의 회사 문서와 공통 문서만을 대상으로 답변을 생성한다.
 - 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
 - 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용하여 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
@@ -797,9 +797,9 @@ Authorization: Bearer {accessToken}
 - 백엔드가 `/api/v1/chat/messages` 요청을 받음
 - 백엔드가 사용자 질문 메시지를 저장함
 - 백엔드가 생성된 질문 메시지의 `id`를 `questionId`로 사용함
-- 백엔드가 로그인한 사용자의 `companyCode`, `questionId`, 질문 `content`를 이용해 `/internal/ai/answer`를 호출
+- 백엔드가 로그인한 사용자 정보(`user`), `questionId`, 질문 `content`, 이전 대화 이력(`conversationHistory`)을 이용해 `/internal/ai/answer`를 호출
 - AI 서버가 공통 문서와 해당 회사 문서를 기반으로 답변을 생성함
-- AI 서버가 `questionId`, `document`, `messageType`, `content`를 반환함
+- AI 서버가 `questionId`, `documents`, `messageType`, `content`, `recommendedContacts`를 반환함
 - 백엔드가 반환값으로 답변 메시지를 저장하고, 근거 문서 목록은 `chat_message_documents`에 저장한 뒤 최종 응답을 반환함
 
 ### 7-2. 답변 생성 요청
@@ -818,41 +818,82 @@ Content-Type: application/json
     "name": "김지원",
     "companyCode": "WB0001"
   },
-  "content": "복지카드는 어떻게 신청하나요?"
+  "content": "복지카드는 어떻게 신청하나요?",
+  "conversationHistory": [
+    {
+      "role": "user",
+      "content": "연차는 어떻게 신청해?"
+    },
+    {
+      "role": "assistant",
+      "content": "연차 신청은 인사 포털에서 신청할 수 있습니다."
+    }
+  ]
 }
 ```
 
-#### Request Field (Top-level)
+#### Request Field
 
 | 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
 |------|------|------|--------|------|-----------|
 | `questionId` | `Long` | Y | `201` | 백엔드가 저장한 사용자 질문 메시지 ID | 양의 정수 |
-| `user` | `Object` | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별 및 회사 문서 범위 판별에 필요한 정보 |
+| `user` | `Object` | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별, 개인화, 회사 문서 범위 판별에 사용 |
 | `content` | `String` | Y | `"복지카드는 어떻게 신청하나요?"` | 사용자가 입력한 질문 내용 | 길이: 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
+| `conversationHistory` | `Array<Object>` | Y | `[{ "role": "user", "content": "..." }, { "role": "assistant", "content": "..." }]` | 이전 대화 이력 | 유효 이력이 없으면 빈 배열(`[]`)로 전달 |
 
-  #### Request Field (`user`)
+#### Request Field (`user`)
 
-  | 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-  |------|------|------|-------|------|-----------|
-  | `user.userId` | `Long` | Y | `1` | 로그인한 사용자 ID | 양의 정수 |
-  | `user.name` | `String` | Y | `"김지원"` | 로그인한 사용자 이름 | 길이: 1~100자 |
-  | `user.companyCode` | `String` | Y | `"WB0001"` | 로그인한 사용자의 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|------|------|------|--------|------|-----------|
+| `user.userId` | `Long` | Y | `1` | 로그인한 사용자 ID | 양의 정수 |
+| `user.name` | `String` | Y | `"김지원"` | 로그인한 사용자 이름 | 길이: 1~100자 |
+| `user.companyCode` | `String` | Y | `"WB0001"` | 로그인한 사용자의 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 
-  #### Response (200 OK)
+#### Request Field (`conversationHistory[]`)
 
-  ```json
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|------|------|------|--------|------|-----------|
+| `conversationHistory[].role` | `String` | Y | `"user"` | 이전 대화 발화 주체 | `user`, `assistant`만 허용 |
+| `conversationHistory[].content` | `String` | Y | `"연차는 어떻게 신청해?"` | 이전 대화 내용 | 공백만 있는 값은 제외 후 전달 |
+
+#### conversationHistory 전달 규칙
+
+- 내부 AI 요청에는 항상 `conversationHistory`를 포함한다.
+- 유효한 이전 대화 이력이 없으면 `conversationHistory: []`로 전달한다.
+- 백엔드는 AI 서버 호출 직전 이전 대화 이력을 정규화하여 전달한다.
+- `role`은 `user`, `assistant`만 허용한다.
+- `content`가 `null`, 빈 문자열, 공백 문자열인 항목은 제외한다.
+- 이전 대화 이력은 Redis 캐시를 우선 사용한다.
+- Redis에 이력이 없거나 복원할 수 없는 경우 DB에서 최근 채팅 메시지를 기준으로 복원한다.
+- DB 복원 대상은 `message_type`이 `user_question`, `rag_answer`인 메시지로 제한한다.
+- DB 복원 시 최근 10개 메시지를 기준으로 하며, AI 서버에는 시간 순서가 자연스럽도록 오래된 메시지부터 전달한다.
+- `no_result`, `out_of_scope`, `suggestion` 메시지는 기본적으로 이전 대화 이력 복원 대상에 포함하지 않는다.
+- Redis 키는 사용자 단위로 관리하며, 기본 형식은 `conversation:{userId}`를 사용한다.
+
+
+#### Response (200 OK, 문서 기반 답변)
+
+```json
 {
   "questionId": 201,
   "documents": [
-    { "documentId": 1 },
-    { "documentId": 2 },
-    { "documentId": 3 }
+    {
+      "documentId": 1
+    },
+    {
+      "documentId": 2
+    },
+    {
+      "documentId": 3
+    }
   ],
   "messageType": "rag_answer",
   "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
   "recommendedContacts": []
 }
 ```
+
+#### Response (200 OK, 답변 불가 및 담당자 추천)
 
 ```json
 {
@@ -869,6 +910,14 @@ Content-Type: application/json
         {
           "type": "slack",
           "value": "@jisoo.kim"
+        },
+        {
+          "type": "email",
+          "value": "jisoo.kim@withbuddy.ai"
+        },
+        {
+          "type": "extension",
+          "value": "635"
         }
       ]
     }
@@ -881,34 +930,61 @@ Content-Type: application/json
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
 | `questionId` | `Long` | Y | 사용자 질문 메시지 ID |
-| `documents` | `Array<Object>` | Y | 근거 문서 목록 |
+| `documents` | `Array<Object>` | Y | 답변 생성의 근거로 사용된 문서 목록 |
 | `documents[].documentId` | `Long` | Y | 근거 문서 ID |
-| `messageType` | `String` | Y | 답변 유형 |
+| `messageType` | `String` | Y | AI 답변 유형 |
 | `content` | `String` | Y | AI가 생성한 답변 내용 |
 | `recommendedContacts` | `Array<Object>` | Y | 추천 담당자 목록. 추천 대상이 없으면 빈 배열(`[]`) |
 
-#### 설명
+#### Response Field (`recommendedContacts[]`)
 
-- 백엔드는 질문 메시지를 먼저 저장한 뒤 내부 AI 서버를 호출한다.
-- 내부 AI 요청에는 질문 저장 결과 전체 객체를 전달하지 않고, 답변 생성에 필요한 최소 정보인 `questionId`, `user`, `content`만 전달한다.
-- `user.userId`는 사용자별 대화 맥락 식별 및 기억에 사용할 수 있다.
-- `user.name`은 개인화된 답변 생성에 사용할 수 있다.
-- `user.companyCode`를 기준으로 AI 서버는 해당 회사 문서와 공통 문서만 조회 대상으로 사용한다.
-- 향후 사용자 관련 정보가 추가되는 경우, 최상위 필드를 계속 늘리지 않고 `user` 객체 내부에 확장하여 전달한다.
-- AI 서버는 질문 내용에 대해 답변 문자열과 답변 유형을 생성하여 반환한다.
-- `messageType`은 아래 값 중 하나를 사용한다.
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `recommendedContacts[].department` | `String` | Y | 담당 부서명 |
+| `recommendedContacts[].name` | `String` | Y | 담당자 이름 |
+| `recommendedContacts[].position` | `String` | Y | 담당자 직급 |
+| `recommendedContacts[].connects` | `Array<Object>` | Y | 연락 수단 목록 |
+| `recommendedContacts[].connects[].type` | `String` | Y | 연락 수단 유형 |
+| `recommendedContacts[].connects[].value` | `String` | Y | 실제 연락 값 |
+
+#### 값 설명
+
+- `messageType`
   - `rag_answer`: 문서 기반 답변 생성
   - `no_result`: 질문 범위는 맞지만 문서/정보 부족으로 답변 불가
   - `out_of_scope`: 서비스 범위를 벗어난 질문
+
+- `recommendedContacts[].connects[].type`
+  - `slack`: Slack 사용자 또는 채널 연결 정보
+  - `email`: 이메일 주소
+  - `phone`: 일반 전화번호 또는 휴대전화번호
+  - `extension`: 사내 내선 번호
+
+#### 동작 규칙
+
+- 백엔드는 질문 메시지를 먼저 저장한 뒤 내부 AI 서버를 호출한다.
+- 내부 AI 요청에는 질문 저장 결과 전체 객체를 전달하지 않고, 답변 생성에 필요한 값만 전달한다.
+- 내부 AI 요청에 포함되는 값은 `questionId`, `user`, `content`, `conversationHistory`이다.
+- `user.userId`는 사용자별 대화 맥락 식별 및 이전 대화 이력 관리에 사용할 수 있다.
+- `user.name`은 개인화된 답변 생성에 사용할 수 있다.
+- `user.companyCode`는 회사별 문서 범위 판별에 사용한다.
+- AI 서버는 `user.companyCode`를 기준으로 해당 회사 문서와 공통 문서만 조회 대상으로 사용한다.
+- AI 서버는 질문 내용과 이전 대화 이력을 참고하여 답변을 생성할 수 있다.
+- 단, 이전 대화 이력은 보조 맥락이며, 회사 문서 접근 범위는 반드시 현재 요청의 `user.companyCode`를 기준으로 판단한다.
+- 향후 사용자 관련 정보가 추가되는 경우, 최상위 필드를 계속 늘리지 않고 `user` 객체 내부에 확장하여 전달한다.
+- AI 서버는 질문 내용에 대해 답변 문자열과 답변 유형을 생성하여 반환한다.
+- 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 사용한다.
 - `suggestion`은 온보딩 가이드 기반 메시지 유형이므로 내부 AI 답변 응답값으로 사용하지 않는다.
 - `documents`는 답변 생성의 근거로 사용된 문서 목록이다.
 - `documents[].documentId`는 `documents.id`를 의미한다.
 - 백엔드는 AI 응답의 `documents[].documentId` 목록을 답변 메시지와 연결하여 `chat_message_documents`에 저장한다.
-- `rag_answer`인 경우 근거 문서 목록이 포함될 수 있다.
-- `no_result`, `out_of_scope`인 경우 `documents`는 빈 배열(`[]`)로 반환한다.
-- `messageType = no_result`인 경우 AI 서버는  `recommendedContacts`를 함께 반환한다.
-- `messageType = rag_answer`, `out_of_scope`인 경우 `recommendedContacts`는 빈 배열(`[]`)을 반환한다.
-- - AI 서버는 `recommendedContacts`를 생성할 때도 `user.companyCode`를 기준으로 동일 회사 범위 내 담당자만 추천해야 한다.
+- `messageType = rag_answer`인 경우 근거 문서 목록이 포함될 수 있다.
+- `messageType = no_result`, `out_of_scope`인 경우 `documents`는 빈 배열(`[]`)로 반환한다.
+- `messageType = no_result`인 경우 AI 서버는 추천 가능한 담당자가 있으면 `recommendedContacts`를 함께 반환한다.
+- `messageType = rag_answer`, `out_of_scope`인 경우 `recommendedContacts`는 빈 배열(`[]`)로 반환한다.
+- AI 서버는 `recommendedContacts`를 생성할 때도 `user.companyCode`를 기준으로 동일 회사 범위 내 담당자만 추천해야 한다.
+- 추천 담당자가 없는 경우 `recommendedContacts`는 빈 배열(`[]`)로 반환한다.
+
 ---
 
 ## 8. Documents
@@ -1194,3 +1270,5 @@ Authorization: Bearer {accessToken}
   - 온보딩 제안 조회 API의 `dayOffset` 기준을 입사일 당일 `D+0` 기준으로 수정하고, 응답 필드 및 노출 규칙을 최신 구현 기준으로 정리
 - **v1.7.7 (2026-04-23)**:
   - `no_result` 메시지에 대한 담당자 추천 카드 응답 구조 추가, 채팅 메시지 목록 조회 및 질문 전송 응답 예시에 추천 담당자 정보 반영, 내부 AI 응답 규격에 추천 담당자 정보 반영
+- **v1.7.8 (2026-04-27)**:
+  - 내부 AI 답변 생성 요청(`/internal/ai/answer`)에 이전 대화 이력 `conversationHistory` 전달 규칙 추가
