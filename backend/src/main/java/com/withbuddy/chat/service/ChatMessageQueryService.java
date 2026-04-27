@@ -8,8 +8,6 @@ import com.withbuddy.chat.entity.MessageType;
 import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
-import com.withbuddy.global.exception.UnauthorizedException;
-import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -19,7 +17,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -31,12 +33,8 @@ public class ChatMessageQueryService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final JwtService jwtService;
 
-    public ChatMessageListResponse getMessages(String bearerToken, LocalDate date) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
-
+    public ChatMessageListResponse getMessages(Long userId, LocalDate date) {
         List<ChatMessage> chatMessages = findChatMessages(userId, date);
 
         if (chatMessages.isEmpty()) {
@@ -206,12 +204,5 @@ public class ChatMessageQueryService {
                 documentFile.getContentType(),
                 "/api/v1/documents/" + documentId + "/download"
         );
-    }
-
-    private String extractToken(String bearerToken) {
-        if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
-            throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
-        }
-        return bearerToken.substring(7);
     }
 }
