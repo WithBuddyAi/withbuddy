@@ -10,11 +10,13 @@ import axiosInstance from "../api/axiosInstance"
 import Calendar from "react-calendar"
 import 'react-calendar/dist/Calendar.css'
 import ReactMarkdown from 'react-markdown'
+import { useUser } from "../contexts/UserContext"
 
 function MyBuddy ({setIsLoggedIn}) {
+  const { hireDate, dayOffset } = useUser()
+  const dayCount = dayOffset || localStorage.getItem('dayCount')
   // 사이드바에 표시되는 정보 state
   const name = localStorage.getItem('name')
-  const dayCount = localStorage.getItem('dayCount')
   // const hireDate = localStorage.getItem('hireDate')
   const today = format(new Date(), 'yyyy-MM-dd')
   // const progress = Math.min(Math.round((Number(dayCount) / 90) * 100), 100)
@@ -143,7 +145,7 @@ function MyBuddy ({setIsLoggedIn}) {
     chatBottomRef.current?.scrollIntoView({
       behavior: messageList.length > 1 ? "smooth" : "auto",
     })
-  }, [messageList, isLoading])
+  }, [messageList, isLoading, loadingMessage])
 
   // 에러 토스트 자동 사라짐
   useEffect(() => {
@@ -359,7 +361,7 @@ function MyBuddy ({setIsLoggedIn}) {
             <div className="flex items-center">
               <img src={char} alt="위드버디 대표 로고" className="w-[26px] mr-[12px]"/>
               <div className="flex items-center"><p className="text-[#343A40] text-[16px] font-semibold mr-[8px]">{name}</p>
-              <p className="text-[#20486799] text-[12px]">Day {dayCount}</p>
+              <p className="text-[#20486799] text-[12px]">Day {Number(dayCount) + 1}</p>
               </div>
             </div>
             {/* 데스크탑: bar 아이콘 */}

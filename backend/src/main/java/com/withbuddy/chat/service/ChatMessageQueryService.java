@@ -2,6 +2,7 @@ package com.withbuddy.chat.service;
 
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageResponse;
+import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.entity.ChatMessageDocument;
 import com.withbuddy.chat.entity.MessageType;
@@ -9,7 +10,8 @@ import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.global.exception.UnauthorizedException;
-import com.withbuddy.global.jwt.JwtService;
+import com.withbuddy.infrastructure.redis.RedisCacheKeys;
+import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -19,7 +21,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -31,12 +38,9 @@ public class ChatMessageQueryService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final JwtService jwtService;
+    private final RedisCacheService redisCacheService;
 
-    public ChatMessageListResponse getMessages(String bearerToken, LocalDate date) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
-
+    public ChatMessageListResponse getMessages(Long userId, LocalDate date) {
         List<ChatMessage> chatMessages = findChatMessages(userId, date);
 
         if (chatMessages.isEmpty()) {
@@ -208,10 +212,39 @@ public class ChatMessageQueryService {
         );
     }
 
-    private String extractToken(String bearerToken) {
-        if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
-            throw new UnauthorizedException("Authorization 헤더 형식이 올바르지 않습니다.");
+    public ChatMessageStatusResponse getMessageStatus(Long userId, Long questionId) {
+        chatMessageRepository.findById(questionId)
+                .filter(msg -> userId.equals(msg.getUserId()))
+                .orElseThrow(() -> new UnauthorizedException("해당 메시지에 접근 권한이 없습니다."));
+
+        String status = redisCacheService.get(RedisCacheKeys.ragStatus(questionId))
+                .orElse("TIMEOUT");
+
+        if ("COMPLETED".equals(status)) {
+            Optional<Long> answerIdOpt = redisCacheService.get(ragAnswerIdKey(questionId))
+                    .map(Long::parseLong);
+            if (answerIdOpt.isPresent()) {
+                Long answerId = answerIdOpt.get();
+                Optional<ChatMessage> answerOpt = chatMessageRepository.findById(answerId);
+                if (answerOpt.isPresent()) {
+                    List<Long> documentIds = chatMessageDocumentRepository
+                            .findByChatMessageIdIn(List.of(answerId))
+                            .stream()
+                            .map(ChatMessageDocument::getDocumentId)
+                            .toList();
+                    Map<Long, Document> documentMap = resolveDocumentMap(documentIds);
+                    Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(documentIds);
+                    ChatMessageResponse answerResponse = toResponse(answerOpt.get(), documentIds, documentMap, documentFileMap);
+                    return new ChatMessageStatusResponse("COMPLETED", answerResponse);
+                }
+            }
+            return new ChatMessageStatusResponse("COMPLETED", null);
         }
-        return bearerToken.substring(7);
+
+        return new ChatMessageStatusResponse(status, null);
+    }
+
+    private static String ragAnswerIdKey(Long questionId) {
+        return "rag:answer:" + questionId;
     }
 }

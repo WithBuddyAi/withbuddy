@@ -1,6 +1,7 @@
 package com.withbuddy.chat.service;
 
 import com.withbuddy.infrastructure.ai.client.AiClient;
+import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
 import com.withbuddy.chat.dto.ChatMessageResponse;
@@ -13,7 +14,7 @@ import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.withbuddy.global.jwt.JwtService;
+import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.AiUserContext;
@@ -25,6 +26,7 @@ import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -43,6 +45,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatMessageService {
 
     private static final int MAX_HISTORY_MESSAGES = 10;
@@ -53,17 +56,16 @@ public class ChatMessageService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final JwtService jwtService;
     private final AiClient aiClient;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final AsyncAiCallService asyncAiCallService;
 
-    public ChatMessageCreateResponse saveUserMessage(String bearerToken, ChatMessageRequest request) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long loginUserId = jwtService.getUserId(token);
-        String loginUserName = jwtService.getName(token);
-        String companyCode = jwtService.getCompanyCode(token);
+    public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
+        Long loginUserId = principal.userId();
+        String loginUserName = principal.name();
+        String companyCode = principal.companyCode();
         List<ConversationTurn> conversationHistory = resolveConversationHistory(loginUserId);
 
         ChatMessage savedQuestionMessage = transactionTemplate.execute(status -> saveQuestionMessage(loginUserId, request.getContent()));
@@ -89,9 +91,19 @@ public class ChatMessageService {
                 conversationHistory
         );
 
+        ChatMessageResponse questionResponse = toResponse(
+                savedQuestionMessage,
+                Collections.emptyList(),
+                Collections.emptyMap(),
+                Collections.emptyMap()
+        );
+
         AiAnswerServerResponse aiResponse;
         try {
             aiResponse = aiClient.requestAnswer(aiRequest);
+        } catch (AiTimeoutException ex) {
+            asyncAiCallService.callAndSaveAnswer(savedQuestionMessage.getId(), loginUserId, aiRequest);
+            return new ChatMessageCreateResponse(questionResponse, null, "PENDING");
         } catch (RuntimeException ex) {
             redisCacheService.put(
                     RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
@@ -118,25 +130,26 @@ public class ChatMessageService {
         if (savedAnswerMessage == null) {
             throw new IllegalStateException("답변 메시지 저장에 실패했습니다.");
         }
+        redisCacheService.put(ragAnswerIdKey(savedQuestionMessage.getId()), String.valueOf(savedAnswerMessage.getId()), RedisCacheTtl.RAG_STATUS);
 
         Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
         Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
         saveConversationPair(loginUserId, savedQuestionMessage.getContent(), savedAnswerMessage.getContent());
 
         return new ChatMessageCreateResponse(
-                toResponse(
-                        savedQuestionMessage,
-                        Collections.emptyList(),
-                        Collections.emptyMap(),
-                        Collections.emptyMap()
-                ),
+                questionResponse,
                 toResponse(
                         savedAnswerMessage,
                         answerDocumentIds,
                         documentMap,
                         documentFileMap
-                )
+                ),
+                "COMPLETED"
         );
+    }
+
+    private static String ragAnswerIdKey(Long questionId) {
+        return "rag:answer:" + questionId;
     }
 
     private ChatMessage saveQuestionMessage(Long userId, String content) {
@@ -477,10 +490,7 @@ public class ChatMessageService {
         );
     }
 
-    public Map<String, List<Map<String, String>>> getQuickQuestions(String bearerToken) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
-
+    public Map<String, List<Map<String, String>>> getQuickQuestions(Long userId) {
         return Map.of(
                 "quickQuestions",
                 List.of(

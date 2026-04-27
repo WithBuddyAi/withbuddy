@@ -88,6 +88,7 @@ frontend/node_modules
 # Codex workspace runtime artifacts
 .codex/runtime/
 .codex/logs/
+.codex/worktrees/
 
 # OCI 스크립트 실행 결과물 (로컬 전용)
 compartment_default.json

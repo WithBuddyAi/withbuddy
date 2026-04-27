@@ -1,17 +1,18 @@
-import { useState, useRef } from 'react';
+import { useState, useRef } from 'react'
 import char from '../assets/Favicon_web.svg'
 import withbuddy from '../assets/WithBuddy_web.svg'
-import { useNavigate, useLocation } from "react-router-dom";
-import { differenceInDays } from 'date-fns';
+import { useNavigate, useLocation } from "react-router-dom"
+import { differenceInDays } from 'date-fns'
 import Tooltip from '../components/Tooltip'
-import axios from 'axios';
+import axios from 'axios'
+import { useUser } from '../contexts/UserContext'
+
 
 function Login ({setIsLoggedIn}) {
   // 로딩 스피너
   const [isLoading, setIsLoading] = useState(false)
 
   // 로그인 시 필요한 정보에 대한 State
-
   const [companyCode, setCompanyCode] = useState('')
   const [companyCodeError, setCompanyCodeError] = useState('')
   const companyCodeRef = useRef(null)
@@ -21,6 +22,8 @@ function Login ({setIsLoggedIn}) {
   const [name, setName] = useState ('')
   const [nameError, setNameError] = useState('')
   const nameRef = useRef(null)
+
+  const { setHireDate, setDayOffset } = useUser()
 
   const location = useLocation()
   const tokenError = location.state?.tokenError
@@ -61,12 +64,14 @@ function Login ({setIsLoggedIn}) {
         localStorage.setItem('accessToken', data.accessToken)
         setIsLoggedIn(true)
         localStorage.setItem('hireDate', data.user.hireDate)
+        setHireDate(data.user.hireDate)
         localStorage.setItem('name', data.user.name)
 
         const today = new Date()
         const hireDate = new Date(data.user.hireDate)
-        const dayCount = differenceInDays(today, hireDate) + 1
-        localStorage.setItem('dayCount', dayCount)
+        const dayOffset = differenceInDays(today, hireDate)
+        localStorage.setItem('dayCount', dayOffset)
+        setDayOffset(dayOffset)
 
         navigate('/mybuddy')
     } 

@@ -7,6 +7,7 @@ import com.withbuddy.chat.dto.ChatMessageRequest;
 import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.global.dto.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -14,7 +15,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDate;
@@ -41,7 +43,7 @@ public interface ChatMessageControllerDocs {
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ChatMessageCreateResponse sendMessage(
-            @RequestHeader(value = "Authorization", required = false) String bearerToken,
+            @Parameter(hidden = true) Authentication authentication,
             ChatMessageRequest request
     );
 
@@ -60,7 +62,7 @@ public interface ChatMessageControllerDocs {
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ChatMessageListResponse getMessages(
-            @RequestHeader(value = "Authorization", required = false) String bearerToken,
+            @Parameter(hidden = true) Authentication authentication,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     );
 
@@ -78,7 +80,7 @@ public interface ChatMessageControllerDocs {
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<LogResponse> saveSessionStart(
-            @RequestHeader(value = "Authorization", required = false) String bearerToken
+            @Parameter(hidden = true) Authentication authentication
     );
 
     @Operation(
@@ -95,7 +97,7 @@ public interface ChatMessageControllerDocs {
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     Map<String, List<Map<String, String>>> getQuickQuestions(
-            @RequestHeader(value = "Authorization", required = false) String bearerToken
+            @Parameter(hidden = true) Authentication authentication
     );
 
     @Operation(
@@ -112,7 +114,7 @@ public interface ChatMessageControllerDocs {
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     LogResponse saveQuickQuestionClick(
-            @RequestHeader(value = "Authorization", required = false) String bearerToken
+            @Parameter(hidden = true) Authentication authentication
     );
 
     @Operation(
@@ -130,7 +132,7 @@ public interface ChatMessageControllerDocs {
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ChatMessageStatusResponse getMessageStatus(
-            @RequestHeader(value = "Authorization", required = false) String bearerToken,
-            @org.springframework.web.bind.annotation.PathVariable Long questionId
+            @Parameter(hidden = true) Authentication authentication,
+            @PathVariable Long questionId
     );
 }
