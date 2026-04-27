@@ -19,7 +19,7 @@ public interface OnboardingSuggestionControllerDocs {
         description = """
             [목적] 로그인한 수습사원의 개인화된 온보딩 제안 항목을 조회한다.
             [베네핏] 수습사원이 지금 어떤 온보딩 단계를 수행해야 하는지 한눈에 파악할 수 있다. \
-            Redis 캐싱을 통해 반복 조회 시 DB 부하 없이 빠르게 응답하며, \
+            실제 입사일 기준으로 매번 현재 온보딩 일차를 계산해 정확한 제안을 제공하며, \
             온보딩 완료율 추적의 기반 데이터로 활용된다."""
     )
     @ApiResponses(value = {

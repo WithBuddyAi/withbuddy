@@ -2,8 +2,6 @@ package com.withbuddy.onboarding.service;
 
 import com.withbuddy.auth.repository.UserRepository;
 import com.withbuddy.chat.service.ChatMessageService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
@@ -19,7 +17,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -31,14 +28,14 @@ public class OnboardingSuggestionService {
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
     private final ChatMessageService chatMessageService;
     private final RedisCacheService redisCacheService;
-    private final ObjectMapper objectMapper;
 
     public OnboardingSuggestionListResponse getMyOnboardingSuggestions(Long userId) {
-        UserProfile userProfile = getUserProfile(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        int dayOffset = getOrCacheDayOffset(userId, userProfile.hireDate());
+        int dayOffset = calculateDayOffset(user.getHireDate());
 
-        Long suggestionId = getOrCacheQuickTapSuggestionId(dayOffset);
+        Long suggestionId = resolveSuggestionId(dayOffset);
 
         if (suggestionId == null) {
             return new OnboardingSuggestionListResponse(List.of());
@@ -51,7 +48,7 @@ public class OnboardingSuggestionService {
             return new OnboardingSuggestionListResponse(List.of());
         }
 
-        String content = replacePlaceholders(suggestion.getContent(), userProfile.name(), dayOffset);
+        String content = replacePlaceholders(suggestion.getContent(), user.getName(), dayOffset);
 
         String nudgeSentKey = RedisCacheKeys.nudgeSent(userId, dayOffset);
         if (redisCacheService.putIfAbsent(nudgeSentKey, "1", RedisCacheTtl.NUDGE_SENT)) {
@@ -72,76 +69,8 @@ public class OnboardingSuggestionService {
         return new OnboardingSuggestionListResponse(List.of(response));
     }
 
-    private UserProfile getUserProfile(Long userId) {
-        Optional<UserProfile> cached = getCachedUserProfile(userId);
-        if (cached.isPresent()) {
-            return cached.get();
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
-        return new UserProfile(user.getName(), user.getHireDate());
-    }
-
-    private Optional<UserProfile> getCachedUserProfile(Long userId) {
-        Optional<String> cached = redisCacheService.get(RedisCacheKeys.userProfile(userId));
-        if (cached.isEmpty()) {
-            return Optional.empty();
-        }
-
-        try {
-            JsonNode root = objectMapper.readTree(cached.get());
-            JsonNode nameNode = root.get("name");
-            JsonNode hireDateNode = root.get("hireDate");
-
-            if (nameNode == null || nameNode.asText().isBlank()
-                    || hireDateNode == null || hireDateNode.asText().isBlank()) {
-                return Optional.empty();
-            }
-
-            return Optional.of(new UserProfile(
-                    nameNode.asText(),
-                    LocalDate.parse(hireDateNode.asText())
-            ));
-        } catch (Exception ignored) {
-            return Optional.empty();
-        }
-    }
-
-    private int getOrCacheDayOffset(Long userId, LocalDate hireDate) {
-        String key = RedisCacheKeys.buddyDay(userId);
-        Optional<String> cached = redisCacheService.get(key);
-        if (cached.isPresent()) {
-            return Integer.parseInt(cached.get());
-        }
-
-        LocalDate today = LocalDate.now(KST);
-        int dayOffset = (int) ChronoUnit.DAYS.between(hireDate, today);
-        redisCacheService.put(key, String.valueOf(dayOffset), RedisCacheTtl.BUDDY_DAY);
-        return dayOffset;
-    }
-
-    private Long getOrCacheQuickTapSuggestionId(int dayOffset) {
-        String key = RedisCacheKeys.quickTap(dayOffset);
-        Optional<String> cached = redisCacheService.get(key);
-        if (cached.isPresent()) {
-            return parseNullableLong(cached.get());
-        }
-
-        Long suggestionId = resolveSuggestionId(dayOffset);
-        if (suggestionId == null) {
-            return null;
-        }
-
-        redisCacheService.put(key, String.valueOf(suggestionId), RedisCacheTtl.QUICK_TAP);
-        return suggestionId;
-    }
-
-    private Long parseNullableLong(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return Long.parseLong(value);
+    private int calculateDayOffset(LocalDate hireDate) {
+        return (int) ChronoUnit.DAYS.between(hireDate, LocalDate.now(KST));
     }
 
     private Long resolveSuggestionId(int dayOffset) {
@@ -159,8 +88,5 @@ public class OnboardingSuggestionService {
         return content
                 .replace("{이름}", userName)
                 .replace("{N}", String.valueOf(displayDay));
-    }
-
-    private record UserProfile(String name, LocalDate hireDate) {
     }
 }
