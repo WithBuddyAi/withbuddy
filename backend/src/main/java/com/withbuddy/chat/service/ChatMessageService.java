@@ -13,7 +13,7 @@ import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.withbuddy.global.jwt.JwtService;
+import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.AiUserContext;
@@ -53,17 +53,15 @@ public class ChatMessageService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final JwtService jwtService;
     private final AiClient aiClient;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
-    public ChatMessageCreateResponse saveUserMessage(String bearerToken, ChatMessageRequest request) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long loginUserId = jwtService.getUserId(token);
-        String loginUserName = jwtService.getName(token);
-        String companyCode = jwtService.getCompanyCode(token);
+    public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
+        Long loginUserId = principal.userId();
+        String loginUserName = principal.name();
+        String companyCode = principal.companyCode();
         List<ConversationTurn> conversationHistory = resolveConversationHistory(loginUserId);
 
         ChatMessage savedQuestionMessage = transactionTemplate.execute(status -> saveQuestionMessage(loginUserId, request.getContent()));
@@ -477,10 +475,7 @@ public class ChatMessageService {
         );
     }
 
-    public Map<String, List<Map<String, String>>> getQuickQuestions(String bearerToken) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
-
+    public Map<String, List<Map<String, String>>> getQuickQuestions(Long userId) {
         return Map.of(
                 "quickQuestions",
                 List.of(
