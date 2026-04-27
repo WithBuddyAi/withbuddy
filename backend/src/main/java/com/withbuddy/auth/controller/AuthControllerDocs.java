@@ -4,13 +4,14 @@ import com.withbuddy.auth.dto.request.LoginRequest;
 import com.withbuddy.auth.dto.response.LoginResponse;
 import com.withbuddy.global.dto.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.security.core.Authentication;
 
 @Tag(name = "Auth", description = "인증 API — Redis 세션 기반 단일 기기 로그인/로그아웃 관리")
 public interface AuthControllerDocs {
@@ -43,5 +44,5 @@ public interface AuthControllerDocs {
         @ApiResponse(responseCode = "401", description = "인증 실패 — 이미 만료된 토큰",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ResponseEntity<Void> logout(@RequestHeader("Authorization") String bearerToken);
+    ResponseEntity<Void> logout(@Parameter(hidden = true) Authentication authentication);
 }
