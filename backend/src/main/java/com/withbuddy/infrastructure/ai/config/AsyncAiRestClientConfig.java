@@ -7,21 +7,21 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-public class AiConfig {
+public class AsyncAiRestClientConfig {
 
-    @Bean
-    public RestClient aiRestClient(
+    @Bean("asyncAiRestClient")
+    public RestClient asyncAiRestClient(
             @Value("${ai.server.base-url}") String aiBaseUrl,
             @Value("${ai.server.connect-timeout-ms:5000}") int connectTimeoutMs,
-            @Value("${ai.server.read-timeout-ms:10000}") int readTimeoutMs
+            @Value("${ai.server.async-read-timeout-ms:10000}") int asyncReadTimeoutMs
     ) {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(connectTimeoutMs);
-        requestFactory.setReadTimeout(readTimeoutMs);
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(connectTimeoutMs);
+        factory.setReadTimeout(asyncReadTimeoutMs);
 
         return RestClient.builder()
                 .baseUrl(aiBaseUrl)
-                .requestFactory(requestFactory)
+                .requestFactory(factory)
                 .build();
     }
 }

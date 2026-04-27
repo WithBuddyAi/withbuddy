@@ -4,6 +4,7 @@ import com.withbuddy.activity.dto.LogResponse;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.global.dto.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDate;
@@ -113,5 +115,23 @@ public interface ChatMessageControllerDocs {
     })
     LogResponse saveQuickQuestionClick(
             @Parameter(hidden = true) Authentication authentication
+    );
+
+    @Operation(
+        summary = "AI 답변 처리 상태 조회",
+        description = """
+            [목적] 10초 초과로 비동기 처리 중인 질문의 상태와 완료된 답변을 조회한다.
+            [베네핏] 클라이언트가 PENDING 응답 이후 폴링으로 완료 여부를 확인해 \
+            긴 AI 답변 생성 중에도 화면 흐름을 유지할 수 있다."""
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "상태 조회 성공 (PENDING / COMPLETED / TIMEOUT)",
+                content = @Content(schema = @Schema(implementation = ChatMessageStatusResponse.class))),
+        @ApiResponse(responseCode = "401", description = "인증 실패 또는 접근 권한 없음",
+                content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ChatMessageStatusResponse getMessageStatus(
+            @Parameter(hidden = true) Authentication authentication,
+            @PathVariable Long questionId
     );
 }
