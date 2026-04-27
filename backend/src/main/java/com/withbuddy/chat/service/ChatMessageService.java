@@ -62,7 +62,9 @@ public class ChatMessageService {
         Long loginUserId = principal.userId();
         String loginUserName = principal.name();
         String companyCode = principal.companyCode();
-        List<ConversationTurn> conversationHistory = resolveConversationHistory(loginUserId);
+        List<ConversationTurn> conversationHistory = sanitizeConversationHistoryForAi(
+                resolveConversationHistory(loginUserId)
+        );
 
         ChatMessage savedQuestionMessage = transactionTemplate.execute(status -> saveQuestionMessage(loginUserId, request.getContent()));
         if (savedQuestionMessage == null) {
@@ -135,6 +137,17 @@ public class ChatMessageService {
                         documentFileMap
                 )
         );
+    }
+
+    private List<ConversationTurn> sanitizeConversationHistoryForAi(List<ConversationTurn> history) {
+        if (history == null || history.isEmpty()) {
+            return List.of();
+        }
+
+        return history.stream()
+                .filter(Objects::nonNull)
+                .filter(turn -> isValidRole(turn.role()) && hasText(turn.content()))
+                .toList();
     }
 
     private ChatMessage saveQuestionMessage(Long userId, String content) {
