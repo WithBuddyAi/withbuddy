@@ -14,27 +14,6 @@ from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
 from core.embeddings import get_embeddings
 
-_reranker = None
-
-def get_reranker():
-    """Cross-Encoder 리랭커 싱글톤 (BAAI/bge-reranker-v2-m3)"""
-    global _reranker
-    if _reranker is None:
-        from sentence_transformers import CrossEncoder
-        _reranker = CrossEncoder("BAAI/bge-reranker-v2-m3")
-    return _reranker
-
-
-def rerank_docs(query: str, docs: List[Document], top_k: int = 5) -> List[Document]:
-    """Cross-Encoder로 문서 재정렬 후 상위 top_k개 반환."""
-    if not docs:
-        return docs
-    model = get_reranker()
-    pairs = [[query, d.page_content[:300]] for d in docs]
-    scores = model.predict(pairs)
-    ranked = sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)
-    return [doc for _, doc in ranked[:top_k]]
-
 # ChromaDB 영구 저장 경로
 CHROMA_DB_PATH = "./chroma_db"
 
