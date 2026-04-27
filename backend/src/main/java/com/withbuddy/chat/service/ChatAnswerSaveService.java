@@ -54,10 +54,7 @@ public class ChatAnswerSaveService {
         MessageType answerMessageType = aiResponse.getMessageType();
         List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
         ChatMessage savedAnswerMessage = saveAnswerMessage(userId, answerMessageType, aiResponse.getContent(), answerDocumentIds);
-
-        ChatMessage questionMessage = chatMessageRepository.findById(questionId)
-                .orElseThrow(() -> new IllegalStateException("질문 메시지를 찾을 수 없습니다: " + questionId));
-        saveConversationPair(userId, questionMessage.getContent(), savedAnswerMessage.getContent());
+        saveConversationAnswer(userId, savedAnswerMessage.getContent());
 
         redisCacheService.put(ragAnswerIdKey(questionId), String.valueOf(savedAnswerMessage.getId()), RedisCacheTtl.RAG_STATUS);
         redisCacheService.put(ragStatusKey(questionId), "COMPLETED", RedisCacheTtl.RAG_STATUS);
@@ -112,12 +109,9 @@ public class ChatAnswerSaveService {
         return documentIds.stream().filter(existingIds::contains).toList();
     }
 
-    private void saveConversationPair(Long userId, String userQuestion, String assistantAnswer) {
+    private void saveConversationAnswer(Long userId, String assistantAnswer) {
         String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        List<ConversationTurn> turns = List.of(
-                new ConversationTurn("user", userQuestion),
-                new ConversationTurn("assistant", assistantAnswer)
-        );
+        List<ConversationTurn> turns = List.of(new ConversationTurn("assistant", assistantAnswer));
         writeConversationTurnsWithRecovery(key, turns);
     }
 

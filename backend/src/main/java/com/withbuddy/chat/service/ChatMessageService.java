@@ -26,6 +26,7 @@ import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -77,6 +78,7 @@ public class ChatMessageService {
                 "PENDING",
                 RedisCacheTtl.RAG_STATUS
         );
+        saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
 
         AiUserContext userContext = new AiUserContext(
                 loginUserId,
@@ -102,7 +104,16 @@ public class ChatMessageService {
         try {
             aiResponse = aiClient.requestAnswer(aiRequest);
         } catch (AiTimeoutException ex) {
-            asyncAiCallService.callAndSaveAnswer(savedQuestionMessage.getId(), loginUserId, aiRequest);
+            try {
+                asyncAiCallService.callAndSaveAnswer(savedQuestionMessage.getId(), loginUserId, aiRequest);
+            } catch (TaskRejectedException schedulingEx) {
+                redisCacheService.put(
+                        RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
+                        "TIMEOUT",
+                        RedisCacheTtl.RAG_STATUS
+                );
+                return new ChatMessageCreateResponse(questionResponse, null, "TIMEOUT");
+            }
             return new ChatMessageCreateResponse(questionResponse, null, "PENDING");
         } catch (RuntimeException ex) {
             redisCacheService.put(
@@ -133,7 +144,7 @@ public class ChatMessageService {
 
         Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
         Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
-        saveConversationPair(loginUserId, savedQuestionMessage.getContent(), savedAnswerMessage.getContent());
+        saveConversationAnswer(loginUserId, savedAnswerMessage.getContent());
 
         return new ChatMessageCreateResponse(
                 questionResponse,
@@ -390,13 +401,17 @@ public class ChatMessageService {
         return new ConversationTurn(role, message.getContent());
     }
 
-    private void saveConversationPair(Long userId, String userQuestion, String assistantAnswer) {
+    private void saveConversationQuestion(Long userId, String userQuestion) {
+        saveConversationTurn(userId, new ConversationTurn("user", userQuestion));
+    }
+
+    private void saveConversationAnswer(Long userId, String assistantAnswer) {
+        saveConversationTurn(userId, new ConversationTurn("assistant", assistantAnswer));
+    }
+
+    private void saveConversationTurn(Long userId, ConversationTurn turn) {
         String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        List<ConversationTurn> turns = List.of(
-                new ConversationTurn("user", userQuestion),
-                new ConversationTurn("assistant", assistantAnswer)
-        );
-        writeConversationTurnsWithRecovery(key, turns);
+        writeConversationTurnsWithRecovery(key, List.of(turn));
     }
 
     private void saveConversationHistoryList(Long userId, List<ConversationTurn> history) {
