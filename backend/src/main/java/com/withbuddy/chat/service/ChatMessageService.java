@@ -17,6 +17,7 @@ import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.AiUserContext;
+import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
@@ -57,6 +58,7 @@ public class ChatMessageService {
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final AsyncAiCallService asyncAiCallService;
 
     public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
         Long loginUserId = principal.userId();
@@ -89,9 +91,19 @@ public class ChatMessageService {
                 conversationHistory
         );
 
+        ChatMessageResponse questionResponse = toResponse(
+                savedQuestionMessage,
+                Collections.emptyList(),
+                Collections.emptyMap(),
+                Collections.emptyMap()
+        );
+
         AiAnswerServerResponse aiResponse;
         try {
             aiResponse = aiClient.requestAnswer(aiRequest);
+        } catch (AiTimeoutException ex) {
+            asyncAiCallService.callAndSaveAnswer(savedQuestionMessage.getId(), loginUserId, aiRequest);
+            return new ChatMessageCreateResponse(questionResponse, null, "PENDING");
         } catch (RuntimeException ex) {
             redisCacheService.put(
                     RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
@@ -124,18 +136,14 @@ public class ChatMessageService {
         saveConversationPair(loginUserId, savedQuestionMessage.getContent(), savedAnswerMessage.getContent());
 
         return new ChatMessageCreateResponse(
-                toResponse(
-                        savedQuestionMessage,
-                        Collections.emptyList(),
-                        Collections.emptyMap(),
-                        Collections.emptyMap()
-                ),
+                questionResponse,
                 toResponse(
                         savedAnswerMessage,
                         answerDocumentIds,
                         documentMap,
                         documentFileMap
-                )
+                ),
+                "COMPLETED"
         );
     }
 
