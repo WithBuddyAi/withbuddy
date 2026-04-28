@@ -59,6 +59,7 @@ public class AuthService {
         LoginUserResponse userResponse = new LoginUserResponse(
                 user.getId(),
                 user.getCompany().getCompanyCode(),
+                user.getRole(),
                 user.getCompany().getName(),
                 user.getEmployeeNumber(),
                 user.getName(),

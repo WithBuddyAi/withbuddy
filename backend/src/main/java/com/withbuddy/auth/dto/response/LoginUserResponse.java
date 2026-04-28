@@ -1,5 +1,6 @@
 package com.withbuddy.auth.dto.response;
 
+import com.withbuddy.user.entity.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -16,6 +17,9 @@ public class LoginUserResponse {
 
     @Schema(description = "회사 코드", example = "1001")
     private String companyCode;
+
+    @Schema(description = "사용자 역할", example = "ADMIN", allowableValues = {"USER", "ADMIN"})
+    private UserRole role;
 
     @Schema(description = "회사명", example = "테크 주식회사")
     private String companyName;
