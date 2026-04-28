@@ -13,7 +13,7 @@ public class AiConfig {
     public RestClient aiRestClient(
             @Value("${ai.server.base-url}") String aiBaseUrl,
             @Value("${ai.server.connect-timeout-ms:5000}") int connectTimeoutMs,
-            @Value("${ai.server.read-timeout-ms:20000}") int readTimeoutMs
+            @Value("${ai.server.read-timeout-ms:10000}") int readTimeoutMs
     ) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(connectTimeoutMs);

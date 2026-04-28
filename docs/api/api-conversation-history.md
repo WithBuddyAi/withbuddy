@@ -1,8 +1,8 @@
 # BE ↔ AI 서버 대화 이력 전달 API 명세서
 
-> **버전**: v1.1  
+> **버전**: v1.2  
 > **작성일**: 2026-04-24  
-> **수정일**: 2026-04-24 —  4. Thundering Herd 방지, 5. RPUSH+LTRIM Sliding Window, 6. 트랜잭션 분리 반영  
+> **수정일**: 2026-04-27 — 비동기 AI PENDING 처리, turn 순서 보존, timeout 정책 반영  
 > **대상 엔드포인트**: `POST /internal/ai/answer`  
 > **작성 배경**: AI가 이전 대화를 기억하지 못하는 문제 해결을 위해 BE → AI 서버 요청에 대화 이력을 추가
 
@@ -15,6 +15,8 @@
 | 요청 필드 | questionId, user, content | questionId, user, content, **conversationHistory** 추가 |
 | 대화 이력 출처 | 없음 | Redis (세션 내) → DB fallback (만료 후) |
 | AI 응답 품질 | 단발성 (맥락 없음) | 이전 대화 참조 가능 |
+| AI 응답 지연 처리 | 요청 스레드가 AI 응답까지 대기 | 10초 초과 시 `PENDING` 반환 후 비동기 처리 |
+| Redis turn 저장 | AI 응답 완료 후 Q&A 페어 저장 | 질문 저장 시 `user` turn 선저장, 답변 완료 시 `assistant` turn 저장 |
 
 ---
 
@@ -139,11 +141,11 @@ Redis MISS 발생 시:
      → 여전히 MISS면 conversationHistory = [] 로 진행 (graceful degradation)
 ```
 
-> 분산 락 구현은 기존 `RedisLockManager.withLock()`을 재사용한다.
+> 분산 락 구현은 `RedisCacheService.putIfAbsent()`와 Lua 기반 `releaseLock()`을 사용한다.
 
 ---
 
-## 5. Redis 저장 포맷
+## 5. Redis 저장 포맷 및 turn 순서 정책
 
 ### 키
 
@@ -162,8 +164,10 @@ SET conversation:{userId} "연차는 어떻게 쓰나요?"
 **변경 후** — Redis List (RPUSH + LTRIM으로 최신 5턴 유지)
 
 ```
--- 새 Q&A 페어 저장 시
+-- 질문 메시지 저장 직후
 RPUSH conversation:{userId} '{"role":"user","content":"연차는 어떻게 쓰나요?"}'
+
+-- AI 답변 저장 직후 (동기 완료 또는 비동기 완료)
 RPUSH conversation:{userId} '{"role":"assistant","content":"연차는 입사 1년 후..."}'
 LTRIM conversation:{userId} -10 -1   -- 최신 10개(5턴) 유지, 초과분 자동 제거
 EXPIRE conversation:{userId} 1800    -- TTL 30분 초기화
@@ -171,6 +175,25 @@ EXPIRE conversation:{userId} 1800    -- TTL 30분 초기화
 
 > Sliding Window 로직은 BE 저장 시점에 `RPUSH + LTRIM`으로 처리한다.  
 > AI 서버에 턴 수 제어를 맡기지 않는다.
+
+### 비동기 완료 시 순서 보존
+
+AI 응답이 10초를 초과하면 API는 즉시 `PENDING`을 반환하고 백그라운드에서 답변 생성을 계속한다. 이때 질문과 답변을 비동기 완료 시점에 함께 append하면 사용자가 대기 중 다른 질문을 보낸 경우 Redis 이력이 다음처럼 뒤섞일 수 있다.
+
+```
+Q2, A2, Q1, A1
+```
+
+이를 방지하기 위해 turn 저장 시점을 분리한다.
+
+```
+1. 질문 DB 저장 직후: user turn append
+2. 동기 AI 완료: assistant turn append
+3. 비동기 AI 완료: assistant turn append
+4. 비동기 스케줄링 실패 또는 AI 실패: assistant turn append 없음, rag 상태만 TIMEOUT 처리
+```
+
+이 정책으로 다음 AI 호출이 읽는 `conversationHistory`의 시간 순서를 안정적으로 유지한다.
 
 ### TTL
 
@@ -188,6 +211,55 @@ EXPIRE conversation:{userId} 1800    -- TTL 30분 초기화
 | `infrastructure/ai/dto/ConversationTurn.java` | 신규 record 생성 |
 | `infrastructure/ai/dto/AiAnswerServerRequest.java` | `conversationHistory` 필드 추가 |
 | `chat/service/ChatMessageService.java` | 이력 조회/저장 로직 추가, **트랜잭션 범위 분리** |
+| `chat/dto/ChatMessageCreateResponse.java` | `status` 필드 추가 (`COMPLETED`, `PENDING`, `TIMEOUT`) |
+| `chat/dto/ChatMessageStatusResponse.java` | 비동기 처리 상태 조회 응답 DTO 추가 |
+| `chat/service/AsyncAiCallService.java` | `PENDING` 이후 백그라운드 AI 재호출 |
+| `chat/service/ChatAnswerSaveService.java` | 비동기 답변 저장 및 `assistant` turn append |
+| `global/config/AsyncConfig.java` | AI 비동기 실행용 bounded executor 설정 |
+| `infrastructure/ai/config/AsyncAiRestClientConfig.java` | 비동기 AI RestClient timeout 설정 |
+
+### 채팅 API 응답 상태
+
+`POST /api/v1/chat/messages`는 AI 응답 시간에 따라 다음처럼 응답한다.
+
+```
+10초 내 응답:
+  { question, answer, status: "COMPLETED" }
+
+10초 초과:
+  { question, answer: null, status: "PENDING" }
+
+10초 초과 후 비동기 스케줄링 실패:
+  { question, answer: null, status: "TIMEOUT" }
+```
+
+비동기 처리 상태는 다음 API로 조회한다.
+
+```
+GET /api/v1/chat/messages/{questionId}/status
+```
+
+응답 예시:
+
+```json
+{
+  "status": "COMPLETED",
+  "answer": {
+    "id": 202,
+    "senderType": "BOT",
+    "messageType": "rag_answer",
+    "content": "연차 신청은 HR 시스템 > 근태관리 메뉴에서 하실 수 있습니다."
+  }
+}
+```
+
+### Timeout 정책
+
+| 항목 | 환경변수 | 기본값 | 목적 |
+|------|----------|--------|------|
+| AI connection timeout | `AI_SERVER_CONNECT_TIMEOUT_MS` | `5000` | AI 서버 TCP 연결 대기 |
+| AI 동기 read timeout | `AI_SERVER_READ_TIMEOUT_MS` | `10000` | 사용자 요청을 붙잡는 최대 응답 대기 |
+| AI 비동기 read timeout | `AI_SERVER_ASYNC_READ_TIMEOUT_MS` | `10000` | `PENDING` 이후 백그라운드 AI 응답 대기 |
 
 ### 트랜잭션 분리 주의사항
 
@@ -199,12 +271,14 @@ EXPIRE conversation:{userId} 1800    -- TTL 30분 초기화
 [트랜잭션 시작]  질문 메시지 DB 저장
 [트랜잭션 종료]
      ↓
-[트랜잭션 밖]  AI 서버 호출 (최대 ~20초)
+[트랜잭션 밖]  Redis에 user turn 저장 (RPUSH + LTRIM + EXPIRE)
+     ↓
+[트랜잭션 밖]  AI 서버 호출 (동기 read timeout 기본 10초)
      ↓
 [트랜잭션 시작]  AI 답변 메시지 DB 저장
 [트랜잭션 종료]
      ↓
-[트랜잭션 밖]  Redis에 Q&A 페어 저장 (RPUSH + LTRIM + EXPIRE)
+[트랜잭션 밖]  Redis에 assistant turn 저장 (RPUSH + LTRIM + EXPIRE)
 ```
 
 > `@CacheEvict`와 동일한 원칙: Redis 작업은 트랜잭션 완료 후 수행.
@@ -296,4 +370,8 @@ Step 4. [통합 테스트] 대화 연속성 end-to-end 확인
 | 오래된 대화 참조 | "저번에 복지카드 얘기했는데" | DB fallback으로 이력 복원하여 AI가 맥락 파악 |
 | 동시 DB fallback | Redis MISS 상태에서 요청 다수 | 락 선점 1개만 DB 조회, 나머지는 Redis 재조회 또는 `[]`로 graceful 처리 |
 | 6턴 이상 누적 | RPUSH 후 List 길이 > 10 | LTRIM -10 -1 으로 자동 제거, 5턴만 유지 |
-| AI 응답 실패 | timeout 등 | Redis 이력 업데이트 안 함 (기존 이력 보존) |
+| AI 동기 응답 성공 | 10초 내 AI 응답 | `status=COMPLETED`, user turn 저장 후 assistant turn 저장 |
+| AI 동기 timeout | 10초 초과 | `status=PENDING`, user turn은 이미 저장, 비동기 처리 시작 |
+| 비동기 AI 완료 | `PENDING` 이후 AI 응답 성공 | BOT 답변 저장, assistant turn만 append, `rag:answer:{questionId}` 저장, `status=COMPLETED` |
+| 비동기 스케줄링 실패 | executor 포화 등 `TaskRejectedException` | `status=TIMEOUT`, assistant turn 저장 안 함 |
+| AI 응답 실패 | timeout 등 | assistant turn 저장 안 함, 기존 이력 보존 |

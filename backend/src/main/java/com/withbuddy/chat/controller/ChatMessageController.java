@@ -5,6 +5,7 @@ import com.withbuddy.activity.service.UserActivityLogService;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.chat.service.ChatMessageQueryService;
 import com.withbuddy.chat.service.ChatMessageService;
 import com.withbuddy.global.security.AuthenticationPrincipalResolver;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,7 +34,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
 @Tag(name = "Ai", description = "버디 채팅 API")
-public class ChatMessageController {
+public class ChatMessageController implements ChatMessageControllerDocs {
 
     private final ChatMessageService chatMessageService;
     private final ChatMessageQueryService chatMessageQueryService;
@@ -83,5 +85,15 @@ public class ChatMessageController {
     public LogResponse saveQuickQuestionClick(Authentication authentication) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         return userActivityLogService.saveQuickQuestionClick(principal.userId());
+    }
+
+    @GetMapping("/messages/{questionId}/status")
+    @ResponseStatus(HttpStatus.OK)
+    public ChatMessageStatusResponse getMessageStatus(
+            Authentication authentication,
+            @PathVariable Long questionId
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return chatMessageQueryService.getMessageStatus(principal.userId(), questionId);
     }
 }

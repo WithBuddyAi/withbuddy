@@ -34,6 +34,7 @@
 ### 컬럼
 - `id` : PK, bigint
 - `company_code` : FK → `companies.company_code`
+- `role` : 사용자 역할, varchar, 기본값 `USER` (`USER`, `ADMIN`)
 - `name` : 사용자 이름, varchar
 - `employee_number` : 사번, varchar
 - `hire_date` : 입사일, date
@@ -268,6 +269,8 @@
 - v1.4 (2026-04-01): `users`와 `documents`의 회사 참조 기준을 `company_code`로 통일하고, 관련 설명 및 관계 문구를 정리
 - v1.5 (2026-04-07): `documents.document_type`, `documents.department` 표준 분류값 및 분류 기준 설명 추가, `chat_messages` 테이블 수정, `document_id` 컬럼 삭제
 - v1.6 (2026-04-14): `document_files`, `document_backup_jobs`, `chat_message_documents` 테이블 추가, 답변 메시지와 근거 문서의 다중 연결 구조 반영, 문서-파일-백업 작업 관계 설명 추가
+- v1.7 (2026-04-28): `users.role` 컬럼 추가, 일반 사용자(`USER`)와 관리자(`ADMIN`) 계정 구분 기준 반영
+
 ---
 
 ## ERD 원본 링크

@@ -17,6 +17,7 @@ import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.AiUserContext;
+import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
@@ -25,6 +26,7 @@ import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -57,12 +59,15 @@ public class ChatMessageService {
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final AsyncAiCallService asyncAiCallService;
 
     public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
         Long loginUserId = principal.userId();
         String loginUserName = principal.name();
         String companyCode = principal.companyCode();
-        List<ConversationTurn> conversationHistory = resolveConversationHistory(loginUserId);
+        List<ConversationTurn> conversationHistory = sanitizeConversationHistoryForAi(
+                resolveConversationHistory(loginUserId)
+        );
 
         ChatMessage savedQuestionMessage = transactionTemplate.execute(status -> saveQuestionMessage(loginUserId, request.getContent()));
         if (savedQuestionMessage == null) {
@@ -73,6 +78,7 @@ public class ChatMessageService {
                 "PENDING",
                 RedisCacheTtl.RAG_STATUS
         );
+        saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
 
         AiUserContext userContext = new AiUserContext(
                 loginUserId,
@@ -87,9 +93,28 @@ public class ChatMessageService {
                 conversationHistory
         );
 
+        ChatMessageResponse questionResponse = toResponse(
+                savedQuestionMessage,
+                Collections.emptyList(),
+                Collections.emptyMap(),
+                Collections.emptyMap()
+        );
+
         AiAnswerServerResponse aiResponse;
         try {
             aiResponse = aiClient.requestAnswer(aiRequest);
+        } catch (AiTimeoutException ex) {
+            try {
+                asyncAiCallService.callAndSaveAnswer(savedQuestionMessage.getId(), loginUserId, aiRequest);
+            } catch (TaskRejectedException schedulingEx) {
+                redisCacheService.put(
+                        RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
+                        "TIMEOUT",
+                        RedisCacheTtl.RAG_STATUS
+                );
+                return new ChatMessageCreateResponse(questionResponse, null, "TIMEOUT");
+            }
+            return new ChatMessageCreateResponse(questionResponse, null, "PENDING");
         } catch (RuntimeException ex) {
             redisCacheService.put(
                     RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
@@ -119,22 +144,29 @@ public class ChatMessageService {
 
         Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
         Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
-        saveConversationPair(loginUserId, savedQuestionMessage.getContent(), savedAnswerMessage.getContent());
+        saveConversationAnswer(loginUserId, savedAnswerMessage.getContent());
 
         return new ChatMessageCreateResponse(
-                toResponse(
-                        savedQuestionMessage,
-                        Collections.emptyList(),
-                        Collections.emptyMap(),
-                        Collections.emptyMap()
-                ),
+                questionResponse,
                 toResponse(
                         savedAnswerMessage,
                         answerDocumentIds,
                         documentMap,
                         documentFileMap
-                )
+                ),
+                "COMPLETED"
         );
+    }
+
+    private List<ConversationTurn> sanitizeConversationHistoryForAi(List<ConversationTurn> history) {
+        if (history == null || history.isEmpty()) {
+            return List.of();
+        }
+
+        return history.stream()
+                .filter(Objects::nonNull)
+                .filter(turn -> isValidRole(turn.role()) && hasText(turn.content()))
+                .toList();
     }
 
     private ChatMessage saveQuestionMessage(Long userId, String content) {
@@ -380,13 +412,17 @@ public class ChatMessageService {
         return new ConversationTurn(role, message.getContent());
     }
 
-    private void saveConversationPair(Long userId, String userQuestion, String assistantAnswer) {
+    private void saveConversationQuestion(Long userId, String userQuestion) {
+        saveConversationTurn(userId, new ConversationTurn("user", userQuestion));
+    }
+
+    private void saveConversationAnswer(Long userId, String assistantAnswer) {
+        saveConversationTurn(userId, new ConversationTurn("assistant", assistantAnswer));
+    }
+
+    private void saveConversationTurn(Long userId, ConversationTurn turn) {
         String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        List<ConversationTurn> turns = List.of(
-                new ConversationTurn("user", userQuestion),
-                new ConversationTurn("assistant", assistantAnswer)
-        );
-        writeConversationTurnsWithRecovery(key, turns);
+        writeConversationTurnsWithRecovery(key, List.of(turn));
     }
 
     private void saveConversationHistoryList(Long userId, List<ConversationTurn> history) {
