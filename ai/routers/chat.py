@@ -274,7 +274,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             save_interaction(user_id, request.content, chitchat_answer)
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
-                messageType="chitchat",
+                messageType="out_of_scope",
                 content=chitchat_answer,
             )
 
