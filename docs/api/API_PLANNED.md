@@ -2,12 +2,12 @@
 
 > MVP 이후 검토하거나 추후 구현 예정인 API/정책 초안 문서
 
-**버전**: 2.1.0  
-**최종 업데이트**: 2026-03-17
+**버전**: 2.1.1  
+**최종 업데이트**: 2026-04-28
 
 ---
 
-## 📋 목차
+## 목차
 
 - [문서 목적](#문서-목적)
 - [범위 밖 기능 목록](#범위-밖-기능-목록)
@@ -19,11 +19,11 @@
 - [체크리스트 (Checklist)](#체크리스트-checklist)
 - [기록 (Records)](#기록-records)
 - [리포트 (Reports)](#리포트-reports)
-- [문서 관리 (Documents)](#문서-관리-documents)
+- [문서 관리 고도화 (Documents)](#문서-관리-고도화-documents)
 - [진행률 (Progress)](#진행률-progress)
 - [Rate Limiting](#rate-limiting)
 - [페이지네이션](#페이지네이션)
-- [커스텀 에러 코드](#커스텀-에러-코드)
+- [변경 이력](#변경-이력)
 
 ---
 
@@ -32,16 +32,16 @@
 이 문서는 다음 항목을 관리합니다.
 
 - 현재 MVP 구현 범위에서 제외된 API
-- 추후 변경 가능성이 큰 기능 초안
+- MVP 이후 검토하거나 추후 구현 예정인 기능 초안
 - 실제 응답 스펙에는 아직 포함되지 않은 공통 정책
 
-`docs/API.md`에는 현재 구현 범위만 유지하고, 이 문서는 참고용 초안으로 계속 보완합니다.
+`docs/api/API_CURRENT.md`에는 현재 구현 범위와 확정된 API만 유지하고, 이 문서는 참고용 초안으로 관리합니다.
 
 ---
 
 ## 범위 밖 기능 목록
 
-현재 `docs/API.md`에서 제외하고 이 문서에서 관리하는 항목은 다음과 같습니다.
+현재 `docs/api/API_CURRENT.md`에서 제외하고 이 문서에서 관리하는 항목은 다음과 같습니다.
 
 - 회원가입
 - 권한 분할
@@ -55,11 +55,12 @@
 - 체크리스트 전체 조회
 - 기록 전체
 - 리포트 전체
-- 문서 관리 전체
+- 문서 검색 및 문서 관리 고도화 기능
 - 진행률 전체
 - Rate Limiting
 - 페이지네이션
-- 커스텀 에러 코드
+
+> 공통 에러 응답과 현재 구현된 API 규격은 `docs/API.md`를 기준으로 한다.
 
 ---
 
@@ -73,6 +74,7 @@ Content-Type: application/json
 ```
 
 **Request Body**
+
 ```json
 {
   "companyCode": 1001,
@@ -84,15 +86,17 @@ Content-Type: application/json
 }
 ```
 
-**필드 설명**:
-- `companyCode`: 회사 고유 코드 (필수)
-- `employeeNumber`: 사원번호 (필수, 회사 내에서 고유)
-- `name`: 이름 (필수)
-- `department`: 부서 (선택)
-- `position`: 직급 (선택)
-- `joinDate`: 입사일 (선택)
+**필드 설명**
+
+- `companyCode`: 회사 고유 코드. 필수
+- `employeeNumber`: 사원번호. 필수, 회사 내에서 고유
+- `name`: 이름. 필수
+- `department`: 부서. 선택
+- `position`: 직급. 선택
+- `joinDate`: 입사일. 선택
 
 **Response (201 Created)**
+
 ```json
 {
   "id": "uuid",
@@ -107,6 +111,7 @@ Content-Type: application/json
 ```
 
 **Error Response (404 Not Found) - 잘못된 회사코드**
+
 ```json
 {
   "timestamp": "2026-03-17T10:30:00Z",
@@ -118,6 +123,7 @@ Content-Type: application/json
 ```
 
 **Error Response (409 Conflict) - 사원번호 중복**
+
 ```json
 {
   "timestamp": "2026-03-17T10:30:00Z",
@@ -127,6 +133,8 @@ Content-Type: application/json
   "path": "/api/v1/auth/signup"
 }
 ```
+
+> 현재 MVP에서는 별도 회원가입 대신 `docs/API.md`의 신입 계정 생성 API를 기준으로 한다.
 
 ---
 
@@ -138,6 +146,8 @@ Authorization: Bearer {token}
 ```
 
 **Response (204 No Content)**
+
+> 로그아웃 및 토큰 무효화 정책은 MVP 이후 인증 고도화 단계에서 확정한다.
 
 ---
 
@@ -159,7 +169,7 @@ Authorization: Bearer {token}
 - 회사 내 사용자 목록 조회: `MENTOR`, `MANAGER`, `HR`, `ADMIN`
 - 문서 업로드/삭제: `HR`, `ADMIN`
 
-> 실제 권한 체크가 구현되고 응답/오류 정책이 확정되면 `docs/API.md`에 반영합니다.
+> 실제 권한 체크가 구현되고 응답/오류 정책이 확정되면 `docs/API.md`에 반영한다.
 
 ---
 
@@ -173,6 +183,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "id": 1,
@@ -204,6 +215,7 @@ Content-Type: application/json
 **권한**: HR, ADMIN만 가능
 
 **Request Body**
+
 ```json
 {
   "onboardingWeeks": 12,
@@ -214,6 +226,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "onboardingWeeks": 12,
@@ -237,6 +250,7 @@ Content-Type: application/json
 ```
 
 **Request Body**
+
 ```json
 {
   "name": "김지원",
@@ -245,6 +259,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "id": "uuid",
@@ -267,12 +282,14 @@ Query: department=개발팀&page=0&size=20
 **권한**: MENTOR, MANAGER, HR, ADMIN
 
 **Query Parameters**
-- `department`: 부서 필터 (선택)
-- `role`: 역할 필터 (선택)
-- `page`: 페이지 번호 (default: 0)
-- `size`: 페이지 크기 (default: 20)
+
+- `department`: 부서 필터. 선택
+- `role`: 역할 필터. 선택
+- `page`: 페이지 번호. 기본값 `0`
+- `size`: 페이지 크기. 기본값 `20`
 
 **Response (200 OK)**
+
 ```json
 {
   "content": [
@@ -293,7 +310,7 @@ Query: department=개발팀&page=0&size=20
 }
 ```
 
-**중요**: 자동으로 **로그인한 사용자의 회사(companyId)** 데이터만 반환됩니다.
+**중요**: 자동으로 로그인한 사용자의 회사 데이터만 반환한다.
 
 ---
 
@@ -308,6 +325,7 @@ Query: page=0&size=20
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "content": [
@@ -336,6 +354,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "id": "uuid",
@@ -378,6 +397,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "weeks": [
@@ -409,7 +429,7 @@ Authorization: Bearer {token}
 }
 ```
 
-**중요**: 로그인한 사용자의 체크리스트만 반환됩니다.
+**중요**: 로그인한 사용자의 체크리스트만 반환한다.
 
 ---
 
@@ -424,6 +444,7 @@ Content-Type: application/json
 ```
 
 **Request Body**
+
 ```json
 {
   "title": "첫 주 회고",
@@ -434,6 +455,7 @@ Content-Type: application/json
 ```
 
 **Response (201 Created)**
+
 ```json
 {
   "id": "record-001",
@@ -457,13 +479,15 @@ Query: type=WEEKLY_REVIEW&page=0&size=10
 ```
 
 **Query Parameters**
-- `type`: 기록 유형 (선택) - `DAILY`, `WEEKLY_REVIEW`, `MEMO`
-- `startDate`: 시작일 (선택) - ISO 8601 형식
-- `endDate`: 종료일 (선택)
-- `page`: 페이지 번호 (default: 0)
-- `size`: 페이지 크기 (default: 10)
+
+- `type`: 기록 유형. 선택. `DAILY`, `WEEKLY_REVIEW`, `MEMO`
+- `startDate`: 시작일. 선택. ISO 8601 형식
+- `endDate`: 종료일. 선택
+- `page`: 페이지 번호. 기본값 `0`
+- `size`: 페이지 크기. 기본값 `10`
 
 **Response (200 OK)**
+
 ```json
 {
   "content": [
@@ -494,6 +518,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "id": "record-001",
@@ -518,6 +543,7 @@ Content-Type: application/json
 ```
 
 **Request Body**
+
 ```json
 {
   "title": "첫 주 회고 (수정)",
@@ -527,6 +553,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "id": "record-001",
@@ -558,6 +585,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "id": "record-001",
@@ -579,6 +607,7 @@ Query: page=0&size=10
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "content": [
@@ -608,6 +637,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "id": "report-001",
@@ -644,6 +674,7 @@ Content-Type: application/json
 ```
 
 **Request Body**
+
 ```json
 {
   "week": 1
@@ -651,6 +682,7 @@ Content-Type: application/json
 ```
 
 **Response (202 Accepted)**
+
 ```json
 {
   "message": "리포트 생성이 시작되었습니다",
@@ -668,6 +700,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 - Content-Type: application/pdf
 - Content-Disposition: attachment; filename="report-week-1.pdf"
 - Binary PDF data
@@ -685,166 +718,51 @@ Authorization: Bearer {token}
 
 ---
 
-## 문서 관리 (Documents)
+## 문서 관리 고도화 (Documents)
 
-### 문서 목록 조회
+현재 기본 문서 업로드, 목록 조회, 상세 조회, 다운로드 URL 발급, 파일 직접 다운로드, 삭제, 백업 재시도 API는 `docs/API.md`에서 관리한다.
 
-```http
-GET /api/v1/documents
-Authorization: Bearer {token}
-Query: category=HR&page=0&size=20
-```
-
-**Query Parameters**
-- `category`: 카테고리 필터 (선택) - `HR`, `IT`, `ADMIN`, `BENEFITS`
-- `search`: 검색어 (선택)
-- `page`: 페이지 번호 (default: 0)
-- `size`: 페이지 크기 (default: 20)
-
-**Response (200 OK)**
-```json
-{
-  "content": [
-    {
-      "id": "doc-001",
-      "title": "복지카드 신청 가이드",
-      "category": "HR",
-      "description": "복지카드 신청 방법 및 사용 안내",
-      "fileUrl": "https://storage.../company_1001/doc-001.pdf",
-      "fileType": "PDF",
-      "fileSize": 1024000,
-      "uploadedAt": "2024-01-15T09:00:00Z"
-    }
-  ],
-  "totalElements": 45,
-  "totalPages": 3,
-  "size": 20,
-  "number": 0
-}
-```
-
----
-
-### 문서 상세 조회
-
-```http
-GET /api/v1/documents/{documentId}
-Authorization: Bearer {token}
-```
-
-**Response (200 OK)**
-```json
-{
-  "id": "doc-001",
-  "title": "복지카드 신청 가이드",
-  "category": "HR",
-  "description": "복지카드 신청 방법 및 사용 안내",
-  "content": "1. 복지카드란? ...",
-  "fileUrl": "https://storage.../company_1001/doc-001.pdf",
-  "fileType": "PDF",
-  "fileSize": 1024000,
-  "relatedDocuments": [
-    {
-      "id": "doc-002",
-      "title": "복리후생 제도 안내"
-    }
-  ],
-  "uploadedAt": "2024-01-15T09:00:00Z"
-}
-```
-
----
+이 문서에서는 MVP 이후 검토할 문서 관리 확장 기능만 관리한다.
 
 ### 문서 검색
 
 ```http
 GET /api/v1/documents/search
 Authorization: Bearer {token}
-Query: q=연차&category=HR
+Query: q=연차&documentType=GUIDE&page=0&size=20
 ```
 
 **Query Parameters**
-- `q`: 검색어 (필수)
-- `category`: 카테고리 필터 (선택)
-- `page`: 페이지 번호
-- `size`: 페이지 크기
+
+- `q`: 검색어. 필수
+- `documentType`: 문서 유형 필터. 선택
+- `department`: 부서 또는 업무 영역 필터. 선택
+- `page`: 페이지 번호. 선택
+- `size`: 페이지 크기. 선택
 
 **Response (200 OK)**
+
 ```json
 {
   "content": [
     {
       "id": "doc-003",
       "title": "연차 사용 가이드",
-      "category": "HR",
+      "documentType": "GUIDE",
+      "department": "HR",
       "description": "연차 신청 및 사용 방법",
       "relevance": 0.95
     }
   ],
   "totalElements": 3,
-  "totalPages": 1
+  "totalPages": 1,
+  "size": 20,
+  "number": 0
 }
 ```
 
----
-
-### 문서 업로드
-
-```http
-POST /api/v1/documents/upload
-Authorization: Bearer {token}
-Content-Type: multipart/form-data
-```
-
-**권한**: HR, ADMIN만 가능
-
-**Request (multipart/form-data)**
-- `file`: (binary) - 업로드할 파일
-- `title`: (string) - 문서 제목
-- `category`: (string) - 카테고리
-- `description`: (string) - 설명 (선택)
-
-**Response (201 Created)**
-```json
-{
-  "id": "doc-new",
-  "title": "신규 문서",
-  "category": "HR",
-  "fileUrl": "https://storage.../company_1001/doc-new.pdf",
-  "fileSize": 2048000,
-  "uploadedAt": "2026-03-17T11:00:00Z"
-}
-```
-
----
-
-### 문서 다운로드 URL 생성
-
-```http
-GET /api/v1/documents/{documentId}/download
-Authorization: Bearer {token}
-```
-
-**Response (200 OK)**
-```json
-{
-  "downloadUrl": "https://storage.../presigned-url?expires=...",
-  "expiresIn": 600
-}
-```
-
----
-
-### 문서 삭제
-
-```http
-DELETE /api/v1/documents/{documentId}
-Authorization: Bearer {token}
-```
-
-**권한**: HR, ADMIN만 가능
-
-**Response (204 No Content)**
+> 문서 검색 API는 MVP 이후 고도화 기능으로 검토한다.  
+> 검색 결과의 권한 범위는 현재 로그인한 사용자의 회사 문서와 공통 문서로 제한한다.
 
 ---
 
@@ -858,6 +776,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "userId": "uuid",
@@ -895,6 +814,7 @@ Authorization: Bearer {token}
 ```
 
 **Response (200 OK)**
+
 ```json
 {
   "week": 1,
@@ -922,7 +842,7 @@ Authorization: Bearer {token}
 
 ## Rate Limiting
 
-다음 정책은 참고용 초안입니다. 실제 제한이 서버에 적용되기 전까지 `docs/API.md`에는 반영하지 않습니다.
+다음 정책은 참고용 초안이다. 실제 제한이 서버에 적용되기 전까지 `docs/API.md`에는 반영하지 않는다.
 
 | 엔드포인트 | 제한 |
 |-----------|------|
@@ -943,18 +863,22 @@ Rate Limit 초과 시 응답 예시:
 }
 ```
 
+> 실제 적용 시에는 `docs/API.md`의 표준 에러 응답 형식에 맞춰 응답 구조를 확정한다.
+
 ---
 
 ## 페이지네이션
 
-다음 형식은 참고용 공통 포맷 초안입니다. 실제 적용 시점에 `docs/API.md`와 개별 엔드포인트 명세에 반영합니다.
+다음 형식은 참고용 공통 포맷 초안이다. 실제 적용 시점에 `docs/API.md`와 개별 엔드포인트 명세에 반영한다.
 
 **Request**
-```
+
+```http
 GET /api/v1/records?page=0&size=10&sort=createdAt,desc
 ```
 
 **Response**
+
 ```json
 {
   "content": [],
@@ -970,49 +894,25 @@ GET /api/v1/records?page=0&size=10&sort=createdAt,desc
 
 ---
 
-## 커스텀 에러 코드
-
-HTTP 상태 코드는 `docs/API.md` 기준을 따르고, 커스텀 에러코드는 실제 응답에 포함되기 전까지 여기서 관리합니다.
-
-### 인증 관련
-
-- `AUTH_001`: 토큰이 없습니다
-- `AUTH_002`: 토큰이 만료되었습니다
-- `AUTH_003`: 유효하지 않은 토큰입니다
-- `AUTH_004`: 회사코드, 사원번호 또는 이름이 올바르지 않습니다
-- `AUTH_005`: 존재하지 않는 회사입니다
-
-### 리소스 관련
-
-- `RESOURCE_001`: 리소스를 찾을 수 없습니다
-- `RESOURCE_002`: 이미 존재하는 리소스입니다
-- `RESOURCE_003`: 리소스 접근 권한이 없습니다
-- `RESOURCE_004`: 다른 회사의 리소스에 접근할 수 없습니다
-
-### AI 서비스 관련
-
-- `AI_001`: AI 서비스에 연결할 수 없습니다
-- `AI_002`: AI 응답 생성에 실패했습니다
-- `AI_003`: AI 서비스 요청 제한 초과
-
-### 파일 관련
-
-- `FILE_001`: 파일 크기가 너무 큽니다 (최대 10MB)
-- `FILE_002`: 지원하지 않는 파일 형식입니다
-- `FILE_003`: 파일 업로드에 실패했습니다
-
----
-
-**문서 버전**: 2.1.0  
+**문서 버전**: 2.1.1  
 **작성일**: 2026-03-17  
-**다음 리뷰 예정**: 2026-04-17
+**다음 리뷰 예정**: 2026-05-17
 
 ## 변경 이력
 
+### v2.1.1 (2026-04-28)
+
+- 현재 `docs/API.md`에서 관리 중인 기본 문서 API 항목을 제거하고, 문서 검색 등 고도화 항목만 남기도록 정리
+- `커스텀 에러 코드` 섹션 제거
+- 범위 밖 기능 목록과 목차를 현재 문서 구성에 맞게 수정
+- 공통 에러 응답은 `docs/API.md` 기준을 따른다는 문구 추가
+
 ### v2.1.0 (2026-03-17)
+
 - MVP 범위 밖 API만 별도 계획 문서로 재구성
 - `docs/API.md`에서 이동한 항목을 주제별로 정리
 - 커스텀 에러코드, Rate Limiting, 페이지네이션을 참고용 정책으로 명시
 
 ### v2.0.0 (2026-03-17)
+
 - 초기 초안 작성
