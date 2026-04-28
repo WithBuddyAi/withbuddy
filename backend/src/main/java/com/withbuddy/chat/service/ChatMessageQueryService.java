@@ -217,22 +217,24 @@ public class ChatMessageQueryService {
                 .filter(message -> userId.equals(message.getUserId()))
                 .orElseThrow(() -> new UnauthorizedException("해당 메시지에 접근 권한이 없습니다."));
 
-        String status = redisCacheService.get(RedisCacheKeys.ragStatus(questionId))
-                .orElse("TIMEOUT");
+        Optional<String> status = redisCacheService.get(RedisCacheKeys.ragStatus(questionId));
+        if (status.isEmpty()) {
+            return new ChatMessageStatusResponse("UNKNOWN", null);
+        }
 
-        if (!"COMPLETED".equals(status)) {
-            return new ChatMessageStatusResponse(status, null);
+        if (!"COMPLETED".equals(status.get())) {
+            return new ChatMessageStatusResponse(status.get(), null);
         }
 
         Optional<Long> answerId = redisCacheService.get(ragAnswerIdKey(questionId))
                 .map(Long::parseLong);
         if (answerId.isEmpty()) {
-            return new ChatMessageStatusResponse("COMPLETED", null);
+            return new ChatMessageStatusResponse("UNKNOWN", null);
         }
 
         Optional<ChatMessage> answer = chatMessageRepository.findById(answerId.get());
         if (answer.isEmpty()) {
-            return new ChatMessageStatusResponse("COMPLETED", null);
+            return new ChatMessageStatusResponse("UNKNOWN", null);
         }
 
         List<Long> documentIds = chatMessageDocumentRepository

@@ -127,12 +127,6 @@ public class ChatMessageService {
         if (!savedQuestionMessage.getId().equals(aiResponse.getQuestionId())) {
             throw new IllegalStateException("AI 응답의 questionId가 저장된 질문 ID와 일치하지 않습니다.");
         }
-        redisCacheService.put(
-                RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
-                "COMPLETED",
-                RedisCacheTtl.RAG_STATUS
-        );
-
         MessageType answerMessageType = aiResponse.getMessageType();
         List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
         ChatMessage savedAnswerMessage = transactionTemplate.execute(
@@ -145,6 +139,16 @@ public class ChatMessageService {
         Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
         Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
         saveConversationAnswer(loginUserId, savedAnswerMessage.getContent());
+        redisCacheService.put(
+                ragAnswerIdKey(savedQuestionMessage.getId()),
+                String.valueOf(savedAnswerMessage.getId()),
+                RedisCacheTtl.RAG_STATUS
+        );
+        redisCacheService.put(
+                RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
+                "COMPLETED",
+                RedisCacheTtl.RAG_STATUS
+        );
 
         return new ChatMessageCreateResponse(
                 questionResponse,
@@ -156,6 +160,10 @@ public class ChatMessageService {
                 ),
                 "COMPLETED"
         );
+    }
+
+    private static String ragAnswerIdKey(Long questionId) {
+        return "rag:answer:" + questionId;
     }
 
     private List<ConversationTurn> sanitizeConversationHistoryForAi(List<ConversationTurn> history) {
