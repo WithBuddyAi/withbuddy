@@ -169,11 +169,11 @@ function MyBuddy ({setIsLoggedIn}) {
   }, [isLoading])
 
   // 사용자 질문 전송
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!text.trim()) return
+  const handleSubmit = async (e, submitText) => {
+    e?.preventDefault()
+    const sendText = submitText || text
+    if (!sendText.trim()) return
     setIsLoading(true)
-    const sendText = text
     setMessageList(prev => [...prev, {
       id: `temp-${Date.now()}`,
       senderType: 'USER',
@@ -319,7 +319,7 @@ function MyBuddy ({setIsLoggedIn}) {
         />
 
       {/* 채팅 영역 */}
-      <div className="relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between  md:p-[40px]">
+      <div className="relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between md:p-[40px] overflow-hidden">
         {/* 모바일 헤더 */}
         <>
           <div className="flex md:hidden items-center py-[16px] px-[24px] bg-[#EAF6FF]">
@@ -370,6 +370,7 @@ function MyBuddy ({setIsLoggedIn}) {
         <QuickQuestions
           quickQuestion={quickQuestion}
           setText={setText}
+          handleSubmit={handleSubmit}
         />
 
         {/* 입력 창 */}
