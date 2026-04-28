@@ -78,21 +78,22 @@ With Buddy는?
 ```
 src/
 ├── App.jsx                  # 라우팅 설정, 전체 앱 진입점
-├── ProtectedRoute.jsx       # 로그인 여부 확인 후 페이지 접근 제어
 ├── api/
 │   └── axiosInstance.js     # axios 공통 설정 (토큰 자동 첨부, 401 자동 로그아웃)
 ├── contexts/
 │   └── UserContext.jsx      # 사용자 정보 전역 상태 관리 (hireDate, dayOffset)
 ├── components/
-│   └── Layout.jsx           # 공통 레이아웃 (헤더 등 반복 UI)
+│   ├── Tooltip.jsx          # 툴팁 공통 컴포넌트
+│   ├── Sidebar.jsx          # 사이드바 (사용자 정보, 메뉴, 대화기록 달력)
+│   ├── LogoutModal.jsx      # 로그아웃 확인 모달
+│   ├── ErrorToast.jsx       # 에러 토스트 메시지
+│   ├── MessageList.jsx      # 채팅 메시지 목록
+│   ├── QuickQuestions.jsx   # 빠른 질문 버튼 목록
+│   └── ChatInput.jsx        # 채팅 입력창
 └── pages/
     ├── Login.jsx            # 로그인 페이지
     └── MyBuddy.jsx          # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
 ```
-
-> 💡 **ProtectedRoute란?**  
-> 로그인하지 않은 사용자가 메인 페이지 URL을 직접 입력해서 들어오려고 하면,  
-> 자동으로 로그인 페이지로 돌려보내는 역할
 
 > 💡 **axiosInstance란?**  
 > 모든 API 요청에 토큰을 자동으로 첨부하고,  
@@ -169,3 +170,4 @@ git commit -m "ㅇㅇ"
 - 2026-04-02: 브랜치 전략 예시와 네이밍 규칙의 Jira 키 표기를 `SCRUM-##` 대문자로 통일.
 - 2026-04-22: 프로젝트 구조에 `api/axiosInstance.js` 추가.
 - 2026-04-27: `contexts/UserContext.jsx` 추가 (hireDate·dayOffset 전역 상태 관리), dayOffset 계산 로직 개선, SSoT 인증 상태 통합.
+- 2026-04-28: `ProtectedRoute.jsx`, `Layout.jsx` 제거, `components/` 폴더에 Sidebar, LogoutModal, ErrorToast, MessageList, QuickQuestions, ChatInput 컴포넌트 분리 추가.
