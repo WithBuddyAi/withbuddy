@@ -17,7 +17,7 @@ from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
 from core.semantic_cache import get_semantic_cache
-from core.vectorstore import search_with_company_fallback, search_legal_docs, rerank_docs
+from core.vectorstore import search_with_company_fallback, search_legal_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
 from utils.prompts import RAG_PROMPT
@@ -361,7 +361,7 @@ def _search_sub_q(sub_q: str, company_code: str) -> List[Document]:
         docs = search_legal_docs(sub_q, k=k * 2)
     else:
         docs = search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
-    return rerank_docs(sub_q, docs, top_k=k)
+    return docs[:k]
 
 
 def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
@@ -421,7 +421,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
                         seen_contents.add(key)
                         retrieved_docs.append(d)
         top_k = min(3 * len(sub_questions), 6)
-        retrieved_docs = rerank_docs(question, retrieved_docs, top_k=top_k)
+        retrieved_docs = retrieved_docs[:top_k]
 
     source_names = _extract_sources(retrieved_docs)
     doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
@@ -541,8 +541,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
                     seen_contents.add(key)
                     retrieved_docs.append(d)
         top_k = min(3 * len(sub_questions), 6)
-        retrieved_docs = await loop.run_in_executor(None, rerank_docs, question, retrieved_docs, top_k)
-
+        retrieved_docs = retrieved_docs[:top_k]
     source_names = _extract_sources(retrieved_docs)
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지

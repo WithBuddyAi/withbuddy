@@ -1,14 +1,22 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Login from './pages/Login'
 import MyBuddy from './pages/MyBuddy';
 import './App.css'
+import { setLogoutHandler } from './api/axiosInstance';
 
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(
     !!localStorage.getItem('accessToken')
   )
+
+  useEffect(() => {
+    setLogoutHandler(() => {
+      setIsLoggedIn(false)
+    })
+  }, [])
+
   return (
     <div>
       <Routes>
