@@ -1,0 +1,1404 @@
+# WithBuddy API 명세서
+
+> WithBuddy MVP 기준 REST API 문서
+>
+**버전**: 1.7.9
+**최종 업데이트**: 2026-04-28
+
+---
+
+## 1. 문서 범위
+
+이 문서는 **MVP 개발 범위에서 현재 구현했거나 즉시 구현 대상으로 확정된 API만** 다룬다.
+
+### 포함 범위
+- 로그인
+- 신입 계정 생성
+- 채팅 메시지 목록 조회
+- 질문 전송 및 답변 생성
+- 온보딩 제안 조회
+- 빠른 질문 목록 조회
+- 내부 AI 답변 생성 요청 규격
+- 토큰 만료 처리 규격
+- 스토리지 문서 API
+
+### 제외 범위
+- 토큰 재발급
+- 로그아웃
+- 내 정보 조회
+- 관리자 화면 기능
+- 체크리스트
+- 기타 미구현 기능
+
+---
+
+## 2. ERD 기준 정리
+
+현재 API 설계는 아래 ERD를 기준으로 한다.
+
+- `companies`
+- `users`
+- `documents`
+- `document_files`
+- `document_backup_jobs`
+- `onboarding_suggestions`
+- `chat_messages`
+- `chat_message_documents`
+- `user_activity_logs`
+
+---
+
+## 3. API 개요
+
+### Backend Base URL
+
+```text
+Development: http://localhost:8080
+Production:  https://{withbuddy_api}
+```
+
+### Frontend Development Server
+```text
+Frontend Development: http://localhost:5173
+```
+
+### Prefix
+
+모든 **공개 API**는 아래 prefix를 사용한다.
+
+```text
+/api/v1
+```
+
+내부 AI 연동 API는 `/internal` 경로를 사용한다.
+
+### 데이터 범위
+
+모든 데이터 조회 및 저장은 로그인한 사용자의 회사 기준으로 처리한다.  
+문서 기반 Q&A는 로그인한 사용자의 회사 문서와 공통 문서(`company_code = null`)를 함께 대상으로 처리한다.
+
+### 공통 헤더
+
+```http
+Content-Type: application/json
+Authorization: Bearer {accessToken}
+```
+
+로그인 API는 `Authorization` 헤더가 필요하지 않다.
+
+### Swagger (OpenAPI)
+
+본 프로젝트의 REST API는 Swagger(OpenAPI) 기반으로 확인할 수 있다.  
+실행 중인 백엔드 서버에서 Swagger UI를 통해 요청/응답 스키마와 엔드포인트를 확인한다.
+
+```text
+Local Swagger UI: http://localhost:8080/swagger-ui/index.html
+OpenAPI Docs:     http://localhost:8080/v3/api-docs
+```
+
+- Swagger UI는 현재 구현된 API 기준으로 동작한다.
+- 본 문서는 MVP 범위, 정책, 동작 규칙, 내부 연동 기준을 함께 설명하기 위한 문서다.
+- 상세 요청/응답 스키마 및 테스트는 Swagger UI를 우선 확인한다.
+
+---
+
+## 4. 표준 응답 형식
+
+### 성공 응답
+성공 응답은 각 API 목적에 맞는 JSON 데이터를 반환한다.
+
+### 에러 응답
+
+```json
+{
+  "timestamp": "2026-03-25T10:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사 코드는 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+### 에러 응답 필드 설명
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `timestamp` | `String` | 에러 발생 시각 |
+| `status` | `Number` | HTTP 상태 코드 |
+| `error` | `String` | HTTP 상태 이름 |
+| `code` | `String` | 서비스 에러 코드 |
+| `errors` | `Array<Object>` | 상세 에러 목록 |
+| `errors[].field` | `String` | 오류가 발생한 필드명 또는 오류 대상 |
+| `errors[].message` | `String` | 상세 오류 메시지 |
+| `path` | `String` | 요청 경로 |
+
+### HTTP 상태 코드
+
+- `200 OK`: 성공
+- `201 Created`: 리소스 생성 성공
+- `400 Bad Request`: 잘못된 요청
+- `401 Unauthorized`: 인증 실패 또는 토큰 만료
+- `403 Forbidden`: 요청 권한 없음
+- `404 Not Found`: 리소스 없음
+- `409 Conflict`: 중복 리소스 또는 제약조건 충돌
+- `500 Internal Server Error`: 서버 오류
+- `504 Gateway Timeout` : AI 서버 응답 시간 초과
+
+#### 로그인 API (`POST /api/v1/auth/login`) 상태 코드
+
+- `200 OK`: 로그인 성공
+- `400 Bad Request`: 요청값 검증 실패
+- `401 Unauthorized`: 로그인 실패(회사코드/사번/이름 불일치)
+
+#### 신입 계정 생성 API (`POST /api/v1/users`) 상태 코드
+
+- `201 Created`: 계정 생성 성공
+- `400 Bad Request`: 요청값 검증 실패
+- `401 Unauthorized`: 인증 실패 또는 토큰 만료
+- `409 Conflict`: 동일 회사 내 중복 사원번호
+
+### 공통 에러 코드
+- `BAD_REQUEST`: 잘못된 요청
+- `UNAUTHORIZED`: 인증 실패
+- `TOKEN_EXPIRED`: 로그인 세션 만료
+- `TOKEN_MISSING`: 인증 토큰 누락
+- `INVALID_TOKEN`: 유효하지 않은 인증 정보
+- `USER_NOT_FOUND`: 사용자 정보를 찾을 수 없음
+- `ACCESS_DENIED`: 요청 권한 없음
+- `NOT_FOUND`: 리소스 없음
+- `DUPLICATE_EMPLOYEE_NUMBER`: 동일 회사 내 중복 사원번호
+- `INTERNAL_SERVER_ERROR`: 서버 내부 오류
+- `AI_TIMEOUT`: AI 답변 생성 시간 초과
+
+---
+
+## 5. 인증 (Authentication)
+
+로그인 성공 시 `accessToken`을 발급한다.  
+인증이 필요한 API는 `Authorization: Bearer {accessToken}` 헤더를 사용한다.
+
+### 5-1. 로그인
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+```
+
+#### Request Body
+
+```json
+{
+  "companyCode": "WB0001",
+  "employeeNumber": "20260001",
+  "name": "김지원"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값          | 설명 | 상세 규칙                                           |
+|------|------|------|--------------|------|-------------------------------------------------|
+| `companyCode` | `String` | Y | `"WB0001"`   | 회사 식별 코드 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가    |
+| `employeeNumber` | `String` | Y | `"20260001"` | 사용자 사번 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가    |
+| `name` | `String` | Y | `"김지원"`      | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
+
+#### 동작 규칙
+- 사용자는 로그인 시 회사코드, 사번, 이름을 입력한다.
+- 서버는 입력된 `companyCode`로 `companies`를 조회한다.
+- 서버는 조회된 `company_code`와 사용자 이름, 사번을 기준으로 `users`에서 사용자를 확인한다.
+- 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
+- 로그인에 성공하면 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = LOGIN` 로그를 기록한다.
+- 로그인 성공 시의 `SESSION_START` 로그는 재로그인 시점 추적 용도로 사용한다.
+
+#### Response (200 OK)
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {
+    "id": 1,
+    "companyCode": "WB0001",
+    "companyName": "테크 주식회사",
+    "employeeNumber": "20260001",
+    "name": "김지원",
+    "hireDate": "2026-03-01"
+  }
+}
+```
+
+#### Error Response (400 Bad Request)
+
+```json
+{
+  "timestamp": "2026-04-03T10:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사 코드는 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+#### 검증 규칙
+- `companyCode`, `employeeNumber`, `name`은 필수값이다.
+- 각 필드는 공백만 입력할 수 없다.
+- 길이 제한을 초과하면 `400 Bad Request`를 반환한다.
+- 입력값 검증 실패 시 각 필드별 오류 메시지는 `errors` 배열에 담아 반환한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
+
+#### Error Response (401 Unauthorized)
+
+```json
+{
+  "timestamp": "2026-03-25T10:30:00Z",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "UNAUTHORIZED",
+  "errors": [
+    {
+      "field": "login",
+      "message": "회사코드, 사번 또는 이름이 올바르지 않습니다."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+### 5-2. 신입 계정 생성
+
+신입 사원의 계정을 직접 생성한다.  
+계정 생성 후 사용자는 등록된 회사코드, 사원번호, 이름으로 로그인할 수 있다.
+
+```http
+POST /api/v1/users
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### Request Body
+
+```json
+{
+  "name": "김지원",
+  "employeeNumber": "20260001",
+  "hireDate": "2026-03-01"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|------|------|------|--------|------|-----------|
+| `name` | `String` | Y | `"김지원"` | 신입 사원 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
+| `employeeNumber` | `String` | Y | `"20260001"` | 신입 사원 사번 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| `hireDate` | `LocalDate` | Y | `"2026-03-01"` | 입사일 | `yyyy-MM-dd` 형식 |
+
+#### 동작 규칙
+
+- 현재 로그인한 사용자의 회사 기준으로 신입 계정을 생성한다.
+- 서버는 인증 토큰에서 현재 사용자의 `companyCode` 또는 회사 식별 정보를 확인한다.
+- 서버는 해당 회사에 매핑되는 `companies.id`를 기준으로 `users.company_id`를 저장한다.
+- 입력받은 `name`, `employeeNumber`, `hireDate`를 `users` 테이블에 저장한다.
+- 동일 회사 내에서 같은 사원번호로 계정을 중복 생성할 수 없다.
+- DB에는 `company_id + employee_number` 복합 UNIQUE 제약조건을 둔다.
+- 동일 `company_id + employee_number` 조합이 이미 존재하는 경우 `409 Conflict`와 `DUPLICATE_EMPLOYEE_NUMBER` 에러 코드를 반환한다.
+- 계정 생성이 완료되면 해당 사용자는 `POST /api/v1/auth/login`에서 회사코드, 사원번호, 이름을 입력해 로그인할 수 있다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+#### DB 제약조건
+
+```sql
+ALTER TABLE users
+  ADD CONSTRAINT uq_users_company_employee_number
+    UNIQUE (company_id, employee_number);
+```
+
+> 실제 마이그레이션 파일에서는 기존 제약조건명 및 컬럼명과 충돌하지 않도록 현재 스키마를 확인한 뒤 적용한다.
+
+#### Response (201 Created)
+
+```json
+{
+  "id": 10,
+  "companyCode": "WB0001",
+  "companyName": "테크 주식회사",
+  "employeeNumber": "20260001",
+  "name": "김지원",
+  "hireDate": "2026-03-01",
+  "createdAt": "2026-04-28T09:30:00Z"
+}
+```
+
+#### Error Response (400 Bad Request)
+
+```json
+{
+  "timestamp": "2026-04-28T09:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "hireDate",
+      "message": "입사일은 필수입니다."
+    }
+  ],
+  "path": "/api/v1/users"
+}
+```
+
+#### Error Response (409 Conflict)
+
+```json
+{
+  "timestamp": "2026-04-28T09:30:00Z",
+  "status": 409,
+  "error": "Conflict",
+  "code": "DUPLICATE_EMPLOYEE_NUMBER",
+  "errors": [
+    {
+      "field": "employeeNumber",
+      "message": "이미 등록된 사번입니다."
+    }
+  ],
+  "path": "/api/v1/users"
+}
+```
+
+#### 검증 규칙
+
+- `name`, `employeeNumber`, `hireDate`는 필수값이다.
+- `name`, `employeeNumber`는 공백만 입력할 수 없다.
+- `hireDate`는 `yyyy-MM-dd` 형식이어야 한다.
+- 길이 제한 또는 형식 검증에 실패하면 `400 Bad Request`를 반환한다.
+- 중복 사번 검증은 현재 로그인한 사용자의 회사 범위 안에서 수행한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
+
+### 5-3. 인증 오류 및 토큰 만료 처리
+
+인증이 필요한 API에서 인증 정보가 없거나 올바르지 않으면 아래와 같이 응답한다.
+
+#### Error Response (401 Unauthorized)
+
+```json
+{
+  "timestamp": "2026-03-25T10:35:00Z",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "UNAUTHORIZED",
+  "errors": [
+    {
+      "field": "auth",
+      "message": "인증 정보가 올바르지 않습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages"
+}
+```
+
+액세스 토큰이 만료된 경우 아래와 같이 응답한다.
+
+#### Error Response (401 Unauthorized - Token Expired)
+
+```json
+{
+  "timestamp": "2026-03-25T10:35:00Z",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "TOKEN_EXPIRED",
+  "errors": [
+    {
+      "field": "token",
+      "message": "액세스 토큰이 만료되었습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages"
+}
+```
+
+#### 처리 규칙
+- 프론트엔드는 401 응답과 함께 아래 코드 중 하나를 받으면 로그인 페이지로 리다이렉트 처리한다.
+  - `TOKEN_MISSING`
+  - `TOKEN_EXPIRED`
+  - `INVALID_TOKEN`
+  - `USER_NOT_FOUND`
+
+---
+
+## 6. MyBuddy
+
+### 6-1. 채팅 메시지 목록 조회
+
+현재 로그인한 사용자의 채팅 메시지를 `createdAt` 오름차순으로 조회한다.
+`date`가 없으면 전체 메시지를 조회하고, `date`가 있으면 해당 날짜의 메시지만 `createdAt` 오름차순으로 조회한다.
+
+```http
+GET /api/v1/chat/messages?date=2026-03-24
+Authorization: Bearer {accessToken}
+```
+
+### Query Parameter
+`date` (optional, `yyyy-MM-dd`)
+- 지정하지 않으면 현재 로그인한 사용자의 전체 채팅 메시지를 조회한다.
+- 지정하면 해당 날짜의 채팅 메시지만 조회한다.
+
+#### Response (200 OK)
+
+```json
+{
+  "messages": [
+    {
+      "id": 101,
+      "suggestionId": null,
+      "documents": [],
+      "senderType": "USER",
+      "messageType": "user_question",
+      "content": "복지카드 신청 양식은 어디서 받나요?",
+      "recommendedContacts": [],
+      "createdAt": "2026-03-24T10:00:00Z"
+    },
+    {
+      "id": 102,
+      "suggestionId": null,
+      "documents": [
+        {
+          "documentId": 10,
+          "title": "복지카드 신청 안내",
+          "documentType": "GUIDE",
+          "file": null
+        },
+        {
+          "documentId": 11,
+          "title": "복지카드 신청서",
+          "documentType": "TEMPLATE",
+          "file": {
+            "fileName": "welfare-card-application.docx",
+            "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "downloadUrl": "/api/v1/documents/11/download"
+          }
+        }
+      ],
+      "senderType": "BOT",
+      "messageType": "rag_answer",
+      "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
+      "recommendedContacts": [],
+      "createdAt": "2026-03-24T10:00:02Z"
+    }
+  ]
+}
+```
+
+#### 빈 결과 예시 (200 OK)
+
+```json
+{
+  "messages": []
+}
+```
+
+#### 설명
+- 현재 로그인한 사용자 기준으로 `chat_messages`를 조회한다.
+- 온보딩 제안 메시지인 경우 `suggestionId`가 포함될 수 있다.
+- `senderType`은 `USER`, `BOT` 값을 사용한다.
+- `messageType`은 아래 표준값을 사용한다.
+  - `user_question`: 신입 사용자가 입력한 질문
+  - `rag_answer`: 문서 기반으로 답변이 생성된 메시지
+  - `no_result`: 질문 범위는 맞지만 근거 문서나 정보가 없어 답변하지 못한 메시지
+  - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내 메시지
+  - `suggestion`: 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+- `rag_answer` 메시지인 경우, 근거 문서는 `chat_message_documents`를 기준으로 조회한다.
+- `documents[].documentId`는 답변 메시지와 연결된 문서 ID를 의미한다.
+- `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
+- `documents[].documentType = TEMPLATE`인 경우 `documents[].file` 객체를 포함한다.
+- 프론트엔드는 `documents[].file.downloadUrl`을 통해 다운로드 URL 발급 API를 호출할 수 있다.
+- `documents[].documentType != TEMPLATE`인 경우 `documents[].file`은 `null`일 수 있다.
+- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
+- `recommendedContacts`는 모든 채팅 메시지 응답에 포함한다.
+- `messageType = no_result`이고 추천 담당자 정보가 존재하는 경우에만 값이 채워질 수 있다.
+- 추천 담당자 정보가 없는 경우 빈 배열(`[]`)을 반환한다.
+
+
+### 6-2. 질문 전송
+
+사용자가 질문을 보내면 사용자 질문 메시지를 저장하고, 내부 AI 서버에 답변 생성을 요청한 뒤, 생성된 AI 답변 메시지를 저장하여 두 메시지를 함께 응답으로 반환한다.
+
+```http
+POST /api/v1/chat/messages
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### Request Body
+```json
+{
+  "content": "복지카드는 어떻게 신청하나요?"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|------|------|------|--------|------|-----------|
+| `content` | `String` | Y | `"복지카드는 어떻게 신청하나요?"` | 사용자가 입력한 질문 내용 | 길이: 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
+
+#### Response (201 Created)
+```json
+{
+  "question": {
+    "id": 201,
+    "suggestionId": null,
+    "documents": [],
+    "senderType": "USER",
+    "messageType": "user_question",
+    "content": "복지카드 신청 양식은 어디서 받나요?",
+    "recommendedContacts": [],
+    "createdAt": "2026-03-24T10:00:00Z"
+  },
+  "answer": {
+    "id": 202,
+    "suggestionId": null,
+    "documents": [
+      {
+        "documentId": 10,
+        "title": "복지카드 신청 안내",
+        "documentType": "GUIDE",
+        "file": null
+      },
+      {
+        "documentId": 11,
+        "title": "복지카드 신청서",
+        "documentType": "TEMPLATE",
+        "file": {
+          "fileName": "welfare-card-application.docx",
+          "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "downloadUrl": "/api/v1/documents/11/download"
+        }
+      }
+    ],
+    "senderType": "BOT",
+    "messageType": "rag_answer",
+    "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
+    "recommendedContacts": [],
+    "createdAt": "2026-03-24T10:00:02Z"
+  }
+}
+```
+
+#### Response (201 Created, 답변 문서 없음 예시)
+
+```json
+{
+  "question": {
+    "id": 201,
+    "suggestionId": null,
+    "documents": [],
+    "senderType": "USER",
+    "messageType": "user_question",
+    "content": "복지카드 신청 양식은 어디서 받나요?",
+    "recommendedContacts": [],
+    "createdAt": "2026-03-24T10:00:00Z"
+  },
+  "answer": {
+    "id": 202,
+    "suggestionId": null,
+    "documents": [],
+    "senderType": "BOT",
+    "messageType": "no_result",
+    "content": "관련 안내 문서를 찾지 못했습니다.",
+    "recommendedContacts": [
+      {
+        "department": "경영지원팀",
+        "name": "김지수",
+        "position": "매니저",
+        "connects": [
+          {
+            "type": "SLACK",
+            "value": "@jisoo.kim"
+          },
+          {
+            "type": "EMAIL",
+            "value": "jisoo.kim@withbuddy.ai"
+          },
+          {
+            "type": "EXTENSION",
+            "value": "635"
+          }
+        ]
+      }
+    ],
+    "createdAt": "2026-03-24T10:00:02Z"
+  }
+}
+```
+
+#### recommendedContacts 필드 설명
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `recommendedContacts` | `Array<Object>` | N | `messageType = no_result`일 때 노출 가능한 담당자 추천 카드 목록 |
+| `recommendedContacts[].department` | `String` | Y | 담당 부서명 |
+| `recommendedContacts[].name` | `String` | Y | 담당자 이름 |
+| `recommendedContacts[].position` | `String` | Y | 담당자 직급 |
+| `recommendedContacts[].connects` | `Array<Object>` | Y | 연락 수단 목록 |
+| `recommendedContacts[].connects[].type` | `String` | Y | 연락 수단 유형 |
+| `recommendedContacts[].connects[].value` | `String` | Y | 실제 연락 값 |
+
+#### Error Response (400 Bad Request)
+
+```json
+{
+  "timestamp": "2026-03-25T10:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "content",
+      "message": "질문 내용은 비어 있을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages"
+}
+```
+
+#### Error Response (504 Gateway Timeout)
+
+```json
+{
+  "timestamp": "2026-04-16T11:30:00Z",
+  "status": 504,
+  "error": "Gateway Timeout",
+  "code": "AI_TIMEOUT",
+  "errors": [
+    {
+      "field": "ai",
+      "message": "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."
+    }
+  ],
+  "path": "/api/v1/chat/messages"
+}
+```
+
+#### 값 설명
+
+- `senderType`
+  - `USER` : 사용자
+  - `BOT` : 챗봇
+
+- `messageType`
+  - `user_question`: 사용자 질문
+  - `rag_answer`: 문서 기반 답변 생성
+  - `no_result`: 질문 범위는 맞지만 문서/정보 부족으로 답변 불가
+  - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내
+  - `suggestion`: 온보딩 제안 메시지
+
+- `ContactType`
+  - `phone`: 핸드폰 번호
+  - `email`: 이메일 주소
+  - `slack`: 슬랙 아이디
+  - `extension`: 내선 번호
+
+#### 동작 규칙
+
+- 질문 메시지는 `chat_messages`에 `sender_type = USER`, `message_type = user_question`으로 저장한다.
+- 백엔드는 질문 저장 후 생성된 질문 메시지의 `id`를 `questionId`로 사용한다.
+- 백엔드는 질문 저장 후, 로그인한 사용자 정보(`user`), 질문 메시지의 `id(questionId)`, 질문 `content`, 이전 대화 이력(`conversationHistory`)을 사용하여 `/internal/ai/answer`를 호출한다.
+- 내부 AI 서버는 로그인한 사용자의 회사 문서와 공통 문서만을 대상으로 답변을 생성한다.
+- 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
+- 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용하여 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
+- 내부 AI 응답에 근거 문서 목록(`documents[].documentId`)이 포함된 경우, 백엔드는 답변 메시지 저장 후 chat_message_documents에 답변 메시지 ID와 문서 ID를 매핑하여 저장한다.
+- 백엔드는 AI 응답의 `documents[].documentId` 목록을 기준으로 `documents`를 조회한다.
+- 답변 메시지 응답에는 근거 문서 상세 정보 `documents`를 포함한다.
+- `documents[].documentId`는 답변 메시지와 연결된 문서 ID를 의미한다.
+- `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
+- 문서의 document_type = TEMPLATE인 경우, 파일 접근 정보는 `document_files`를 기준으로 조회하며 `documents[].file`에 포함한다.
+- 프론트엔드는 `documents[].file.downloadUrl`을 통해 다운로드 URL 발급 API를 호출할 수 있다.
+- `document_type != TEMPLATE`인 경우, `documents[].file`은 일반적으로 포함하지 않거나 `null`로 반환한다.
+- 실제 파일 데이터는 채팅 메시지 응답 본문(JSON)에 직접 포함하지 않고, 별도 파일 API를 통해 반환한다.
+- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
+- 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
+- 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 백엔드는 내부 AI 서버 호출 시 최대 10초까지 응답을 대기한다.
+- 10초 내 응답이 없으면 `AI_TIMEOUT` `예외를 반환한다.
+- 사용자가 재시도를 선택한 경우 동일한 질문 내용을 다시 `POST /api/v1/chat/messages`로 전송한다.
+- `messageType = no_result`인 경우, 백엔드는 `recommendedContacts` 값을 채워 반환한다.
+- `messageType = rag_answer`, `out_of_scope`, `suggestion`, `user_question`인 경우 `recommendedContacts`는 빈 배열을 반환한다.
+- 프론트엔드는 `recommendedContacts`가 존재하는 경우 담당자 카드 UI를 노출한다.
+- `recommendedContacts[].connects[].type`은 아래 표준값을 사용한다.
+  - `slack`: Slack 사용자 또는 채널 연결 정보
+  - `email`: 이메일 주소
+  - `phone`: 일반 전화번호 또는 휴대전화번호
+  - `extension`: 사내 내선 번호
+
+### 6-3. 온보딩 제안 조회
+현재 로그인한 사용자의 `hireDate`를 기준으로 노출 대상 온보딩 제안을 조회한다.
+
+```http
+GET /api/v1/onboarding-suggestions/me
+Authorization: Bearer {accessToken}
+```
+#### 동작 기준
+- 입사 전
+  - `dayOffset = (KST 기준 오늘 날짜 - hireDate)`
+- 일치하는 제안이 있으면 반환한다.
+- 일치하는 제안이 없으면 빈 배열을 반환한다.
+
+#### Response (200 OK)
+
+```json
+{
+  "suggestions": [
+    {
+      "title": "입사 당일 안내",
+      "content": "복지 제도와 사내 규정 문서를 먼저 확인해보세요.",
+      "dayOffset": 0,
+      "createdAt": "2026-03-20T09:00:00Z"
+    }
+  ]
+}
+```
+
+#### 설명
+
+- `users.hire_date`를 기준으로 입사 후 경과 일수를 계산한다.
+- 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
+- `onboarding_suggestions.day_offset`와 일치하는 데이터를 조회한다.
+- 현재 MVP 기준으로 `onboarding_suggestions`는 회사 구분 없이 공통으로 사용한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+### 6-4. 빠른 질문 목록 조회
+현재 로그인한 사용자에게 노출할 빠른 질문 목록을 조회한다.
+
+```http
+GET /api/v1/chat/quick-questions
+Authorization: Bearer {accessToken}
+```
+
+#### Response (200 OK)
+
+```json
+{
+  "quickQuestions": [
+    { "content": "연차는 어떻게 신청하나요?" },
+    { "content": "급여일이 언제인가요?" },
+    { "content": "건강검진은 어떻게 받나요?" },
+    { "content": "재직증명서 신청 방법 알려줘요" },
+    { "content": "장비 세팅하는 방법 알려주세요" }
+  ]
+}
+```
+#### 빈 결과 예시 (200 OK)
+```json
+{
+  "quickQuestions": []
+}
+```
+
+#### 설명
+
+- 빠른 질문은 사용자가 자주 묻는 질문을 버튼 형태로 제공하기 위한 추천 질문 목록이다.
+- 현재 MVP 기준으로 빠른 질문 목록은 공통으로 제공한다.
+- 사용자가 빠른 질문을 클릭하면, 해당 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages`로 전송한다.
+- 빠른 질문 클릭 자체가 별도의 답변 생성 API를 호출하지는 않는다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+### 6-5. 빠른 질문 클릭 로그 기록
+사용자가 빠른 질문 버튼을 클릭하면 `user_activity_logs`에 `BUTTON_CLICK` 이벤트를 기록한다.
+이때 `event_target = QUICK_TAP`으로 저장한다.
+
+```http
+POST /api/v1/chat/quick-questions/click
+Authorization: Bearer {accessToken}
+```
+
+#### Response (201 Created)
+
+```json
+{
+  "logged": true,
+  "eventType": "BUTTON_CLICK",
+  "eventTarget": "QUICK_TAP",
+  "message": null,
+  "createdAt": "2026-04-24T09:30:00Z"
+}
+```
+
+#### 설명
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 빠른 질문 버튼 클릭 시 `user_activity_logs`에 `event_type = BUTTON_CLICK`, `event_target = QUICK_TAP`으로 기록한다.
+- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 이 API는 클릭 로그만 저장하며, 채팅 메시지 생성이나 AI 답변 생성을 수행하지 않는다.
+- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드가 별도로 `POST /api/v1/chat/messages`를 호출한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+### 6-6. 채팅 화면 진입 로그 기록
+사용자가 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.  
+이때 `event_target = CHAT`으로 저장한다.  
+단, 동일 사용자가 **30분 이내에 다시 채팅 화면에 진입한 경우** 중복 기록하지 않는다.
+
+```http
+POST /api/v1/chat/session-start
+Authorization: Bearer {accessToken}
+```
+
+#### Response (201 Created)
+
+```json
+{
+  "logged": true,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "message": null,
+  "createdAt": "2026-04-13T09:00:00Z"
+}
+```
+#### Response (200 OK, 중복 기록 제외)
+```json
+{
+  "logged": false,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "message": "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다.",
+  "createdAt": null
+}
+```
+
+#### 설명
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 채팅 화면 진입 시 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = CHAT`으로 기록한다.
+- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 동일 사용자가 최근 30분 이내에 이미 `event_target = CHAT`인 `SESSION_START` 이벤트를 기록한 경우 새로 저장하지 않는다.
+- 프론트엔드는 채팅 화면 최초 진입 시 이 API를 1회 호출한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 채팅 메시지 목록 조회 API(`GET /api/v1/chat/messages`) 호출만으로는 `SESSION_START` 로그를 자동 기록하지 않는다.
+- 채팅 화면 진입 로그는 별도 API(`POST /api/v1/chat/session-start`) 호출로 기록한다.
+
+---
+
+## 7. 내부 AI 연동 규격
+
+이 항목은 백엔드 서버와 생성형 AI 서버 간 내부 통신 규격이다.
+프론트엔드가 직접 호출하지 않는다.
+
+### 7-1. 연동 흐름
+
+- 사용자가 질문 전송
+- 백엔드가 `/api/v1/chat/messages` 요청을 받음
+- 백엔드가 사용자 질문 메시지를 저장함
+- 백엔드가 생성된 질문 메시지의 `id`를 `questionId`로 사용함
+- 백엔드가 로그인한 사용자 정보(`user`), `questionId`, 질문 `content`, 이전 대화 이력(`conversationHistory`)을 이용해 `/internal/ai/answer`를 호출
+- AI 서버가 공통 문서와 해당 회사 문서를 기반으로 답변을 생성함
+- AI 서버가 `questionId`, `documents`, `messageType`, `content`, `recommendedContacts`를 반환함
+- 백엔드가 반환값으로 답변 메시지를 저장하고, 근거 문서 목록은 `chat_message_documents`에 저장한 뒤 최종 응답을 반환함
+
+### 7-2. 답변 생성 요청
+
+```http
+POST /internal/ai/answer
+Content-Type: application/json
+```
+
+#### Request Body
+```json
+{
+  "questionId": 201,
+  "user": {
+    "userId": 1,
+    "name": "김지원",
+    "companyCode": "WB0001"
+  },
+  "content": "복지카드는 어떻게 신청하나요?",
+  "conversationHistory": [
+    {
+      "role": "user",
+      "content": "연차는 어떻게 신청해?"
+    },
+    {
+      "role": "assistant",
+      "content": "연차 신청은 인사 포털에서 신청할 수 있습니다."
+    }
+  ]
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|------|------|------|--------|------|-----------|
+| `questionId` | `Long` | Y | `201` | 백엔드가 저장한 사용자 질문 메시지 ID | 양의 정수 |
+| `user` | `Object` | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별, 개인화, 회사 문서 범위 판별에 사용 |
+| `content` | `String` | Y | `"복지카드는 어떻게 신청하나요?"` | 사용자가 입력한 질문 내용 | 길이: 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
+| `conversationHistory` | `Array<Object>` | Y | `[{ "role": "user", "content": "..." }, { "role": "assistant", "content": "..." }]` | 이전 대화 이력 | 유효 이력이 없으면 빈 배열(`[]`)로 전달 |
+
+#### Request Field (`user`)
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|------|------|------|--------|------|-----------|
+| `user.userId` | `Long` | Y | `1` | 로그인한 사용자 ID | 양의 정수 |
+| `user.name` | `String` | Y | `"김지원"` | 로그인한 사용자 이름 | 길이: 1~100자 |
+| `user.companyCode` | `String` | Y | `"WB0001"` | 로그인한 사용자의 회사 코드 | 길이: 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+
+#### Request Field (`conversationHistory[]`)
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|------|------|------|--------|------|-----------|
+| `conversationHistory[].role` | `String` | Y | `"user"` | 이전 대화 발화 주체 | `user`, `assistant`만 허용 |
+| `conversationHistory[].content` | `String` | Y | `"연차는 어떻게 신청해?"` | 이전 대화 내용 | 공백만 있는 값은 제외 후 전달 |
+
+#### conversationHistory 전달 규칙
+
+- 내부 AI 요청에는 항상 `conversationHistory`를 포함한다.
+- 유효한 이전 대화 이력이 없으면 `conversationHistory: []`로 전달한다.
+- 백엔드는 AI 서버 호출 직전 이전 대화 이력을 정규화하여 전달한다.
+- `role`은 `user`, `assistant`만 허용한다.
+- `content`가 `null`, 빈 문자열, 공백 문자열인 항목은 제외한다.
+- 이전 대화 이력은 Redis 캐시를 우선 사용한다.
+- Redis에 이력이 없거나 복원할 수 없는 경우 DB에서 최근 채팅 메시지를 기준으로 복원한다.
+- DB 복원 대상은 `message_type`이 `user_question`, `rag_answer`인 메시지로 제한한다.
+- DB 복원 시 최근 10개 메시지를 기준으로 하며, AI 서버에는 시간 순서가 자연스럽도록 오래된 메시지부터 전달한다.
+- `no_result`, `out_of_scope`, `suggestion` 메시지는 기본적으로 이전 대화 이력 복원 대상에 포함하지 않는다.
+- Redis 키는 사용자 단위로 관리하며, 기본 형식은 `conversation:{userId}`를 사용한다.
+
+
+#### Response (200 OK, 문서 기반 답변)
+
+```json
+{
+  "questionId": 201,
+  "documents": [
+    {
+      "documentId": 1
+    },
+    {
+      "documentId": 2
+    },
+    {
+      "documentId": 3
+    }
+  ],
+  "messageType": "rag_answer",
+  "content": "복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.",
+  "recommendedContacts": []
+}
+```
+
+#### Response (200 OK, 답변 불가 및 담당자 추천)
+
+```json
+{
+  "questionId": 201,
+  "documents": [],
+  "messageType": "no_result",
+  "content": "관련 문서를 찾지 못했습니다. 담당자에게 문의해 주세요.",
+  "recommendedContacts": [
+    {
+      "department": "경영지원팀",
+      "name": "김지수",
+      "position": "매니저",
+      "connects": [
+        {
+          "type": "slack",
+          "value": "@jisoo.kim"
+        },
+        {
+          "type": "email",
+          "value": "jisoo.kim@withbuddy.ai"
+        },
+        {
+          "type": "extension",
+          "value": "635"
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `questionId` | `Long` | Y | 사용자 질문 메시지 ID |
+| `documents` | `Array<Object>` | Y | 답변 생성의 근거로 사용된 문서 목록 |
+| `documents[].documentId` | `Long` | Y | 근거 문서 ID |
+| `messageType` | `String` | Y | AI 답변 유형 |
+| `content` | `String` | Y | AI가 생성한 답변 내용 |
+| `recommendedContacts` | `Array<Object>` | Y | 추천 담당자 목록. 추천 대상이 없으면 빈 배열(`[]`) |
+
+#### Response Field (`recommendedContacts[]`)
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `recommendedContacts[].department` | `String` | Y | 담당 부서명 |
+| `recommendedContacts[].name` | `String` | Y | 담당자 이름 |
+| `recommendedContacts[].position` | `String` | Y | 담당자 직급 |
+| `recommendedContacts[].connects` | `Array<Object>` | Y | 연락 수단 목록 |
+| `recommendedContacts[].connects[].type` | `String` | Y | 연락 수단 유형 |
+| `recommendedContacts[].connects[].value` | `String` | Y | 실제 연락 값 |
+
+#### 값 설명
+
+- `messageType`
+  - `rag_answer`: 문서 기반 답변 생성
+  - `no_result`: 질문 범위는 맞지만 문서/정보 부족으로 답변 불가
+  - `out_of_scope`: 서비스 범위를 벗어난 질문
+
+- `recommendedContacts[].connects[].type`
+  - `slack`: Slack 사용자 또는 채널 연결 정보
+  - `email`: 이메일 주소
+  - `phone`: 일반 전화번호 또는 휴대전화번호
+  - `extension`: 사내 내선 번호
+
+#### 동작 규칙
+
+- 백엔드는 질문 메시지를 먼저 저장한 뒤 내부 AI 서버를 호출한다.
+- 내부 AI 요청에는 질문 저장 결과 전체 객체를 전달하지 않고, 답변 생성에 필요한 값만 전달한다.
+- 내부 AI 요청에 포함되는 값은 `questionId`, `user`, `content`, `conversationHistory`이다.
+- `user.userId`는 사용자별 대화 맥락 식별 및 이전 대화 이력 관리에 사용할 수 있다.
+- `user.name`은 개인화된 답변 생성에 사용할 수 있다.
+- `user.companyCode`는 회사별 문서 범위 판별에 사용한다.
+- AI 서버는 `user.companyCode`를 기준으로 해당 회사 문서와 공통 문서만 조회 대상으로 사용한다.
+- AI 서버는 질문 내용과 이전 대화 이력을 참고하여 답변을 생성할 수 있다.
+- 단, 이전 대화 이력은 보조 맥락이며, 회사 문서 접근 범위는 반드시 현재 요청의 `user.companyCode`를 기준으로 판단한다.
+- 향후 사용자 관련 정보가 추가되는 경우, 최상위 필드를 계속 늘리지 않고 `user` 객체 내부에 확장하여 전달한다.
+- AI 서버는 질문 내용에 대해 답변 문자열과 답변 유형을 생성하여 반환한다.
+- 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 사용한다.
+- `suggestion`은 온보딩 가이드 기반 메시지 유형이므로 내부 AI 답변 응답값으로 사용하지 않는다.
+- `documents`는 답변 생성의 근거로 사용된 문서 목록이다.
+- `documents[].documentId`는 `documents.id`를 의미한다.
+- 백엔드는 AI 응답의 `documents[].documentId` 목록을 답변 메시지와 연결하여 `chat_message_documents`에 저장한다.
+- `messageType = rag_answer`인 경우 근거 문서 목록이 포함될 수 있다.
+- `messageType = no_result`, `out_of_scope`인 경우 `documents`는 빈 배열(`[]`)로 반환한다.
+- `messageType = no_result`인 경우 AI 서버는 추천 가능한 담당자가 있으면 `recommendedContacts`를 함께 반환한다.
+- `messageType = rag_answer`, `out_of_scope`인 경우 `recommendedContacts`는 빈 배열(`[]`)로 반환한다.
+- AI 서버는 `recommendedContacts`를 생성할 때도 `user.companyCode`를 기준으로 동일 회사 범위 내 담당자만 추천해야 한다.
+- 추천 담당자가 없는 경우 `recommendedContacts`는 빈 배열(`[]`)로 반환한다.
+
+---
+
+## 8. Documents
+
+이 항목은 문서 업로드, 조회, 다운로드, 삭제, 백업 재시도 등 스토리지 문서 관리 기능에 대한 API를 설명한다.
+이 섹션의 엔드포인트는 현재 Swagger UI 기준으로 확인된 항목을 정리한 것이며, 요청/응답의 상세 스키마는 실제 Swagger UI 정의를 우선 기준으로 한다.
+
+### 8-1. 문서 업로드
+
+```http
+POST /api/v1/documents/upload
+Authorization: Bearer {accessToken}
+Content-Type: multipart/form-data
+```
+
+#### 설명
+- 문서를 업로드한다.
+- 업로드된 문서는 `documents`, `document_files`를 기준으로 저장 및 관리한다.
+- 파일 저장 후 백업 스토리지 연동 정책에 따라 백업 작업이 수행될 수 있다.
+
+### 8-2. 문서 목록 조회
+
+```http
+GET /api/v1/documents
+Authorization: Bearer {accessToken}
+```
+#### 설명
+- 현재 사용자가 접근 가능한 문서 목록을 조회한다.
+- 회사 문서와 공통 문서 기준으로 조회될 수 있다.
+- 상세 검색 조건, 정렬, 필터링 여부는 Swagger UI의 실제 파라미터 정의를 따른다.
+
+### 8-3. 문서 상세 조회
+```http
+GET /api/v1/documents/{documentId}
+Authorization: Bearer {accessToken}
+```
+
+| 필드           | 타입     | 필수 | 설명        |
+| ------------ | ------ | -- | --------- |
+| `documentId` | `Long` | Y  | 조회할 문서 ID |
+
+#### 설명
+- 특정 문서의 상세 정보를 조회한다.
+- 문서 기본 정보와 파일 메타데이터를 함께 포함한다.
+
+### 8-4. 문서 파일 직접 다운로드
+```http
+GET /api/v1/documents/{documentId}/file
+Authorization: Bearer {accessToken}
+```
+
+| 필드           | 타입     | 필수 | 설명             |
+| ------------ | ------ | -- | -------------- |
+| `documentId` | `Long` | Y  | 파일 반환 대상 문서 ID |
+
+#### 동작 규칙
+- `documents.id = {documentId}`인 문서를 조회한다.
+- 해당 문서가 현재 로그인한 사용자의 회사 문서이거나 공통 문서인 경우만 접근 가능하다.
+- `document_type = TEMPLATE`인 경우 프론트엔드에 파일 자체를 반환한다.
+- 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
+- 파일이 존재하면 `Content-Type`, `Content-Disposition` 헤더와 함께 바이너리 파일을 반환한다.
+- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
+
+#### Response (200 OK)
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+Content-Disposition: attachment; filename="welfare-card-application.docx"
+```
+
+#### 설명
+- Response Body는 파일 바이너리다.
+- 이 API는 실제 파일 바이너리를 직접 반환하는 최종 다운로드 엔드포인트다.
+- 로컬 개발 환경에서는 프론트엔드가 이 경로를 직접 호출하여 파일을 내려받을 수 있다.
+- 운영 환경에서는 일반적으로 프론트엔드가 `GET /api/v1/documents/{documentId}/download`를 먼저 호출하고, 서버가 반환한 다운로드 URL 또는 접근 경로를 사용한다.
+
+#### Error Response (404 Not Found)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00Z",
+  "status": 404,
+  "error": "Not Found",
+  "code": "NOT_FOUND",
+  "errors": [
+    {
+      "field": "documentId",
+      "message": "해당 문서를 찾을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/file"
+}
+```
+
+#### Error Response (400 Bad Request)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "documentType",
+      "message": "파일 직접 반환은 TEMPLATE 문서에만 허용됩니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/file"
+}
+```
+
+### 8-5. 다운로드 URL 발급
+```http
+GET /api/v1/documents/{documentId}/download
+Authorization: Bearer {accessToken}
+```
+
+| 필드           | 타입     | 필수 | 설명                   |
+| ------------ | ------ | -- | -------------------- |
+| `documentId` | `Long` | Y  | 다운로드 URL 발급 대상 문서 ID |
+
+#### 동작 규칙
+
+- `documents.id = {documentId}`인 문서를 조회한다.
+- 해당 문서가 현재 로그인한 사용자의 회사 문서이거나 공통 문서인 경우만 접근 가능하다.
+- `document_type = TEMPLATE`인 경우에만 다운로드 URL 또는 접근 경로를 반환한다.
+- 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
+- 운영 환경에서는 스토리지 기반 다운로드 URL 또는 파일 접근 경로를 반환할 수 있다.
+- 로컬 개발 환경에서는 `/api/v1/documents/{documentId}/file` 경로를 다운로드 URL로 반환할 수 있다.
+- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
+
+#### Response (200 OK)
+```json
+{
+  "downloadUrl": "/api/v1/documents/11/file"
+}
+```
+#### 설명
+- 프론트엔드는 TEMPLATE 문서 다운로드 시 이 API를 우선 호출한다.
+- 응답의 `downloadUrl` 값을 사용해 실제 파일 다운로드를 진행한다.
+- 채팅 메시지 응답의 `documents[].file.downloadUrl`에는 이 엔드포인트 경로(`/api/v1/documents/{documentId}/download`)를 제공한다.
+- 실제 파일 바이너리 반환은 `downloadUrl`이 가리키는 경로에서 수행된다.
+
+#### Error Response (404 Not Found)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00Z",
+  "status": 404,
+  "error": "Not Found",
+  "code": "NOT_FOUND",
+  "errors": [
+    {
+      "field": "documentId",
+      "message": "해당 문서를 찾을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/download"
+}
+```
+
+#### Error Response (400 Bad Request)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "documentType",
+      "message": "다운로드 URL 발급은 TEMPLATE 문서에만 허용됩니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/download"
+}
+```
+
+### 8-6. 문서 삭제 전 검증
+```http
+GET /api/v1/documents/{documentId}/delete-check
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 특정 문서를 삭제하기 전에 삭제 가능 여부를 검증한다.
+- 연관 데이터, 백업 상태, 권한 조건 등을 확인한다.
+
+### 8-7. 문서 삭제
+```http
+DELETE /api/v1/documents/{documentId}
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 특정 문서를 삭제한다.
+- 실제 삭제 방식은 물리 삭제 또는 논리 삭제 정책을 따른다.
+- 파일 및 백업 데이터 처리 방식은 서버 정책에 따른다.
+
+### 8-8. 문서 전체 삭제 전 검증
+```http
+GET /api/v1/documents/delete-check
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 전체 문서 삭제 전에 삭제 가능 여부를 검증한다.
+- 삭제 대상 수, 삭제 불가 사유, 확인 필요 항목 등을 반환한다.
+
+### 8-9. 문서 전체 삭제
+```http
+DELETE /api/v1/documents
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 전체 문서를 삭제한다.
+- confirm 필요 정책이 적용된다.
+- 실제 요청 규격은 Swagger UI 정의를 따른다.
+
+### 8-10. 문서 선택 삭제 전 검증
+```http
+POST /api/v1/documents/bulk-delete/delete-check
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### 설명
+- 선택한 문서들을 삭제하기 전에 삭제 가능 여부를 검증한다.
+- 삭제 대상 목록 기준으로 검증 결과를 반환한다.
+
+### 8-11. 문서 선택 삭제
+```http
+POST /api/v1/documents/bulk-delete
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### 설명
+- 선택한 문서들을 일괄 삭제한다.
+- confirm 필요 정책이 적용될 수 있다.
+- 실제 요청 바디 구조는 Swagger UI 정의를 따른다.
+
+### 8-12. 백업 재시도
+```http
+POST /api/v1/documents/{documentId}/backup/retry
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 특정 문서의 백업 작업을 재시도한다.
+- `document_files`, `document_backup_jobs` 기준으로 백업 상태를 갱신하거나 새 작업을 생성한다.
+
+---
+
+## 9. 변경 이력
+
+- **v1.0.0 (2026-03-10)**:
+  - 초기 버전 작성
+- **v1.1.0 (2026-03-17)**:
+  - 멀티 테넌시 구조 적용, 로그인 API 변경, 회사 식별 정보 응답 구조 추가, 회사 관리 API 추가, 데이터 격리 설명 추가, JWT 페이로드 구조 업데이트, 비밀번호 제거
+- **v1.2.0 (2026-03-17)**:
+  - MVP 기준 구현 범위만 남기도록 문서 범위 재정리, 미구현·변경 가능성이 큰 API를 별도 관리 대상으로 분리, 커스텀 에러코드·Rate Limiting·페이지네이션 공통 정책을 계획 문서로 이동
+- **v1.3.0 (2026-03-24)**:
+  - API 명세 단순화, `companyId` 기준으로 응답 예시 수정, `auth/refresh`·`users/me`·체크리스트 API 제거, `conversationId` 제거, `MyBuddy` 기준으로 채팅/온보딩 API 재정리, 내부 AI 연동 규격 최소화
+- **v1.4.0 (2026-03-26)**:
+  - 로그인 기준과 인증 흐름을 수정된 ERD에 맞게 정리, `companyCode` 반영, 토큰 만료 처리, 프론트 개발 서버 주소 추가, 백엔드 서버와 생성형 AI 서버 간 연동 흐름 추가
+- **v1.5.0 (2026-03-26)**:
+  - 빠른 질문 목록 조회 API 추가, 문서 양식 및 정합성 정리
+- **v1.6.0 (2026-04-02)**:
+  - `company_id` 제거, 로그인/내부 AI 연동 관련 요청·응답 예시 및 동작 규칙 수정, Swagger(OpenAPI) 기반 API 문서 확인 경로 추가
+- **v1.7.0 (2026-04-03)**:
+  - 로그인 API 입력값 검증 적용에 따라 `400 Bad Request` 의미를 구체화, `POST /api/v1/auth/login`의 `200/400/401` 상태 코드 기준 정리, 예외 응답 형식 변경
+- **v1.7.1 (2026-04-06)**:
+  - `company_code` 예시값 수정
+- **v1.7.2 (2026-04-08)**:
+  - 내부 AI 요청을 `questionId`, `companyCode`, `content` 기반 구조로 단순화, 내부 AI 응답을 `questionId`, `messageType`, `content` 중심으로 수정
+- **v1.7.3 (2026-04-13)**:
+  - 채팅 메시지 목록 조회 응답 형식 수정
+- **v1.7.4 (2026-04-13)**:
+  - `user_activity_logs`의 `SESSION_START` 이벤트 기록 규칙 정리, 로그인 성공 시 `event_target = LOGIN` 로그 기록 규칙 추가, `chat_message_documents` 기반 근거 문서 다중 연결 구조 반영, 채팅 메시지 응답 예시에 `documentIds` 추가, 내부 AI 응답의 근거 문서 저장 규칙 보강
+  - 스토리지 문서 API 엔드포인트 목록 추가, `document_files` 및 `document_backup_jobs` 기반 문서 관리/백업 기능 설명 보강
+- **v1.7.5 (2026-04-16)**:
+  - `documents` 오타 수정, 내부 AI 응답 시간 초과 처리 규칙 추가, `504 Gateway Timeout`, `AI_TIMEOUT` 에러 코드 추가
+- **v1.7.6 (2026-04-20)**:
+  - 온보딩 제안 조회 API의 `dayOffset` 기준을 입사일 당일 `D+0` 기준으로 수정하고, 응답 필드 및 노출 규칙을 최신 구현 기준으로 정리
+- **v1.7.7 (2026-04-23)**:
+  - `no_result` 메시지에 대한 담당자 추천 카드 응답 구조 추가, 채팅 메시지 목록 조회 및 질문 전송 응답 예시에 추천 담당자 정보 반영, 내부 AI 응답 규격에 추천 담당자 정보 반영
+- **v1.7.8 (2026-04-27)**:
+  - 내부 AI 답변 생성 요청(`/internal/ai/answer`)에 이전 대화 이력 `conversationHistory` 전달 규칙 추가
+- **v1.7.9 (2026-04-28)**:
+  - 신입 계정 생성 API(`POST /api/v1/users`) 추가, 동일 회사 내 사원번호 중복 방지를 위한 `company_id + employee_number` 복합 UNIQUE 제약조건 및 `409 Conflict`, `DUPLICATE_EMPLOYEE_NUMBER` 에러 응답 규격 추가
