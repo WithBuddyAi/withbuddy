@@ -1,9 +1,9 @@
 # WithBuddy API 명세서
 
 > WithBuddy MVP 기준 REST API 문서
-> 
-**버전**: 1.7.8
-**최종 업데이트**: 2026-04-27
+>
+**버전**: 1.7.9
+**최종 업데이트**: 2026-04-28
 
 ---
 
@@ -13,6 +13,7 @@
 
 ### 포함 범위
 - 로그인
+- 신입 계정 생성
 - 채팅 메시지 목록 조회
 - 질문 전송 및 답변 생성
 - 온보딩 제안 조회
@@ -25,7 +26,7 @@
 - 토큰 재발급
 - 로그아웃
 - 내 정보 조회
-- 관리자 기능
+- 관리자 화면 기능
 - 체크리스트
 - 기타 미구현 기능
 
@@ -153,6 +154,7 @@ OpenAPI Docs:     http://localhost:8080/v3/api-docs
 - `401 Unauthorized`: 인증 실패 또는 토큰 만료
 - `403 Forbidden`: 요청 권한 없음
 - `404 Not Found`: 리소스 없음
+- `409 Conflict`: 중복 리소스 또는 제약조건 충돌
 - `500 Internal Server Error`: 서버 오류
 - `504 Gateway Timeout` : AI 서버 응답 시간 초과
 
@@ -161,6 +163,13 @@ OpenAPI Docs:     http://localhost:8080/v3/api-docs
 - `200 OK`: 로그인 성공
 - `400 Bad Request`: 요청값 검증 실패
 - `401 Unauthorized`: 로그인 실패(회사코드/사번/이름 불일치)
+
+#### 신입 계정 생성 API (`POST /api/v1/users`) 상태 코드
+
+- `201 Created`: 계정 생성 성공
+- `400 Bad Request`: 요청값 검증 실패
+- `401 Unauthorized`: 인증 실패 또는 토큰 만료
+- `409 Conflict`: 동일 회사 내 중복 사원번호
 
 ### 공통 에러 코드
 - `BAD_REQUEST`: 잘못된 요청
@@ -171,6 +180,7 @@ OpenAPI Docs:     http://localhost:8080/v3/api-docs
 - `USER_NOT_FOUND`: 사용자 정보를 찾을 수 없음
 - `ACCESS_DENIED`: 요청 권한 없음
 - `NOT_FOUND`: 리소스 없음
+- `DUPLICATE_EMPLOYEE_NUMBER`: 동일 회사 내 중복 사원번호
 - `INTERNAL_SERVER_ERROR`: 서버 내부 오류
 - `AI_TIMEOUT`: AI 답변 생성 시간 초과
 
@@ -281,7 +291,125 @@ Content-Type: application/json
 }
 ```
 
-### 5-2. 인증 오류 및 토큰 만료 처리
+### 5-2. 신입 계정 생성
+
+신입 사원의 계정을 직접 생성한다.  
+계정 생성 후 사용자는 등록된 회사코드, 사원번호, 이름으로 로그인할 수 있다.
+
+```http
+POST /api/v1/users
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### Request Body
+
+```json
+{
+  "name": "김지원",
+  "employeeNumber": "20260001",
+  "hireDate": "2026-03-01"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|------|------|------|--------|------|-----------|
+| `name` | `String` | Y | `"김지원"` | 신입 사원 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
+| `employeeNumber` | `String` | Y | `"20260001"` | 신입 사원 사번 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| `hireDate` | `LocalDate` | Y | `"2026-03-01"` | 입사일 | `yyyy-MM-dd` 형식 |
+
+#### 동작 규칙
+
+- 현재 로그인한 사용자의 회사 기준으로 신입 계정을 생성한다.
+- 서버는 인증 토큰에서 현재 사용자의 `companyCode` 또는 회사 식별 정보를 확인한다.
+- 서버는 해당 회사에 매핑되는 `companies.id`를 기준으로 `users.company_id`를 저장한다.
+- 입력받은 `name`, `employeeNumber`, `hireDate`를 `users` 테이블에 저장한다.
+- 동일 회사 내에서 같은 사원번호로 계정을 중복 생성할 수 없다.
+- DB에는 `company_id + employee_number` 복합 UNIQUE 제약조건을 둔다.
+- 동일 `company_id + employee_number` 조합이 이미 존재하는 경우 `409 Conflict`와 `DUPLICATE_EMPLOYEE_NUMBER` 에러 코드를 반환한다.
+- 계정 생성이 완료되면 해당 사용자는 `POST /api/v1/auth/login`에서 회사코드, 사원번호, 이름을 입력해 로그인할 수 있다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+#### DB 제약조건
+
+```sql
+ALTER TABLE users
+  ADD CONSTRAINT uq_users_company_employee_number
+    UNIQUE (company_id, employee_number);
+```
+
+> 실제 마이그레이션 파일에서는 기존 제약조건명 및 컬럼명과 충돌하지 않도록 현재 스키마를 확인한 뒤 적용한다.
+
+#### Response (201 Created)
+
+```json
+{
+  "id": 10,
+  "companyCode": "WB0001",
+  "companyName": "테크 주식회사",
+  "employeeNumber": "20260001",
+  "name": "김지원",
+  "hireDate": "2026-03-01",
+  "createdAt": "2026-04-28T09:30:00Z"
+}
+```
+
+#### Error Response (400 Bad Request)
+
+```json
+{
+  "timestamp": "2026-04-28T09:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "hireDate",
+      "message": "입사일은 필수입니다."
+    }
+  ],
+  "path": "/api/v1/users"
+}
+```
+
+#### Error Response (409 Conflict)
+
+```json
+{
+  "timestamp": "2026-04-28T09:30:00Z",
+  "status": 409,
+  "error": "Conflict",
+  "code": "DUPLICATE_EMPLOYEE_NUMBER",
+  "errors": [
+    {
+      "field": "employeeNumber",
+      "message": "이미 등록된 사번입니다."
+    }
+  ],
+  "path": "/api/v1/users"
+}
+```
+
+#### 검증 규칙
+
+- `name`, `employeeNumber`, `hireDate`는 필수값이다.
+- `name`, `employeeNumber`는 공백만 입력할 수 없다.
+- `hireDate`는 `yyyy-MM-dd` 형식이어야 한다.
+- 길이 제한 또는 형식 검증에 실패하면 `400 Bad Request`를 반환한다.
+- 중복 사번 검증은 현재 로그인한 사용자의 회사 범위 안에서 수행한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
+
+### 5-3. 인증 오류 및 토큰 만료 처리
 
 인증이 필요한 API에서 인증 정보가 없거나 올바르지 않으면 아래와 같이 응답한다.
 
@@ -413,7 +541,7 @@ Authorization: Bearer {accessToken}
   - `no_result`: 질문 범위는 맞지만 근거 문서나 정보가 없어 답변하지 못한 메시지
   - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내 메시지
   - `suggestion`: 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
-- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 - `rag_answer` 메시지인 경우, 근거 문서는 `chat_message_documents`를 기준으로 조회한다.
 - `documents[].documentId`는 답변 메시지와 연결된 문서 ID를 의미한다.
 - `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
@@ -626,7 +754,7 @@ Content-Type: application/json
 - `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
 - 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
 - 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 - 백엔드는 내부 AI 서버 호출 시 최대 10초까지 응답을 대기한다.
 - 10초 내 응답이 없으면 `AI_TIMEOUT` `예외를 반환한다.
 - 사용자가 재시도를 선택한 경우 동일한 질문 내용을 다시 `POST /api/v1/chat/messages`로 전송한다.
@@ -673,7 +801,7 @@ Authorization: Bearer {accessToken}
 - 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
 - `onboarding_suggestions.day_offset`와 일치하는 데이터를 조회한다.
 - 현재 MVP 기준으로 `onboarding_suggestions`는 회사 구분 없이 공통으로 사용한다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
 ### 6-4. 빠른 질문 목록 조회
 현재 로그인한 사용자에게 노출할 빠른 질문 목록을 조회한다.
@@ -709,7 +837,7 @@ Authorization: Bearer {accessToken}
 - 현재 MVP 기준으로 빠른 질문 목록은 공통으로 제공한다.
 - 사용자가 빠른 질문을 클릭하면, 해당 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages`로 전송한다.
 - 빠른 질문 클릭 자체가 별도의 답변 생성 API를 호출하지는 않는다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
 ### 6-5. 빠른 질문 클릭 로그 기록
 사용자가 빠른 질문 버튼을 클릭하면 `user_activity_logs`에 `BUTTON_CLICK` 이벤트를 기록한다.
@@ -739,7 +867,7 @@ Authorization: Bearer {accessToken}
 - 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
 - 이 API는 클릭 로그만 저장하며, 채팅 메시지 생성이나 AI 답변 생성을 수행하지 않는다.
 - 빠른 질문을 실제 질문으로 전송하려면 프론트엔드가 별도로 `POST /api/v1/chat/messages`를 호출한다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
 ### 6-6. 채팅 화면 진입 로그 기록
 사용자가 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.  
@@ -780,7 +908,7 @@ Authorization: Bearer {accessToken}
 - 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
 - 동일 사용자가 최근 30분 이내에 이미 `event_target = CHAT`인 `SESSION_START` 이벤트를 기록한 경우 새로 저장하지 않는다.
 - 프론트엔드는 채팅 화면 최초 진입 시 이 API를 1회 호출한다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-2. 인증 오류 및 토큰 만료 처리**를 따른다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 - 채팅 메시지 목록 조회 API(`GET /api/v1/chat/messages`) 호출만으로는 `SESSION_START` 로그를 자동 기록하지 않는다.
 - 채팅 화면 진입 로그는 별도 API(`POST /api/v1/chat/session-start`) 호출로 기록한다.
 
@@ -1146,17 +1274,17 @@ Authorization: Bearer {accessToken}
 #### Error Response (400 Bad Request)
 ```json
 {
-"timestamp": "2026-04-14T15:30:00Z",
-"status": 400,
-"error": "Bad Request",
-"code": "BAD_REQUEST",
-"errors": [
-{
-"field": "documentType",
-"message": "다운로드 URL 발급은 TEMPLATE 문서에만 허용됩니다."
-}
-],
-"path": "/api/v1/documents/11/download"
+  "timestamp": "2026-04-14T15:30:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "documentType",
+      "message": "다운로드 URL 발급은 TEMPLATE 문서에만 허용됩니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/download"
 }
 ```
 
@@ -1272,3 +1400,5 @@ Authorization: Bearer {accessToken}
   - `no_result` 메시지에 대한 담당자 추천 카드 응답 구조 추가, 채팅 메시지 목록 조회 및 질문 전송 응답 예시에 추천 담당자 정보 반영, 내부 AI 응답 규격에 추천 담당자 정보 반영
 - **v1.7.8 (2026-04-27)**:
   - 내부 AI 답변 생성 요청(`/internal/ai/answer`)에 이전 대화 이력 `conversationHistory` 전달 규칙 추가
+- **v1.7.9 (2026-04-28)**:
+  - 신입 계정 생성 API(`POST /api/v1/users`) 추가, 동일 회사 내 사원번호 중복 방지를 위한 `company_id + employee_number` 복합 UNIQUE 제약조건 및 `409 Conflict`, `DUPLICATE_EMPLOYEE_NUMBER` 에러 응답 규격 추가
