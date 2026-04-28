@@ -51,11 +51,11 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
                   message.senderType === 'USER' ? `${userClass}` : `${botClass}`}
                   style={message.senderType === 'USER' ? {background: 'linear-gradient(to right, #7DC1FF, #6BB5F2, #57A7E4, #4F9CD7, #4791CA)'} : {}}>
 
-                  {message.messageType === 'ai_timeout' ? (
-                    <div className="flex gap-[10px]">
-                      <p className="text-[#495057] text-[16px]">{message.content}</p>
-                      <button onClick={handleRetry} className="bg-blue-100 rounded-[9999px] py-[6px] px-[12px] text-[#204867] text-[12px]">
-                        <RotateCw size={14} />다시 시도하기
+                  {message.messageType === 'ai_timeout' || message.messageType === 'send_error' ? (
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-[10px]">
+                      <p className="text-[#495057] text-[14px] lg:text-[16px]">{message.content}</p>
+                      <button onClick={handleRetry} className={`flex items-center justify-cnter gap-[5px] text-[12px] rounded-[9999px] py-[6px] px-[12px]  ${message.messageType === 'ai_timeout' ? 'bg-[#EAF6FF] text-[#204867] hover:bg-[#D2E2F6]' : 'bg-[#336B974D] text-[#FFFFFF] hover:bg-[#336B97B2]'}`}>
+                        <RotateCw size={14} />다시 물어보기
                       </button>
                     </div>)
                     :
