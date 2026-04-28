@@ -323,12 +323,13 @@ Content-Type: application/json
 #### 동작 규칙
 
 - 현재 로그인한 사용자의 회사 기준으로 신입 계정을 생성한다.
-- 서버는 인증 토큰에서 현재 사용자의 `companyCode` 또는 회사 식별 정보를 확인한다.
-- 서버는 해당 회사에 매핑되는 `companies.id`를 기준으로 `users.company_id`를 저장한다.
+- 서버는 인증 토큰에서 현재 사용자의 `companyCode`를 확인한다.
+- 서버는 해당 `companyCode`에 매핑되는 `companies.company_code`를 기준으로 `users.company_code`를 저장한다.
 - 입력받은 `name`, `employeeNumber`, `hireDate`를 `users` 테이블에 저장한다.
+- 신입 계정 생성 시 `users.role`은 기본적으로 `USER`로 저장한다.
 - 동일 회사 내에서 같은 사원번호로 계정을 중복 생성할 수 없다.
-- DB에는 `company_id + employee_number` 복합 UNIQUE 제약조건을 둔다.
-- 동일 `company_id + employee_number` 조합이 이미 존재하는 경우 `409 Conflict`와 `DUPLICATE_EMPLOYEE_NUMBER` 에러 코드를 반환한다.
+- DB에는 `company_code + employee_number` 복합 UNIQUE 제약조건을 둔다.
+- 동일 `company_code + employee_number` 조합이 이미 존재하는 경우 `409 Conflict`와 `DUPLICATE_EMPLOYEE_NUMBER` 에러 코드를 반환한다.
 - 계정 생성이 완료되면 해당 사용자는 `POST /api/v1/auth/login`에서 회사코드, 사원번호, 이름을 입력해 로그인할 수 있다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
@@ -337,7 +338,7 @@ Content-Type: application/json
 ```sql
 ALTER TABLE users
   ADD CONSTRAINT uq_users_company_employee_number
-    UNIQUE (company_id, employee_number);
+    UNIQUE (company_code, employee_number);
 ```
 
 > 실제 마이그레이션 파일에서는 기존 제약조건명 및 컬럼명과 충돌하지 않도록 현재 스키마를 확인한 뒤 적용한다.
@@ -349,6 +350,7 @@ ALTER TABLE users
   "id": 10,
   "companyCode": "WB0001",
   "companyName": "테크 주식회사",
+  "role": "USER",
   "employeeNumber": "20260001",
   "name": "김지원",
   "hireDate": "2026-03-01",

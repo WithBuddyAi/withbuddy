@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(
-        name ="users",
+        name = "users",
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uq_users_company_employee",
@@ -32,6 +32,10 @@ public class User {
     @JoinColumn(name = "company_code", referencedColumnName = "company_code", nullable = false)
     private Company company;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role;
+
     @Column(name = "name", nullable = false, length = 20)
     private String name;
 
@@ -48,4 +52,19 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    public static User createUser(
+            Company company,
+            String name,
+            String employeeNumber,
+            LocalDate hireDate
+    ) {
+        User user = new User();
+        user.company = company;
+        user.role = UserRole.USER;
+        user.name = name;
+        user.employeeNumber = employeeNumber;
+        user.hireDate = hireDate;
+        return user;
+    }
 }

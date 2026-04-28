@@ -5,6 +5,8 @@ import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.auth.exception.LoginFailedException;
 import com.withbuddy.global.jwt.SessionNotActiveException;
 import com.withbuddy.global.jwt.TokenMissingException;
+import com.withbuddy.user.exception.DuplicateEmployeeNumberException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import io.jsonwebtoken.JwtException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
@@ -12,11 +14,13 @@ import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -164,6 +168,36 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(
+            HttpMessageNotReadableException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("request", "요청 본문 형식이 올바르지 않습니다.")
+        );
+
+        Throwable cause = e.getCause();
+        if (cause instanceof InvalidFormatException invalidFormatException
+                && invalidFormatException.getTargetType() != null
+                && LocalDate.class.isAssignableFrom(invalidFormatException.getTargetType())
+                && !invalidFormatException.getPath().isEmpty()) {
+            String fieldName = invalidFormatException.getPath().get(0).getFieldName();
+            errors = List.of(new FieldValidationError(fieldName, "입사일은 yyyy-MM-dd 형식이어야 합니다."));
+        }
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "BAD_REQUEST",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
             MissingRequestHeaderException e,
@@ -273,5 +307,26 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(DuplicateEmployeeNumberException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicateEmployeeNumberException(
+            DuplicateEmployeeNumberException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("employeeNumber", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                "DUPLICATE_EMPLOYEE_NUMBER",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 }
