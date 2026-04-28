@@ -1,17 +1,9 @@
-# WithBuddy 보안 설계
+﻿# WithBuddy 보안 설계
 
 > 인증, 인가, 데이터 보호 및 보안 모범 사례
 
-<<<<<<< HEAD
-**최종 업데이트**: 2026-03-23  
-**버전**: 1.1.2
-**최종 업데이트**: 2026-03-22  
-**버전**: 1.1.1
-=======
-**최종 업데이트**: 2026-04-07  
-**버전**: 1.3.2  
-**작성일**: 2026-03-27
->>>>>>> 523f74d0033561247d09915c8f8f5e5335093b1a
+**최종 업데이트**: 2026-04-28  
+**버전**: 1.4.0
 
 ---
 
@@ -37,31 +29,33 @@
 WithBuddy는 다음 보안 원칙을 따릅니다:
 
 1. **Defense in Depth** (다층 방어)
-   - 네트워크, 애플리케이션, 데이터 계층에서 다중 보안 조치
+  - 네트워크, 애플리케이션, 데이터 계층에서 다중 보안 조치
 
 2. **Least Privilege** (최소 권한)
-   - 사용자와 시스템에 필요한 최소한의 권한만 부여
+  - 사용자와 시스템에 필요한 최소한의 권한만 부여
 
 3. **Zero Trust** (제로 트러스트)
-   - 모든 요청을 검증, 내부 네트워크도 신뢰하지 않음
+  - 모든 요청을 검증, 내부 네트워크도 신뢰하지 않음
 
 4. **Encryption Everywhere** (전방위 암호화)
-   - 전송 중, 저장 시 모든 민감 데이터 암호화
+  - 전송 중, 저장 시 모든 민감 데이터 암호화
 
 ### 1.2 보안 레이어
 
-```
-┌──────────────────────────────────────┐
-│  1. Network Security                 │ ← VCN, Security Groups
-├──────────────────────────────────────┤
-│  2. Application Security             │ ← HTTPS, CORS, CSP
-├──────────────────────────────────────┤
-│  3. Authentication & Authorization   │ ← JWT, RBAC
-├──────────────────────────────────────┤
-│  4. Data Security                    │ ← Encryption, Hashing
-├──────────────────────────────────────┤
-│  5. Input Validation                 │ ← Sanitization, Validation
-└──────────────────────────────────────┘
+```text
+┌──────────────────────────────────────────────┐
+│  1. Network Security                         │ ← VCN, Security Groups, Private Subnet
+├──────────────────────────────────────────────┤
+│  2. Transport & Application Security         │ ← HTTPS, CORS, CSP, Security Headers
+├──────────────────────────────────────────────┤
+│  3. Authentication                           │ ← JWT, RBAC, Redis Session, Storage API Key
+├──────────────────────────────────────────────┤
+│  4. Authorization & Tenant Boundary          │ ← Service Layer Check, Company Scope
+├──────────────────────────────────────────────┤
+│  5. Data Security                            │ ← Encryption, Secret Management
+├──────────────────────────────────────────────┤
+│  6. Input Validation & Error Handling        │ ← Sanitization, Validation, Standard ErrorResponse
+└──────────────────────────────────────────────┘
 ```
 
 ---
@@ -986,8 +980,8 @@ curl -I https://ai.itsdev.kr/
 ### A. 보안 체크리스트
 
 **인증/인가**:
-- [ ] JWT 시크릿 키 안전하게 보관 (환경변수)
-- [ ] Access Token 유효기간 짧게 (2시간)
+- [x] JWT 시크릿 키 안전하게 보관 (환경변수)
+- [x] Access Token 유효기간 짧게 (2시간)
 - [ ] Refresh Token httpOnly Cookie 사용
 - [ ] 로그아웃 시 Token Blacklist 추가
 
@@ -998,7 +992,7 @@ curl -I https://ai.itsdev.kr/
 - [ ] 비밀번호 BCrypt 해싱 (work factor 12)
 
 **API 보안**:
-- [ ] CORS 허용 Origin 제한
+- [x] CORS 허용 Origin 제한
 - [ ] Rate Limiting 적용
 - [ ] CSP 헤더 설정
 - [ ] 입력 검증 (모든 엔드포인트)
@@ -1012,12 +1006,9 @@ curl -I https://ai.itsdev.kr/
 
 ---
 
-<<<<<<< HEAD
-**문서 버전**: 1.1.1  
-**작성일**: 2026-03-17
-=======
 ## 10. 변경 이력
 
+- 2026-04-28: 
 - 2026-04-07: `ai.itsdev.kr` Nginx 민감 경로 차단 규칙(`.env`, `.git`, 백업 확장자)과 점검 항목을 추가.
 - 2026-04-07: Nginx `server_tokens off` 적용/검증 절차를 추가해 버전 노출 제한 기준을 명시.
 - 2026-04-06: 현재 운영 기준(`DB는 Backend만 접근`)에 맞춰 네트워크 보안 예시에서 AI→DB 직접 접근 규칙을 제거.
@@ -1026,5 +1017,3 @@ curl -I https://ai.itsdev.kr/
 - 2026-03-30: 개발단계 AI 서버 공개 정책(8000 비공개, 80/443 리버스 프록시) 및 배포 검증 기준 문구를 보강.
 - 2026-03-27: VCN 격리/보안 규칙을 테넌시 분리 및 LPG 통신 구조에 맞게 업데이트.
 
-
->>>>>>> 523f74d0033561247d09915c8f8f5e5335093b1a

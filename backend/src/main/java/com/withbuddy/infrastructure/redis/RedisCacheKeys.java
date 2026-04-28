@@ -29,16 +29,8 @@ public final class RedisCacheKeys {
         return "rag:status:" + requestId;
     }
 
-    public static String buddyDay(Long userId) {
-        return "buddy:day:" + userId;
-    }
-
     public static String nudgeSent(Long userId, int day) {
         return "nudge:sent:" + userId + ":" + day;
-    }
-
-    public static String quickTap(int day) {
-        return "quicktap:" + day;
     }
 
     public static String conversation(String sessionId) {
