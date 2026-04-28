@@ -18,7 +18,7 @@ from agents.orchestrator import run_orchestrator
 from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
-from utils.sensitive_filter import check_sensitive
+from utils.sensitive_filter import check_sensitive, check_global_block
 
 router = APIRouter(tags=["chat"])
 
@@ -217,9 +217,133 @@ class InternalAIAnswerResponse(BaseModel):
     recommendedContacts: list = Field(default_factory=list, description="no_result 시 추천 담당자 목록")
 
 
+_NO_RESULT_KW = [
+    "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
+    "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
+    "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요",
+    "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
+]
+_OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
+
+
+async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) -> InternalAIAnswerResponse:
+    """복합 질문 파트별 분리 처리 (스토리 2-8)"""
+    from utils.composite import classify_parts, make_out_text
+    from utils.sensitive_filter import _make_sensitive_answer
+
+    user_name = request.user.name
+    company_code = request.user.companyCode
+
+    # 1. 파트별 민감 감지 (check_sensitive를 파트 단독으로 호출 → has_admin_intent가 파트 범위 내로 한정)
+    sensitive_answers: list[str] = []
+    non_sensitive_parts: list[str] = []
+    for part in parts:
+        action, s_answer = check_sensitive(part, user_name)
+        if action == "block":
+            sensitive_answers.append(s_answer)
+        else:
+            non_sensitive_parts.append(part)
+
+    # 2. non-sensitive 파트 분류 (in_scope / out_직무실무 / out_전문가 / sensitive)
+    classified = await asyncio.get_event_loop().run_in_executor(
+        None, classify_parts, non_sensitive_parts
+    )
+
+    # LLM이 sensitive로 분류한 파트도 민감 처리 (check_sensitive를 통과한 edge case 대응)
+    llm_sensitive = [c for c in classified if c["type"] == "sensitive"]
+    if llm_sensitive and not sensitive_answers:
+        sensitive_answers.append(_make_sensitive_answer(user_name))
+
+    in_scope_parts = [c for c in classified if c["type"] == "in_scope"]
+    out_parts = [c for c in classified if c["type"] not in ("in_scope", "sensitive")]
+
+    # 3. IN SCOPE 파트 → RAG
+    rag_answer = ""
+    doc_ids: list[int] = []
+    if in_scope_parts:
+        in_query = " 그리고 ".join(p["text"] for p in in_scope_parts)
+        injected_history = None
+        if request.conversationHistory:
+            from langchain_core.messages import HumanMessage, AIMessage
+            injected_history = [
+                HumanMessage(content=t.content) if t.role == "user" else AIMessage(content=t.content)
+                for t in request.conversationHistory
+            ]
+        try:
+            async with asyncio.timeout(40):
+                rag_answer, _, _, doc_ids = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: run_rag_chain(
+                        str(request.user.userId), in_query,
+                        user_name=user_name, company_code=company_code,
+                        injected_history=injected_history,
+                    )
+                )
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=408, detail="AI 응답 시간이 초과되었습니다. 다시 시도해주세요.")
+
+    # 4. 응답 조합: 민감 먼저 → 브릿지 → RAG → OUT
+    blocks: list[str] = []
+
+    if sensitive_answers:
+        blocks.append(sensitive_answers[0])
+
+    if sensitive_answers and rag_answer:
+        topic = in_scope_parts[0]["text"] if in_scope_parts else "문의하신 내용"
+        blocks.append(f"아울러 함께 문의하신 {topic}에 대해서도 안내해드릴게요.")
+
+    if rag_answer:
+        blocks.append(rag_answer)
+
+    for out in out_parts:
+        out_text = make_out_text(out["text"], out["type"])
+        if out_text:
+            blocks.append(out_text)
+
+    final_content = "\n\n".join(b.strip() for b in blocks if b.strip())
+
+    # 5. messageType 결정
+    if any(kw in rag_answer for kw in _NO_RESULT_KW):
+        message_type = "no_result"
+    elif rag_answer:
+        message_type = "rag_answer"
+    else:
+        message_type = "out_of_scope"
+
+    # 6. recommendedContacts (민감 케이스 또는 no_result)
+    recommended_contacts = []
+    if sensitive_answers or message_type in ("no_result", "out_of_scope"):
+        from routers.recommend import get_contact_for_question
+        contact = await get_contact_for_question(company_code, request.content)
+        recommended_contacts = [contact]
+
+    return InternalAIAnswerResponse(
+        questionId=request.questionId,
+        messageType=message_type,
+        content=final_content,
+        documents=[{"documentId": did} for did in doc_ids],
+        recommendedContacts=recommended_contacts,
+    )
+
+
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
+    # 욕설·극단적 위기 → 전체 차단 (복합 질문 여부 무관)
+    action, answer = check_global_block(request.content, request.user.name)
+    if action == "block":
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="out_of_scope",
+            content=answer,
+        )
+
+    # 복합 질문 분리 처리 (스토리 2-8)
+    from utils.composite import split_composite
+    composite_parts = split_composite(request.content)
+    if len(composite_parts) >= 2:
+        return await _handle_composite(request, composite_parts)
+
     action, answer = check_sensitive(request.content, request.user.name)
     if action == "block":
         return InternalAIAnswerResponse(
@@ -274,7 +398,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             save_interaction(user_id, request.content, chitchat_answer)
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
-                messageType="chitchat",
+                messageType="out_of_scope",
                 content=chitchat_answer,
             )
 
@@ -331,12 +455,6 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         raise HTTPException(status_code=408, detail="AI 응답 시간이 초과되었습니다. 다시 시도해주세요.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    _NO_RESULT_KW = ["문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
-                     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
-                     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요",
-                     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵"]
-    _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
     if any(kw in answer for kw in _OUT_OF_SCOPE_KW):
         message_type = "out_of_scope"
