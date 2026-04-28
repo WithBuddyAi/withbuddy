@@ -3,10 +3,12 @@ package com.withbuddy.user.service;
 import com.withbuddy.auth.repository.UserRepository;
 import com.withbuddy.company.entity.Company;
 import com.withbuddy.company.repository.CompanyRepository;
+import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.user.dto.CreateUserRequest;
 import com.withbuddy.user.dto.CreateUserResponse;
+import com.withbuddy.user.entity.UserRole;
 import com.withbuddy.user.entity.User;
 import com.withbuddy.user.exception.DuplicateEmployeeNumberException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,13 +34,25 @@ public class UserService {
             JwtAuthenticationPrincipal principal,
             CreateUserRequest request
     ) {
-        String normalizedName = request.getName().trim();
-        String normalizedEmployeeNumber = request.getEmployeeNumber().trim();
         String companyCode = principal.companyCode();
 
         if (companyCode == null || companyCode.isBlank()) {
             throw new UnauthorizedException("사용자 회사 정보를 확인할 수 없습니다.");
         }
+
+        User currentUser = userRepository.findById(principal.userId())
+                .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            throw new ForbiddenException("관리자만 신입 계정을 생성할 수 있습니다.");
+        }
+
+        if (!currentUser.getCompany().getCompanyCode().equals(companyCode)) {
+            throw new UnauthorizedException("사용자 회사 정보가 일치하지 않습니다.");
+        }
+
+        String normalizedName = request.getName().trim();
+        String normalizedEmployeeNumber = request.getEmployeeNumber().trim();
 
         Company company = companyRepository.findByCompanyCode(companyCode)
                 .orElseThrow(() -> new UnauthorizedException("사용자 회사 정보를 확인할 수 없습니다."));

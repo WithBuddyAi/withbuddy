@@ -3,6 +3,7 @@ package com.withbuddy.user.entity;
 import com.withbuddy.company.entity.Company;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -53,18 +54,33 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Builder
+    private User(
+            Company company,
+            String name,
+            String employeeNumber,
+            LocalDate hireDate,
+            UserRole role
+    ) {
+        this.company = company;
+        this.name = name;
+        this.employeeNumber = employeeNumber;
+        this.hireDate = hireDate;
+        this.role = role == null ? UserRole.USER : role;
+    }
+
     public static User createUser(
             Company company,
             String name,
             String employeeNumber,
             LocalDate hireDate
     ) {
-        User user = new User();
-        user.company = company;
-        user.role = UserRole.USER;
-        user.name = name;
-        user.employeeNumber = employeeNumber;
-        user.hireDate = hireDate;
-        return user;
+        return User.builder()
+                .company(company)
+                .name(name)
+                .employeeNumber(employeeNumber)
+                .hireDate(hireDate)
+                .role(UserRole.USER)
+                .build();
     }
 }
