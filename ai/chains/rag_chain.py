@@ -157,6 +157,7 @@ def _is_unanswered(answer: str, docs: List[Document]) -> bool:
     return any(kw in answer for kw in _NO_ANSWER_KEYWORDS)
 
 
+
 def _extract_contact_from_docs(docs: List[Document]) -> str | None:
     """
     검색된 문서 청크에서 '담당 부서 / 문의처:' 필드를 파싱합니다.
@@ -400,8 +401,10 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         save_interaction(user_id, question, answer)
         return answer, source, related_docs, doc_ids
 
-    # 복합 질문 분리 검색: "?" 또는 "그리고"로 분리된 경우 각각 검색 후 합산
-    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    # 복합 질문 분리 검색: "?" / "그리고" / "이랑" / "이 궁금하고" 패턴으로 분리
+    sub_questions = [q.strip() for q in re.split(
+        r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*', question
+    ) if q.strip() and len(q.strip()) > 2]
     if len(sub_questions) < 2:
         sub_questions = [question]
 
@@ -518,7 +521,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     yield "__STAGE__searching", None, None
 
-    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    sub_questions = [q.strip() for q in re.split(
+        r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*', question
+    ) if q.strip() and len(q.strip()) > 2]
     if len(sub_questions) < 2:
         sub_questions = [question]
 
@@ -611,6 +616,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         fixed += contact_msg
         asyncio.create_task(_fire_unanswered_alert(user_id, question))
 
+    save_interaction(user_id, question, fixed)
     related_docs = find_related_docs(question)
 
     # 캐시 저장 (미답변 제외)

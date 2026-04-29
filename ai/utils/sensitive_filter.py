@@ -116,6 +116,15 @@ _SLANDER_ANSWER = (
 
 # ── 메인 함수 ─────────────────────────────────────────────────────
 
+def check_global_block(message: str, user_name: str = "") -> tuple[str, str | None]:
+    """욕설·극단적 위기만 확인. 복합 질문 처리 전 전체 차단용."""
+    if any(kw in message for kw in _PROFANITY_KEYWORDS):
+        return ("block", _make_profanity_answer(user_name))
+    if any(kw in message for kw in _EXTREME_CRISIS_KEYWORDS):
+        return ("block", _make_sensitive_answer(user_name))
+    return ("pass", None)
+
+
 def check_sensitive(message: str, user_name: str = "") -> tuple[str, str | None]:
     """
     민감 키워드 감지 및 응대 분기.
