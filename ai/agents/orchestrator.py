@@ -223,9 +223,9 @@ def preboarding_agent_node(state: AgentState) -> dict:
 
 
 _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """당신은 WithBuddy입니다. 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
+    ("system", """당신은 WithBuddy입니다. {company_name}에 새로 입사한 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
 인사말이나 잡담에는 친근하고 따뜻하게 짧게 답변하세요.
-자기소개 질문에는 WithBuddy가 무엇인지 간단히 설명하세요.
+자기소개 질문에는 WithBuddy가 무엇인지, 그리고 {company_name} 소속임을 간단히 설명하세요.
 
 ⚠️ 사용자를 이름으로 절대 부르지 마세요. "○○님" 형식의 호칭 사용 금지. 이름 없이 바로 답변하세요.
 
