@@ -31,8 +31,8 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
   return(
     <div>
       {messageList.map((message, index) => {
-        const currentDate = message.createdAt.slice(0, 10)
-          const prevDate = index > 0 ? messageList[index - 1].createdAt.slice(0, 10) : null
+        const currentDate = message.createdAt?.slice(0, 10)
+          const prevDate = index > 0 ? messageList[index - 1].createdAt?.slice(0, 10) : null
           const isNewDate = currentDate !== prevDate
 
           return(
@@ -40,7 +40,7 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
             {isNewDate && (
               <div className="flex items-center justify-center">
                 <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[130px] md:w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[12px] md:text-[14px] text-center mt-[16px]">
-                  {format(new Date(currentDate), 'yyyy년 M월 d일', {locale: ko})}</p>
+                  {currentDate && format(new Date(currentDate), 'yyyy년 M월 d일', {locale: ko})}</p>
               </div>)}
             
             <div className={
@@ -91,7 +91,7 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
 
                 <div className={
                   `${message.senderType === 'USER' ? 'text-right md:mr-[48px]' : 'text-left ml-[16px]'}`}>
-                  <p className="text-[#868E96] text-[10px] md:text-[16px] ">{format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
+                  <p className="text-[#868E96] text-[10px] md:text-[16px] ">{message.createdAt && format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
                 </div>
               </div>
             </div>
