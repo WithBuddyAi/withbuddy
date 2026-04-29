@@ -17,7 +17,7 @@ function QuickQuestions({ quickQuestion, handleSubmit }) {
           }
         }}
         className="border-[1px] border-[#DEE2E6] py-[8px] px-[16px] rounded-[9999px] text-[#868E96] text-[11px] md:text-[12px] lg:text-[14px]
-        active:bg- active:border-[#E9ECEF]">
+        active:bg-[#dbedff] active:border-[#dbedff] active:text-[#336B97]">
           {q.content}
         </button>
         )

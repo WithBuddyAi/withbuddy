@@ -373,6 +373,7 @@ function MyBuddy ({setIsLoggedIn}) {
           messageList={messageList}
           botClass={botClass}
           handleRetry={handleRetry}
+          isLoading={isLoading}
           handleDownload={handleDownload}
         />
 
