@@ -159,7 +159,7 @@ function MyBuddy ({setIsLoggedIn}) {
   useEffect(() => {
     if (isLoading) {
       setLoadingMessage('잠시만요! 우리 사내 문서에서 관련 내용을 꼼꼼히 찾아보고 있어요!')
-      const timer1 = setTimeout(() => {setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)}, 7000)
+      const timer1 = setTimeout(() => {setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)}, 5000)
       return () => {
         clearTimeout(timer1)
       }
@@ -182,13 +182,17 @@ function MyBuddy ({setIsLoggedIn}) {
     }])
     setText('')
 
+    let data = null
+
     try {
-      const {data} = await axiosInstance.post('/api/v1/chat/messages',
+      const response = await axiosInstance.post('/api/v1/chat/messages',
         {content: sendText}
       )
-      
-      setMessageList(prev => [...prev, data.answer])
-      setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+      data = response.data
+      if (data.answer !== null) {
+        setMessageList(prev => [...prev, data.answer])
+        setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+      }
     } catch (error) {
       if (error.response?.status === 400) {
         error.response.data.errors.forEach(err => {
@@ -207,9 +211,33 @@ function MyBuddy ({setIsLoggedIn}) {
         }])
       } else {
         setErrorMessage('메시지 전송에 실패했어요.')
+        setMessageList(prev => [...prev, {
+          id: `error-${Date.now()}`,
+          senderType: 'BOT',
+          messageType: 'send_error',
+          content: '메시지 전송에 실패했어요. 다시 시도해 주세요.',
+          createdAt: new Date().toISOString()
+        }])
       }
     } finally {
-    setIsLoading(false)
+      if (data?.status !== 'PENDING') {
+        setIsLoading(false)
+      } else {
+        setLoadingMessage('잠시만요! 우리 사내 문서에서 관련 내용을 꼼꼼히 찾아보고 있어요!')
+        setTimeout(() => {
+          setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)
+        }, 5000);
+        setTimeout(() => {
+          setIsLoading(false)
+          setMessageList(prev => [...prev, {
+            id: `error-${Date.now()}`,
+            senderType: 'BOT',
+            messageType: 'ai_timeout',
+            content: 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
+            createdAt: new Date().toISOString()
+          }])
+        }, 10000);
+      }
     }
   }
 
@@ -217,8 +245,8 @@ function MyBuddy ({setIsLoggedIn}) {
   const handleRetry = () => {
     const lastUserMessage = [...messageList].reverse().find(msg => msg.senderType === 'USER')
     if (lastUserMessage) {
-      setMessageList(prev => prev.filter(msg => msg.messageType !== 'ai_timeout' && msg.id !== lastUserMessage.id))
-      setText(lastUserMessage.content)
+      setMessageList(prev => prev.filter(msg => msg.messageType !== 'ai_timeout' && msg.messageType !== 'send_error' && msg.id !== lastUserMessage.id))
+      handleSubmit(null, lastUserMessage.content)
     }
   }
 
