@@ -62,6 +62,7 @@ app:
           active: ${STORAGE_API_KEY_ACTIVE:true}
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.events}
+    test-endpoint-enabled: ${RABBITMQ_TEST_ENDPOINT_ENABLED:false}
     queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
     queue-nudge: ${RABBITMQ_QUEUE_NUDGE:q.nudge}
     queue-analytics: ${RABBITMQ_QUEUE_ANALYTICS:q.analytics}

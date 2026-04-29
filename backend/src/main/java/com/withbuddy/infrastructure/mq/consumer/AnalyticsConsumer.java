@@ -57,11 +57,7 @@ public class AnalyticsConsumer {
                     event.eventId(), event.userId(), event.action());
         } catch (Exception ex) {
             log.error("[ANALYTICS] processing failed. deliveryTag={}", deliveryTag, ex);
-            try {
-                channel.basicNack(deliveryTag, false, false);
-            } catch (Exception nackEx) {
-                log.error("[ANALYTICS] nack failed. deliveryTag={}", deliveryTag, nackEx);
-            }
+            throw new IllegalStateException("[ANALYTICS] processing failed", ex);
         }
     }
 }
