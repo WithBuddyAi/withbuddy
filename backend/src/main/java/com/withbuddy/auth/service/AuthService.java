@@ -1,6 +1,10 @@
 package com.withbuddy.auth.service;
 
 import com.withbuddy.activity.service.UserActivityLogService;
+import com.withbuddy.activity.log.RedisActivityLogService;
+import com.withbuddy.activity.log.RmqActivityLogService;
+import com.withbuddy.activity.entity.EventTarget;
+import com.withbuddy.activity.entity.EventType;
 import com.withbuddy.auth.dto.request.LoginRequest;
 import com.withbuddy.auth.dto.response.LoginResponse;
 import com.withbuddy.auth.dto.response.LoginUserResponse;
@@ -26,6 +30,8 @@ public class AuthService {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final UserActivityLogService userActivityLogService;
+    private final RedisActivityLogService redisActivityLogService;
+    private final RmqActivityLogService rmqActivityLogService;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
 
@@ -57,6 +63,8 @@ public class AuthService {
         );
 
         userActivityLogService.saveLoginSessionStart(user.getId());
+        redisActivityLogService.append(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
+        rmqActivityLogService.publish(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
 
         LoginUserResponse userResponse = new LoginUserResponse(
                 user.getId(),
