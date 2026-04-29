@@ -39,6 +39,7 @@ public class NudgeConsumer {
             Channel channel,
             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag
     ) {
+        String idempotencyKey = null;
         try {
             if (event == null || !StringUtils.hasText(event.eventId())) {
                 log.warn("[NUDGE] invalid payload. messageId={}", message.getMessageProperties().getMessageId());
@@ -50,7 +51,7 @@ public class NudgeConsumer {
                 throw new IllegalStateException("[TEST] forced nudge consumer error");
             }
 
-            String idempotencyKey = RedisCacheKeys.nudgeIdempotency(event.eventId());
+            idempotencyKey = RedisCacheKeys.nudgeIdempotency(event.eventId());
             boolean isNew = redisCacheService.putIfAbsent(
                     idempotencyKey,
                     "1",
@@ -66,7 +67,7 @@ public class NudgeConsumer {
                 return;
             }
 
-            chatMessageService.saveNudgeMessage(event.userId(), event.message());
+            chatMessageService.saveNudgeMessage(event.userId(), event.suggestionId(), event.message());
             eventLogRepository.save(new MessagingEventLog(
                     event.eventId(),
                     MessagingEventType.NUDGE,
@@ -83,12 +84,12 @@ public class NudgeConsumer {
             channel.basicAck(deliveryTag, false);
             log.info("[NUDGE] processed. eventId={}, userId={}", event.eventId(), event.userId());
         } catch (Exception ex) {
-            log.error("[NUDGE] processing failed. deliveryTag={}", deliveryTag, ex);
-            try {
-                channel.basicNack(deliveryTag, false, false);
-            } catch (Exception nackEx) {
-                log.error("[NUDGE] nack failed. deliveryTag={}", deliveryTag, nackEx);
+            if (StringUtils.hasText(idempotencyKey)) {
+                // Retry 전파 시 idempotency 키로 인해 재처리가 막히지 않도록 복구한다.
+                redisCacheService.delete(idempotencyKey);
             }
+            log.error("[NUDGE] processing failed. deliveryTag={}", deliveryTag, ex);
+            throw new IllegalStateException("[NUDGE] processing failed", ex);
         }
     }
 }

@@ -62,6 +62,7 @@ public class OnboardingSuggestionService {
             NudgeEvent nudgeEvent = new NudgeEvent(
                     UUID.randomUUID().toString(),
                     userId,
+                    suggestion.getId(),
                     content,
                     null,
                     NudgeType.GENERAL,
