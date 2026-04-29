@@ -1,19 +1,29 @@
 package com.withbuddy.infrastructure.mq;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Declarables;
-import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.core.AcknowledgeMode;
+import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.retry.interceptor.RetryOperationsInterceptor;
+import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 
 @Configuration
+@EnableRabbit
+@Slf4j
 @EnableConfigurationProperties(AppRabbitMqProperties.class)
 public class RabbitMqConfig {
 
@@ -23,23 +33,13 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public DirectExchange deadLetterExchange(AppRabbitMqProperties properties) {
-        return new DirectExchange(properties.dlxExchange(), true, false);
-    }
-
-    @Bean
     public Queue reportQueue(AppRabbitMqProperties properties) {
-        return QueueBuilder.durable(properties.queueReport())
-                .withArgument("x-dead-letter-exchange", properties.dlxExchange())
-                .withArgument("x-dead-letter-routing-key", properties.queueDlq())
-                .build();
+        return QueueBuilder.durable(properties.queueReport()).build();
     }
 
     @Bean
     public Queue nudgeQueue(AppRabbitMqProperties properties) {
         return QueueBuilder.durable(properties.queueNudge())
-                .withArgument("x-dead-letter-exchange", properties.dlxExchange())
-                .withArgument("x-dead-letter-routing-key", properties.queueDlqNudge())
                 .withArgument("x-message-ttl", properties.nudgeTtlMs())
                 .build();
     }
@@ -47,36 +47,16 @@ public class RabbitMqConfig {
     @Bean
     public Queue analyticsQueue(AppRabbitMqProperties properties) {
         return QueueBuilder.durable(properties.queueAnalytics())
-                .withArgument("x-dead-letter-exchange", properties.dlxExchange())
-                .withArgument("x-dead-letter-routing-key", properties.queueDlqAnalytics())
+                .withArgument("x-message-ttl", intOrDefault(properties.analyticsTtlMs(), 30000))
                 .build();
-    }
-
-    @Bean
-    public Queue deadLetterReportQueue(AppRabbitMqProperties properties) {
-        return new Queue(properties.queueDlq(), true);
-    }
-
-    @Bean
-    public Queue deadLetterNudgeQueue(AppRabbitMqProperties properties) {
-        return new Queue(properties.queueDlqNudge(), true);
-    }
-
-    @Bean
-    public Queue deadLetterAnalyticsQueue(AppRabbitMqProperties properties) {
-        return new Queue(properties.queueDlqAnalytics(), true);
     }
 
     @Bean
     public Declarables appBindings(
             TopicExchange appExchange,
-            DirectExchange deadLetterExchange,
             Queue reportQueue,
             Queue nudgeQueue,
             Queue analyticsQueue,
-            Queue deadLetterReportQueue,
-            Queue deadLetterNudgeQueue,
-            Queue deadLetterAnalyticsQueue,
             AppRabbitMqProperties properties
     ) {
         Binding reportBinding = BindingBuilder
@@ -92,31 +72,62 @@ public class RabbitMqConfig {
                 .to(appExchange)
                 .with("analytics.#");
 
-        Binding reportDlqBinding = BindingBuilder
-                .bind(deadLetterReportQueue)
-                .to(deadLetterExchange)
-                .with(properties.queueDlq());
-        Binding nudgeDlqBinding = BindingBuilder
-                .bind(deadLetterNudgeQueue)
-                .to(deadLetterExchange)
-                .with(properties.queueDlqNudge());
-        Binding analyticsDlqBinding = BindingBuilder
-                .bind(deadLetterAnalyticsQueue)
-                .to(deadLetterExchange)
-                .with(properties.queueDlqAnalytics());
-
         return new Declarables(
                 reportBinding,
                 nudgeBinding,
-                analyticsBinding,
-                reportDlqBinding,
-                nudgeDlqBinding,
-                analyticsDlqBinding
+                analyticsBinding
         );
     }
 
     @Bean
     public MessageConverter messageConverter() {
         return new Jackson2JsonMessageConverter();
+    }
+
+    @Bean
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter messageConverter) {
+        RabbitTemplate template = new RabbitTemplate(connectionFactory);
+        template.setMessageConverter(messageConverter);
+        template.setMandatory(true);
+        template.setConfirmCallback((correlationData, ack, cause) -> {
+            if (!ack) {
+                log.error("[RMQ] publish confirm failed. cause={}, correlationData={}", cause, correlationData);
+            }
+        });
+        template.setReturnsCallback(returned -> log.error(
+                "[RMQ] unroutable message. exchange={}, routingKey={}, replyCode={}, replyText={}",
+                returned.getExchange(),
+                returned.getRoutingKey(),
+                returned.getReplyCode(),
+                returned.getReplyText()
+        ));
+        return template;
+    }
+
+    @Bean
+    public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
+            ConnectionFactory connectionFactory,
+            MessageConverter messageConverter,
+            AppRabbitMqProperties properties
+    ) {
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+        factory.setConnectionFactory(connectionFactory);
+        factory.setMessageConverter(messageConverter);
+        factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+        factory.setDefaultRequeueRejected(false);
+        factory.setPrefetchCount(intOrDefault(properties.listenerPrefetch(), 10));
+        factory.setAdviceChain(retryInterceptor(properties));
+        return factory;
+    }
+
+    private RetryOperationsInterceptor retryInterceptor(AppRabbitMqProperties properties) {
+        return RetryInterceptorBuilder.stateless()
+                .maxAttempts(intOrDefault(properties.listenerMaxAttempts(), 3))
+                .recoverer(new RejectAndDontRequeueRecoverer())
+                .build();
+    }
+
+    private int intOrDefault(Integer value, int fallback) {
+        return value != null ? value : fallback;
     }
 }
