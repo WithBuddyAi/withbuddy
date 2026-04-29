@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/auth")
 @Tag(name = "Auth", description = "인증 API")
-public class AuthController implements AuthControllerDocs {
+public class AuthController {
 
     private final AuthService authService;
 
