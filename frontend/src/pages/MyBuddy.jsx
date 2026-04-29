@@ -31,7 +31,6 @@ function MyBuddy ({setIsLoggedIn}) {
 
   // 채팅 화면
   const [messageList, setMessageList] = useState([])
-  const [text, setText] = useState('')
   const [quickQuestion, setQuickQuestion] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState(false)
@@ -80,7 +79,10 @@ function MyBuddy ({setIsLoggedIn}) {
         if (messageResponse.status === 'fulfilled' && suggestionResponse.status === 'fulfilled') {
           const messages = messageResponse.value.data.messages
           const suggestions = suggestionResponse.value.data.suggestions
-          const suggestionMessages = suggestions.map(s => ({
+
+          const hasExistingSuggestion = messages.some(m => m.messageType === 'suggestion')
+
+          const suggestionMessages = hasExistingSuggestion ? [] : suggestions.map(s => ({
             id: `suggestion-${s.dayOffset}`,
             senderType: 'BOT',
             messageType: 'suggestion',
@@ -171,7 +173,7 @@ function MyBuddy ({setIsLoggedIn}) {
   // 사용자 질문 전송
   const handleSubmit = async (e, submitText) => {
     e?.preventDefault()
-    const sendText = submitText || text
+    const sendText = submitText
     if (!sendText.trim()) return
     setIsLoading(true)
     setMessageList(prev => [...prev, {
@@ -180,7 +182,6 @@ function MyBuddy ({setIsLoggedIn}) {
       content: sendText,
       createdAt: new Date().toISOString()
     }])
-    setText('')
 
     let data = null
 
@@ -397,15 +398,12 @@ function MyBuddy ({setIsLoggedIn}) {
         {/* 빠른 질문 */}
         <QuickQuestions
           quickQuestion={quickQuestion}
-          setText={setText}
           handleSubmit={handleSubmit}
         />
 
         {/* 입력 창 */}
         <ChatInput
           handleSubmit={handleSubmit}
-          text={text}
-          setText={setText}
           isLoading={isLoading}
         />
       </div>
