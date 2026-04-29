@@ -488,7 +488,11 @@ public class ChatMessageService {
     }
 
     @Transactional
-    public void saveNudgeMessage(Long userId, String content) {
+    public void saveNudgeMessage(Long userId, Long suggestionId, String content) {
+        if (suggestionId != null) {
+            saveSuggestionMessageIfNotExists(userId, suggestionId, content);
+            return;
+        }
         ChatMessage message = ChatMessage.createSuggestionMessage(userId, null, content);
         chatMessageRepository.save(message);
     }

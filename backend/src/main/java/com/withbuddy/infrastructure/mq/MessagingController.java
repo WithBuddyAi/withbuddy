@@ -28,11 +28,17 @@ public class MessagingController {
 
     @PostMapping("/nudge/test")
     public ResponseEntity<Void> publishTestNudge(
+            @RequestParam Long userId,
             @RequestParam(defaultValue = "false") boolean forceError
     ) {
+        if (!forceError && userId <= 0) {
+            return ResponseEntity.badRequest().build();
+        }
+
         NudgeEvent event = new NudgeEvent(
                 UUID.randomUUID().toString(),
-                -1L,
+                userId,
+                null,
                 forceError ? "__FORCE_ERROR__" : "[TEST] withbuddy nudge pipeline check",
                 null,
                 NudgeType.GENERAL,
