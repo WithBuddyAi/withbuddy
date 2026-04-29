@@ -9,6 +9,7 @@ import com.withbuddy.global.dto.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -40,7 +41,17 @@ public interface ChatMessageControllerDocs {
         @ApiResponse(responseCode = "401", description = "인증 실패 — 유효하지 않은 토큰",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "504", description = "AI 서버 응답 시간 초과",
-                content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+                content = @Content(
+                        schema = @Schema(implementation = ErrorResponse.class),
+                        examples = @ExampleObject(value = """
+                                {
+                                  "timestamp": "2026-03-25T10:30:00Z",
+                                  "status": 504,
+                                  "error": "Gateway Timeout",
+                                  "code": "AI_TIMEOUT",
+                                  "errors": [{"field": "ai", "message": "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."}],
+                                  "path": "/api/v1/chat/messages"
+                                }""")))
     })
     ChatMessageCreateResponse sendMessage(
             @Parameter(hidden = true) @RequestHeader(value = "Authorization", required = false) String bearerToken,
