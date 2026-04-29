@@ -470,6 +470,11 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if _needs_labor_law_fallback(question, answer):
         answer += _get_labor_law_fallback(company_code)
 
+    # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
+    if (company_code and retrieved_docs and not _is_unanswered(answer, retrieved_docs)
+            and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
+        answer += f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
+
     # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입
     if _is_unanswered(answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
@@ -605,6 +610,13 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "\x00" + fixed, None, None  # \x00 prefix → 프론트에서 전체 교체 신호
 
     save_interaction(user_id, question, fixed)
+
+    # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
+    if (company_code and retrieved_docs and not _is_unanswered(fixed, retrieved_docs)
+            and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
+        case_a_msg = f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
+        yield case_a_msg, None, None
+        fixed += case_a_msg
 
     # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림
     if _is_unanswered(full_answer, retrieved_docs):
