@@ -1,5 +1,7 @@
 package com.withbuddy.chat.service;
 
+import com.withbuddy.activity.entity.EventTarget;
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.infrastructure.ai.client.AiClient;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
@@ -511,16 +513,57 @@ public class ChatMessageService {
         );
     }
 
-    public Map<String, List<Map<String, String>>> getQuickQuestions(Long userId) {
+    private static final List<QuickQuestionResponse> QUICK_QUESTION_CANDIDATES = List.of(
+            new QuickQuestionResponse("회사 위치는 어디인가요?", EventTarget.QUICK_TAP_LOCATION),
+            new QuickQuestionResponse("출근 시간과 퇴근 시간은 어떻게 되나요?", EventTarget.QUICK_TAP_WORK_HOUR),
+            new QuickQuestionResponse("복장 규정이 있나요?", EventTarget.QUICK_TAP_DRESSCODE),
+            new QuickQuestionResponse("첫 출근 날에는 무엇을 준비하면 되나요?", EventTarget.QUICK_TAP_FIRST_DAY),
+            new QuickQuestionResponse("사무실 출입은 어떻게 하나요?", EventTarget.QUICK_TAP_ACCESS),
+
+            new QuickQuestionResponse("필수 제출 서류는 무엇인가요?", EventTarget.QUICK_TAP_DOCS),
+            new QuickQuestionResponse("노트북이나 계정 세팅은 어떻게 하나요?", EventTarget.QUICK_TAP_IT_SETUP),
+            new QuickQuestionResponse("업무 장비는 어떻게 신청하나요?", EventTarget.QUICK_TAP_EQUIPMENT),
+            new QuickQuestionResponse("연차는 언제부터 사용할 수 있나요?", EventTarget.QUICK_TAP_LEAVE_START),
+            new QuickQuestionResponse("프린터는 어떻게 사용하나요?", EventTarget.QUICK_TAP_PRINTER),
+
+            new QuickQuestionResponse("회의실은 어떻게 예약하나요?", EventTarget.QUICK_TAP_MEETING_ROOM),
+            new QuickQuestionResponse("점심 식사는 어떻게 하나요?", EventTarget.QUICK_TAP_MEAL),
+            new QuickQuestionResponse("회사 복지에는 어떤 것들이 있나요?", EventTarget.QUICK_TAP_WELFARE),
+            new QuickQuestionResponse("경비 처리는 어떻게 하나요?", EventTarget.QUICK_TAP_EXPENSE),
+            new QuickQuestionResponse("보안 교육이나 보안 규정이 있나요?", EventTarget.QUICK_TAP_SECURITY),
+
+            new QuickQuestionResponse("지각하면 어떻게 처리되나요?", EventTarget.QUICK_TAP_LATE),
+            new QuickQuestionResponse("반차는 어떻게 신청하나요?", EventTarget.QUICK_TAP_HALF_DAY),
+            new QuickQuestionResponse("병가는 어떻게 사용하나요?", EventTarget.QUICK_TAP_SICK),
+            new QuickQuestionResponse("결재는 어디서 올리나요?", EventTarget.QUICK_TAP_APPROVAL),
+            new QuickQuestionResponse("시스템 권한은 어떻게 신청하나요?", EventTarget.QUICK_TAP_SYSTEM_AUTH),
+
+            new QuickQuestionResponse("재택근무는 가능한가요?", EventTarget.QUICK_TAP_REMOTE),
+            new QuickQuestionResponse("복지는 언제부터 받을 수 있나요?", EventTarget.QUICK_TAP_WELFARE_WHEN),
+            new QuickQuestionResponse("영수증은 어떻게 제출하나요?", EventTarget.QUICK_TAP_RECEIPT),
+            new QuickQuestionResponse("업무 보고는 어떻게 하나요?", EventTarget.QUICK_TAP_REPORT),
+            new QuickQuestionResponse("복지 신청은 어디서 하나요?", EventTarget.QUICK_TAP_WELFARE_APPLY),
+
+            new QuickQuestionResponse("급여일이 언제인가요?", EventTarget.QUICK_TAP_SALARY),
+            new QuickQuestionResponse("수습기간은 어떻게 운영되나요?", EventTarget.QUICK_TAP_PROBATION),
+            new QuickQuestionResponse("연차는 어떻게 신청하나요?", EventTarget.QUICK_TAP_LEAVE_REQ),
+            new QuickQuestionResponse("건강검진은 어떻게 받나요?", EventTarget.QUICK_TAP_HEALTH),
+            new QuickQuestionResponse("신입 교육은 어떻게 진행되나요?", EventTarget.QUICK_TAP_EDUCATION),
+
+            new QuickQuestionResponse("정규직 전환은 어떻게 진행되나요?", EventTarget.QUICK_TAP_CONVERT),
+            new QuickQuestionResponse("수습 평가 기준은 무엇인가요?", EventTarget.QUICK_TAP_PROBATION_CHECK),
+            new QuickQuestionResponse("KPI는 어디서 확인하나요?", EventTarget.QUICK_TAP_KPI)
+    );
+
+    public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
+        List<QuickQuestionResponse> shuffled = new ArrayList<>(QUICK_QUESTION_CANDIDATES);
+        Collections.shuffle(shuffled);
+
         return Map.of(
                 "quickQuestions",
-                List.of(
-                        Map.of("content", "연차는 어떻게 신청하나요?"),
-                        Map.of("content", "급여일이 언제인가요?"),
-                        Map.of("content", "건강검진은 어떻게 받나요?"),
-                        Map.of("content", "재직증명서 신청 방법 알려줘요"),
-                        Map.of("content", "장비 세팅하는 방법 알려주세요")
-                )
+                shuffled.stream()
+                        .limit(5)
+                        .toList()
         );
     }
 }

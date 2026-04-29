@@ -48,7 +48,7 @@ public class OnboardingSuggestionService {
             return new OnboardingSuggestionListResponse(List.of());
         }
 
-        String content = replacePlaceholders(suggestion.getContent(), user.getName(), dayOffset);
+        String content = replacePlaceholders(suggestion.getContent(), user.getName(), user.getCompany().getName(), dayOffset);
 
         String nudgeSentKey = RedisCacheKeys.nudgeSent(userId, dayOffset);
         if (redisCacheService.putIfAbsent(nudgeSentKey, "1", RedisCacheTtl.NUDGE_SENT)) {
@@ -76,17 +76,32 @@ public class OnboardingSuggestionService {
     private Long resolveSuggestionId(int dayOffset) {
         if (dayOffset >= -7 && dayOffset <= -4) return 1L;
         if (dayOffset >= -3 && dayOffset <= -1) return 2L;
-        if (dayOffset == 0) return 3L;
-        if (dayOffset >= 1 && dayOffset <= 7) return 4L;
-        if (dayOffset >= 8) return 5L;
-        return null;
+
+        return switch (dayOffset) {
+            case 0 -> 3L;
+            case 1 -> 4L;
+            case 3 -> 5L;
+            case 5 -> 6L;
+            case 7 -> 7L;
+            case 10 -> 8L;
+            case 14 -> 9L;
+            case 21 -> 10L;
+            case 30 -> 11L;
+            default -> null;
+        };
     }
 
-    private String replacePlaceholders(String content, String userName, int dayOffset) {
+    private String replacePlaceholders(
+            String content,
+            String userName,
+            String companyName,
+            int dayOffset
+    ) {
         int displayDay = dayOffset >= 0 ? dayOffset + 1 : Math.abs(dayOffset);
 
         return content
                 .replace("{이름}", userName)
-                .replace("{N}", String.valueOf(displayDay));
+                .replace("{N}", String.valueOf(displayDay))
+                .replace("{회사명}", companyName);
     }
 }
