@@ -157,6 +157,7 @@ def _is_unanswered(answer: str, docs: List[Document]) -> bool:
     return any(kw in answer for kw in _NO_ANSWER_KEYWORDS)
 
 
+
 def _extract_contact_from_docs(docs: List[Document]) -> str | None:
     """
     검색된 문서 청크에서 '담당 부서 / 문의처:' 필드를 파싱합니다.
@@ -400,8 +401,10 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         save_interaction(user_id, question, answer)
         return answer, source, related_docs, doc_ids
 
-    # 복합 질문 분리 검색: "?" 또는 "그리고"로 분리된 경우 각각 검색 후 합산
-    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    # 복합 질문 분리 검색: "?" / "그리고" / "이랑" / "이 궁금하고" 패턴으로 분리
+    sub_questions = [q.strip() for q in re.split(
+        r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*', question
+    ) if q.strip() and len(q.strip()) > 2]
     if len(sub_questions) < 2:
         sub_questions = [question]
 
@@ -467,6 +470,11 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if _needs_labor_law_fallback(question, answer):
         answer += _get_labor_law_fallback(company_code)
 
+    # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
+    if (company_code and retrieved_docs and not _is_unanswered(answer, retrieved_docs)
+            and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
+        answer += f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
+
     # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입
     if _is_unanswered(answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
@@ -519,7 +527,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     yield "__STAGE__searching", None, None
 
-    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    sub_questions = [q.strip() for q in re.split(
+        r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*', question
+    ) if q.strip() and len(q.strip()) > 2]
     if len(sub_questions) < 2:
         sub_questions = [question]
 
@@ -601,6 +611,13 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     save_interaction(user_id, question, fixed)
 
+    # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
+    if (company_code and retrieved_docs and not _is_unanswered(fixed, retrieved_docs)
+            and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
+        case_a_msg = f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
+        yield case_a_msg, None, None
+        fixed += case_a_msg
+
     # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림
     if _is_unanswered(full_answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
@@ -612,6 +629,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         fixed += contact_msg
         asyncio.create_task(_fire_unanswered_alert(user_id, question))
 
+    save_interaction(user_id, question, fixed)
     related_docs = find_related_docs(question)
 
     # 캐시 저장 (미답변 제외)

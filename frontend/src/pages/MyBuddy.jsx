@@ -31,7 +31,6 @@ function MyBuddy ({setIsLoggedIn}) {
 
   // 채팅 화면
   const [messageList, setMessageList] = useState([])
-  const [text, setText] = useState('')
   const [quickQuestion, setQuickQuestion] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState(false)
@@ -80,7 +79,10 @@ function MyBuddy ({setIsLoggedIn}) {
         if (messageResponse.status === 'fulfilled' && suggestionResponse.status === 'fulfilled') {
           const messages = messageResponse.value.data.messages
           const suggestions = suggestionResponse.value.data.suggestions
-          const suggestionMessages = suggestions.map(s => ({
+
+          const hasExistingSuggestion = messages.some(m => m.messageType === 'suggestion')
+
+          const suggestionMessages = hasExistingSuggestion ? [] : suggestions.map(s => ({
             id: `suggestion-${s.dayOffset}`,
             senderType: 'BOT',
             messageType: 'suggestion',
@@ -159,7 +161,7 @@ function MyBuddy ({setIsLoggedIn}) {
   useEffect(() => {
     if (isLoading) {
       setLoadingMessage('잠시만요! 우리 사내 문서에서 관련 내용을 꼼꼼히 찾아보고 있어요!')
-      const timer1 = setTimeout(() => {setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)}, 7000)
+      const timer1 = setTimeout(() => {setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)}, 5000)
       return () => {
         clearTimeout(timer1)
       }
@@ -169,26 +171,29 @@ function MyBuddy ({setIsLoggedIn}) {
   }, [isLoading])
 
   // 사용자 질문 전송
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!text.trim()) return
+  const handleSubmit = async (e, submitText) => {
+    e?.preventDefault()
+    const sendText = submitText
+    if (!sendText.trim()) return
     setIsLoading(true)
-    const sendText = text
     setMessageList(prev => [...prev, {
       id: `temp-${Date.now()}`,
       senderType: 'USER',
       content: sendText,
       createdAt: new Date().toISOString()
     }])
-    setText('')
+
+    let data = null
 
     try {
-      const {data} = await axiosInstance.post('/api/v1/chat/messages',
+      const response = await axiosInstance.post('/api/v1/chat/messages',
         {content: sendText}
       )
-      
-      setMessageList(prev => [...prev, data.answer])
-      setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+      data = response.data
+      if (data.answer !== null) {
+        setMessageList(prev => [...prev, data.answer])
+        setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+      }
     } catch (error) {
       if (error.response?.status === 400) {
         error.response.data.errors.forEach(err => {
@@ -207,9 +212,33 @@ function MyBuddy ({setIsLoggedIn}) {
         }])
       } else {
         setErrorMessage('메시지 전송에 실패했어요.')
+        setMessageList(prev => [...prev, {
+          id: `error-${Date.now()}`,
+          senderType: 'BOT',
+          messageType: 'send_error',
+          content: '메시지 전송에 실패했어요. 다시 시도해 주세요.',
+          createdAt: new Date().toISOString()
+        }])
       }
     } finally {
-    setIsLoading(false)
+      if (data?.status !== 'PENDING') {
+        setIsLoading(false)
+      } else {
+        setLoadingMessage('잠시만요! 우리 사내 문서에서 관련 내용을 꼼꼼히 찾아보고 있어요!')
+        setTimeout(() => {
+          setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)
+        }, 5000);
+        setTimeout(() => {
+          setIsLoading(false)
+          setMessageList(prev => [...prev, {
+            id: `error-${Date.now()}`,
+            senderType: 'BOT',
+            messageType: 'ai_timeout',
+            content: 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
+            createdAt: new Date().toISOString()
+          }])
+        }, 10000);
+      }
     }
   }
 
@@ -217,8 +246,8 @@ function MyBuddy ({setIsLoggedIn}) {
   const handleRetry = () => {
     const lastUserMessage = [...messageList].reverse().find(msg => msg.senderType === 'USER')
     if (lastUserMessage) {
-      setMessageList(prev => prev.filter(msg => msg.messageType !== 'ai_timeout' && msg.id !== lastUserMessage.id))
-      setText(lastUserMessage.content)
+      setMessageList(prev => prev.filter(msg => msg.messageType !== 'ai_timeout' && msg.messageType !== 'send_error' && msg.id !== lastUserMessage.id))
+      handleSubmit(null, lastUserMessage.content)
     }
   }
 
@@ -319,7 +348,7 @@ function MyBuddy ({setIsLoggedIn}) {
         />
 
       {/* 채팅 영역 */}
-      <div className="relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between  md:p-[40px]">
+      <div className="relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between md:p-[40px] overflow-hidden">
         {/* 모바일 헤더 */}
         <>
           <div className="flex md:hidden items-center py-[16px] px-[24px] bg-[#EAF6FF]">
@@ -344,6 +373,7 @@ function MyBuddy ({setIsLoggedIn}) {
           messageList={messageList}
           botClass={botClass}
           handleRetry={handleRetry}
+          isLoading={isLoading}
           handleDownload={handleDownload}
         />
 
@@ -369,14 +399,12 @@ function MyBuddy ({setIsLoggedIn}) {
         {/* 빠른 질문 */}
         <QuickQuestions
           quickQuestion={quickQuestion}
-          setText={setText}
+          handleSubmit={handleSubmit}
         />
 
         {/* 입력 창 */}
         <ChatInput
           handleSubmit={handleSubmit}
-          text={text}
-          setText={setText}
           isLoading={isLoading}
         />
       </div>

@@ -4,7 +4,7 @@ import { Link, RotateCw } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import bot from '../assets/Bot_icon.svg'
 
-function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
+function MessageList({ messageList, botClass, handleRetry, isLoading, handleDownload }) {
   // User Class 정리
   const userClass = 
   `rounded-tl-[24px]
@@ -31,8 +31,8 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
   return(
     <div>
       {messageList.map((message, index) => {
-        const currentDate = message.createdAt.slice(0, 10)
-          const prevDate = index > 0 ? messageList[index - 1].createdAt.slice(0, 10) : null
+        const currentDate = message.createdAt?.slice(0, 10)
+          const prevDate = index > 0 ? messageList[index - 1].createdAt?.slice(0, 10) : null
           const isNewDate = currentDate !== prevDate
 
           return(
@@ -40,7 +40,7 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
             {isNewDate && (
               <div className="flex items-center justify-center">
                 <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[130px] md:w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[12px] md:text-[14px] text-center mt-[16px]">
-                  {format(new Date(currentDate), 'yyyy년 M월 d일', {locale: ko})}</p>
+                  {currentDate && format(new Date(currentDate), 'yyyy년 M월 d일', {locale: ko})}</p>
               </div>)}
             
             <div className={
@@ -51,11 +51,14 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
                   message.senderType === 'USER' ? `${userClass}` : `${botClass}`}
                   style={message.senderType === 'USER' ? {background: 'linear-gradient(to right, #7DC1FF, #6BB5F2, #57A7E4, #4F9CD7, #4791CA)'} : {}}>
 
-                  {message.messageType === 'ai_timeout' ? (
-                    <div className="flex gap-[10px]">
-                      <p className="text-[#495057] text-[16px]">{message.content}</p>
-                      <button onClick={handleRetry} className="bg-blue-100 rounded-[9999px] py-[6px] px-[12px] text-[#204867] text-[12px]">
-                        <RotateCw size={14} />다시 시도하기
+                  {message.messageType === 'ai_timeout' || message.messageType === 'send_error' ? (
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-[10px]">
+                      <p className="text-[#495057] text-[14px] lg:text-[16px]">{message.content}</p>
+                      <button 
+                      onClick={handleRetry} 
+                      disabled={isLoading}
+                      className={`flex items-center justify-cnter gap-[5px] text-[12px] rounded-[9999px] py-[6px] px-[12px]  ${message.messageType === 'ai_timeout' ? 'bg-[#EAF6FF] text-[#204867] hover:bg-[#D2E2F6]' : 'bg-[#336B974D] text-[#FFFFFF] hover:bg-[#336B97B2]'}`}>
+                        <RotateCw size={14} />다시 물어보기
                       </button>
                     </div>)
                     :
@@ -91,7 +94,7 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
 
                 <div className={
                   `${message.senderType === 'USER' ? 'text-right md:mr-[48px]' : 'text-left ml-[16px]'}`}>
-                  <p className="text-[#868E96] text-[10px] md:text-[16px] ">{format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
+                  <p className="text-[#868E96] text-[10px] md:text-[16px] ">{message.createdAt && format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
                 </div>
               </div>
             </div>
