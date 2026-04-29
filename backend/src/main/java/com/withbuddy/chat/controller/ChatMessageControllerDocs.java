@@ -4,6 +4,8 @@ import com.withbuddy.activity.dto.LogResponse;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.dto.QuickQuestionClickRequest;
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.global.dto.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -96,7 +98,7 @@ public interface ChatMessageControllerDocs {
         @ApiResponse(responseCode = "401", description = "인증 실패",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    Map<String, List<Map<String, String>>> getQuickQuestions(
+    Map<String, List<QuickQuestionResponse>> getQuickQuestions(
             @Parameter(hidden = true) Authentication authentication
     );
 
@@ -114,7 +116,8 @@ public interface ChatMessageControllerDocs {
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     LogResponse saveQuickQuestionClick(
-            @Parameter(hidden = true) Authentication authentication
+            @Parameter(hidden = true) Authentication authentication,
+            QuickQuestionClickRequest request
     );
 
     @Operation(

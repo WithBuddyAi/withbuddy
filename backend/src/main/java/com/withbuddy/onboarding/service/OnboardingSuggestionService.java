@@ -1,7 +1,9 @@
 package com.withbuddy.onboarding.service;
 
 import com.withbuddy.auth.repository.UserRepository;
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.chat.service.ChatMessageService;
+import com.withbuddy.chat.service.QuickQuestionCatalog;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
@@ -27,6 +29,7 @@ public class OnboardingSuggestionService {
     private final UserRepository userRepository;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
     private final ChatMessageService chatMessageService;
+    private final QuickQuestionCatalog quickQuestionCatalog;
     private final RedisCacheService redisCacheService;
 
     public OnboardingSuggestionListResponse getMyOnboardingSuggestions(Long userId) {
@@ -35,20 +38,15 @@ public class OnboardingSuggestionService {
 
         int dayOffset = calculateDayOffset(user.getHireDate());
 
-        Long suggestionId = resolveSuggestionId(dayOffset);
-
-        if (suggestionId == null) {
-            return new OnboardingSuggestionListResponse(List.of());
-        }
-
-        OnboardingSuggestion suggestion = onboardingSuggestionRepository.findById(suggestionId)
+        OnboardingSuggestion suggestion = onboardingSuggestionRepository.findTopByDayOffset(dayOffset)
                 .orElse(null);
 
         if (suggestion == null) {
             return new OnboardingSuggestionListResponse(List.of());
         }
 
-        String content = replacePlaceholders(suggestion.getContent(), user.getName(), user.getCompany().getName(), dayOffset);
+        String content = replacePlaceholders(suggestion.getContent(), user.getCompany().getName());
+        List<QuickQuestionResponse> quickTaps = quickQuestionCatalog.getOnboardingQuickTaps(dayOffset);
 
         String nudgeSentKey = RedisCacheKeys.nudgeSent(userId, dayOffset);
         if (redisCacheService.putIfAbsent(nudgeSentKey, "1", RedisCacheTtl.NUDGE_SENT)) {
@@ -63,7 +61,8 @@ public class OnboardingSuggestionService {
                 suggestion.getTitle(),
                 content,
                 dayOffset,
-                suggestion.getCreatedAt()
+                suggestion.getCreatedAt().toString(),
+                quickTaps
         );
 
         return new OnboardingSuggestionListResponse(List.of(response));
@@ -73,35 +72,8 @@ public class OnboardingSuggestionService {
         return (int) ChronoUnit.DAYS.between(hireDate, LocalDate.now(KST));
     }
 
-    private Long resolveSuggestionId(int dayOffset) {
-        if (dayOffset >= -7 && dayOffset <= -4) return 1L;
-        if (dayOffset >= -3 && dayOffset <= -1) return 2L;
-
-        return switch (dayOffset) {
-            case 0 -> 3L;
-            case 1 -> 4L;
-            case 3 -> 5L;
-            case 5 -> 6L;
-            case 7 -> 7L;
-            case 10 -> 8L;
-            case 14 -> 9L;
-            case 21 -> 10L;
-            case 30 -> 11L;
-            default -> null;
-        };
-    }
-
-    private String replacePlaceholders(
-            String content,
-            String userName,
-            String companyName,
-            int dayOffset
-    ) {
-        int displayDay = dayOffset >= 0 ? dayOffset + 1 : Math.abs(dayOffset);
-
+    private String replacePlaceholders(String content, String companyName) {
         return content
-                .replace("{이름}", userName)
-                .replace("{N}", String.valueOf(displayDay))
                 .replace("{회사명}", companyName);
     }
 }
