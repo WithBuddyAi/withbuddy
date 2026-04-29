@@ -401,12 +401,14 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
                 for m in chat_history[-6:]
             ) if chat_history else ""
+            from chains.rag_chain import _get_company_name
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: _get_chitchat_chain().invoke({
                     "message": request.content,
                     "user_style": "",
                     "chat_history": history_text,
+                    "company_name": _get_company_name(request.user.companyCode),
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
