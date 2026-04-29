@@ -1,8 +1,9 @@
 import { Send } from "lucide-react"
-import { useState } from "react"
+import { useState, useRef } from "react"
 
 function ChatInput({ handleSubmit, isLoading }) {
   const [text, setText] = useState('')
+  const textareaRef = useRef(null)
 
   return(
     <div className="mb-[10px]">
@@ -11,10 +12,12 @@ function ChatInput({ handleSubmit, isLoading }) {
       onSubmit={(e) => {
         handleSubmit(e, text)
         setText('')
+        textareaRef.current?.focus()
       }}>
         <div className="flex-1 relative">
           <textarea 
           value={text}
+          ref={textareaRef}
           onChange={(e) => {
             setText(e.target.value)
             e.target.style.height = 'auto'
@@ -23,12 +26,12 @@ function ChatInput({ handleSubmit, isLoading }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              if (text.length > 500) return
+              if (text.length > 500 || isLoading) return
               handleSubmit(e, text)
               setText('')
+              textareaRef.current?.focus()
             }
           }}
-          disabled={isLoading}
           className={`w-full resize-none border-[1px] rounded-[4px] bg-[#FFFFFF] py-[8px] pl-[16px] pr-[55px] text-[12px] md:text-[14px] lg:text-[16px] min-h-[52px] md:min-h-[40px] lg:min-h-[44px] max-h-[120px]
           focus:border-[#204867] focus:outline-none
           ${text.length > 500 ? 'border-[#F03E3E] focus:border-[#F03E3E]' : 'border-[#E9ECEF]'}`}
