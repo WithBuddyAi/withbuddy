@@ -13,6 +13,7 @@ public final class RedisCacheTtl {
     public static final Duration SSE_MISSED = Duration.ofMinutes(5);
     public static final Duration RAG_STATUS = Duration.ofMinutes(5);
     public static final Duration NUDGE_SENT = Duration.ofHours(48);
+    public static final Duration NUDGE_IDEMPOTENCY = Duration.ofMinutes(10);
     public static final Duration CONVERSATION = Duration.ofMinutes(30);
     public static final Duration PRESIGNED_URL = Duration.ofMinutes(10);
     public static final Duration DOCS_LIST_FIRST = Duration.ofMinutes(5);

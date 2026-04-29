@@ -476,6 +476,12 @@ public class ChatMessageService {
         chatMessageRepository.save(message);
     }
 
+    @Transactional
+    public void saveNudgeMessage(Long userId, String content) {
+        ChatMessage message = ChatMessage.createSuggestionMessage(userId, null, content);
+        chatMessageRepository.save(message);
+    }
+
     private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
         if (message.getSenderType() != SenderType.BOT || message.getMessageType() != MessageType.no_result) {
             return List.of();

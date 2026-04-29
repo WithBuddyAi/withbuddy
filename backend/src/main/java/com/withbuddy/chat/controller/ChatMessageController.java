@@ -1,6 +1,10 @@
 package com.withbuddy.chat.controller;
 
 import com.withbuddy.activity.dto.LogResponse;
+import com.withbuddy.activity.entity.EventTarget;
+import com.withbuddy.activity.entity.EventType;
+import com.withbuddy.activity.log.RedisActivityLogService;
+import com.withbuddy.activity.log.RmqActivityLogService;
 import com.withbuddy.activity.service.UserActivityLogService;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
@@ -8,6 +12,7 @@ import com.withbuddy.chat.dto.ChatMessageRequest;
 import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.chat.service.ChatMessageQueryService;
 import com.withbuddy.chat.service.ChatMessageService;
+import com.withbuddy.global.jwt.JwtService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +34,9 @@ public class ChatMessageController {
     private final ChatMessageService chatMessageService;
     private final ChatMessageQueryService chatMessageQueryService;
     private final UserActivityLogService userActivityLogService;
+    private final JwtService jwtService;
+    private final RedisActivityLogService redisActivityLogService;
+    private final RmqActivityLogService rmqActivityLogService;
 
     @PostMapping("/messages")
     @ResponseStatus(HttpStatus.CREATED)
@@ -54,6 +62,11 @@ public class ChatMessageController {
             @RequestHeader(value = "Authorization", required = false) String bearerToken
     ) {
         LogResponse response = userActivityLogService.saveChatSessionStart(bearerToken);
+        if (response.isLogged()) {
+            Long userId = extractUserId(bearerToken);
+            redisActivityLogService.append(userId, EventType.SESSION_START, EventTarget.CHAT);
+            rmqActivityLogService.publish(userId, EventType.SESSION_START, EventTarget.CHAT);
+        }
 
         if (response.isLogged()) {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -75,7 +88,11 @@ public class ChatMessageController {
     public LogResponse saveQuickQuestionClick(
             @RequestHeader(value = "Authorization", required = false) String bearerToken
     ) {
-        return userActivityLogService.saveQuickQuestionClick(bearerToken);
+        LogResponse response = userActivityLogService.saveQuickQuestionClick(bearerToken);
+        Long userId = extractUserId(bearerToken);
+        redisActivityLogService.append(userId, EventType.BUTTON_CLICK, EventTarget.QUICK_TAP);
+        rmqActivityLogService.publish(userId, EventType.BUTTON_CLICK, EventTarget.QUICK_TAP);
+        return response;
     }
 
     @GetMapping("/messages/{questionId}/status")
@@ -85,5 +102,10 @@ public class ChatMessageController {
             @PathVariable Long questionId
     ) {
         return chatMessageQueryService.getMessageStatus(bearerToken, questionId);
+    }
+
+    private Long extractUserId(String bearerToken) {
+        String token = jwtService.extractBearerToken(bearerToken);
+        return jwtService.getUserId(token);
     }
 }

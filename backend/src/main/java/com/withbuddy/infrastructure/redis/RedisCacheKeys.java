@@ -33,6 +33,10 @@ public final class RedisCacheKeys {
         return "nudge:sent:" + userId + ":" + day;
     }
 
+    public static String nudgeIdempotency(String eventId) {
+        return "idempotency:nudge:" + eventId;
+    }
+
     public static String conversation(String sessionId) {
         return "conversation:" + sessionId;
     }
