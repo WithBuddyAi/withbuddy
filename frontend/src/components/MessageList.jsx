@@ -4,7 +4,7 @@ import { Link, RotateCw } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import bot from '../assets/Bot_icon.svg'
 
-function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
+function MessageList({ messageList, botClass, handleRetry, isLoading, handleDownload }) {
   // User Class 정리
   const userClass = 
   `rounded-tl-[24px]
@@ -54,7 +54,10 @@ function MessageList({ messageList, botClass, handleRetry, handleDownload }) {
                   {message.messageType === 'ai_timeout' || message.messageType === 'send_error' ? (
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-[10px]">
                       <p className="text-[#495057] text-[14px] lg:text-[16px]">{message.content}</p>
-                      <button onClick={handleRetry} className={`flex items-center justify-cnter gap-[5px] text-[12px] rounded-[9999px] py-[6px] px-[12px]  ${message.messageType === 'ai_timeout' ? 'bg-[#EAF6FF] text-[#204867] hover:bg-[#D2E2F6]' : 'bg-[#336B974D] text-[#FFFFFF] hover:bg-[#336B97B2]'}`}>
+                      <button 
+                      onClick={handleRetry} 
+                      disabled={isLoading}
+                      className={`flex items-center justify-cnter gap-[5px] text-[12px] rounded-[9999px] py-[6px] px-[12px]  ${message.messageType === 'ai_timeout' ? 'bg-[#EAF6FF] text-[#204867] hover:bg-[#D2E2F6]' : 'bg-[#336B974D] text-[#FFFFFF] hover:bg-[#336B97B2]'}`}>
                         <RotateCw size={14} />다시 물어보기
                       </button>
                     </div>)
