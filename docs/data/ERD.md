@@ -1,7 +1,7 @@
 # ERD
 
-**현재 버전: v1.6**  
-**최종 수정일: 2026-04-14**
+**현재 버전: v1.7**  
+**최종 수정일: 2026-04-30**
 
 ## 개요
 **MVP 기준 ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
@@ -168,6 +168,7 @@
 - `sender_type` : 발신 주체 구분값, varchar
 - `message_type` : 메시지 유형 구분값, varchar
 - `content` : 메시지 내용, text
+- `recommended_contacts_json` : 추천 담당자 카드 재구성을 위한 JSON 문자열 스냅샷, text, nullable
 - `created_at` : 메시지 생성 일시, datetime
 
 ### 설명
@@ -183,6 +184,8 @@
 - `no_result`는 질문 범위는 맞지만 답변 가능한 정보가 없는 경우로 간주한다.
 - 온보딩 가이드 기반 제안인 경우 어떤 온보딩 가이드를 참조했는지 `suggestion_id`로 연결할 수 있다.
 - 채팅형 UI에서 시간순 메시지 조회 및 대화 이력 관리에 활용할 수 있다.
+- `recommended_contacts_json`은 `message_type = no_result`인 답변에서 추천 담당자 목록을 저장할 때 사용한다.
+- `recommended_contacts_json`은 과거 채팅 조회 시 추천 담당자 카드를 동일하게 재구성하기 위한 메시지 시점의 스냅샷이다.
 
 ---
 
@@ -270,6 +273,7 @@
 - v1.5 (2026-04-07): `documents.document_type`, `documents.department` 표준 분류값 및 분류 기준 설명 추가, `chat_messages` 테이블 수정, `document_id` 컬럼 삭제
 - v1.6 (2026-04-14): `document_files`, `document_backup_jobs`, `chat_message_documents` 테이블 추가, 답변 메시지와 근거 문서의 다중 연결 구조 반영, 문서-파일-백업 작업 관계 설명 추가
 - v1.7 (2026-04-28): `users.role` 컬럼 추가, 일반 사용자(`USER`)와 관리자(`ADMIN`) 계정 구분 기준 반영
+- v1.8 (2026-04-30): `chat_messages` 테이블에 `recommended_contacts_json` 컬럼 추가
 
 ---
 

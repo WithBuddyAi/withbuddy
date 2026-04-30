@@ -111,7 +111,7 @@ OpenAPI Docs:     http://localhost:8080/v3/api-docs
 
 ```json
 {
-  "timestamp": "2026-03-25T10:30:00Z",
+  "timestamp": "2026-03-25T10:30:00",
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
@@ -244,7 +244,7 @@ Content-Type: application/json
 
 ```json
 {
-  "timestamp": "2026-04-03T10:30:00Z",
+  "timestamp": "2026-04-03T10:30:00",
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
@@ -277,7 +277,7 @@ Content-Type: application/json
 
 ```json
 {
-  "timestamp": "2026-03-25T10:30:00Z",
+  "timestamp": "2026-03-25T10:30:00",
   "status": 401,
   "error": "Unauthorized",
   "code": "UNAUTHORIZED",
@@ -352,7 +352,7 @@ ALTER TABLE users
   "employeeNumber": "20260001",
   "name": "김지원",
   "hireDate": "2026-03-01",
-  "createdAt": "2026-04-28T09:30:00Z"
+  "createdAt": "2026-04-28T09:30:00"
 }
 ```
 
@@ -360,7 +360,7 @@ ALTER TABLE users
 
 ```json
 {
-  "timestamp": "2026-04-28T09:30:00Z",
+  "timestamp": "2026-04-28T09:30:00",
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
@@ -386,7 +386,7 @@ ALTER TABLE users
 
 ```json
 {
-  "timestamp": "2026-04-28T09:30:00Z",
+  "timestamp": "2026-04-28T09:30:00",
   "status": 409,
   "error": "Conflict",
   "code": "DUPLICATE_EMPLOYEE_NUMBER",
@@ -417,7 +417,7 @@ ALTER TABLE users
 
 ```json
 {
-  "timestamp": "2026-03-25T10:35:00Z",
+  "timestamp": "2026-03-25T10:35:00",
   "status": 401,
   "error": "Unauthorized",
   "code": "UNAUTHORIZED",
@@ -437,7 +437,7 @@ ALTER TABLE users
 
 ```json
 {
-  "timestamp": "2026-03-25T10:35:00Z",
+  "timestamp": "2026-03-25T10:35:00",
   "status": 401,
   "error": "Unauthorized",
   "code": "TOKEN_EXPIRED",
@@ -462,20 +462,201 @@ ALTER TABLE users
 
 ## 6. MyBuddy
 
-### 6-1. 채팅 메시지 목록 조회
+MyBuddy는 신입 사용자가 회사 생활과 온보딩 과정에서 궁금한 내용을 질문하고, AI 기반 답변과 온보딩 제안 메시지를 채팅 형태로 확인하는 기능이다.
+
+MyBuddy 화면에서 사용하는 주요 기능은 다음과 같다.
+
+| 구분 | API | 설명 |
+|---|---|---|
+| 채팅 화면 진입 로그 기록 | `POST /api/v1/chat/session-start` | 사용자가 MyBuddy 화면에 진입했음을 기록한다. |
+| 온보딩 제안 노출 처리 | `POST /api/v1/onboarding-suggestions/me/exposure` | 오늘 노출 대상 온보딩 제안이 있으면 `chat_messages`에 suggestion 메시지로 생성한다. |
+| 채팅 메시지 목록 조회 | `GET /api/v1/chat/messages` | 현재 로그인한 사용자의 채팅 메시지 목록을 조회한다. |
+| 질문 전송 | `POST /api/v1/chat/messages` | 사용자 질문을 저장하고 AI 답변을 생성한다. |
+| 빠른 질문 목록 조회 | `GET /api/v1/chat/quick-questions` | 일반 빠른 질문 후보 중 랜덤으로 5개를 조회한다. |
+| 빠른 질문 클릭 로그 기록 | `POST /api/v1/chat/quick-questions/click` | 사용자가 빠른 질문 버튼을 클릭한 이력을 기록한다. |
+
+---
+
+### 6-1. MyBuddy 화면 진입 시 권장 호출 흐름
+
+프론트엔드는 MyBuddy 화면 진입 시 다음 순서로 API를 호출한다.
+
+```text
+1. POST /api/v1/chat/session-start
+   - 채팅 화면 진입 로그를 기록한다.
+   - 동일 사용자가 30분 이내 재진입한 경우 중복 기록하지 않는다.
+
+2. POST /api/v1/onboarding-suggestions/me/exposure
+   - 오늘 노출 대상 온보딩 제안이 있으면 chat_messages에 suggestion 메시지로 생성한다.
+   - 이미 동일한 온보딩 제안 메시지가 있으면 중복 생성하지 않는다.
+
+3. GET /api/v1/chat/messages
+   - 실제 화면 렌더링은 이 API 응답만 사용한다.
+   - user_question, rag_answer, no_result, out_of_scope, suggestion 메시지를 모두 포함할 수 있다.
+```
+
+#### 메시지 렌더링 기준
+
+- 프론트엔드는 별도의 온보딩 제안 배열을 화면에 합치지 않는다.
+- 화면에 표시할 채팅 데이터는 `GET /api/v1/chat/messages` 응답의 `messages` 배열만 사용한다.
+- 온보딩 제안 메시지도 최종적으로는 `chat_messages`에 저장된 `messageType = suggestion` 메시지로 렌더링한다.
+- `messageType = suggestion`인 경우, 해당 메시지 하단에 `quickTaps` 버튼을 노출할 수 있다.
+- 사용자가 `quickTaps` 버튼을 클릭하면 해당 항목의 `content` 값을 질문 내용으로 사용하여 `POST /api/v1/chat/messages`를 호출한다.
+- 빠른 질문 클릭 로그가 필요한 경우, 프론트엔드는 `quickTaps[].eventTarget` 값을 사용하여 `POST /api/v1/chat/quick-questions/click`을 별도로 호출한다.
+
+---
+
+### 6-2. 채팅 화면 진입 로그 기록
+
+사용자가 MyBuddy 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.
+
+동일 사용자가 30분 이내에 다시 채팅 화면에 진입한 경우에는 중복 기록하지 않는다.
+
+```http
+POST /api/v1/chat/session-start
+Authorization: Bearer {accessToken}
+```
+
+#### Response (201 Created)
+
+```json
+{
+  "logged": true,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "message": null,
+  "createdAt": "2026-04-13T09:00:00"
+}
+```
+
+#### Response (200 OK, 중복 기록 제외)
+
+```json
+{
+  "logged": false,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "message": "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다.",
+  "createdAt": null
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `logged` | Boolean | 이번 요청에서 로그가 새로 저장되었는지 여부 |
+| `eventType` | String | 기록된 이벤트 타입 |
+| `eventTarget` | String | 이벤트 대상 |
+| `message` | String 또는 null | 처리 결과 메시지 |
+| `createdAt` | String 또는 null | 로그 생성 시각 |
+
+#### 동작 규칙
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 채팅 화면 진입 시 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = CHAT`으로 기록한다.
+- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 동일 사용자가 최근 30분 이내에 이미 `event_type = SESSION_START`, `event_target = CHAT` 이벤트를 기록한 경우 새로 저장하지 않는다.
+- 프론트엔드는 MyBuddy 화면 최초 진입 시 이 API를 1회 호출한다.
+- 채팅 메시지 목록 조회 API(`GET /api/v1/chat/messages`) 호출만으로는 `SESSION_START` 로그를 자동 기록하지 않는다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+---
+
+### 6-3. 온보딩 제안 노출 처리
+
+현재 로그인한 사용자의 `hireDate`를 기준으로 오늘 노출 대상 온보딩 제안이 있는지 확인한다.
+
+노출 대상 온보딩 제안이 존재하면 해당 제안을 `chat_messages`에 `message_type = suggestion` 메시지로 생성한다.
+
+이미 동일한 온보딩 제안 메시지가 생성되어 있는 경우에는 중복 생성하지 않는다.
+
+```http
+POST /api/v1/onboarding-suggestions/me/exposure
+Authorization: Bearer {accessToken}
+```
+
+#### Response (200 OK, 새 suggestion 메시지 생성)
+
+```json
+{
+  "created": true,
+  "messageId": 301,
+  "suggestionId": 5,
+  "message": "온보딩 제안 메시지가 생성되었습니다."
+}
+```
+
+#### Response (200 OK, 이미 생성된 suggestion 메시지 존재)
+
+```json
+{
+  "created": false,
+  "messageId": 301,
+  "suggestionId": 5,
+  "message": "이미 생성된 온보딩 제안 메시지가 있습니다."
+}
+```
+
+#### Response (200 OK, 오늘 노출 대상 없음)
+
+```json
+{
+  "created": false,
+  "messageId": null,
+  "suggestionId": null,
+  "message": "오늘 노출할 온보딩 제안이 없습니다."
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `created` | Boolean | 이번 요청에서 새 suggestion 메시지가 생성되었는지 여부 |
+| `messageId` | Number 또는 null | 생성되었거나 이미 존재하는 `chat_messages.id` |
+| `suggestionId` | Number 또는 null | 생성 대상 또는 기존 메시지에 연결된 `onboarding_suggestions.id` |
+| `message` | String | 처리 결과 메시지 |
+
+#### 동작 기준
+
+- 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
+- `dayOffset = KST 기준 오늘 날짜 - users.hire_date` 로 계산한다.
+- `dayOffset` 값에 따라 노출 대상 온보딩 제안을 결정한다.
+- 현재 MVP 기준으로 `onboarding_suggestions`는 회사 구분 없이 공통으로 사용한다.
+- 노출 대상 온보딩 제안이 존재하면 백엔드는 해당 제안을 `chat_messages`에 저장한다.
+- 저장되는 메시지는 `sender_type = BOT`, `message_type = suggestion`을 사용한다.
+- `suggestion_id`에는 저장 대상 온보딩 제안의 ID를 저장한다.
+- `content`에는 온보딩 제안 본문을 저장한다.
+- `{이름}`, `{회사명}`, `{N}`과 같은 플레이스홀더가 있는 경우, 백엔드는 로그인 사용자 정보를 기준으로 치환하여 저장한다.
+- 이미 동일한 사용자의 동일한 온보딩 제안 메시지가 저장되어 있으면 중복 저장하지 않는다.
+- 중복 판단 기준은 `user_id`, `suggestion_id`, `message_type` 조합이다.
+- DB 차원에서도 `user_id`, `suggestion_id`, `message_type` 조합의 유니크 제약을 두어 중복 저장을 최종 방지하는 것을 권장한다.
+- 노출 대상 온보딩 제안이 없으면 `chat_messages`에 아무 메시지도 저장하지 않는다.
+- 이 API 응답은 화면 렌더링에 직접 사용하지 않는다.
+- 실제 화면 렌더링은 이후 호출하는 `GET /api/v1/chat/messages` 응답만 사용한다.
+- `messageType = suggestion` 메시지의 `quickTaps`는 `GET /api/v1/chat/messages` 응답에서 제공한다.
+- `quickTaps` 목록은 suggestion 메시지 자체에 저장하지 않고, `suggestionId`를 기준으로 응답 DTO 조립 시 포함한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+---
+
+### 6-4. 채팅 메시지 목록 조회
 
 현재 로그인한 사용자의 채팅 메시지를 `createdAt` 오름차순으로 조회한다.
-`date`가 없으면 전체 메시지를 조회하고, `date`가 있으면 해당 날짜의 메시지만 `createdAt` 오름차순으로 조회한다.
+
+`date`가 없으면 전체 메시지를 조회하고, `date`가 있으면 해당 날짜의 메시지만 조회한다.
 
 ```http
 GET /api/v1/chat/messages?date=2026-03-24
 Authorization: Bearer {accessToken}
 ```
 
-### Query Parameter
-`date` (optional, `yyyy-MM-dd`)
-- 지정하지 않으면 현재 로그인한 사용자의 전체 채팅 메시지를 조회한다.
-- 지정하면 해당 날짜의 채팅 메시지만 조회한다.
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `date` | String (`yyyy-MM-dd`) | N | 조회할 날짜. 지정하지 않으면 전체 메시지를 조회한다. |
 
 #### Response (200 OK)
 
@@ -489,8 +670,9 @@ Authorization: Bearer {accessToken}
       "senderType": "USER",
       "messageType": "user_question",
       "content": "복지카드 신청 양식은 어디서 받나요?",
+      "quickTaps": [],
       "recommendedContacts": [],
-      "createdAt": "2026-03-24T10:00:00Z"
+      "createdAt": "2026-03-24T10:00:00"
     },
     {
       "id": 102,
@@ -516,14 +698,42 @@ Authorization: Bearer {accessToken}
       "senderType": "BOT",
       "messageType": "rag_answer",
       "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
+      "quickTaps": [],
       "recommendedContacts": [],
-      "createdAt": "2026-03-24T10:00:02Z"
+      "createdAt": "2026-03-24T10:00:02"
+    },
+    {
+      "id": 301,
+      "suggestionId": 5,
+      "documents": [],
+      "senderType": "BOT",
+      "messageType": "suggestion",
+      "content": "3일째, 위드버디에 조금 익숙해졌나요? 🌱 이쯤 되면 이런 게 궁금해지더라고요.",
+      "quickTaps": [
+        {
+          "buttonText": "⏰ 출퇴근 시간",
+          "content": "출근 시간과 퇴근 시간은 어떻게 되나요?",
+          "eventTarget": "QUICK_TAP_WORK_HOUR"
+        },
+        {
+          "buttonText": "📅 연차 사용",
+          "content": "연차는 언제부터 사용할 수 있나요?",
+          "eventTarget": "QUICK_TAP_LEAVE_START"
+        },
+        {
+          "buttonText": "📦 장비 신청",
+          "content": "업무 장비는 어떻게 신청하나요?",
+          "eventTarget": "QUICK_TAP_EQUIPMENT"
+        }
+      ],
+      "recommendedContacts": [],
+      "createdAt": "2026-04-30T09:00:00"
     }
   ]
 }
 ```
 
-#### 빈 결과 예시 (200 OK)
+#### Response (200 OK, 빈 결과)
 
 ```json
 {
@@ -531,32 +741,35 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-#### 설명
+#### 동작 규칙
+
 - 현재 로그인한 사용자 기준으로 `chat_messages`를 조회한다.
+- 모든 메시지는 `createdAt` 오름차순으로 정렬한다.
+- `date`가 지정된 경우 해당 날짜의 00:00:00 이상, 다음 날 00:00:00 미만 범위의 메시지만 조회한다.
 - 온보딩 제안 메시지인 경우 `suggestionId`가 포함될 수 있다.
 - `senderType`은 `USER`, `BOT` 값을 사용한다.
-- `messageType`은 아래 표준값을 사용한다.
-  - `user_question`: 신입 사용자가 입력한 질문
-  - `rag_answer`: 문서 기반으로 답변이 생성된 메시지
-  - `no_result`: 질문 범위는 맞지만 근거 문서나 정보가 없어 답변하지 못한 메시지
-  - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내 메시지
-  - `suggestion`: 온보딩 가이드 기반 Buddy Nudge 카드 또는 제안 메시지
-- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+- `messageType`은 `user_question`, `rag_answer`, `no_result`, `out_of_scope`, `suggestion` 값을 사용한다.
 - `rag_answer` 메시지인 경우, 근거 문서는 `chat_message_documents`를 기준으로 조회한다.
 - `documents[].documentId`는 답변 메시지와 연결된 문서 ID를 의미한다.
 - `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
 - `documents[].documentType = TEMPLATE`인 경우 `documents[].file` 객체를 포함한다.
-- 프론트엔드는 `documents[].file.downloadUrl`을 통해 다운로드 URL 발급 API를 호출할 수 있다.
+- 프론트엔드는 `documents[].file.downloadUrl`을 통해 파일 다운로드 API를 호출할 수 있다.
 - `documents[].documentType != TEMPLATE`인 경우 `documents[].file`은 `null`일 수 있다.
+- 실제 파일 데이터는 채팅 메시지 응답 JSON에 직접 포함하지 않고, 별도 파일 API를 통해 반환한다.
 - `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
-- `recommendedContacts`는 모든 채팅 메시지 응답에 포함한다.
-- `messageType = no_result`이고 추천 담당자 정보가 존재하는 경우에만 값이 채워질 수 있다.
-- 추천 담당자 정보가 없는 경우 빈 배열(`[]`)을 반환한다.
+- `messageType = suggestion`인 경우, 백엔드는 해당 온보딩 제안에 연결된 빠른 질문 목록을 `quickTaps`에 포함하여 반환한다.
+- `messageType = user_question`, `rag_answer`, `no_result`, `out_of_scope`인 경우 `quickTaps`는 빈 배열(`[]`)을 반환한다.
+- `messageType = no_result`이고 추천 담당자 정보가 존재하는 경우에만 `recommendedContacts`가 채워질 수 있다.
+- `messageType = user_question`, `rag_answer`, `out_of_scope`, `suggestion`인 경우 `recommendedContacts`는 빈 배열(`[]`)을 반환한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
+---
 
-### 6-2. 질문 전송
+### 6-5. 질문 전송
 
-사용자가 질문을 보내면 사용자 질문 메시지를 저장하고, 내부 AI 서버에 답변 생성을 요청한 뒤, 생성된 AI 답변 메시지를 저장하여 두 메시지를 함께 응답으로 반환한다.
+사용자가 질문을 보내면 사용자 질문 메시지를 저장하고, 내부 AI 서버에 답변 생성을 요청한다.
+
+AI 응답을 받은 뒤 생성된 AI 답변 메시지를 저장하고, 사용자 질문 메시지와 AI 답변 메시지를 함께 반환한다.
 
 ```http
 POST /api/v1/chat/messages
@@ -565,6 +778,7 @@ Content-Type: application/json
 ```
 
 #### Request Body
+
 ```json
 {
   "content": "복지카드는 어떻게 신청하나요?"
@@ -573,11 +787,12 @@ Content-Type: application/json
 
 #### Request Field
 
-| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
-|------|------|------|--------|------|-----------|
-| `content` | `String` | Y | `"복지카드는 어떻게 신청하나요?"` | 사용자가 입력한 질문 내용 | 길이: 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
+| 필드 | 타입 | 필수 | 설명 | 상세 규칙 |
+|---|---|---|---|---|
+| `content` | String | Y | 사용자가 입력한 질문 내용 | 길이 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
 
-#### Response (201 Created)
+#### Response (201 Created, 문서 기반 답변)
+
 ```json
 {
   "question": {
@@ -587,8 +802,9 @@ Content-Type: application/json
     "senderType": "USER",
     "messageType": "user_question",
     "content": "복지카드 신청 양식은 어디서 받나요?",
+    "quickTaps": [],
     "recommendedContacts": [],
-    "createdAt": "2026-03-24T10:00:00Z"
+    "createdAt": "2026-03-24T10:00:00"
   },
   "answer": {
     "id": 202,
@@ -614,13 +830,14 @@ Content-Type: application/json
     "senderType": "BOT",
     "messageType": "rag_answer",
     "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
+    "quickTaps": [],
     "recommendedContacts": [],
-    "createdAt": "2026-03-24T10:00:02Z"
+    "createdAt": "2026-03-24T10:00:02"
   }
 }
 ```
 
-#### Response (201 Created, 답변 문서 없음 예시)
+#### Response (201 Created, 답변 문서 없음)
 
 ```json
 {
@@ -631,8 +848,9 @@ Content-Type: application/json
     "senderType": "USER",
     "messageType": "user_question",
     "content": "복지카드 신청 양식은 어디서 받나요?",
+    "quickTaps": [],
     "recommendedContacts": [],
-    "createdAt": "2026-03-24T10:00:00Z"
+    "createdAt": "2026-03-24T10:00:00"
   },
   "answer": {
     "id": 202,
@@ -641,6 +859,7 @@ Content-Type: application/json
     "senderType": "BOT",
     "messageType": "no_result",
     "content": "관련 안내 문서를 찾지 못했습니다.",
+    "quickTaps": [],
     "recommendedContacts": [
       {
         "department": "경영지원팀",
@@ -648,42 +867,49 @@ Content-Type: application/json
         "position": "매니저",
         "connects": [
           {
-            "type": "SLACK",
+            "type": "slack",
             "value": "@jisoo.kim"
           },
           {
-            "type": "EMAIL",
+            "type": "email",
             "value": "jisoo.kim@withbuddy.ai"
           },
           {
-            "type": "EXTENSION",
+            "type": "extension",
             "value": "635"
           }
         ]
       }
     ],
-    "createdAt": "2026-03-24T10:00:02Z"
+    "createdAt": "2026-03-24T10:00:02"
   }
 }
 ```
 
-#### recommendedContacts 필드 설명
+#### 동작 규칙
 
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `recommendedContacts` | `Array<Object>` | N | `messageType = no_result`일 때 노출 가능한 담당자 추천 카드 목록 |
-| `recommendedContacts[].department` | `String` | Y | 담당 부서명 |
-| `recommendedContacts[].name` | `String` | Y | 담당자 이름 |
-| `recommendedContacts[].position` | `String` | Y | 담당자 직급 |
-| `recommendedContacts[].connects` | `Array<Object>` | Y | 연락 수단 목록 |
-| `recommendedContacts[].connects[].type` | `String` | Y | 연락 수단 유형 |
-| `recommendedContacts[].connects[].value` | `String` | Y | 실제 연락 값 |
+- 질문 메시지는 `chat_messages`에 `sender_type = USER`, `message_type = user_question`으로 저장한다.
+- 백엔드는 질문 저장 후 생성된 질문 메시지의 `id`를 `questionId`로 사용한다.
+- 백엔드는 질문 저장 후 로그인 사용자 정보, 질문 메시지의 `id(questionId)`, 질문 `content`, 이전 대화 이력(`conversationHistory`)을 사용하여 내부 AI 서버의 `/internal/ai/answer`를 호출한다.
+- 내부 AI 서버는 로그인한 사용자의 회사 문서와 공통 문서만을 대상으로 답변을 생성한다.
+- 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
+- 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용하여 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
+- 내부 AI 응답에 근거 문서 목록(`documents[].documentId`)이 포함된 경우, 백엔드는 답변 메시지 저장 후 `chat_message_documents`에 답변 메시지 ID와 문서 ID를 매핑하여 저장한다.
+- 백엔드는 AI 응답의 `documents[].documentId` 목록을 기준으로 문서 정보를 조회한다.
+- 답변 메시지 응답에는 근거 문서 상세 정보 `documents`를 포함한다.
+- 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
+- 온보딩 제안 메시지는 이 API에서 생성하지 않는다.
+- 온보딩 제안 메시지는 `POST /api/v1/onboarding-suggestions/me/exposure` 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
+- 백엔드는 내부 AI 서버 호출 시 최대 10초까지 응답을 대기한다.
+- 10초 내 응답이 없으면 `AI_TIMEOUT` 예외를 반환한다.
+- 사용자가 재시도를 선택한 경우, 프론트엔드는 동일한 질문 내용을 다시 `POST /api/v1/chat/messages`로 전송한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
 #### Error Response (400 Bad Request)
 
 ```json
 {
-  "timestamp": "2026-03-25T10:30:00Z",
+  "timestamp": "2026-03-25T10:30:00",
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
@@ -701,7 +927,7 @@ Content-Type: application/json
 
 ```json
 {
-  "timestamp": "2026-04-16T11:30:00Z",
+  "timestamp": "2026-04-16T11:30:00",
   "status": 504,
   "error": "Gateway Timeout",
   "code": "AI_TIMEOUT",
@@ -715,175 +941,12 @@ Content-Type: application/json
 }
 ```
 
-#### 값 설명
-
-- `senderType`
-  - `USER` : 사용자
-  - `BOT` : 챗봇
-
-- `messageType`
-  - `user_question`: 사용자 질문
-  - `rag_answer`: 문서 기반 답변 생성
-  - `no_result`: 질문 범위는 맞지만 문서/정보 부족으로 답변 불가
-  - `out_of_scope`: 서비스 범위를 벗어난 질문에 대한 안내
-  - `suggestion`: 온보딩 제안 메시지
-
-- `ContactType`
-  - `phone`: 핸드폰 번호
-  - `email`: 이메일 주소
-  - `slack`: 슬랙 아이디
-  - `extension`: 내선 번호
-
-#### 동작 규칙
-
-- 질문 메시지는 `chat_messages`에 `sender_type = USER`, `message_type = user_question`으로 저장한다.
-- 백엔드는 질문 저장 후 생성된 질문 메시지의 `id`를 `questionId`로 사용한다.
-- 백엔드는 질문 저장 후, 로그인한 사용자 정보(`user`), 질문 메시지의 `id(questionId)`, 질문 `content`, 이전 대화 이력(`conversationHistory`)을 사용하여 `/internal/ai/answer`를 호출한다.
-- 내부 AI 서버는 로그인한 사용자의 회사 문서와 공통 문서만을 대상으로 답변을 생성한다.
-- 내부 AI 응답의 `messageType`은 `rag_answer`, `no_result`, `out_of_scope` 중 하나를 반환해야 한다.
-- 백엔드는 내부 AI 응답의 `questionId`, `content`, `messageType`을 사용하여 답변 메시지를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
-- 내부 AI 응답에 근거 문서 목록(`documents[].documentId`)이 포함된 경우, 백엔드는 답변 메시지 저장 후 chat_message_documents에 답변 메시지 ID와 문서 ID를 매핑하여 저장한다.
-- 백엔드는 AI 응답의 `documents[].documentId` 목록을 기준으로 `documents`를 조회한다.
-- 답변 메시지 응답에는 근거 문서 상세 정보 `documents`를 포함한다.
-- `documents[].documentId`는 답변 메시지와 연결된 문서 ID를 의미한다.
-- `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
-- 문서의 document_type = TEMPLATE인 경우, 파일 접근 정보는 `document_files`를 기준으로 조회하며 `documents[].file`에 포함한다.
-- 프론트엔드는 `documents[].file.downloadUrl`을 통해 다운로드 URL 발급 API를 호출할 수 있다.
-- `document_type != TEMPLATE`인 경우, `documents[].file`은 일반적으로 포함하지 않거나 `null`로 반환한다.
-- 실제 파일 데이터는 채팅 메시지 응답 본문(JSON)에 직접 포함하지 않고, 별도 파일 API를 통해 반환한다.
-- `user_question`, `suggestion`, `no_result`, `out_of_scope` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
-- 별도의 `isAnswered` 필드는 두지 않으며, 응답 유형은 `messageType` 값으로 해석한다.
-- 온보딩 제안 메시지는 이 API가 아니라 온보딩 제안 조회/노출 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
-- 백엔드는 내부 AI 서버 호출 시 최대 10초까지 응답을 대기한다.
-- 10초 내 응답이 없으면 `AI_TIMEOUT` `예외를 반환한다.
-- 사용자가 재시도를 선택한 경우 동일한 질문 내용을 다시 `POST /api/v1/chat/messages`로 전송한다.
-- `messageType = no_result`인 경우, 백엔드는 `recommendedContacts` 값을 채워 반환한다.
-- `messageType = rag_answer`, `out_of_scope`, `suggestion`, `user_question`인 경우 `recommendedContacts`는 빈 배열을 반환한다.
-- 프론트엔드는 `recommendedContacts`가 존재하는 경우 담당자 카드 UI를 노출한다.
-- `recommendedContacts[].connects[].type`은 아래 표준값을 사용한다.
-  - `slack`: Slack 사용자 또는 채널 연결 정보
-  - `email`: 이메일 주소
-  - `phone`: 일반 전화번호 또는 휴대전화번호
-  - `extension`: 사내 내선 번호
-
-### 6-3. 온보딩 제안 조회
-현재 로그인한 사용자의 `hireDate`를 기준으로 노출 대상 온보딩 제안을 조회한다.
-
-온보딩 제안이 존재하는 경우, 해당 시점에 자주 묻는 빠른 질문 버튼(`quickTaps`)도 함께 반환한다.  
-`quickTaps`는 사용자가 온보딩 메시지를 보고 바로 질문할 수 있도록 제공되는 추천 질문 버튼이다.
-
-```http
-GET /api/v1/onboarding-suggestions/me
-Authorization: Bearer {accessToken}
-```
-#### 동작 기준
-- 현재 로그인한 사용자의 `users.hire_date`를 기준으로 `dayOffset`을 계산한다.
-- 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
-- `dayOffset = KST 기준 오늘 날짜 - hireDate` 로 계산한다.
-- `dayOffset` 값에 따라 노출 대상 온보딩 제안을 결정한다.
-- 일치하는 온보딩 제안이 있으면 해당 제안과 함께 관련 빠른 질문 버튼 3개를 반환한다.
-- 일치하는 온보딩 제안이 없으면 빈 배열을 반환한다.
-- 현재 MVP 기준으로 `onboarding_suggestions`는 회사 구분 없이 공통으로 사용한다.
-
-#### Response (200 OK)
-
-```json
-{
-  "suggestions": [
-    {
-      "title": "입사 당일",
-      "content": "안녕하세요! 저는 위드버디예요 🙂 입사 첫날, 설레기도 하고 낯설기도 하죠? {회사명}에서 궁금한 게 생기면 언제든 물어보세요. 사소한 것도 괜찮아요.",
-      "dayOffset": 0,
-      "createdAt": "2026-03-20T09:00:00Z",
-      "quickTaps": [
-        {
-          "buttonText": "💻 이메일·계정 세팅",
-          "content": "회사 이메일 계정은 어떻게 세팅하나요?",
-          "eventTarget": "QUICK_TAP_IT_SETUP"
-        },
-        {
-          "buttonText": "📦 비품 신청하기",
-          "content": "업무에 필요한 비품은 어떻게 신청하나요?",
-          "eventTarget": "QUICK_TAP_EQUIPMENT"
-        },
-        {
-          "buttonText": "📅 연차 언제부터?",
-          "content": "연차는 입사 후 언제부터 쓸 수 있나요?",
-          "eventTarget": "QUICK_TAP_LEAVE_START"
-        }
-      ]
-    }
-  ]
-}
-```
-
-#### 빈 결과 예시 (200 OK)
-
-```json
-{
-  "suggestions": []
-}
-```
-
-#### Response Field
-
-| 필드 | 타입 | 설명 |
-|---|---|---|
-| `suggestions` | Array | 현재 사용자에게 노출할 온보딩 제안 목록 |
-| `suggestions[].title` | String | 온보딩 제안 제목 |
-| `suggestions[].content` | String | 온보딩 제안 본문 |
-| `suggestions[].dayOffset` | Number | 입사일 기준 날짜 차이 |
-| `suggestions[].createdAt` | String | 온보딩 제안 데이터 생성 시각 |
-| `suggestions[].quickTaps` | Array | 해당 온보딩 제안과 함께 노출할 빠른 질문 버튼 목록 |
-| `quickTaps[].buttonText` | String | 화면에 표시할 버튼 텍스트 |
-| `quickTaps[].content` | String | 사용자가 버튼을 클릭했을 때 실제 질문으로 전송할 문장 |
-| `quickTaps[].eventTarget` | String | 빠른 질문 클릭 로그 저장 시 사용할 eventTarget 값 |
-
-#### 설명
-
-- `users.hire_date`를 기준으로 입사 전/입사 당일/입사 후 경과 일수를 계산한다.
-- 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
-- 온보딩 제안이 존재하는 경우, 해당 시점에 맞는 빠른 질문 버튼 3개를 함께 반환한다.
-- 온보딩 제안에 포함되는 `quickTaps`는 사용자가 자주 묻는 질문을 버튼 형태로 제공하기 위한 값이다.
-- 사용자가 `quickTaps` 버튼을 클릭하면, 프론트엔드는 클릭 로그 저장을 위해 `POST /api/v1/chat/quick-questions/click`을 호출할 수 있다.
-- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드는 해당 항목의 `content` 값을 사용해 별도로 `POST /api/v1/chat/messages`를 호출한다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
-
-### 온보딩 제안별 quickTap 노출 기준
-
-온보딩 제안 조회 API에서 반환되는 `quickTaps`는 해당 D-day 상황에 맞는 질문 3개를 노출한다.
-
-#### 예시
-
-| 노출 시점 | dayOffset | quickTap 예시 |
-|---|---:|---|
-| D-7 | -7 | 출근 장소·입장 방법, 출근 시간·근무 형태, 복장 규정 |
-| D-1 | -1 | 첫날 누구를 찾아요?, 출입카드 받는 법, 제출 서류 |
-| D+0 | 0 | 이메일·계정 세팅, 비품 신청하기, 연차 언제부터? |
-| D+2 | 2 | 프린터·사무기기 사용법, 회의실 예약 방법, 점심 식대 지원 |
-| D+3 | 3 | 복지 혜택 언제부터?, 경비 처리 방법, 보안·파일 저장 규칙 |
-| D+5 | 5 | 지각·조퇴 처리 방법, 반차 사용 방법, 병가·조퇴 규정 |
-| D+7 | 7 | 결재는 어떻게 해요?, 업무 시스템 권한 신청, 재택근무 신청 |
-| D+10 | 10 | 복지 혜택 곧 되죠?, 영수증 처리 방법, 업무 보고 방식 |
-| D+14 | 14 | 복지 혜택 신청하기, 급여명세서 확인, 수습 평가 기준 |
-| D+21 | 21 | 연차 신청 방법, 건강검진 언제부터?, 교육·자기계발 지원 |
-| D+30 | 30 | 정규직 전환 절차, 수습 평가 기준 다시 보기, 전환 후 평가 방식 |
-
-#### 설명
-
-- 온보딩 제안에 포함되는 `quickTaps`는 전체 quick tap 후보 중 해당 D-day 상황에 맞는 항목 3개를 반환한다.
-- 일반 빠른 질문 목록 조회 API인 `GET /api/v1/chat/quick-questions`는 전체 quick tap 후보 중 랜덤 5개를 반환한다.
-
-| API | quick tap 노출 방식 |
-|---|---|
-| `GET /api/v1/onboarding-suggestions/me` | D-day에 맞는 quick tap 3개 반환 |
-| `GET /api/v1/chat/quick-questions` | 전체 quick tap 후보 중 랜덤 5개 반환 |
-
 ---
 
-### 6-4. 빠른 질문 목록 조회
+### 6-6. 빠른 질문 목록 조회
+
 현재 로그인한 사용자에게 노출할 빠른 질문 목록을 조회한다.
+
 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
 
 ```http
@@ -925,7 +988,8 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-#### 빈 결과 예시 (200 OK)
+#### Response (200 OK, 빈 결과)
+
 ```json
 {
   "quickQuestions": []
@@ -941,23 +1005,24 @@ Authorization: Bearer {accessToken}
 | `quickQuestions[].content` | String | 사용자가 버튼을 클릭했을 때 실제 질문으로 전송할 문장 |
 | `quickQuestions[].eventTarget` | String | 빠른 질문 클릭 로그 저장 시 사용할 eventTarget 값 |
 
-#### 설명
+#### 동작 규칙
 
 - 빠른 질문은 사용자가 자주 묻는 질문을 버튼 형태로 제공하기 위한 추천 질문 목록이다.
 - 현재 MVP 기준으로 빠른 질문 목록은 회사 구분 없이 공통으로 제공한다.
 - 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
-- 사용자가 빠른 질문을 클릭하면, 해당 항목의 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages`로 전송한다.
-- 이 API는 빠른 질문 버튼 목록만 조회하며, 클릭 로그 저장이나 채팅 메시지 생성을 수행하지 않는다.
-- 사용자가 빠른 질문 버튼을 클릭했을 때의 로그 저장은 `POST /api/v1/chat/quick-questions/click`에서 처리한다.
-- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드는 해당 항목의 `content` 값을 사용해 `POST /api/v1/chat/messages`를 별도로 호출한다.
+- 이 API는 빠른 질문 버튼 목록만 조회한다.
+- 이 API는 클릭 로그 저장이나 채팅 메시지 생성을 수행하지 않는다.
+- 사용자가 빠른 질문을 클릭하면, 프론트엔드는 해당 항목의 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages`로 전송한다.
 - 빠른 질문 클릭 로그를 남기려면 프론트엔드가 별도로 `POST /api/v1/chat/quick-questions/click`을 호출한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
 ---
 
-### 6-5. 빠른 질문 클릭 로그 기록
-사용자가 빠른 질문 버튼을 클릭하면 `user_activity_logs`에 `BUTTON_CLICK` 이벤트를 기록한다.  
-이때 `eventTarget`은 클릭한 빠른 질문 항목의 `eventTarget` 값을 저장한다.
+### 6-7. 빠른 질문 클릭 로그 기록
+
+사용자가 빠른 질문 버튼을 클릭하면 `user_activity_logs`에 `BUTTON_CLICK` 이벤트를 기록한다.
+
+이때 `eventTarget`은 사용자가 클릭한 빠른 질문 항목의 `eventTarget` 값을 저장한다.
 
 ```http
 POST /api/v1/chat/quick-questions/click
@@ -987,9 +1052,121 @@ Content-Type: application/json
   "eventType": "BUTTON_CLICK",
   "eventTarget": "QUICK_TAP_LOCATION",
   "message": null,
-  "createdAt": "2026-04-24T09:30:00Z"
+  "createdAt": "2026-04-24T09:30:00"
 }
 ```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `logged` | Boolean | 이번 요청에서 로그가 저장되었는지 여부 |
+| `eventType` | String | 기록된 이벤트 타입 |
+| `eventTarget` | String | 클릭한 빠른 질문 버튼의 eventTarget |
+| `message` | String 또는 null | 처리 결과 메시지 |
+| `createdAt` | String | 로그 생성 시각 |
+
+#### 동작 규칙
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 빠른 질문 버튼 클릭 시 `user_activity_logs`에 `event_type = BUTTON_CLICK`으로 기록한다.
+- `event_target`에는 사용자가 클릭한 버튼의 실제 `eventTarget` 값을 저장한다.
+- 저장 항목에는 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 이 API는 클릭 로그만 저장한다.
+- 이 API는 채팅 메시지 생성이나 AI 답변 생성을 수행하지 않는다.
+- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드가 별도로 `POST /api/v1/chat/messages`를 호출한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+---
+
+### 6-8. 공통 응답 객체
+
+#### ChatMessageResponse
+
+`GET /api/v1/chat/messages`의 `messages[]`, `POST /api/v1/chat/messages`의 `question`, `answer`는 모두 아래 구조를 기준으로 한다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | Number | `chat_messages.id` |
+| `suggestionId` | Number 또는 null | 온보딩 제안 메시지와 연결된 `onboarding_suggestions.id` |
+| `documents` | Array | 답변 메시지와 연결된 근거 문서 목록 |
+| `senderType` | String | 메시지 발신자 타입 |
+| `messageType` | String | 메시지 유형 |
+| `content` | String | 메시지 본문 |
+| `quickTaps` | Array | suggestion 메시지 하단에 노출할 빠른 질문 버튼 목록 |
+| `recommendedContacts` | Array | no_result 메시지에서 노출할 담당자 추천 목록 |
+| `createdAt` | String | 메시지 생성 시각 |
+
+#### DocumentResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `documentId` | Number | 문서 ID |
+| `title` | String | 문서 제목 |
+| `documentType` | String | 문서 유형 |
+| `file` | Object 또는 null | 다운로드 가능한 파일 정보 |
+
+#### FileResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `fileName` | String | 원본 파일명 |
+| `contentType` | String | 파일 MIME 타입 |
+| `downloadUrl` | String | 파일 다운로드 API URL |
+
+#### QuickTapResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `buttonText` | String | 화면에 표시할 버튼 텍스트 |
+| `content` | String | 사용자가 버튼을 클릭했을 때 실제 질문으로 전송할 문장 |
+| `eventTarget` | String | 빠른 질문 클릭 로그 저장 시 사용할 eventTarget 값 |
+
+#### RecommendedContactResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `department` | String | 담당 부서명 |
+| `name` | String | 담당자 이름 |
+| `position` | String | 담당자 직급 |
+| `connects` | Array | 연락 수단 목록 |
+
+#### ContactMethodResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `type` | String | 연락 수단 유형 |
+| `value` | String | 실제 연락 값 |
+
+---
+
+### 6-9. 공통 값 설명
+
+#### senderType
+
+| 값 | 설명 |
+|---|---|
+| `USER` | 사용자 |
+| `BOT` | 챗봇 |
+
+#### messageType
+
+| 값 | 설명 |
+|---|---|
+| `user_question` | 사용자가 입력한 질문 메시지 |
+| `rag_answer` | 문서 기반으로 답변이 생성된 메시지 |
+| `no_result` | 질문 범위는 맞지만 근거 문서나 정보가 부족해 답변하지 못한 메시지 |
+| `out_of_scope` | 서비스 범위를 벗어난 질문에 대한 안내 메시지 |
+| `suggestion` | 온보딩 제안 메시지 |
+
+#### ContactType
+
+| 값 | 설명 |
+|---|---|
+| `slack` | Slack 사용자 또는 채널 연결 정보 |
+| `email` | 이메일 주소 |
+| `phone` | 일반 전화번호 또는 휴대전화번호 |
+| `extension` | 사내 내선 번호 |
 
 #### eventTarget 허용값
 
@@ -1031,60 +1208,71 @@ Content-Type: application/json
 | 📊 수습 평가 기준 다시 보기 | 수습 평가에서 중점적으로 보는 항목이 무엇인가요? | `QUICK_TAP_PROBATION_CHECK` |
 | 🎯 전환 후 평가 방식 | 정규직 전환 후 목표나 평가 방식은 어떻게 되나요? | `QUICK_TAP_KPI` |
 
-#### 설명
-
-- 현재 로그인한 사용자 기준으로 동작한다.
-- 빠른 질문 버튼 클릭 시 `user_activity_logs`에 `event_type = BUTTON_CLICK`으로 기록한다.
-- `event_target`에는 사용자가 클릭한 버튼의 실제 `eventTarget` 값을 저장한다.
-- 저장 항목에는 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
-- 이 API는 클릭 로그만 저장하며, 채팅 메시지 생성이나 AI 답변 생성을 수행하지 않는다.
-- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드가 별도로 `POST /api/v1/chat/messages`를 호출한다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
-
 ---
 
-### 6-6. 채팅 화면 진입 로그 기록
-사용자가 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.  
-이때 `event_target = CHAT`으로 저장한다.  
-단, 동일 사용자가 **30분 이내에 다시 채팅 화면에 진입한 경우** 중복 기록하지 않는다.
+### 6-10. 공통 에러 처리
 
-```http
-POST /api/v1/chat/session-start
-Authorization: Bearer {accessToken}
-```
+인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
-#### Response (201 Created)
+#### Error Response (400 Bad Request)
+
+요청 값이 유효하지 않은 경우 반환한다.
 
 ```json
 {
-  "logged": true,
-  "eventType": "SESSION_START",
-  "eventTarget": "CHAT",
-  "message": null,
-  "createdAt": "2026-04-13T09:00:00Z"
+  "timestamp": "2026-03-25T10:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "content",
+      "message": "질문 내용은 비어 있을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages"
 }
 ```
-#### Response (200 OK, 중복 기록 제외)
+
+#### Error Response (401 Unauthorized)
+
+인증 헤더가 없거나, 토큰이 유효하지 않거나, 토큰이 만료된 경우 반환한다.
+
 ```json
 {
-  "logged": false,
-  "eventType": "SESSION_START",
-  "eventTarget": "CHAT",
-  "message": "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다.",
-  "createdAt": null
+  "timestamp": "2026-03-25T10:30:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "UNAUTHORIZED",
+  "errors": [
+    {
+      "field": "auth",
+      "message": "인증 정보가 유효하지 않습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages"
 }
 ```
 
-#### 설명
+#### Error Response (504 Gateway Timeout)
 
-- 현재 로그인한 사용자 기준으로 동작한다.
-- 채팅 화면 진입 시 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = CHAT`으로 기록한다.
-- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
-- 동일 사용자가 최근 30분 이내에 이미 `event_target = CHAT`인 `SESSION_START` 이벤트를 기록한 경우 새로 저장하지 않는다.
-- 프론트엔드는 채팅 화면 최초 진입 시 이 API를 1회 호출한다.
-- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
-- 채팅 메시지 목록 조회 API(`GET /api/v1/chat/messages`) 호출만으로는 `SESSION_START` 로그를 자동 기록하지 않는다.
-- 채팅 화면 진입 로그는 별도 API(`POST /api/v1/chat/session-start`) 호출로 기록한다.
+AI 답변 생성 시간이 초과된 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-04-16T11:30:00",
+  "status": 504,
+  "error": "Gateway Timeout",
+  "code": "AI_TIMEOUT",
+  "errors": [
+    {
+      "field": "ai",
+      "message": "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."
+    }
+  ],
+  "path": "/api/v1/chat/messages"
+}
+```
 
 ---
 
@@ -1211,15 +1399,15 @@ Content-Type: application/json
       "position": "매니저",
       "connects": [
         {
-          "type": "slack",
+          "type": "SLACK",
           "value": "@jisoo.kim"
         },
         {
-          "type": "email",
+          "type": "EMAIL",
           "value": "jisoo.kim@withbuddy.ai"
         },
         {
-          "type": "extension",
+          "type": "EXTENSION",
           "value": "635"
         }
       ]
@@ -1258,10 +1446,10 @@ Content-Type: application/json
   - `out_of_scope`: 서비스 범위를 벗어난 질문
 
 - `recommendedContacts[].connects[].type`
-  - `slack`: Slack 사용자 또는 채널 연결 정보
-  - `email`: 이메일 주소
-  - `phone`: 일반 전화번호 또는 휴대전화번호
-  - `extension`: 사내 내선 번호
+  - `SLACK`: Slack 사용자 또는 채널 연결 정보
+  - `EMAIL`: 이메일 주소
+  - `PHONE`: 일반 전화번호 또는 휴대전화번호
+  - `EXTENSION`: 사내 내선 번호
 
 #### 동작 규칙
 
@@ -1366,7 +1554,7 @@ Content-Disposition: attachment; filename="welfare-card-application.docx"
 #### Error Response (404 Not Found)
 ```json
 {
-  "timestamp": "2026-04-14T15:30:00Z",
+  "timestamp": "2026-04-14T15:30:00",
   "status": 404,
   "error": "Not Found",
   "code": "NOT_FOUND",
@@ -1383,7 +1571,7 @@ Content-Disposition: attachment; filename="welfare-card-application.docx"
 #### Error Response (400 Bad Request)
 ```json
 {
-  "timestamp": "2026-04-14T15:30:00Z",
+  "timestamp": "2026-04-14T15:30:00",
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",
@@ -1432,7 +1620,7 @@ Authorization: Bearer {accessToken}
 #### Error Response (404 Not Found)
 ```json
 {
-  "timestamp": "2026-04-14T15:30:00Z",
+  "timestamp": "2026-04-14T15:30:00",
   "status": 404,
   "error": "Not Found",
   "code": "NOT_FOUND",
@@ -1449,7 +1637,7 @@ Authorization: Bearer {accessToken}
 #### Error Response (400 Bad Request)
 ```json
 {
-  "timestamp": "2026-04-14T15:30:00Z",
+  "timestamp": "2026-04-14T15:30:00",
   "status": 400,
   "error": "Bad Request",
   "code": "BAD_REQUEST",

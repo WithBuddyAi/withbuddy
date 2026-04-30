@@ -1,17 +1,19 @@
 package com.withbuddy.chat.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageResponse;
-import com.withbuddy.chat.dto.ChatMessageStatusResponse;
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.entity.ChatMessageDocument;
 import com.withbuddy.chat.entity.MessageType;
 import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
-import com.withbuddy.global.exception.UnauthorizedException;
-import com.withbuddy.infrastructure.redis.RedisCacheKeys;
-import com.withbuddy.infrastructure.redis.RedisCacheService;
+import com.withbuddy.onboarding.entity.OnboardingSuggestion;
+import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -26,7 +28,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,21 +35,24 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ChatMessageQueryService {
 
+    private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
+            new TypeReference<>() {};
+
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final RedisCacheService redisCacheService;
+    private final ObjectMapper objectMapper;
+    private final QuickQuestionCatalog quickQuestionCatalog;
+    private final OnboardingSuggestionRepository onboardingSuggestionRepository;
 
     public ChatMessageListResponse getMessages(Long userId, LocalDate date) {
         List<ChatMessage> chatMessages = findChatMessages(userId, date);
-
         if (chatMessages.isEmpty()) {
             return new ChatMessageListResponse(Collections.emptyList());
         }
 
         Map<Long, List<Long>> documentIdsByMessageId = resolveDocumentIdsByMessageId(chatMessages);
-
         List<Long> allDocumentIds = documentIdsByMessageId.values().stream()
                 .flatMap(List::stream)
                 .distinct()
@@ -76,11 +80,11 @@ public class ChatMessageQueryService {
 
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = date.plusDays(1).atStartOfDay();
-
-        return chatMessageRepository
-                .findByUserIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
-                        userId, start, end
-                );
+        return chatMessageRepository.findByUserIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+                userId,
+                start,
+                end
+        );
     }
 
     private Map<Long, List<Long>> resolveDocumentIdsByMessageId(List<ChatMessage> chatMessages) {
@@ -92,9 +96,7 @@ public class ChatMessageQueryService {
                 .map(ChatMessage::getId)
                 .toList();
 
-        List<ChatMessageDocument> mappings =
-                chatMessageDocumentRepository.findByChatMessageIdIn(messageIds);
-
+        List<ChatMessageDocument> mappings = chatMessageDocumentRepository.findByChatMessageIdIn(messageIds);
         return mappings.stream()
                 .sorted(Comparator.comparing(ChatMessageDocument::getId))
                 .collect(Collectors.groupingBy(
@@ -125,30 +127,6 @@ public class ChatMessageQueryService {
                 ));
     }
 
-    private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
-        if (message.getSenderType() != SenderType.BOT || message.getMessageType() != MessageType.no_result) {
-            return Collections.emptyList();
-        }
-
-        return List.of(
-                new ChatMessageResponse.RecommendedContactResponse(
-                        "경영지원팀",
-                        "김지수",
-                        "매니저",
-                        List.of(
-                                new ChatMessageResponse.ContactMethodResponse(
-                                        ChatMessageResponse.ContactMethodResponse.ContactType.EMAIL,
-                                        "jisoo.kim@withbuddy.ai"
-                                ),
-                                new ChatMessageResponse.ContactMethodResponse(
-                                        ChatMessageResponse.ContactMethodResponse.ContactType.SLACK,
-                                        "@jisoo.kim"
-                                )
-                        )
-                )
-        );
-    }
-
     private ChatMessageResponse toResponse(
             ChatMessage message,
             List<Long> documentIds,
@@ -160,9 +138,6 @@ public class ChatMessageQueryService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
-                resolveRecommendedContacts(message);
-
         return new ChatMessageResponse(
                 message.getId(),
                 message.getSuggestionId(),
@@ -170,7 +145,8 @@ public class ChatMessageQueryService {
                 message.getSenderType().name(),
                 message.getMessageType().getValue(),
                 message.getContent(),
-                recommendedContacts,
+                resolveQuickTaps(message),
+                resolveRecommendedContacts(message),
                 message.getCreatedAt().toString()
         );
     }
@@ -186,7 +162,6 @@ public class ChatMessageQueryService {
         }
 
         ChatMessageResponse.FileResponse fileResponse = null;
-
         if ("TEMPLATE".equals(document.getDocumentType())) {
             DocumentFile documentFile = documentFileMap.get(documentId);
             fileResponse = toFileResponse(documentId, documentFile);
@@ -212,44 +187,36 @@ public class ChatMessageQueryService {
         );
     }
 
-    public ChatMessageStatusResponse getMessageStatus(Long userId, Long questionId) {
-        chatMessageRepository.findById(questionId)
-                .filter(message -> userId.equals(message.getUserId()))
-                .orElseThrow(() -> new UnauthorizedException("해당 메시지에 접근 권한이 없습니다."));
-
-        String status = redisCacheService.get(RedisCacheKeys.ragStatus(questionId))
-                .orElse("TIMEOUT");
-
-        if (!"COMPLETED".equals(status)) {
-            return new ChatMessageStatusResponse(status, null);
+    private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {
+        if (message.getMessageType() != MessageType.suggestion || message.getSuggestionId() == null) {
+            return List.of();
         }
 
-        Optional<Long> answerId = redisCacheService.get(ragAnswerIdKey(questionId))
-                .map(Long::parseLong);
-        if (answerId.isEmpty()) {
-            return new ChatMessageStatusResponse("COMPLETED", null);
+        OnboardingSuggestion suggestion = onboardingSuggestionRepository.findById(message.getSuggestionId())
+                .orElse(null);
+        if (suggestion == null) {
+            return List.of();
         }
 
-        Optional<ChatMessage> answer = chatMessageRepository.findById(answerId.get());
-        if (answer.isEmpty()) {
-            return new ChatMessageStatusResponse("COMPLETED", null);
-        }
-
-        List<Long> documentIds = chatMessageDocumentRepository
-                .findByChatMessageIdIn(List.of(answerId.get()))
-                .stream()
-                .map(ChatMessageDocument::getDocumentId)
-                .toList();
-        Map<Long, Document> documentMap = resolveDocumentMap(documentIds);
-        Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(documentIds);
-
-        return new ChatMessageStatusResponse(
-                "COMPLETED",
-                toResponse(answer.get(), documentIds, documentMap, documentFileMap)
-        );
+        return quickQuestionCatalog.getOnboardingQuickTaps(suggestion.getDayOffset());
     }
 
-    private static String ragAnswerIdKey(Long questionId) {
-        return "rag:answer:" + questionId;
+    private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
+        if (message.getSenderType() != SenderType.BOT) {
+            return List.of();
+        }
+        return deserializeRecommendedContacts(message.getRecommendedContactsJson());
+    }
+
+    private List<ChatMessageResponse.RecommendedContactResponse> deserializeRecommendedContacts(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            return objectMapper.readValue(json, RECOMMENDED_CONTACTS_TYPE);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize recommended contacts.", e);
+        }
     }
 }
