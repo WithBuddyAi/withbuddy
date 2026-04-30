@@ -5,7 +5,6 @@ import com.withbuddy.chat.service.ChatMessageService;
 import com.withbuddy.chat.service.QuickQuestionCatalog;
 import com.withbuddy.company.entity.Company;
 import com.withbuddy.infrastructure.mq.NudgeEventPublisher;
-import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.onboarding.dto.OnboardingSuggestionItemResponse;
 import com.withbuddy.onboarding.dto.OnboardingSuggestionListResponse;
 import com.withbuddy.onboarding.entity.OnboardingSuggestion;
@@ -23,7 +22,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,9 +41,6 @@ class OnboardingSuggestionServiceTest {
     private ChatMessageService chatMessageService;
 
     @Mock
-    private RedisCacheService redisCacheService;
-
-    @Mock
     private NudgeEventPublisher nudgeEventPublisher;
 
     @Test
@@ -56,7 +51,6 @@ class OnboardingSuggestionServiceTest {
                 onboardingSuggestionRepository,
                 chatMessageService,
                 quickQuestionCatalog,
-                redisCacheService,
                 nudgeEventPublisher
         );
 
@@ -67,15 +61,15 @@ class OnboardingSuggestionServiceTest {
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(user.getHireDate()).thenReturn(hireDate);
-        when(user.getName()).thenReturn("김지원");
+        when(user.getName()).thenReturn("Tester");
         when(user.getCompany()).thenReturn(company);
-        when(company.getName()).thenReturn("위드버디");
+        when(company.getName()).thenReturn("WithBuddy");
         when(onboardingSuggestionRepository.findTopByDayOffset(0)).thenReturn(Optional.of(suggestion));
+        when(chatMessageService.hasSuggestionMessageToday(1L, LocalDate.now(KST), KST)).thenReturn(false);
         when(suggestion.getId()).thenReturn(99L);
-        when(suggestion.getTitle()).thenReturn("입사 당일");
-        when(suggestion.getContent()).thenReturn("{N}일차 온보딩 안내");
+        when(suggestion.getTitle()).thenReturn("Day 1");
+        when(suggestion.getContent()).thenReturn("{N}day onboarding guide");
         when(suggestion.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 3, 20, 9, 0));
-        when(redisCacheService.putIfAbsent(any(), eq("1"), any())).thenReturn(true);
 
         OnboardingSuggestionListResponse response = onboardingSuggestionService.getMyOnboardingSuggestions(1L);
 
@@ -83,7 +77,7 @@ class OnboardingSuggestionServiceTest {
 
         OnboardingSuggestionItemResponse item = response.getSuggestions().getFirst();
         assertThat(item.getDayOffset()).isEqualTo(0);
-        assertThat(item.getContent()).isEqualTo("1일차 온보딩 안내");
+        assertThat(item.getContent()).isEqualTo("1day onboarding guide");
         assertThat(item.getQuickTaps()).hasSize(3);
         assertThat(item.getQuickTaps())
                 .extracting("eventTarget")
@@ -101,7 +95,6 @@ class OnboardingSuggestionServiceTest {
                 onboardingSuggestionRepository,
                 chatMessageService,
                 quickQuestionCatalog,
-                redisCacheService,
                 nudgeEventPublisher
         );
 
@@ -120,29 +113,24 @@ class OnboardingSuggestionServiceTest {
     }
 
     @Test
-    void returnsEmptyWhenSuggestionAlreadyShownToday() {
+    void returnsEmptyWhenSuggestionAlreadySavedToday() {
         QuickQuestionCatalog quickQuestionCatalog = new QuickQuestionCatalog();
         OnboardingSuggestionService onboardingSuggestionService = new OnboardingSuggestionService(
                 userRepository,
                 onboardingSuggestionRepository,
                 chatMessageService,
                 quickQuestionCatalog,
-                redisCacheService,
                 nudgeEventPublisher
         );
 
         User user = org.mockito.Mockito.mock(User.class);
-        Company company = org.mockito.Mockito.mock(Company.class);
         OnboardingSuggestion suggestion = org.mockito.Mockito.mock(OnboardingSuggestion.class);
         LocalDate hireDate = LocalDate.now(KST);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(user.getHireDate()).thenReturn(hireDate);
-        when(user.getName()).thenReturn("김지원");
-        when(user.getCompany()).thenReturn(company);
-        when(company.getName()).thenReturn("위드버디");
         when(onboardingSuggestionRepository.findTopByDayOffset(0)).thenReturn(Optional.of(suggestion));
-        when(redisCacheService.putIfAbsent(any(), eq("1"), any())).thenReturn(false);
+        when(chatMessageService.hasSuggestionMessageToday(1L, LocalDate.now(KST), KST)).thenReturn(true);
 
         OnboardingSuggestionListResponse response = onboardingSuggestionService.getMyOnboardingSuggestions(1L);
 
