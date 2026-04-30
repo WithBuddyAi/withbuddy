@@ -24,23 +24,23 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-@Tag(name = "Chat", description = "踰꾨뵒 梨꾪똿 API ???섏뒿?ъ썝??AI 踰꾨뵒? ??뷀븯怨??⑤낫???뺣낫瑜??삳뒗 ?듭떖 梨꾨꼸")
+@Tag(name = "Chat", description = "버디 채팅 API — 수습사원이 AI 버디와 대화하고 온보딩 정보를 얻는 핵심 채널")
 public interface ChatMessageControllerDocs {
 
     @Operation(
-        summary = "硫붿떆吏 ?꾩넚 諛?AI ?듬? ?붿껌",
+        summary = "메시지 전송 및 AI 답변 요청",
         description = """
-            [紐⑹쟻] ?섏뒿?ъ썝??吏덈Ц????ν븯怨?AI ?쒕쾭(RAG)???듬????붿껌?쒕떎.
-            [踰좊꽕?? ?щ궡 臾몄꽌 湲곕컲???뺥솗??AI ?듬???利됱떆 ?쒓났???섏뒿?ъ썝???ъ닔??HR ?놁씠??\
-            ?⑤낫??愿???뺣낫瑜??먭린 二쇰룄?곸쑝濡??닿껐?????덈떎. \
-            ?듬?怨??④퍡 愿??臾몄꽌 ID媛 諛섑솚?섏뼱 異쒖쿂瑜?異붿쟻?????덈떎."""
+            [목적] 수습사원의 질문을 저장하고 AI 서버(RAG)에 답변을 요청한다.
+            [베네핏] 사내 문서 기반의 정확한 AI 답변을 즉시 제공해 수습사원이 사수나 HR 없이도 \
+            온보딩 관련 정보를 자기 주도적으로 해결할 수 있다. \
+            답변과 함께 관련 문서 ID가 반환되어 출처를 추적할 수 있다."""
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "硫붿떆吏 ?꾩넚 諛?AI ?듬? ?앹꽦 ?깃났",
+        @ApiResponse(responseCode = "201", description = "메시지 전송 및 AI 답변 생성 성공",
                 content = @Content(schema = @Schema(implementation = ChatMessageCreateResponse.class))),
-        @ApiResponse(responseCode = "401", description = "?몄쬆 ?ㅽ뙣 ???좏슚?섏? ?딆? ?좏겙",
+        @ApiResponse(responseCode = "401", description = "인증 실패 — 유효하지 않은 토큰",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "504", description = "AI ?쒕쾭 ?묐떟 ?쒓컙 珥덇낵",
+        @ApiResponse(responseCode = "504", description = "AI 서버 응답 시간 초과",
                 content = @Content(
                         schema = @Schema(implementation = ErrorResponse.class),
                         examples = @ExampleObject(value = """
@@ -49,7 +49,7 @@ public interface ChatMessageControllerDocs {
                                   "status": 504,
                                   "error": "Gateway Timeout",
                                   "code": "AI_TIMEOUT",
-                                  "errors": [{"field": "ai", "message": "AI ?듬? ?앹꽦 ?쒓컙??珥덇낵?섏뿀?듬땲?? ?좎떆 ???ㅼ떆 ?쒕룄??二쇱꽭??"}],
+                                  "errors": [{"field": "ai", "message": "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."}],
                                   "path": "/api/v1/chat/messages"
                                 }""")))
     })
@@ -59,17 +59,17 @@ public interface ChatMessageControllerDocs {
     );
 
     @Operation(
-        summary = "????대젰 議고쉶",
-        description = """
-            [紐⑹쟻] 濡쒓렇?명븳 ?ъ슜?먯쓽 ?꾩껜 ?먮뒗 ?뱀젙 ?좎쭨??????대젰??議고쉶?쒕떎.
-            [踰좊꽕?? ?댁쟾 ????댁슜??蹂듭썝???곗냽?곸씤 ???寃쏀뿕???쒓났?쒕떎. \
-            ?좎쭨 ?꾪꽣(date ?뚮씪誘명꽣)瑜??ъ슜?섎㈃ ?뱀젙 ?쇱옄????붾쭔 議고쉶?????덉뼱 \
-            ?⑤낫??吏꾪뻾 ?먮쫫???쇱옄蹂꾨줈 ?뚯븙?????덈떎."""
+            summary = "대화 이력 조회",
+            description = """
+            [목적] 로그인한 사용자의 전체 또는 특정 날짜의 대화 이력을 조회한다.
+            [베네핏] 이전 대화 내용을 복원해 연속적인 대화 경험을 제공한다. \
+            날짜 필터(date 파라미터)를 사용하면 특정 일자의 대화만 조회할 수 있어 \
+            온보딩 진행 흐름을 일자별로 파악할 수 있다."""
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "????대젰 議고쉶 ?깃났",
+        @ApiResponse(responseCode = "200", description = "대화 이력 조회 성공",
                 content = @Content(schema = @Schema(implementation = ChatMessageListResponse.class))),
-        @ApiResponse(responseCode = "401", description = "?몄쬆 ?ㅽ뙣 ???좏슚?섏? ?딆? ?좏겙",
+        @ApiResponse(responseCode = "401", description = "인증 실패 — 유효하지 않은 토큰",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ChatMessageListResponse getMessages(
@@ -78,16 +78,16 @@ public interface ChatMessageControllerDocs {
     );
 
     @Operation(
-        summary = "梨꾪똿 ?몄뀡 ?쒖옉 濡쒓퉭",
-        description = """
-            [紐⑹쟻] ?섏뒿?ъ썝??梨꾪똿???쒖옉???쒖젏??湲곕줉?쒕떎. ?섎（ 1?뚮쭔 湲곕줉?쒕떎.
-            [踰좊꽕?? ?섏뒿?ъ썝??梨쀫큸 ?쒖슜 鍮덈룄? ?⑦꽩??遺꾩꽍???⑤낫??李몄뿬?꾨? 痢≪젙?????덈떎. \
-            ???곗씠?곕? 湲곕컲?쇰줈 梨쀫큸 誘명솢?⑹옄瑜?議곌린???앸퀎?섍퀬 媛쒖엯?????덈떎."""
+            summary = "채팅 세션 시작 로깅",
+            description = """
+            [목적] 수습사원이 채팅을 시작한 시점을 기록한다. 하루 1회만 기록된다.
+            [베네핏] 수습사원의 챗봇 활용 빈도와 패턴을 분석해 온보딩 참여도를 측정할 수 있다. \
+            이 데이터를 기반으로 챗봇 미활용자를 조기에 식별하고 개입할 수 있다."""
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "?몄뀡 ?쒖옉 理쒖큹 湲곕줉"),
-        @ApiResponse(responseCode = "200", description = "?대? ?ㅻ뒛 湲곕줉??(以묐났 濡쒓퉭 諛⑹?)"),
-        @ApiResponse(responseCode = "401", description = "?몄쬆 ?ㅽ뙣",
+            @ApiResponse(responseCode = "201", description = "세션 시작 최초 기록"),
+            @ApiResponse(responseCode = "200", description = "이미 오늘 기록됨 (중복 로깅 방지)"),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<LogResponse> saveSessionStart(
@@ -95,16 +95,16 @@ public interface ChatMessageControllerDocs {
     );
 
     @Operation(
-        summary = "異붿쿇 吏덈Ц 紐⑸줉 議고쉶",
-        description = """
-            [紐⑹쟻] ?섏뒿?ъ썝?먭쾶 梨쀫큸?먯꽌 臾쇱뼱蹂????덈뒗 ???吏덈Ц 紐⑸줉???쒓났?쒕떎.
-            [踰좊꽕?? ?대뼡 吏덈Ц???댁빞 ?좎? 紐⑤Ⅴ???섏뒿?ъ썝??吏꾩엯 ?λ꼍????텛怨?\
-            梨쀫큸 泥??ъ슜???좊룄?쒕떎. 異붿쿇 吏덈Ц ?대┃留뚯쑝濡??좎쓽誘명븳 ?듬????살쓣 ???덉뼱 \
-            珥덇린 ?⑤낫???꾨즺?⑥쓣 ?믪씠????湲곗뿬?쒕떎."""
+            summary = "추천 질문 목록 조회",
+            description = """
+            [목적] 수습사원에게 챗봇에서 물어볼 수 있는 대표 질문 목록을 제공한다.
+            [베네핏] 어떤 질문을 해야 할지 모르는 수습사원의 진입 장벽을 낮추고 \
+            챗봇 첫 사용을 유도한다. 추천 질문 클릭만으로 유의미한 답변을 얻을 수 있어 \
+            초기 온보딩 완료율을 높이는 데 기여한다."""
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "異붿쿇 吏덈Ц 紐⑸줉 諛섑솚"),
-        @ApiResponse(responseCode = "401", description = "?몄쬆 ?ㅽ뙣",
+            @ApiResponse(responseCode = "200", description = "추천 질문 목록 반환"),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     Map<String, List<QuickQuestionResponse>> getQuickQuestions(
@@ -112,16 +112,16 @@ public interface ChatMessageControllerDocs {
     );
 
     @Operation(
-        summary = "異붿쿇 吏덈Ц ?대┃ 濡쒓퉭",
-        description = """
-            [紐⑹쟻] ?섏뒿?ъ썝??異붿쿇 吏덈Ц???대┃???됰룞??湲곕줉?쒕떎.
-            [踰좊꽕?? ?대뼡 異붿쿇 吏덈Ц???먯＜ ?좏깮?섎뒗吏 ?곗씠?곕? ?섏쭛??\
-            肄섑뀗痢????異붿쿇 吏덈Ц 紐⑸줉??吏?띿쟻?쇰줈 媛쒖꽑?????덈떎. \
-            ?대┃ ?곗씠?곕뒗 ?⑤낫??肄섑뀗痢??④낵 痢≪젙??吏?쒕줈 ?쒖슜?쒕떎."""
+            summary = "추천 질문 클릭 로깅",
+            description = """
+            [목적] 수습사원이 추천 질문을 클릭한 행동을 기록한다.
+            [베네핏] 어떤 추천 질문이 자주 선택되는지 데이터를 수집해 \
+            콘텐츠 팀이 추천 질문 목록을 지속적으로 개선할 수 있다. \
+            클릭 데이터는 온보딩 콘텐츠 효과 측정의 지표로 활용된다."""
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "?대┃ 濡쒓렇 湲곕줉 ?깃났"),
-        @ApiResponse(responseCode = "401", description = "?몄쬆 ?ㅽ뙣",
+            @ApiResponse(responseCode = "201", description = "클릭 로그 기록 성공"),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     LogResponse saveQuickQuestionClick(
