@@ -373,7 +373,7 @@ def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
     return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
@@ -443,7 +443,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
-    company_name = _get_company_name(company_code)
+    company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
@@ -493,7 +493,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     return answer, source_names, related_docs, doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None)을 yield하고, 마지막에 ("", source_names, related_docs)를 yield합니다.
@@ -570,7 +570,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
-    company_name = _get_company_name(company_code)
+    company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
