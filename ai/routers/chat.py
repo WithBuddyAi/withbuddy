@@ -198,6 +198,7 @@ class InternalAIAnswerUser(BaseModel):
     userId: int
     name: str = ""
     companyCode: str = ""
+    companyName: str = ""
 
 
 class ConversationTurn(BaseModel):
@@ -290,6 +291,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
                     lambda: run_rag_chain(
                         str(request.user.userId), in_query,
                         user_name=user_name, company_code=company_code,
+                        company_name=request.user.companyName,
                         injected_history=injected_history,
                     )
                 )
@@ -407,6 +409,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "message": request.content,
                     "user_style": "",
                     "chat_history": history_text,
+                    "company_name": request.user.companyName or _get_company_name(request.user.companyCode),
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
@@ -462,6 +465,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     rag_query,
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
+                    company_name=request.user.companyName,
                     injected_history=injected_history,
                 )
             )
