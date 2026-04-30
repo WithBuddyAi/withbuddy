@@ -1,5 +1,6 @@
 package com.withbuddy.chat.service;
 
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.infrastructure.ai.client.AiClient;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
@@ -13,7 +14,7 @@ import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.withbuddy.global.jwt.JwtService;
+import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.AiUserContext;
@@ -55,19 +56,20 @@ public class ChatMessageService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final JwtService jwtService;
     private final AiClient aiClient;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final AsyncAiCallService asyncAiCallService;
+    private final QuickQuestionCatalog quickQuestionCatalog;
 
-    public ChatMessageCreateResponse saveUserMessage(String bearerToken, ChatMessageRequest request) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long loginUserId = jwtService.getUserId(token);
-        String loginUserName = jwtService.getName(token);
-        String companyCode = jwtService.getCompanyCode(token);
-        List<ConversationTurn> conversationHistory = resolveConversationHistory(loginUserId);
+    public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
+        Long loginUserId = principal.userId();
+        String loginUserName = principal.name();
+        String companyCode = principal.companyCode();
+        List<ConversationTurn> conversationHistory = sanitizeConversationHistoryForAi(
+                resolveConversationHistory(loginUserId)
+        );
 
         ChatMessage savedQuestionMessage = transactionTemplate.execute(status -> saveQuestionMessage(loginUserId, request.getContent()));
         if (savedQuestionMessage == null) {
@@ -156,6 +158,17 @@ public class ChatMessageService {
                 ),
                 "COMPLETED"
         );
+    }
+
+    private List<ConversationTurn> sanitizeConversationHistoryForAi(List<ConversationTurn> history) {
+        if (history == null || history.isEmpty()) {
+            return List.of();
+        }
+
+        return history.stream()
+                .filter(Objects::nonNull)
+                .filter(turn -> isValidRole(turn.role()) && hasText(turn.content()))
+                .toList();
     }
 
     private ChatMessage saveQuestionMessage(Long userId, String content) {
@@ -510,19 +523,10 @@ public class ChatMessageService {
         );
     }
 
-    public Map<String, List<Map<String, String>>> getQuickQuestions(String bearerToken) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
-
+    public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
         return Map.of(
                 "quickQuestions",
-                List.of(
-                        Map.of("content", "연차는 어떻게 신청하나요?"),
-                        Map.of("content", "급여일이 언제인가요?"),
-                        Map.of("content", "건강검진은 어떻게 받나요?"),
-                        Map.of("content", "재직증명서 신청 방법 알려줘요"),
-                        Map.of("content", "장비 세팅하는 방법 알려주세요")
-                )
+                quickQuestionCatalog.getRandomQuickQuestions(5)
         );
     }
 }

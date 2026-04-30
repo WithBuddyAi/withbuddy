@@ -10,7 +10,6 @@ import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.global.exception.UnauthorizedException;
-import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.storage.entity.Document;
@@ -22,7 +21,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,13 +38,9 @@ public class ChatMessageQueryService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final JwtService jwtService;
     private final RedisCacheService redisCacheService;
 
-    public ChatMessageListResponse getMessages(String bearerToken, LocalDate date) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
-
+    public ChatMessageListResponse getMessages(Long userId, LocalDate date) {
         List<ChatMessage> chatMessages = findChatMessages(userId, date);
 
         if (chatMessages.isEmpty()) {
@@ -212,10 +212,7 @@ public class ChatMessageQueryService {
         );
     }
 
-    public ChatMessageStatusResponse getMessageStatus(String bearerToken, Long questionId) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
-
+    public ChatMessageStatusResponse getMessageStatus(Long userId, Long questionId) {
         chatMessageRepository.findById(questionId)
                 .filter(message -> userId.equals(message.getUserId()))
                 .orElseThrow(() -> new UnauthorizedException("해당 메시지에 접근 권한이 없습니다."));

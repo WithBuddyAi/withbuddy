@@ -3,13 +3,14 @@ package com.withbuddy.onboarding.controller;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.onboarding.dto.OnboardingSuggestionListResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.security.core.Authentication;
 
 @Tag(name = "Onboarding", description = "온보딩 제안 API — 수습사원 개인화 온보딩 체크리스트 제공")
 public interface OnboardingSuggestionControllerDocs {
@@ -29,6 +30,6 @@ public interface OnboardingSuggestionControllerDocs {
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<OnboardingSuggestionListResponse> getMyOnboardingSuggestions(
-            @RequestHeader("Authorization") String authorizationHeader
+            @Parameter(hidden = true) Authentication authentication
     );
 }
