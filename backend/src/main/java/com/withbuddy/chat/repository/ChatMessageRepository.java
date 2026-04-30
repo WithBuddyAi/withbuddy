@@ -30,4 +30,11 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             Long suggestionId,
             MessageType messageType
     );
+
+    boolean existsByUserIdAndMessageTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            Long userId,
+            MessageType messageType,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 }

@@ -16,7 +16,6 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
-from core.semantic_cache import get_semantic_cache
 from core.vectorstore import search_with_company_fallback, search_legal_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
@@ -373,7 +372,7 @@ def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
     return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
@@ -393,13 +392,6 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     ambiguous = _check_ambiguous(question)
     if ambiguous:
         return ambiguous, "", [], []
-
-    # 시맨틱 캐시 체크
-    cached = get_semantic_cache().get(question, company_code)
-    if cached:
-        answer, source, related_docs, doc_ids = cached
-        save_interaction(user_id, question, answer)
-        return answer, source, related_docs, doc_ids
 
     # 복합 질문 분리 검색: "?" / "그리고" / "이랑" / "이 궁금하고" 패턴으로 분리
     sub_questions = [q.strip() for q in re.split(
@@ -443,7 +435,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
-    company_name = _get_company_name(company_code)
+    company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
@@ -486,14 +478,10 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
 
-    # 캐시 저장 (미답변 제외)
-    if not _is_unanswered(answer, retrieved_docs):
-        get_semantic_cache().set(question, company_code, answer, source_names, related_docs, doc_ids)
-
     return answer, source_names, related_docs, doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None)을 yield하고, 마지막에 ("", source_names, related_docs)를 yield합니다.
@@ -514,16 +502,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield ambiguous, None, None   # 텍스트로 전송
         yield "", "", []              # done 시그널
         return
-
-    # 시맨틱 캐시 체크
-    cached = get_semantic_cache().get(question, company_code)
-    if cached:
-        answer, source, related_docs, doc_ids = cached
-        save_interaction(user_id, question, answer)
-        yield answer, None, None
-        yield "", source, related_docs
-        return
-
 
     yield "__STAGE__searching", None, None
 
@@ -571,7 +549,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
-    company_name = _get_company_name(company_code)
+    company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
@@ -631,9 +609,5 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     save_interaction(user_id, question, fixed)
     related_docs = find_related_docs(question)
-
-    # 캐시 저장 (미답변 제외)
-    if not _is_unanswered(fixed, retrieved_docs):
-        get_semantic_cache().set(question, company_code, fixed, source_names, related_docs, [])
 
     yield "", source_names, related_docs
