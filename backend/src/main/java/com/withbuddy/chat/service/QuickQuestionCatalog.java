@@ -107,16 +107,16 @@ public class QuickQuestionCatalog {
         Map<Integer, List<EventTarget>> map = new LinkedHashMap<>();
 
         map.put(-7, List.of(EventTarget.QUICK_TAP_LOCATION, EventTarget.QUICK_TAP_WORK_HOUR, EventTarget.QUICK_TAP_DRESSCODE));
-        map.put(-1, List.of(EventTarget.QUICK_TAP_FIRST_DAY, EventTarget.QUICK_TAP_ACCESS, EventTarget.QUICK_TAP_DOCS));
+        map.put(-3, List.of(EventTarget.QUICK_TAP_FIRST_DAY, EventTarget.QUICK_TAP_ACCESS, EventTarget.QUICK_TAP_DOCS));
         map.put(0, List.of(EventTarget.QUICK_TAP_IT_SETUP, EventTarget.QUICK_TAP_EQUIPMENT, EventTarget.QUICK_TAP_LEAVE_START));
-        map.put(2, List.of(EventTarget.QUICK_TAP_PRINTER, EventTarget.QUICK_TAP_MEETING_ROOM, EventTarget.QUICK_TAP_MEAL));
-        map.put(3, List.of(EventTarget.QUICK_TAP_WELFARE, EventTarget.QUICK_TAP_EXPENSE, EventTarget.QUICK_TAP_SECURITY));
-        map.put(5, List.of(EventTarget.QUICK_TAP_LATE, EventTarget.QUICK_TAP_HALF_DAY, EventTarget.QUICK_TAP_SICK));
-        map.put(7, List.of(EventTarget.QUICK_TAP_APPROVAL, EventTarget.QUICK_TAP_SYSTEM_AUTH, EventTarget.QUICK_TAP_REMOTE));
-        map.put(10, List.of(EventTarget.QUICK_TAP_WELFARE_WHEN, EventTarget.QUICK_TAP_RECEIPT, EventTarget.QUICK_TAP_REPORT));
-        map.put(14, List.of(EventTarget.QUICK_TAP_WELFARE_APPLY, EventTarget.QUICK_TAP_SALARY, EventTarget.QUICK_TAP_PROBATION));
-        map.put(21, List.of(EventTarget.QUICK_TAP_LEAVE_REQ, EventTarget.QUICK_TAP_HEALTH, EventTarget.QUICK_TAP_EDUCATION));
-        map.put(30, List.of(EventTarget.QUICK_TAP_CONVERT, EventTarget.QUICK_TAP_PROBATION_CHECK, EventTarget.QUICK_TAP_KPI));
+        map.put(1, List.of(EventTarget.QUICK_TAP_PRINTER, EventTarget.QUICK_TAP_MEETING_ROOM, EventTarget.QUICK_TAP_MEAL));
+        map.put(2, List.of(EventTarget.QUICK_TAP_WELFARE, EventTarget.QUICK_TAP_EXPENSE, EventTarget.QUICK_TAP_SECURITY));
+        map.put(4, List.of(EventTarget.QUICK_TAP_LATE, EventTarget.QUICK_TAP_HALF_DAY, EventTarget.QUICK_TAP_SICK));
+        map.put(6, List.of(EventTarget.QUICK_TAP_APPROVAL, EventTarget.QUICK_TAP_SYSTEM_AUTH, EventTarget.QUICK_TAP_REMOTE));
+        map.put(9, List.of(EventTarget.QUICK_TAP_WELFARE_WHEN, EventTarget.QUICK_TAP_RECEIPT, EventTarget.QUICK_TAP_REPORT));
+        map.put(13, List.of(EventTarget.QUICK_TAP_WELFARE_APPLY, EventTarget.QUICK_TAP_SALARY, EventTarget.QUICK_TAP_PROBATION));
+        map.put(20, List.of(EventTarget.QUICK_TAP_LEAVE_REQ, EventTarget.QUICK_TAP_HEALTH, EventTarget.QUICK_TAP_EDUCATION));
+        map.put(29, List.of(EventTarget.QUICK_TAP_CONVERT, EventTarget.QUICK_TAP_PROBATION_CHECK, EventTarget.QUICK_TAP_KPI));
 
         return Map.copyOf(map);
     }
