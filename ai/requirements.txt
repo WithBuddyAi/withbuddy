@@ -39,6 +39,11 @@ python-dotenv>=1.0.0
 plotly>=5.18.0                    # 차트 생성
 kaleido>=0.2.1                    # Plotly → PNG 정적 이미지 변환
 
+# ── Redis / RabbitMQ ─────────────────────────
+redis>=5.0.0                      # Redis 클라이언트 (대화 히스토리 영속화)
+aio-pika>=9.0.0                   # RabbitMQ 비동기 클라이언트 (nudge 발행)
+langchain-redis>=0.1.0            # LangChain RedisChatMessageHistory
+
 # ── 데이터 유효성 검사 ───────────────────────
 pydantic>=2.8.0
 

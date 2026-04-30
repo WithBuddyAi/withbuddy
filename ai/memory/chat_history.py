@@ -1,95 +1,59 @@
 """
 대화 히스토리 관리 모듈
 ────────────────────────────────────────────
-사용자별 멀티턴 대화를 관리합니다.
-JSON 파일로 영속화하여 서버 재시작 후에도 이전 대화가 유지됩니다.
-data/history/{user_id}.json 에 저장됩니다.
+Redis 기반 영속화. 서버 재시작·다중 인스턴스 환경에서도 히스토리 유지.
+Key 규칙: withbuddy:history:{user_id}
+TTL    : 7일 (마지막 대화로부터 갱신)
 """
 
-import json
-from pathlib import Path
-from typing import Dict, List
+from typing import List
 
-from langchain_core.chat_history import InMemoryChatMessageHistory
+from langchain_community.chat_message_histories import RedisChatMessageHistory
 from langchain_core.messages import BaseMessage
 
-# 히스토리 저장 디렉토리
-_HISTORY_DIR = Path(__file__).parent.parent / "data" / "history"
-_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
-
-# 인메모리 캐시: 파일을 매번 읽지 않기 위해 한 번 로드 후 캐시
-_memory_store: Dict[str, InMemoryChatMessageHistory] = {}
-
-_MAX_TURNS = 5  # 최대 유지 대화 쌍 수
+from core.config import HISTORY_MAX_TURNS, HISTORY_TTL, REDIS_URL
 
 
-def _history_path(user_id: str) -> Path:
-    return _HISTORY_DIR / f"{user_id}.json"
-
-
-def _load_from_file(user_id: str) -> InMemoryChatMessageHistory:
-    mem = InMemoryChatMessageHistory()
-    path = _history_path(user_id)
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            for item in data:
-                if item.get("role") == "human":
-                    mem.add_user_message(item["content"])
-                elif item.get("role") == "ai":
-                    mem.add_ai_message(item["content"])
-        except Exception:
-            pass
-    return mem
-
-
-def _save_to_file(user_id: str, mem: InMemoryChatMessageHistory) -> None:
-    data = [
-        {"role": "human" if msg.type == "human" else "ai", "content": msg.content}
-        for msg in mem.messages
-    ]
-    _history_path(user_id).write_text(
-        json.dumps(data, ensure_ascii=False), encoding="utf-8"
+def _get_redis_history(user_id: str) -> RedisChatMessageHistory:
+    return RedisChatMessageHistory(
+        session_id=user_id,
+        url=REDIS_URL,
+        key_prefix="withbuddy:history:",
+        ttl=HISTORY_TTL,
     )
 
 
-def get_memory(user_id: str) -> InMemoryChatMessageHistory:
-    if user_id not in _memory_store:
-        _memory_store[user_id] = _load_from_file(user_id)
-    return _memory_store[user_id]
+def get_memory(user_id: str) -> RedisChatMessageHistory:
+    return _get_redis_history(user_id)
 
 
 def get_chat_history(user_id: str) -> List[BaseMessage]:
-    return get_memory(user_id).messages
+    return _get_redis_history(user_id).messages[-HISTORY_MAX_TURNS * 2:]
 
 
 def save_interaction(user_id: str, human_message: str, ai_message: str) -> None:
-    mem = get_memory(user_id)
-    mem.add_user_message(human_message)
-    mem.add_ai_message(ai_message)
-
-    # 오래된 메시지 정리
-    max_messages = _MAX_TURNS * 2
-    if len(mem.messages) > max_messages:
-        mem.messages = mem.messages[-max_messages:]
-
-    _save_to_file(user_id, mem)
+    history = _get_redis_history(user_id)
+    history.add_user_message(human_message)
+    history.add_ai_message(ai_message)
+    messages = history.messages
+    if len(messages) > HISTORY_MAX_TURNS * 2:
+        history.clear()
+        for msg in messages[-(HISTORY_MAX_TURNS * 2):]:
+            if msg.type == "human":
+                history.add_user_message(msg.content)
+            else:
+                history.add_ai_message(msg.content)
 
 
 def clear_memory(user_id: str) -> None:
-    if user_id in _memory_store:
-        _memory_store[user_id].clear()
-    path = _history_path(user_id)
-    if path.exists():
-        path.unlink()
+    _get_redis_history(user_id).clear()
 
 
 def get_history_as_text(user_id: str) -> str:
     messages = get_chat_history(user_id)
     if not messages:
         return "대화 내역이 없습니다."
-    lines = []
-    for msg in messages:
-        role = "사용자" if msg.type == "human" else "AI"
-        lines.append(f"{role}: {msg.content}")
-    return "\n".join(lines)
+    return "\n".join(
+        f"{'사용자' if msg.type == 'human' else 'AI'}: {msg.content}"
+        for msg in messages
+    )
