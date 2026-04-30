@@ -1,14 +1,12 @@
 package com.withbuddy.chat.controller;
 
 import com.withbuddy.activity.dto.LogResponse;
-import com.withbuddy.activity.entity.EventTarget;
-import com.withbuddy.activity.entity.EventType;
-import com.withbuddy.activity.log.RedisActivityLogService;
-import com.withbuddy.activity.log.RmqActivityLogService;
 import com.withbuddy.activity.service.UserActivityLogService;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
+import com.withbuddy.chat.dto.QuickQuestionClickRequest;
 import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.chat.service.ChatMessageQueryService;
 import com.withbuddy.chat.service.ChatMessageService;
@@ -38,13 +36,11 @@ import java.util.Map;
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
 @Tag(name = "Ai", description = "버디 채팅 API")
-public class ChatMessageController {
+public class ChatMessageController implements ChatMessageControllerDocs {
 
     private final ChatMessageService chatMessageService;
     private final ChatMessageQueryService chatMessageQueryService;
     private final UserActivityLogService userActivityLogService;
-    private final RedisActivityLogService redisActivityLogService;
-    private final RmqActivityLogService rmqActivityLogService;
 
     @PostMapping("/messages")
     @ResponseStatus(HttpStatus.CREATED)
@@ -71,10 +67,6 @@ public class ChatMessageController {
     public ResponseEntity<LogResponse> saveSessionStart(Authentication authentication) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         LogResponse response = userActivityLogService.saveChatSessionStart(principal.userId());
-        if (response.isLogged()) {
-            redisActivityLogService.append(principal.userId(), EventType.SESSION_START, EventTarget.CHAT);
-            rmqActivityLogService.publish(principal.userId(), EventType.SESSION_START, EventTarget.CHAT);
-        }
 
         if (response.isLogged()) {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -85,19 +77,19 @@ public class ChatMessageController {
 
     @GetMapping("/quick-questions")
     @ResponseStatus(HttpStatus.OK)
-    public Map<String, List<Map<String, String>>> getQuickQuestions(Authentication authentication) {
+    public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Authentication authentication) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         return chatMessageService.getQuickQuestions(principal.userId());
     }
 
     @PostMapping("/quick-questions/click")
     @ResponseStatus(HttpStatus.CREATED)
-    public LogResponse saveQuickQuestionClick(Authentication authentication) {
+    public LogResponse saveQuickQuestionClick(
+            Authentication authentication,
+            @Valid @RequestBody QuickQuestionClickRequest request
+    ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
-        LogResponse response = userActivityLogService.saveQuickQuestionClick(principal.userId());
-        redisActivityLogService.append(principal.userId(), EventType.BUTTON_CLICK, EventTarget.QUICK_TAP);
-        rmqActivityLogService.publish(principal.userId(), EventType.BUTTON_CLICK, EventTarget.QUICK_TAP);
-        return response;
+        return userActivityLogService.saveQuickQuestionClick(principal.userId(), request.getEventTarget());
     }
 
     @GetMapping("/messages/{questionId}/status")

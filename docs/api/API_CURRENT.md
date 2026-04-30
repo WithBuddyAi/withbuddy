@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 >
-**버전**: 1.7.9
-**최종 업데이트**: 2026-04-28
+**버전**: 1.8.0
+**최종 업데이트**: 2026-04-29
 
 ---
 
@@ -770,15 +770,21 @@ Content-Type: application/json
 ### 6-3. 온보딩 제안 조회
 현재 로그인한 사용자의 `hireDate`를 기준으로 노출 대상 온보딩 제안을 조회한다.
 
+온보딩 제안이 존재하는 경우, 해당 시점에 자주 묻는 빠른 질문 버튼(`quickTaps`)도 함께 반환한다.  
+`quickTaps`는 사용자가 온보딩 메시지를 보고 바로 질문할 수 있도록 제공되는 추천 질문 버튼이다.
+
 ```http
 GET /api/v1/onboarding-suggestions/me
 Authorization: Bearer {accessToken}
 ```
 #### 동작 기준
-- 입사 전
-  - `dayOffset = (KST 기준 오늘 날짜 - hireDate)`
-- 일치하는 제안이 있으면 반환한다.
-- 일치하는 제안이 없으면 빈 배열을 반환한다.
+- 현재 로그인한 사용자의 `users.hire_date`를 기준으로 `dayOffset`을 계산한다.
+- 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
+- `dayOffset = KST 기준 오늘 날짜 - hireDate` 로 계산한다.
+- `dayOffset` 값에 따라 노출 대상 온보딩 제안을 결정한다.
+- 일치하는 온보딩 제안이 있으면 해당 제안과 함께 관련 빠른 질문 버튼 3개를 반환한다.
+- 일치하는 온보딩 제안이 없으면 빈 배열을 반환한다.
+- 현재 MVP 기준으로 `onboarding_suggestions`는 회사 구분 없이 공통으로 사용한다.
 
 #### Response (200 OK)
 
@@ -786,25 +792,99 @@ Authorization: Bearer {accessToken}
 {
   "suggestions": [
     {
-      "title": "입사 당일 안내",
-      "content": "복지 제도와 사내 규정 문서를 먼저 확인해보세요.",
+      "title": "입사 당일",
+      "content": "안녕하세요! 저는 위드버디예요 🙂 입사 첫날, 설레기도 하고 낯설기도 하죠? {회사명}에서 궁금한 게 생기면 언제든 물어보세요. 사소한 것도 괜찮아요.",
       "dayOffset": 0,
-      "createdAt": "2026-03-20T09:00:00Z"
+      "createdAt": "2026-03-20T09:00:00Z",
+      "quickTaps": [
+        {
+          "buttonText": "💻 이메일·계정 세팅",
+          "content": "회사 이메일 계정은 어떻게 세팅하나요?",
+          "eventTarget": "QUICK_TAP_IT_SETUP"
+        },
+        {
+          "buttonText": "📦 비품 신청하기",
+          "content": "업무에 필요한 비품은 어떻게 신청하나요?",
+          "eventTarget": "QUICK_TAP_EQUIPMENT"
+        },
+        {
+          "buttonText": "📅 연차 언제부터?",
+          "content": "연차는 입사 후 언제부터 쓸 수 있나요?",
+          "eventTarget": "QUICK_TAP_LEAVE_START"
+        }
+      ]
     }
   ]
 }
 ```
 
+#### 빈 결과 예시 (200 OK)
+
+```json
+{
+  "suggestions": []
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `suggestions` | Array | 현재 사용자에게 노출할 온보딩 제안 목록 |
+| `suggestions[].title` | String | 온보딩 제안 제목 |
+| `suggestions[].content` | String | 온보딩 제안 본문 |
+| `suggestions[].dayOffset` | Number | 입사일 기준 날짜 차이 |
+| `suggestions[].createdAt` | String | 온보딩 제안 데이터 생성 시각 |
+| `suggestions[].quickTaps` | Array | 해당 온보딩 제안과 함께 노출할 빠른 질문 버튼 목록 |
+| `quickTaps[].buttonText` | String | 화면에 표시할 버튼 텍스트 |
+| `quickTaps[].content` | String | 사용자가 버튼을 클릭했을 때 실제 질문으로 전송할 문장 |
+| `quickTaps[].eventTarget` | String | 빠른 질문 클릭 로그 저장 시 사용할 eventTarget 값 |
+
 #### 설명
 
-- `users.hire_date`를 기준으로 입사 후 경과 일수를 계산한다.
+- `users.hire_date`를 기준으로 입사 전/입사 당일/입사 후 경과 일수를 계산한다.
 - 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
-- `onboarding_suggestions.day_offset`와 일치하는 데이터를 조회한다.
-- 현재 MVP 기준으로 `onboarding_suggestions`는 회사 구분 없이 공통으로 사용한다.
+- 온보딩 제안이 존재하는 경우, 해당 시점에 맞는 빠른 질문 버튼 3개를 함께 반환한다.
+- 온보딩 제안에 포함되는 `quickTaps`는 사용자가 자주 묻는 질문을 버튼 형태로 제공하기 위한 값이다.
+- 사용자가 `quickTaps` 버튼을 클릭하면, 프론트엔드는 클릭 로그 저장을 위해 `POST /api/v1/chat/quick-questions/click`을 호출할 수 있다.
+- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드는 해당 항목의 `content` 값을 사용해 별도로 `POST /api/v1/chat/messages`를 호출한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+### 온보딩 제안별 quickTap 노출 기준
+
+온보딩 제안 조회 API에서 반환되는 `quickTaps`는 해당 D-day 상황에 맞는 질문 3개를 노출한다.
+
+#### 예시
+
+| 노출 시점 | dayOffset | quickTap 예시 |
+|---|---:|---|
+| D-7 | -7 | 출근 장소·입장 방법, 출근 시간·근무 형태, 복장 규정 |
+| D-1 | -1 | 첫날 누구를 찾아요?, 출입카드 받는 법, 제출 서류 |
+| D+0 | 0 | 이메일·계정 세팅, 비품 신청하기, 연차 언제부터? |
+| D+2 | 2 | 프린터·사무기기 사용법, 회의실 예약 방법, 점심 식대 지원 |
+| D+3 | 3 | 복지 혜택 언제부터?, 경비 처리 방법, 보안·파일 저장 규칙 |
+| D+5 | 5 | 지각·조퇴 처리 방법, 반차 사용 방법, 병가·조퇴 규정 |
+| D+7 | 7 | 결재는 어떻게 해요?, 업무 시스템 권한 신청, 재택근무 신청 |
+| D+10 | 10 | 복지 혜택 곧 되죠?, 영수증 처리 방법, 업무 보고 방식 |
+| D+14 | 14 | 복지 혜택 신청하기, 급여명세서 확인, 수습 평가 기준 |
+| D+21 | 21 | 연차 신청 방법, 건강검진 언제부터?, 교육·자기계발 지원 |
+| D+30 | 30 | 정규직 전환 절차, 수습 평가 기준 다시 보기, 전환 후 평가 방식 |
+
+#### 설명
+
+- 온보딩 제안에 포함되는 `quickTaps`는 전체 quick tap 후보 중 해당 D-day 상황에 맞는 항목 3개를 반환한다.
+- 일반 빠른 질문 목록 조회 API인 `GET /api/v1/chat/quick-questions`는 전체 quick tap 후보 중 랜덤 5개를 반환한다.
+
+| API | quick tap 노출 방식 |
+|---|---|
+| `GET /api/v1/onboarding-suggestions/me` | D-day에 맞는 quick tap 3개 반환 |
+| `GET /api/v1/chat/quick-questions` | 전체 quick tap 후보 중 랜덤 5개 반환 |
+
+---
 
 ### 6-4. 빠른 질문 목록 조회
 현재 로그인한 사용자에게 노출할 빠른 질문 목록을 조회한다.
+전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
 
 ```http
 GET /api/v1/chat/quick-questions
@@ -816,14 +896,35 @@ Authorization: Bearer {accessToken}
 ```json
 {
   "quickQuestions": [
-    { "content": "연차는 어떻게 신청하나요?" },
-    { "content": "급여일이 언제인가요?" },
-    { "content": "건강검진은 어떻게 받나요?" },
-    { "content": "재직증명서 신청 방법 알려줘요" },
-    { "content": "장비 세팅하는 방법 알려주세요" }
+    {
+      "buttonText": "🏢 출근 장소·입장 방법",
+      "content": "첫 출근 장소와 입장 방법이 어떻게 되나요?",
+      "eventTarget": "QUICK_TAP_LOCATION"
+    },
+    {
+      "buttonText": "🕘 출근 시간·근무 형태",
+      "content": "출근 시간과 근무 형태가 어떻게 되나요?",
+      "eventTarget": "QUICK_TAP_WORK_HOUR"
+    },
+    {
+      "buttonText": "👔 복장 규정",
+      "content": "회사 복장 규정이 있나요?",
+      "eventTarget": "QUICK_TAP_DRESSCODE"
+    },
+    {
+      "buttonText": "📋 제출 서류",
+      "content": "입사 첫날 제출해야 하는 서류는 무엇인가요?",
+      "eventTarget": "QUICK_TAP_DOCS"
+    },
+    {
+      "buttonText": "💻 이메일·계정 세팅",
+      "content": "회사 이메일 계정은 어떻게 세팅하나요?",
+      "eventTarget": "QUICK_TAP_IT_SETUP"
+    }
   ]
 }
 ```
+
 #### 빈 결과 예시 (200 OK)
 ```json
 {
@@ -831,22 +932,52 @@ Authorization: Bearer {accessToken}
 }
 ```
 
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `quickQuestions` | Array | 현재 사용자에게 노출할 빠른 질문 목록 |
+| `quickQuestions[].buttonText` | String | 화면에 표시할 버튼 텍스트 |
+| `quickQuestions[].content` | String | 사용자가 버튼을 클릭했을 때 실제 질문으로 전송할 문장 |
+| `quickQuestions[].eventTarget` | String | 빠른 질문 클릭 로그 저장 시 사용할 eventTarget 값 |
+
 #### 설명
 
 - 빠른 질문은 사용자가 자주 묻는 질문을 버튼 형태로 제공하기 위한 추천 질문 목록이다.
-- 현재 MVP 기준으로 빠른 질문 목록은 공통으로 제공한다.
-- 사용자가 빠른 질문을 클릭하면, 해당 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages`로 전송한다.
-- 빠른 질문 클릭 자체가 별도의 답변 생성 API를 호출하지는 않는다.
+- 현재 MVP 기준으로 빠른 질문 목록은 회사 구분 없이 공통으로 제공한다.
+- 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
+- 사용자가 빠른 질문을 클릭하면, 해당 항목의 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages`로 전송한다.
+- 이 API는 빠른 질문 버튼 목록만 조회하며, 클릭 로그 저장이나 채팅 메시지 생성을 수행하지 않는다.
+- 사용자가 빠른 질문 버튼을 클릭했을 때의 로그 저장은 `POST /api/v1/chat/quick-questions/click`에서 처리한다.
+- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드는 해당 항목의 `content` 값을 사용해 `POST /api/v1/chat/messages`를 별도로 호출한다.
+- 빠른 질문 클릭 로그를 남기려면 프론트엔드가 별도로 `POST /api/v1/chat/quick-questions/click`을 호출한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
 
+---
+
 ### 6-5. 빠른 질문 클릭 로그 기록
-사용자가 빠른 질문 버튼을 클릭하면 `user_activity_logs`에 `BUTTON_CLICK` 이벤트를 기록한다.
-이때 `event_target = QUICK_TAP`으로 저장한다.
+사용자가 빠른 질문 버튼을 클릭하면 `user_activity_logs`에 `BUTTON_CLICK` 이벤트를 기록한다.  
+이때 `eventTarget`은 클릭한 빠른 질문 항목의 `eventTarget` 값을 저장한다.
 
 ```http
 POST /api/v1/chat/quick-questions/click
 Authorization: Bearer {accessToken}
+Content-Type: application/json
 ```
+
+#### Request Body
+
+```json
+{
+  "eventTarget": "QUICK_TAP_LOCATION"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `eventTarget` | String | Y | 사용자가 클릭한 빠른 질문 버튼의 eventTarget 값 |
 
 #### Response (201 Created)
 
@@ -854,20 +985,63 @@ Authorization: Bearer {accessToken}
 {
   "logged": true,
   "eventType": "BUTTON_CLICK",
-  "eventTarget": "QUICK_TAP",
+  "eventTarget": "QUICK_TAP_LOCATION",
   "message": null,
   "createdAt": "2026-04-24T09:30:00Z"
 }
 ```
 
+#### eventTarget 허용값
+
+빠른 질문 클릭 로그 기록 시 `eventTarget`에는 사용자가 클릭한 빠른 질문 버튼의 `eventTarget` 값을 전달한다.
+
+| 버튼 텍스트 | 전송 질문 (`content`) | eventTarget |
+|---|---|---|
+| 🏢 출근 장소·입장 방법 | 첫 출근 장소와 입장 방법이 어떻게 되나요? | `QUICK_TAP_LOCATION` |
+| 🕘 출근 시간·근무 형태 | 출근 시간과 근무 형태가 어떻게 되나요? | `QUICK_TAP_WORK_HOUR` |
+| 👔 복장 규정 | 회사 복장 규정이 있나요? | `QUICK_TAP_DRESSCODE` |
+| 📍 첫날 누구를 찾아요? | 첫 출근 시 어디로 가야 하고 누구를 찾으면 되나요? | `QUICK_TAP_FIRST_DAY` |
+| 🔑 출입카드 받는 법 | 출입카드는 어떻게 받나요? | `QUICK_TAP_ACCESS` |
+| 📋 제출 서류 | 입사 첫날 제출해야 하는 서류는 무엇인가요? | `QUICK_TAP_DOCS` |
+| 💻 이메일·계정 세팅 | 회사 이메일 계정은 어떻게 세팅하나요? | `QUICK_TAP_IT_SETUP` |
+| 📦 비품 신청하기 | 업무에 필요한 비품은 어떻게 신청하나요? | `QUICK_TAP_EQUIPMENT` |
+| 📅 연차 언제부터? | 연차는 입사 후 언제부터 쓸 수 있나요? | `QUICK_TAP_LEAVE_START` |
+| 🖨️ 프린터·사무기기 사용법 | 프린터나 사무기기는 어떻게 사용하나요? | `QUICK_TAP_PRINTER` |
+| 🗓️ 회의실 예약 방법 | 회의실은 어떻게 예약하나요? | `QUICK_TAP_MEETING_ROOM` |
+| 🍱 점심 식대 지원 | 점심 식대 지원은 어떻게 되나요? | `QUICK_TAP_MEAL` |
+| 💳 복지 혜택 언제부터? | 복지 혜택은 언제부터 사용할 수 있나요? | `QUICK_TAP_WELFARE` |
+| 🧾 경비 처리 방법 | 업무 경비는 어떻게 처리하나요? | `QUICK_TAP_EXPENSE` |
+| 🔐 보안·파일 저장 규칙 | 회사 보안 규정이나 업무 파일 저장 규칙이 어떻게 되나요? | `QUICK_TAP_SECURITY` |
+| 🕘 지각·조퇴 처리 방법 | 지각이나 조퇴가 생기면 어떻게 처리하나요? | `QUICK_TAP_LATE` |
+| 📅 반차 사용 방법 | 반차는 어떻게 신청하나요? | `QUICK_TAP_HALF_DAY` |
+| 💊 병가·조퇴 규정 | 몸이 아플 때 병가나 조퇴는 어떻게 처리하나요? | `QUICK_TAP_SICK` |
+| 📝 결재는 어떻게 해요? | 업무 결재나 승인은 어디서, 어떻게 하나요? | `QUICK_TAP_APPROVAL` |
+| 🖥️ 업무 시스템 권한 신청 | 추가로 필요한 업무 시스템 권한은 어떻게 신청하나요? | `QUICK_TAP_SYSTEM_AUTH` |
+| 🏠 재택근무 신청 | 재택근무는 어떻게 신청하나요? | `QUICK_TAP_REMOTE` |
+| 💳 복지 혜택 곧 되죠? | 복지 혜택은 입사 후 언제부터 사용할 수 있나요? | `QUICK_TAP_WELFARE_WHEN` |
+| 🧾 영수증 처리 방법 | 업무 중 영수증이 생겼을 때 경비 처리는 어떻게 하나요? | `QUICK_TAP_RECEIPT` |
+| 💬 업무 보고 방식 | 업무 보고나 결과 공유는 어떤 방식으로 하나요? | `QUICK_TAP_REPORT` |
+| 💳 복지 혜택 신청하기 | 복지 혜택은 어떻게 신청하나요? | `QUICK_TAP_WELFARE_APPLY` |
+| 💰 급여명세서 확인 | 급여명세서는 어디서 확인하나요? | `QUICK_TAP_SALARY` |
+| 📊 수습 평가 기준 | 수습 기간 평가는 어떤 기준으로 이루어지나요? | `QUICK_TAP_PROBATION` |
+| 🏖️ 연차 신청 방법 | 연차 신청은 어떻게 하나요? | `QUICK_TAP_LEAVE_REQ` |
+| 🏥 건강검진 언제부터? | 건강검진 지원은 언제부터 받을 수 있나요? | `QUICK_TAP_HEALTH` |
+| 📚 교육·자기계발 지원 | 업무 관련 강의나 책 구입 비용을 지원받을 수 있나요? | `QUICK_TAP_EDUCATION` |
+| 📋 정규직 전환 절차 | 수습 기간 종료 후 정규직 전환 절차가 어떻게 되나요? | `QUICK_TAP_CONVERT` |
+| 📊 수습 평가 기준 다시 보기 | 수습 평가에서 중점적으로 보는 항목이 무엇인가요? | `QUICK_TAP_PROBATION_CHECK` |
+| 🎯 전환 후 평가 방식 | 정규직 전환 후 목표나 평가 방식은 어떻게 되나요? | `QUICK_TAP_KPI` |
+
 #### 설명
 
 - 현재 로그인한 사용자 기준으로 동작한다.
-- 빠른 질문 버튼 클릭 시 `user_activity_logs`에 `event_type = BUTTON_CLICK`, `event_target = QUICK_TAP`으로 기록한다.
-- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 빠른 질문 버튼 클릭 시 `user_activity_logs`에 `event_type = BUTTON_CLICK`으로 기록한다.
+- `event_target`에는 사용자가 클릭한 버튼의 실제 `eventTarget` 값을 저장한다.
+- 저장 항목에는 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
 - 이 API는 클릭 로그만 저장하며, 채팅 메시지 생성이나 AI 답변 생성을 수행하지 않는다.
 - 빠른 질문을 실제 질문으로 전송하려면 프론트엔드가 별도로 `POST /api/v1/chat/messages`를 호출한다.
 - 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+---
 
 ### 6-6. 채팅 화면 진입 로그 기록
 사용자가 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.  
@@ -1402,3 +1576,5 @@ Authorization: Bearer {accessToken}
   - 내부 AI 답변 생성 요청(`/internal/ai/answer`)에 이전 대화 이력 `conversationHistory` 전달 규칙 추가
 - **v1.7.9 (2026-04-28)**:
   - 신입 계정 생성 API(`POST /api/v1/users`) 추가, 동일 회사 내 사원번호 중복 방지를 위한 `company_id + employee_number` 복합 UNIQUE 제약조건 및 `409 Conflict`, `DUPLICATE_EMPLOYEE_NUMBER` 에러 응답 규격 추가
+- **v1.8.0 (2026-04-29)**:
+  - 온보딩 제안 조회 응답에 D-day별 빠른 질문 버튼(`quickTaps`) 추가, 빠른 질문 목록 및 클릭 로그 응답 형식 수정

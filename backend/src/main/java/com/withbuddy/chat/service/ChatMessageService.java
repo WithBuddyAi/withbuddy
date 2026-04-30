@@ -1,5 +1,6 @@
 package com.withbuddy.chat.service;
 
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.infrastructure.ai.client.AiClient;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
@@ -60,6 +61,7 @@ public class ChatMessageService {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final AsyncAiCallService asyncAiCallService;
+    private final QuickQuestionCatalog quickQuestionCatalog;
 
     public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
         Long loginUserId = principal.userId();
@@ -521,16 +523,10 @@ public class ChatMessageService {
         );
     }
 
-    public Map<String, List<Map<String, String>>> getQuickQuestions(Long userId) {
+    public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
         return Map.of(
                 "quickQuestions",
-                List.of(
-                        Map.of("content", "연차는 어떻게 신청하나요?"),
-                        Map.of("content", "급여일이 언제인가요?"),
-                        Map.of("content", "건강검진은 어떻게 받나요?"),
-                        Map.of("content", "재직증명서 신청 방법 알려줘요"),
-                        Map.of("content", "장비 세팅하는 방법 알려주세요")
-                )
+                quickQuestionCatalog.getRandomQuickQuestions(5)
         );
     }
 }
