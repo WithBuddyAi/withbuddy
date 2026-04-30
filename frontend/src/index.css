@@ -9,35 +9,24 @@ body {
 /* 전체 달력 */
 .react-calendar {
   background-color: white !important;
-  width: 231px;
-  height: auto;
   border: 0.5px solid #DBE7F4 !important;
   border-radius: 8px;
   padding: 16px 10px;
   font-family: sans-serif !important;
   box-shadow: 0 0.8px 2.4px rgba(0,0,0,0.05);
-  font-size: 14px;
 }
 
 /* 날짜 기본 스타일 */
 .react-calendar__tile {
   font-size: 14px !important;
-  border-radius: 9999px;
-  width: 100% !important;
-  height: 29px !important;
+  border-radius: 5px;
+  height: 26px !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: center !important;
-  padding: 0 !important;
+  padding: 1px 0 !important;
   margin: 2px auto !important;
-  background-color: transparent !important;
   position: relative !important;
-}
-
-/* 기본 날짜 색상 */
-.react-calendar__month-view__days__day {
-  color: #204867 !important;
 }
 
 /* 오늘 날짜 */
@@ -56,20 +45,14 @@ body {
 .react-calendar__tile--active {
   background: #336B97 !important;
   color: white !important;
-  border-radius: 9999px;
 }
 
-/* hover */
+/* 날짜 hover */
 .react-calendar__tile:not(.react-calendar__tile--active):hover {
   background: #D0EBFF !important;
 }
 
-.react-calendar__tile--active:hover {
-  background: #336B97 !important;
-  color: #FFFFFF !important;
-}
-
-/* disabled */
+/* disabled(대화 기록이 없는 날) */
 .react-calendar__tile:disabled {
   background-color: transparent !important;
   color: #204867 !important;
@@ -80,7 +63,7 @@ body {
   cursor: default !important;
 }
 
-/* 이웃 달 날짜 (disabled보다 우선순위 높게!) */
+/* 이웃 달 날짜 */
 .react-calendar__month-view__days__day--neighboringMonth,
 .react-calendar__month-view__days__day--neighboringMonth:disabled {
   color: #CED4DA !important;
@@ -93,39 +76,75 @@ body {
   color: #20486799;
 }
 
-/* 네비게이션 높이 줄이기 */
+/* 네비게이션 */
 .react-calendar__navigation {
-  margin-bottom: 12px !important;
-  height: auto !important;
+  margin-bottom: 7px !important;
+  height: 19px !important;
 }
 
-/* 요일 헤더 간격 줄이기 */
-.react-calendar__month-view__weekdays {
-  margin-bottom: 0 !important;
-}
-
-/* 연월 글씨 */
+/* 네비게이션 버튼 공통 */
 .react-calendar__navigation button {
   font-size: 15px;
   color: #204867;
+  flex-shrink: 0 !important;
 }
 
-/* 연월 글씨 줄바꿈 방지 */
-.react-calendar__navigation__label__labelText {
-  white-space: nowrap;
+/* 월 이동 꺽쇄 */
+.react-calendar__navigation__prev-button{
+  padding-bottom: 2px !important;
+  margin-left: 0 !important;
+  min-width: 17px !important;
 }
 
-/* 월 이동 꺽쇄 호버 스타일링 */
+.react-calendar__navigation__next-button {
+  padding-bottom: 2px !important;
+  margin-right: 30px !important;
+  min-width: 17px !important;
+}
+
+/* 월 이동 꺽쇄 hover */
 .react-calendar__navigation__prev-button:hover,
 .react-calendar__navigation__next-button:hover {
   background-color: #F1F3F5 !important;
   border-radius: 5px !important;
 }
 
-/* 연월 글씨 호버 스타일링 */
+.react-calendar__navigation__prev-button:focus,
+.react-calendar__navigation__next-button:focus {
+  background-color: transparent !important;
+  outline: none !important;
+}
+
+.react-calendar__navigation__prev-button:focus:hover,
+.react-calendar__navigation__next-button:focus:hover {
+  background-color: #F1F3F5 !important;
+}
+
+/* 연월 텍스트 버튼 */
+.react-calendar__navigation__label {
+  background-color: transparent !important;
+  padding: 1px 4px !important;
+  min-width: fit-content !important;
+}
+
+/* 연월 텍스트 hover */
 .react-calendar__navigation__label:hover {
-  background-color: #D0EBFF !important;
+  background-color: #F1F3F5 !important;
   border-radius: 5px !important;
+}
+
+/* 연월 텍스트 줄바꿈 방지 */
+.react-calendar__navigation__label__labelText {
+  white-space: nowrap !important;
+  overflow: visible !important;
+}
+
+/* 10년/세기 단위 뷰 타일 높이 */
+.react-calendar__century-view__decades__decade {
+  height: 40px !important;
+  white-space: normal !important;
+  line-height: 1.2 !important;
+  word-break: keep-all !important;
 }
 
 @media (max-width: 767px) {
@@ -140,6 +159,7 @@ body {
     font-size: 11px !important;
     height: 26px !important;
     width: 26px !important;
+    padding: 3px 0 !important;
   }
 
   .react-calendar__navigation button {
@@ -150,8 +170,7 @@ body {
     font-size: 9px !important;
   }
 
-  /* 하늘색 점 위치 조정 */
   .react-calendar__tile .absolute {
-    bottom: 2px !important;
+    bottom: 4px !important;
   }
 }

@@ -5,8 +5,11 @@ import bar from '../assets/side_bar.svg'
 import { format } from 'date-fns'
 import Calendar from "react-calendar"
 import 'react-calendar/dist/Calendar.css'
+import { useState } from "react"
 
 function Sidebar({ name, dayCount, isSidebarOpen, setIsSidebarOpen, selectedDate, activeDates, handleDateChange, setIsLogoutModal }) {
+  const [activeStartDate, setActiveStartDate] = useState(new Date())
+  const [view, setView] = useState('month')
 
   return(
     <div className="contents">
@@ -23,7 +26,7 @@ function Sidebar({ name, dayCount, isSidebarOpen, setIsSidebarOpen, selectedDate
                   <div className="flex items-center">
                     <img src={char} alt="위드버디 대표 로고" className="w-[26px] mr-[12px]"/>
                     <div className="flex items-center"><p className="text-[#343A40] text-[16px] font-semibold mr-[8px]">{name}</p>
-                    <p className="text-[#20486799] text-[12px]">Day {Number(dayCount) + 1}</p>
+                    <p className="text-[#20486799] text-[12px]">Day {Number(dayCount) >= 0 ? Number(dayCount) + 1 : Number(dayCount)}</p>
                     </div>
                   </div>
                   {/* 데스크탑: bar 아이콘 */}
@@ -60,7 +63,16 @@ function Sidebar({ name, dayCount, isSidebarOpen, setIsSidebarOpen, selectedDate
                   <p className="text-[#868E96] text-[12px]">날짜를 선택하면 해당 날짜의 대화 내용을 확인할 수 있습니다.</p>
                 </div>
 
-                <div className="flex justify-center">
+                <div className="relative flex justify-center">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActiveStartDate(new Date())
+                      setView('month')
+                    }}
+                    className="absolute top-[18px] right-[13px] text-[#336B97] text-[13px] hover:underline hover:underline-offset-2 hover:decoration-[#336B97]">
+                    오늘
+                  </button>
                   <Calendar
                     onChange={handleDateChange}
                     value={selectedDate}
@@ -79,7 +91,7 @@ function Sidebar({ name, dayCount, isSidebarOpen, setIsSidebarOpen, selectedDate
                     tileContent={({ date }) => {
                       const formatted = format(date, 'yyyy-MM-dd')
                       if (activeDates.includes(formatted)) {
-                        return <div className="absolute bottom-[1px] flex justify-center w-[full]">
+                        return <div className="absolute bottom-[3px] flex justify-center w-[full]">
                           <div className="w-[4px] h-[4px] rounded-full bg-[#7DC1FF]"/>
                         </div>
                       }
@@ -90,6 +102,15 @@ function Sidebar({ name, dayCount, isSidebarOpen, setIsSidebarOpen, selectedDate
                         return 'has-chat'
                       }
                     }}
+                    view={view}
+                    onViewChange={({ view }) => setView(view)}
+                    activeStartDate={activeStartDate}
+                    onActiveStartDateChange={({ activeStartDate }) => setActiveStartDate(activeStartDate)}
+                    navigationLabel={({ label }) => (
+                      <div className="flex items-center justify-center w-full">
+                        <span>{label}</span>
+                      </div>
+                    )}
                   />
                 </div>
               </div>

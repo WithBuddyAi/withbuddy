@@ -14,7 +14,7 @@ import ChatInput from "../components/ChatInput";
 
 function MyBuddy ({setIsLoggedIn}) {
   const { dayOffset } = useUser()
-  const dayCount = dayOffset || localStorage.getItem('dayCount')
+  const dayCount = dayOffset !== undefined && dayOffset !== null ? dayOffset : localStorage.getItem('dayCount')
   // 사이드바에 표시되는 정보 state
   const name = localStorage.getItem('name')
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -35,8 +35,10 @@ function MyBuddy ({setIsLoggedIn}) {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState(false)
   const chatBottomRef = useRef(null)
+  const lastUserMessageRef = useRef(null)
   const [loadingMessage, setLoadingMessage] = useState('')
-  const [suggestionMessages, setSuggestionMessages] = useState([])
+  const [hasSubmitted, setHasSubmitted] = useState(false)
+
 
   // 대화 기록 달력
   const handleDateChange = async (date) => {
@@ -47,9 +49,7 @@ function MyBuddy ({setIsLoggedIn}) {
         `/api/v1/chat/messages?date=${formattedDate}`
       )
       setMessageList([
-        ...message.messages,
-        ...suggestionMessages.filter(s => s.createdAt.slice(0, 10) === formattedDate)
-      ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)))
+        ...message.messages])
     } catch (error) {
       const serverMessage = error.response?.data?.errors?.[0]?.message
       setErrorMessage(serverMessage || '에러가 발생했어요')
@@ -71,31 +71,18 @@ function MyBuddy ({setIsLoggedIn}) {
     setIsLoading(true)
     const fetchData = async () => {
       try {
-        const [messageResponse, suggestionResponse, quickResponse] = await Promise.allSettled([
+        const [messageResponse, quickResponse] = await Promise.allSettled([
           axiosInstance.get('/api/v1/chat/messages', {}),
-          axiosInstance.get('/api/v1/onboarding-suggestions/me', {}),
           axiosInstance.get('/api/v1/chat/quick-questions', {})
         ])
-        if (messageResponse.status === 'fulfilled' && suggestionResponse.status === 'fulfilled') {
+        if (messageResponse.status === 'fulfilled') {
           const messages = messageResponse.value.data.messages
-          const suggestions = suggestionResponse.value.data.suggestions
 
-          const hasExistingSuggestion = messages.some(m => m.messageType === 'suggestion')
-
-          const suggestionMessages = hasExistingSuggestion ? [] : suggestions.map(s => ({
-            id: `suggestion-${s.dayOffset}`,
-            senderType: 'BOT',
-            messageType: 'suggestion',
-            content: s.content,
-            createdAt: new Date().toISOString()
-          }))
-          setSuggestionMessages(suggestionMessages)
-          const dates = [...new Set([...messages.map(m => m.createdAt.slice(0, 10)),
-          ...suggestionMessages.map(s => s.createdAt.slice(0, 10))]
+          const dates = [...new Set([...messages.map(m => m.createdAt.slice(0, 10))]
           )]
           setActiveDates(dates)
           
-          setMessageList([...messages, ...suggestionMessages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)))
+          setMessageList(messages)
 
           // // 환영메시지 작성 (suggestion이랑 기능이 유사해서 우선 주석 처리함)
           // const isFirstLogin = localStorage.getItem('isFirstLogin')
@@ -113,7 +100,7 @@ function MyBuddy ({setIsLoggedIn}) {
           // }
 
         } else {
-          const error = messageResponse.reason || suggestionResponse.reason
+          const error = messageResponse.reason
           throw error
         }
         if (quickResponse.status === 'fulfilled') {
@@ -142,9 +129,20 @@ function MyBuddy ({setIsLoggedIn}) {
   
   // 자동 스크롤
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({
-      behavior: messageList.length > 1 ? "smooth" : "auto",
-    })
+    if (isLoading) {
+      chatBottomRef.current?.scrollIntoView({
+        behavior: "smooth",
+      })
+    } else if (hasSubmitted) {
+      lastUserMessageRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      })
+    } else {
+      chatBottomRef.current?.scrollIntoView({
+        behavior: "auto",
+      })
+    }
   }, [messageList, isLoading, loadingMessage])
 
   // 에러 토스트 자동 사라짐
@@ -176,6 +174,7 @@ function MyBuddy ({setIsLoggedIn}) {
     const sendText = submitText
     if (!sendText.trim()) return
     setIsLoading(true)
+    setHasSubmitted(true)
     setMessageList(prev => [...prev, {
       id: `temp-${Date.now()}`,
       senderType: 'USER',
@@ -372,9 +371,11 @@ function MyBuddy ({setIsLoggedIn}) {
         <MessageList
           messageList={messageList}
           botClass={botClass}
+          handleSubmit={handleSubmit}
           handleRetry={handleRetry}
           isLoading={isLoading}
           handleDownload={handleDownload}
+          lastUserMessageRef={lastUserMessageRef}
         />
 
           {/* 로딩 인디케이터 */}
