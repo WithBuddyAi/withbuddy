@@ -1118,7 +1118,8 @@ Content-Type: application/json
   "user": {
     "userId": 1,
     "name": "김지원",
-    "companyCode": "WB0001"
+    "companyCode": "WB0001",
+    "companyName": "테크 주식회사"
   },
   "content": "복지카드는 어떻게 신청하나요?",
   "conversationHistory": [

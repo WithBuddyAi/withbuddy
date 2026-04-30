@@ -67,6 +67,7 @@ public class ChatMessageService {
         Long loginUserId = principal.userId();
         String loginUserName = principal.name();
         String companyCode = principal.companyCode();
+        String companyName = principal.companyName();
         List<ConversationTurn> conversationHistory = sanitizeConversationHistoryForAi(
                 resolveConversationHistory(loginUserId)
         );
@@ -85,7 +86,8 @@ public class ChatMessageService {
         AiUserContext userContext = new AiUserContext(
                 loginUserId,
                 loginUserName,
-                companyCode
+                companyCode,
+                companyName
         );
 
         AiAnswerServerRequest aiRequest = new AiAnswerServerRequest(
