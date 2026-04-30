@@ -5,7 +5,7 @@ import com.withbuddy.activity.entity.EventTarget;
 import com.withbuddy.activity.entity.EventType;
 import com.withbuddy.activity.entity.UserActivityLog;
 import com.withbuddy.activity.repository.UserActivityLogRepository;
-import com.withbuddy.global.jwt.JwtService;
+import com.withbuddy.chat.service.QuickQuestionCatalog;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +18,7 @@ import java.util.Optional;
 public class UserActivityLogService {
 
     private final UserActivityLogRepository userActivityLogRepository;
-    private final JwtService jwtService;
+    private final QuickQuestionCatalog quickQuestionCatalog;
 
     @Transactional
     public void saveLoginSessionStart(Long userId) {
@@ -33,10 +33,7 @@ public class UserActivityLogService {
     }
 
     @Transactional
-    public LogResponse saveChatSessionStart(String bearerToken) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
-
+    public LogResponse saveChatSessionStart(Long userId) {
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 
         Optional<UserActivityLog> recentLog =
@@ -75,15 +72,16 @@ public class UserActivityLogService {
                 savedLog.getCreatedAt().toString()
         );
     }
+
     @Transactional
-    public LogResponse saveQuickQuestionClick(String bearerToken) {
-        String token = jwtService.extractBearerToken(bearerToken);
-        Long userId = jwtService.getUserId(token);
+    public LogResponse saveQuickQuestionClick(Long userId, String eventTarget) {
+        EventTarget resolvedTarget = quickQuestionCatalog.resolveEventTarget(eventTarget)
+                .orElseThrow(() -> new IllegalArgumentException("지원하지 않는 eventTarget입니다."));
 
         UserActivityLog log = new UserActivityLog(
                 userId,
                 EventType.BUTTON_CLICK,
-                EventTarget.QUICK_TAP,
+                resolvedTarget,
                 LocalDateTime.now()
         );
 

@@ -1,6 +1,7 @@
 package com.withbuddy.global.config;
 
 import com.withbuddy.global.security.StorageApiKeyAuthenticationFilter;
+import com.withbuddy.global.security.JwtAuthenticationFilter;
 import com.withbuddy.global.security.StorageApiKeyProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,15 +29,18 @@ public class SecurityConfig {
     private static final List<String> DEFAULT_ALLOWED_HEADERS = List.of("*");
 
     private final StorageApiKeyAuthenticationFilter storageApiKeyAuthenticationFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final StorageApiKeyProperties storageApiKeyProperties;
     private final CorsProperties corsProperties;
 
     public SecurityConfig(
             StorageApiKeyAuthenticationFilter storageApiKeyAuthenticationFilter,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
             StorageApiKeyProperties storageApiKeyProperties,
             CorsProperties corsProperties
     ) {
         this.storageApiKeyAuthenticationFilter = storageApiKeyAuthenticationFilter;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.storageApiKeyProperties = storageApiKeyProperties;
         this.corsProperties = corsProperties;
     }
@@ -70,7 +74,10 @@ public class SecurityConfig {
 
         if (storageApiKeyProperties.isEnabled()) {
             http.addFilterBefore(storageApiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            http.addFilterAfter(jwtAuthenticationFilter, StorageApiKeyAuthenticationFilter.class);
+            return http.build();
         }
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
