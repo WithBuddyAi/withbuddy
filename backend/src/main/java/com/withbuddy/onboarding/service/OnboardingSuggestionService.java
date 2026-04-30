@@ -7,9 +7,6 @@ import com.withbuddy.chat.service.QuickQuestionCatalog;
 import com.withbuddy.infrastructure.mq.NudgeEventPublisher;
 import com.withbuddy.infrastructure.mq.event.NudgeEvent;
 import com.withbuddy.infrastructure.mq.event.NudgeType;
-import com.withbuddy.infrastructure.redis.RedisCacheKeys;
-import com.withbuddy.infrastructure.redis.RedisCacheService;
-import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.onboarding.dto.OnboardingSuggestionItemResponse;
 import com.withbuddy.onboarding.dto.OnboardingSuggestionListResponse;
 import com.withbuddy.onboarding.entity.OnboardingSuggestion;
@@ -36,7 +33,6 @@ public class OnboardingSuggestionService {
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
     private final ChatMessageService chatMessageService;
     private final QuickQuestionCatalog quickQuestionCatalog;
-    private final RedisCacheService redisCacheService;
     private final NudgeEventPublisher nudgeEventPublisher;
 
     public OnboardingSuggestionListResponse getMyOnboardingSuggestions(Long userId) {
@@ -52,6 +48,10 @@ public class OnboardingSuggestionService {
             return new OnboardingSuggestionListResponse(List.of());
         }
 
+        if (chatMessageService.hasSuggestionMessageToday(userId, LocalDate.now(KST), KST)) {
+            return new OnboardingSuggestionListResponse(List.of());
+        }
+
         String content = replacePlaceholders(
                 suggestion.getContent(),
                 user.getName(),
@@ -60,18 +60,6 @@ public class OnboardingSuggestionService {
         );
 
         List<QuickQuestionResponse> quickTaps = quickQuestionCatalog.getOnboardingQuickTaps(dayOffset);
-
-        String nudgeSentKey = RedisCacheKeys.nudgeSent(userId, dayOffset);
-
-        boolean firstViewToday = redisCacheService.putIfAbsent(
-                nudgeSentKey,
-                "1",
-                RedisCacheTtl.NUDGE_SENT
-        );
-
-        if (!firstViewToday) {
-            return new OnboardingSuggestionListResponse(List.of());
-        }
 
         NudgeEvent nudgeEvent = new NudgeEvent(
                 UUID.randomUUID().toString(),
