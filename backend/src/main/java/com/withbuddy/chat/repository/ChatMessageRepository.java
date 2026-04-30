@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
@@ -36,5 +37,11 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             MessageType messageType,
             LocalDateTime start,
             LocalDateTime end
+    );
+
+    Optional<ChatMessage> findTopByUserIdAndSuggestionIdAndMessageTypeOrderByCreatedAtDesc(
+            Long userId,
+            Long suggestionId,
+            MessageType messageType
     );
 }

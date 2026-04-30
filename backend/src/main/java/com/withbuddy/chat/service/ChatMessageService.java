@@ -1,33 +1,35 @@
 package com.withbuddy.chat.service;
 
-import com.withbuddy.chat.dto.QuickQuestionResponse;
-import com.withbuddy.infrastructure.ai.client.AiClient;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
 import com.withbuddy.chat.dto.ChatMessageResponse;
-import com.withbuddy.infrastructure.ai.dto.ConversationTurn;
-import com.withbuddy.chat.entity.ChatMessageDocument;
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.chat.entity.ChatMessage;
+import com.withbuddy.chat.entity.ChatMessageDocument;
 import com.withbuddy.chat.entity.MessageType;
 import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
+import com.withbuddy.infrastructure.ai.client.AiClient;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.AiUserContext;
-import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
+import com.withbuddy.infrastructure.ai.dto.ConversationTurn;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
+import com.withbuddy.onboarding.entity.OnboardingSuggestion;
+import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.task.TaskRejectedException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -40,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -49,11 +52,14 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatMessageService {
 
     private static final int MAX_HISTORY_MESSAGES = 10;
     private static final Duration CONVERSATION_LOCK_TTL = Duration.ofSeconds(5);
     private static final List<MessageType> HISTORY_TYPES = List.of(MessageType.user_question, MessageType.rag_answer);
+    private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
+            new TypeReference<>() {};
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
@@ -63,8 +69,8 @@ public class ChatMessageService {
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
-    private final AsyncAiCallService asyncAiCallService;
     private final QuickQuestionCatalog quickQuestionCatalog;
+    private final OnboardingSuggestionRepository onboardingSuggestionRepository;
 
     public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
         Long loginUserId = principal.userId();
@@ -79,11 +85,6 @@ public class ChatMessageService {
         if (savedQuestionMessage == null) {
             throw new IllegalStateException("질문 메시지 저장에 실패했습니다.");
         }
-        redisCacheService.put(
-                RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
-                "PENDING",
-                RedisCacheTtl.RAG_STATUS
-        );
         saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
 
         AiUserContext userContext = new AiUserContext(
@@ -107,43 +108,24 @@ public class ChatMessageService {
                 Collections.emptyMap()
         );
 
-        AiAnswerServerResponse aiResponse;
-        try {
-            aiResponse = aiClient.requestAnswer(aiRequest);
-        } catch (AiTimeoutException ex) {
-            try {
-                asyncAiCallService.callAndSaveAnswer(savedQuestionMessage.getId(), loginUserId, aiRequest);
-            } catch (TaskRejectedException schedulingEx) {
-                redisCacheService.put(
-                        RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
-                        "TIMEOUT",
-                        RedisCacheTtl.RAG_STATUS
-                );
-                return new ChatMessageCreateResponse(questionResponse, null, "TIMEOUT");
-            }
-            return new ChatMessageCreateResponse(questionResponse, null, "PENDING");
-        } catch (RuntimeException ex) {
-            redisCacheService.put(
-                    RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
-                    "TIMEOUT",
-                    RedisCacheTtl.RAG_STATUS
-            );
-            throw ex;
-        }
+        AiAnswerServerResponse aiResponse = aiClient.requestAnswer(aiRequest);
 
         if (!savedQuestionMessage.getId().equals(aiResponse.getQuestionId())) {
             throw new IllegalStateException("AI 응답의 questionId가 저장된 질문 ID와 일치하지 않습니다.");
         }
-        redisCacheService.put(
-                RedisCacheKeys.ragStatus(savedQuestionMessage.getId()),
-                "COMPLETED",
-                RedisCacheTtl.RAG_STATUS
-        );
-
         MessageType answerMessageType = aiResponse.getMessageType();
         List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
+        List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
+                toRecommendedContactResponses(aiResponse.getRecommendedContacts());
+        String recommendedContactsJson = serializeRecommendedContacts(recommendedContacts);
         ChatMessage savedAnswerMessage = transactionTemplate.execute(
-                status -> saveAnswerMessage(loginUserId, answerMessageType, aiResponse.getContent(), answerDocumentIds)
+                status -> saveAnswerMessage(
+                        loginUserId,
+                        answerMessageType,
+                        aiResponse.getContent(),
+                        answerDocumentIds,
+                        recommendedContactsJson
+                )
         );
         if (savedAnswerMessage == null) {
             throw new IllegalStateException("답변 메시지 저장에 실패했습니다.");
@@ -155,13 +137,7 @@ public class ChatMessageService {
 
         return new ChatMessageCreateResponse(
                 questionResponse,
-                toResponse(
-                        savedAnswerMessage,
-                        answerDocumentIds,
-                        documentMap,
-                        documentFileMap
-                ),
-                "COMPLETED"
+                toResponse(savedAnswerMessage, answerDocumentIds, documentMap, documentFileMap)
         );
     }
 
@@ -182,18 +158,26 @@ public class ChatMessageService {
                 null,
                 SenderType.USER,
                 MessageType.user_question,
-                content
+                content,
+                null
         );
         return chatMessageRepository.save(questionMessage);
     }
 
-    private ChatMessage saveAnswerMessage(Long userId, MessageType answerMessageType, String answerContent, List<Long> answerDocumentIds) {
+    private ChatMessage saveAnswerMessage(
+            Long userId,
+            MessageType answerMessageType,
+            String answerContent,
+            List<Long> answerDocumentIds,
+            String recommendedContactsJson
+    ) {
         ChatMessage answerMessage = new ChatMessage(
                 userId,
                 null,
                 SenderType.BOT,
                 answerMessageType,
-                answerContent
+                answerContent,
+                recommendedContactsJson
         );
         ChatMessage savedAnswerMessage = chatMessageRepository.save(answerMessage);
         saveDocumentMappings(savedAnswerMessage.getId(), answerDocumentIds);
@@ -211,9 +195,6 @@ public class ChatMessageService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
-                resolveRecommendedContacts(message);
-
         return new ChatMessageResponse(
                 message.getId(),
                 message.getSuggestionId(),
@@ -221,7 +202,8 @@ public class ChatMessageService {
                 message.getSenderType().name(),
                 message.getMessageType().getValue(),
                 message.getContent(),
-                recommendedContacts,
+                resolveQuickTaps(message),
+                resolveRecommendedContacts(message),
                 message.getCreatedAt().toString()
         );
     }
@@ -237,7 +219,6 @@ public class ChatMessageService {
         }
 
         ChatMessageResponse.FileResponse fileResponse = null;
-
         if ("TEMPLATE".equals(document.getDocumentType())) {
             DocumentFile documentFile = documentFileMap.get(documentId);
             fileResponse = toFileResponse(documentId, documentFile);
@@ -366,7 +347,6 @@ public class ChatMessageService {
             serialized = redisCacheService.listRange(key, 0, -1);
         } catch (RuntimeException ex) {
             if (isRedisWrongType(ex)) {
-                // 배포 전환 구간에서 legacy String key를 정리하고 DB fallback 경로를 사용한다.
                 redisCacheService.delete(key);
                 return List.of();
             }
@@ -384,7 +364,6 @@ public class ChatMessageService {
                     history.add(turn);
                 }
             } catch (JsonProcessingException ignored) {
-                // invalid history entry는 건너뛰고 가능한 항목만 사용
             }
         }
         return history;
@@ -445,7 +424,6 @@ public class ChatMessageService {
             writeConversationTurns(key, turns);
         } catch (RuntimeException ex) {
             if (isRedisWrongType(ex)) {
-                // 롤링 배포 구간에서 legacy String key가 재생성될 수 있어 쓰기 경로도 복구 처리한다.
                 redisCacheService.delete(key);
                 writeConversationTurns(key, turns);
                 return;
@@ -479,29 +457,32 @@ public class ChatMessageService {
     }
 
     @Transactional
-    public void saveSuggestionMessageIfNotExists(Long userId, Long suggestionId, String content) {
-        boolean exists = chatMessageRepository.existsByUserIdAndSuggestionIdAndMessageType(
+    public ChatMessage saveSuggestionMessageIfNotExists(Long userId, Long suggestionId, String content) {
+        return chatMessageRepository.findTopByUserIdAndSuggestionIdAndMessageTypeOrderByCreatedAtDesc(
+                        userId,
+                        suggestionId,
+                        MessageType.suggestion
+                )
+                .orElseGet(() -> chatMessageRepository.save(
+                        ChatMessage.createSuggestionMessage(userId, suggestionId, content)
+                ));
+    }
+
+    @Transactional(readOnly = true)
+    public ChatMessage findSuggestionMessage(Long userId, Long suggestionId) {
+        return chatMessageRepository.findTopByUserIdAndSuggestionIdAndMessageTypeOrderByCreatedAtDesc(
                 userId,
                 suggestionId,
                 MessageType.suggestion
-        );
-
-        if (exists) {
-            return;
-        }
-
-        ChatMessage message = ChatMessage.createSuggestionMessage(userId, suggestionId, content);
-        chatMessageRepository.save(message);
+        ).orElse(null);
     }
 
     @Transactional
-    public void saveNudgeMessage(Long userId, Long suggestionId, String content) {
+    public ChatMessage saveNudgeMessage(Long userId, Long suggestionId, String content) {
         if (suggestionId != null) {
-            saveSuggestionMessageIfNotExists(userId, suggestionId, content);
-            return;
+            return saveSuggestionMessageIfNotExists(userId, suggestionId, content);
         }
-        ChatMessage message = ChatMessage.createSuggestionMessage(userId, null, content);
-        chatMessageRepository.save(message);
+        return chatMessageRepository.save(ChatMessage.createSuggestionMessage(userId, null, content));
     }
 
     @Transactional(readOnly = true)
@@ -517,34 +498,86 @@ public class ChatMessageService {
         );
     }
 
-    private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
-        if (message.getSenderType() != SenderType.BOT || message.getMessageType() != MessageType.no_result) {
+    private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {
+        if (message.getMessageType() != MessageType.suggestion || message.getSuggestionId() == null) {
             return List.of();
         }
 
-        return List.of(
-                new ChatMessageResponse.RecommendedContactResponse(
-                        "경영지원팀",
-                        "김지수",
-                        "매니저",
-                        List.of(
-                                new ChatMessageResponse.ContactMethodResponse(
-                                        ChatMessageResponse.ContactMethodResponse.ContactType.EMAIL,
-                                        "jisoo.kim@withbuddy.ai"
-                                ),
-                                new ChatMessageResponse.ContactMethodResponse(
-                                        ChatMessageResponse.ContactMethodResponse.ContactType.SLACK,
-                                        "@jisoo.kim"
-                                )
-                        )
-                )
-        );
+        OnboardingSuggestion suggestion = onboardingSuggestionRepository.findById(message.getSuggestionId())
+                .orElse(null);
+        if (suggestion == null) {
+            return List.of();
+        }
+
+        return quickQuestionCatalog.getOnboardingQuickTaps(suggestion.getDayOffset());
+    }
+
+    private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
+        if (message.getSenderType() != SenderType.BOT) {
+            return List.of();
+        }
+        return deserializeRecommendedContacts(message.getRecommendedContactsJson());
     }
 
     public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
-        return Map.of(
-                "quickQuestions",
-                quickQuestionCatalog.getRandomQuickQuestions(5)
-        );
+        return Map.of("quickQuestions", quickQuestionCatalog.getRandomQuickQuestions(5));
+    }
+
+    private List<ChatMessageResponse.RecommendedContactResponse> toRecommendedContactResponses(
+            List<AiAnswerServerResponse.RecommendedContactRef> recommendedContacts
+    ) {
+        if (recommendedContacts == null || recommendedContacts.isEmpty()) {
+            return List.of();
+        }
+
+        return recommendedContacts.stream()
+                .filter(Objects::nonNull)
+                .map(contact -> new ChatMessageResponse.RecommendedContactResponse(
+                        contact.getDepartment(),
+                        contact.getName(),
+                        contact.getPosition(),
+                        toContactMethodResponses(contact.getConnects())
+                ))
+                .toList();
+    }
+
+    private List<ChatMessageResponse.ContactMethodResponse> toContactMethodResponses(
+            List<AiAnswerServerResponse.ContactMethodRef> connects
+    ) {
+        if (connects == null || connects.isEmpty()) {
+            return List.of();
+        }
+
+        return connects.stream()
+                .filter(Objects::nonNull)
+                .map(connect -> new ChatMessageResponse.ContactMethodResponse(
+                        connect.getType() == null ? null : connect.getType().name().toLowerCase(Locale.ROOT),
+                        connect.getValue()
+                ))
+                .toList();
+    }
+
+    private String serializeRecommendedContacts(List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts) {
+        if (recommendedContacts == null || recommendedContacts.isEmpty()) {
+            return null;
+        }
+
+        try {
+            return objectMapper.writeValueAsString(recommendedContacts);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize recommended contacts.", e);
+        }
+    }
+
+    private List<ChatMessageResponse.RecommendedContactResponse> deserializeRecommendedContacts(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            return objectMapper.readValue(json, RECOMMENDED_CONTACTS_TYPE);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize recommended contacts.", e);
+        }
     }
 }

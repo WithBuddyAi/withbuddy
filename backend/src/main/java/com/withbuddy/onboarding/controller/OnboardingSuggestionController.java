@@ -2,12 +2,12 @@ package com.withbuddy.onboarding.controller;
 
 import com.withbuddy.global.security.AuthenticationPrincipalResolver;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
-import com.withbuddy.onboarding.dto.OnboardingSuggestionListResponse;
+import com.withbuddy.onboarding.dto.OnboardingSuggestionExposureResponse;
 import com.withbuddy.onboarding.service.OnboardingSuggestionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,14 +18,14 @@ public class OnboardingSuggestionController implements OnboardingSuggestionContr
 
     private final OnboardingSuggestionService onboardingSuggestionService;
 
-    @GetMapping("/me")
-    public ResponseEntity<OnboardingSuggestionListResponse> getMyOnboardingSuggestions(
+    @PostMapping("/me/exposure")
+    public ResponseEntity<OnboardingSuggestionExposureResponse> exposeMyOnboardingSuggestion(
             Authentication authentication
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
 
-        OnboardingSuggestionListResponse response =
-                onboardingSuggestionService.getMyOnboardingSuggestions(principal.userId());
+        OnboardingSuggestionExposureResponse response =
+                onboardingSuggestionService.exposeMyOnboardingSuggestion(principal.userId());
 
         return ResponseEntity.ok(response);
     }
