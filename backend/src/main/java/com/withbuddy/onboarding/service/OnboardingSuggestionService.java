@@ -63,32 +63,40 @@ public class OnboardingSuggestionService {
 
         String nudgeSentKey = RedisCacheKeys.nudgeSent(userId, dayOffset);
 
-        if (redisCacheService.putIfAbsent(nudgeSentKey, "1", RedisCacheTtl.NUDGE_SENT)) {
-            NudgeEvent nudgeEvent = new NudgeEvent(
-                    UUID.randomUUID().toString(),
+        boolean firstViewToday = redisCacheService.putIfAbsent(
+                nudgeSentKey,
+                "1",
+                RedisCacheTtl.NUDGE_SENT
+        );
+
+        if (!firstViewToday) {
+            return new OnboardingSuggestionListResponse(List.of());
+        }
+
+        NudgeEvent nudgeEvent = new NudgeEvent(
+                UUID.randomUUID().toString(),
+                userId,
+                suggestion.getId(),
+                content,
+                null,
+                NudgeType.GENERAL,
+                System.currentTimeMillis()
+        );
+
+        try {
+            nudgeEventPublisher.publish(nudgeEvent);
+        } catch (RuntimeException ex) {
+            log.warn("[NUDGE] publish failed. fallback to direct save. userId={}, dayOffset={}",
                     userId,
-                    suggestion.getId(),
-                    content,
-                    null,
-                    NudgeType.GENERAL,
-                    System.currentTimeMillis()
+                    dayOffset,
+                    ex
             );
 
-            try {
-                nudgeEventPublisher.publish(nudgeEvent);
-            } catch (RuntimeException ex) {
-                log.warn("[NUDGE] publish failed. fallback to direct save. userId={}, dayOffset={}",
-                        userId,
-                        dayOffset,
-                        ex
-                );
-
-                chatMessageService.saveSuggestionMessageIfNotExists(
-                        userId,
-                        suggestion.getId(),
-                        content
-                );
-            }
+            chatMessageService.saveSuggestionMessageIfNotExists(
+                    userId,
+                    suggestion.getId(),
+                    content
+            );
         }
 
         OnboardingSuggestionItemResponse response = new OnboardingSuggestionItemResponse(

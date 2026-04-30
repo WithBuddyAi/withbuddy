@@ -66,9 +66,10 @@ public class JwtService {
 
         return Jwts.builder()
                 .subject(String.valueOf(user.getId()))
-                .claim("companyCode", user.getCompany().getCompanyCode())
                 .claim("employeeNumber", user.getEmployeeNumber())
                 .claim("name", user.getName())
+                .claim("companyCode", user.getCompany().getCompanyCode())
+                .claim("companyName", user.getCompany().getName())
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)
