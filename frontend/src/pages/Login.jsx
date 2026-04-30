@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import char from '../assets/Favicon_web.svg'
 import withbuddy from '../assets/WithBuddy_web.svg'
 import { useNavigate, useLocation } from "react-router-dom"
-import { differenceInDays } from 'date-fns'
+import { differenceInCalendarDays } from 'date-fns'
 import Tooltip from '../components/Tooltip'
 import axios from 'axios'
 import { useUser } from '../contexts/UserContext'
@@ -69,7 +69,7 @@ function Login ({setIsLoggedIn}) {
 
         const today = new Date()
         const hireDate = new Date(data.user.hireDate)
-        const dayOffset = differenceInDays(today, hireDate)
+        const dayOffset = differenceInCalendarDays(today, hireDate)
         localStorage.setItem('dayCount', dayOffset)
         setDayOffset(dayOffset)
 

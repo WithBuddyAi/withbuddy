@@ -4,7 +4,7 @@ import { Link, RotateCw } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import bot from '../assets/Bot_icon.svg'
 
-function MessageList({ messageList, botClass, handleRetry, isLoading, handleDownload }) {
+function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoading, handleDownload }) {
   // User Class 정리
   const userClass = 
   `rounded-tl-[24px]
@@ -37,12 +37,14 @@ function MessageList({ messageList, botClass, handleRetry, isLoading, handleDown
 
           return(
           <div key={message.id}>
+            {/* 날짜 구분선 */}
             {isNewDate && (
               <div className="flex items-center justify-center">
                 <p className="border-[1px] border-[#DEE2E6] bg-[#FFFFFF] w-[130px] md:w-[150px] py-[6px] px-[16px] rounded-[9999px] drop-shadow-sm text-[#495057] text-[12px] md:text-[14px] text-center mt-[16px]">
                   {currentDate && format(new Date(currentDate), 'yyyy년 M월 d일', {locale: ko})}</p>
               </div>)}
             
+            {/* 말풍선 영역 */}
             <div className={
               message.senderType === 'USER' ? 'flex justify-end' : 'flex justify-start items-start mt-[32px]'}>
               {message.senderType === 'BOT' && <img src={bot} alt="WithBuddy 채팅봇 이미지"/>}
@@ -51,6 +53,7 @@ function MessageList({ messageList, botClass, handleRetry, isLoading, handleDown
                   message.senderType === 'USER' ? `${userClass}` : `${botClass}`}
                   style={message.senderType === 'USER' ? {background: 'linear-gradient(to right, #7DC1FF, #6BB5F2, #57A7E4, #4F9CD7, #4791CA)'} : {}}>
 
+                  {/* 에러 메시지/재시도 버튼 */}
                   {message.messageType === 'ai_timeout' || message.messageType === 'send_error' ? (
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-[10px]">
                       <p className="text-[#495057] text-[14px] lg:text-[16px]">{message.content}</p>
@@ -63,7 +66,10 @@ function MessageList({ messageList, botClass, handleRetry, isLoading, handleDown
                     </div>)
                     :
                     (<>
+                    {/* 메시지 내용 */}
                     <ReactMarkdown>{message.content}</ReactMarkdown>
+
+                    {/* 문서 출처 */}
                     {message.documents && message.documents.length > 0 && message.messageType !== 'no_result' && message.messageType !== 'out_of_scope' && (
                       <div>
                         <br/>
@@ -92,6 +98,21 @@ function MessageList({ messageList, botClass, handleRetry, isLoading, handleDown
                   }
                 </div>
 
+                {/* 버디 넛지 빠른 질문 */}
+                {message.messageType === 'suggestion' && message.quickTaps?.length > 0 && (
+                  <div className="flex flex-wrap gap-[8px] mt-[8px] ml-[16px]">
+                    {message.quickTaps.map((tap, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSubmit(null, tap.content)}
+                        className="border-[1px] border-[#DEE2E6] py-[8px] px-[16px] rounded-[9999px] text-[#868E96] text-[11px] md:text-[12px]">
+                        {tap.buttonText}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 시간 */}
                 <div className={
                   `${message.senderType === 'USER' ? 'text-right md:mr-[48px]' : 'text-left ml-[16px]'}`}>
                   <p className="text-[#868E96] text-[10px] md:text-[16px] ">{message.createdAt && format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
