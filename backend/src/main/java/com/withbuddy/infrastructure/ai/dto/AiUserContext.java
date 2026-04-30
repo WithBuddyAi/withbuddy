@@ -17,4 +17,7 @@ public class AiUserContext {
 
     @Schema(description = "회사 코드", example = "WB0001")
     private String companyCode;
+
+    @Schema(description = "회사명", example = "테크 주식회사")
+    private String companyName;
 }
