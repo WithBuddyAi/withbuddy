@@ -1,5 +1,6 @@
 package com.withbuddy.chat.service;
 
+import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.infrastructure.ai.client.AiClient;
 import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
@@ -32,6 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -60,11 +64,13 @@ public class ChatMessageService {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final AsyncAiCallService asyncAiCallService;
+    private final QuickQuestionCatalog quickQuestionCatalog;
 
     public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
         Long loginUserId = principal.userId();
         String loginUserName = principal.name();
         String companyCode = principal.companyCode();
+        String companyName = principal.companyName();
         List<ConversationTurn> conversationHistory = sanitizeConversationHistoryForAi(
                 resolveConversationHistory(loginUserId)
         );
@@ -83,7 +89,8 @@ public class ChatMessageService {
         AiUserContext userContext = new AiUserContext(
                 loginUserId,
                 loginUserName,
-                companyCode
+                companyCode,
+                companyName
         );
 
         AiAnswerServerRequest aiRequest = new AiAnswerServerRequest(
@@ -487,6 +494,29 @@ public class ChatMessageService {
         chatMessageRepository.save(message);
     }
 
+    @Transactional
+    public void saveNudgeMessage(Long userId, Long suggestionId, String content) {
+        if (suggestionId != null) {
+            saveSuggestionMessageIfNotExists(userId, suggestionId, content);
+            return;
+        }
+        ChatMessage message = ChatMessage.createSuggestionMessage(userId, null, content);
+        chatMessageRepository.save(message);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasSuggestionMessageToday(Long userId, LocalDate date, ZoneId zoneId) {
+        LocalDateTime start = date.atStartOfDay(zoneId).toLocalDateTime();
+        LocalDateTime end = date.plusDays(1).atStartOfDay(zoneId).toLocalDateTime();
+
+        return chatMessageRepository.existsByUserIdAndMessageTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                userId,
+                MessageType.suggestion,
+                start,
+                end
+        );
+    }
+
     private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
         if (message.getSenderType() != SenderType.BOT || message.getMessageType() != MessageType.no_result) {
             return List.of();
@@ -511,16 +541,10 @@ public class ChatMessageService {
         );
     }
 
-    public Map<String, List<Map<String, String>>> getQuickQuestions(Long userId) {
+    public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
         return Map.of(
                 "quickQuestions",
-                List.of(
-                        Map.of("content", "연차는 어떻게 신청하나요?"),
-                        Map.of("content", "급여일이 언제인가요?"),
-                        Map.of("content", "건강검진은 어떻게 받나요?"),
-                        Map.of("content", "재직증명서 신청 방법 알려줘요"),
-                        Map.of("content", "장비 세팅하는 방법 알려주세요")
-                )
+                quickQuestionCatalog.getRandomQuickQuestions(5)
         );
     }
 }
