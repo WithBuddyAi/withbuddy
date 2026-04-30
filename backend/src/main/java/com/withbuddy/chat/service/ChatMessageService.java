@@ -33,6 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -499,6 +502,19 @@ public class ChatMessageService {
         }
         ChatMessage message = ChatMessage.createSuggestionMessage(userId, null, content);
         chatMessageRepository.save(message);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasSuggestionMessageToday(Long userId, LocalDate date, ZoneId zoneId) {
+        LocalDateTime start = date.atStartOfDay(zoneId).toLocalDateTime();
+        LocalDateTime end = date.plusDays(1).atStartOfDay(zoneId).toLocalDateTime();
+
+        return chatMessageRepository.existsByUserIdAndMessageTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                userId,
+                MessageType.suggestion,
+                start,
+                end
+        );
     }
 
     private List<ChatMessageResponse.RecommendedContactResponse> resolveRecommendedContacts(ChatMessage message) {
