@@ -35,7 +35,9 @@ function MyBuddy ({setIsLoggedIn}) {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState(false)
   const chatBottomRef = useRef(null)
+  const lastUserMessageRef = useRef(null)
   const [loadingMessage, setLoadingMessage] = useState('')
+  const [hasSubmitted, setHasSubmitted] = useState(false)
 
 
   // 대화 기록 달력
@@ -127,9 +129,20 @@ function MyBuddy ({setIsLoggedIn}) {
   
   // 자동 스크롤
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({
-      behavior: messageList.length > 1 ? "smooth" : "auto",
-    })
+    if (isLoading) {
+      chatBottomRef.current?.scrollIntoView({
+        behavior: "smooth",
+      })
+    } else if (hasSubmitted) {
+      lastUserMessageRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      })
+    } else {
+      chatBottomRef.current?.scrollIntoView({
+        behavior: "auto",
+      })
+    }
   }, [messageList, isLoading, loadingMessage])
 
   // 에러 토스트 자동 사라짐
@@ -161,6 +174,7 @@ function MyBuddy ({setIsLoggedIn}) {
     const sendText = submitText
     if (!sendText.trim()) return
     setIsLoading(true)
+    setHasSubmitted(true)
     setMessageList(prev => [...prev, {
       id: `temp-${Date.now()}`,
       senderType: 'USER',
@@ -361,6 +375,7 @@ function MyBuddy ({setIsLoggedIn}) {
           handleRetry={handleRetry}
           isLoading={isLoading}
           handleDownload={handleDownload}
+          lastUserMessageRef={lastUserMessageRef}
         />
 
           {/* 로딩 인디케이터 */}

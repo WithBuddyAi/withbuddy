@@ -4,7 +4,10 @@ import { Link, RotateCw } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import bot from '../assets/Bot_icon.svg'
 
-function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoading, handleDownload }) {
+function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoading, handleDownload, lastUserMessageRef }) {
+  
+  const lastUserIndex = [...messageList].map(m => m.senderType).lastIndexOf('USER')
+
   // User Class 정리
   const userClass = 
   `rounded-tl-[24px]
@@ -32,11 +35,11 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
     <div>
       {messageList.map((message, index) => {
         const currentDate = message.createdAt?.slice(0, 10)
-          const prevDate = index > 0 ? messageList[index - 1].createdAt?.slice(0, 10) : null
-          const isNewDate = currentDate !== prevDate
+        const prevDate = index > 0 ? messageList[index - 1].createdAt?.slice(0, 10) : null
+        const isNewDate = currentDate !== prevDate
 
           return(
-          <div key={message.id}>
+          <div key={message.id} ref={index === lastUserIndex ? lastUserMessageRef : null}>
             {/* 날짜 구분선 */}
             {isNewDate && (
               <div className="flex items-center justify-center">
