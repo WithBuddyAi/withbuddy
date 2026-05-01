@@ -55,18 +55,18 @@ public class InternalApiController {
         return ResponseEntity.ok(cacheApiService.delete(request));
     }
 
-    @PostMapping("/jobs")
-    public ResponseEntity<JobCreateResponse> createJob(@Valid @RequestBody JobCreateRequest request) {
+    @PostMapping("/tasks")
+    public ResponseEntity<JobCreateResponse> createTask(@Valid @RequestBody JobCreateRequest request) {
         return ResponseEntity.ok(jobApiService.create(request));
     }
 
-    @GetMapping("/jobs/{jobId}")
-    public ResponseEntity<JobStatusResponse> getJobStatus(@PathVariable("jobId") String jobId) {
-        return ResponseEntity.ok(jobApiService.getStatus(jobId));
+    @GetMapping("/tasks/{taskId}")
+    public ResponseEntity<JobStatusResponse> getTaskStatus(@PathVariable("taskId") String taskId) {
+        return ResponseEntity.ok(jobApiService.getStatus(taskId));
     }
 
-    @GetMapping("/jobs/{jobId}/result")
-    public ResponseEntity<JobStatusResponse> getJobResult(@PathVariable("jobId") String jobId) {
-        return ResponseEntity.ok(jobApiService.getResult(jobId));
+    @GetMapping("/tasks/{taskId}/result")
+    public ResponseEntity<JobStatusResponse> getTaskResult(@PathVariable("taskId") String taskId) {
+        return ResponseEntity.ok(jobApiService.getResult(taskId));
     }
 }
