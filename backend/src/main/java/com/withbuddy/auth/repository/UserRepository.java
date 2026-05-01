@@ -15,4 +15,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
             String employeeNumber
     );
 
+    boolean existsByCompany_CompanyCodeAndEmployeeNumber(
+            String companyCode,
+            String employeeNumber
+    );
 }

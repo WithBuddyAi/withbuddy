@@ -111,7 +111,8 @@ def check_and_generate_clarifying(question: str, company_code: str) -> str | Non
         "company_code": company_code or "global",
     }).strip()
 
-    if result.upper() == "NONE" or not result:
+    first_line = result.split("\n")[0].strip().upper()
+    if first_line == "NONE" or not result:
         return None
     return result
 

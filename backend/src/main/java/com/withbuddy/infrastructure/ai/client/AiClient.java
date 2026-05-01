@@ -26,6 +26,9 @@ public class AiClient {
 
     public AiAnswerServerResponse requestAnswer(AiAnswerServerRequest request) {
         try {
+            int historyCount = request.getConversationHistory() == null ? 0 : request.getConversationHistory().size();
+            log.info("AI request start. questionId={}, historyCount={}", request.getQuestionId(), historyCount);
+
             AiAnswerServerResponse response = aiRestClient.post()
                     .uri("/internal/ai/answer")
                     .contentType(MediaType.APPLICATION_JSON)

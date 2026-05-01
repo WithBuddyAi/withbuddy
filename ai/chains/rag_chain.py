@@ -16,7 +16,6 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
-from core.semantic_cache import get_semantic_cache
 from core.vectorstore import search_with_company_fallback, search_legal_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
@@ -149,12 +148,15 @@ _NO_ANSWER_KEYWORDS = [
     "찾을 수 없습니다",
     "포함되어 있지 않",
     "정보가 없",
+    "문서에 없어서",
+    "안내드리기 어려워",
 ]
 
 def _is_unanswered(answer: str, docs: List[Document]) -> bool:
     if not docs:
         return True
     return any(kw in answer for kw in _NO_ANSWER_KEYWORDS)
+
 
 
 def _extract_contact_from_docs(docs: List[Document]) -> str | None:
@@ -169,14 +171,19 @@ def _extract_contact_from_docs(docs: List[Document]) -> str | None:
             return m.group(1).strip()
     return None
 
-async def _fire_unanswered_alert(user_id: str, question: str) -> None:
-    """미답변 저장 + Slack 알림 (백그라운드)"""
+async def _fire_unanswered_alert(user_id: str, question: str, company_code: str = "") -> None:
+    """미답변 저장 + Slack 알림 + nudge Task 등록 (백그라운드)"""
     try:
         from tasks.slack_notifier import notify_unanswered_question
         qid = add_unanswered(user_id, question)
         await notify_unanswered_question(user_id, question, qid)
     except Exception:
-        pass  # 알림 실패가 채팅 응답에 영향주지 않도록
+        pass
+    try:
+        from core.be_client import enqueue_nudge
+        enqueue_nudge(user_id, company_code, question, str(qid))
+    except Exception:
+        pass
 
 _COMPANY_NAMES: dict[str, str] = {
     "WB0001": "테크 주식회사",
@@ -372,7 +379,7 @@ def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
     return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
@@ -393,15 +400,10 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if ambiguous:
         return ambiguous, "", [], []
 
-    # 시맨틱 캐시 체크
-    cached = get_semantic_cache().get(question, company_code)
-    if cached:
-        answer, source, related_docs, doc_ids = cached
-        save_interaction(user_id, question, answer)
-        return answer, source, related_docs, doc_ids
-
-    # 복합 질문 분리 검색: "?" 또는 "그리고"로 분리된 경우 각각 검색 후 합산
-    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    # 복합 질문 분리 검색: "?" / "그리고" / "이랑" / "이 궁금하고" 패턴으로 분리
+    sub_questions = [q.strip() for q in re.split(
+        r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*', question
+    ) if q.strip() and len(q.strip()) > 2]
     if len(sub_questions) < 2:
         sub_questions = [question]
 
@@ -440,7 +442,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
-    company_name = _get_company_name(company_code)
+    company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
@@ -467,6 +469,11 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if _needs_labor_law_fallback(question, answer):
         answer += _get_labor_law_fallback(company_code)
 
+    # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
+    if (company_code and retrieved_docs and not _is_unanswered(answer, retrieved_docs)
+            and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
+        answer += f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
+
     # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입
     if _is_unanswered(answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
@@ -478,14 +485,10 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
 
-    # 캐시 저장 (미답변 제외)
-    if not _is_unanswered(answer, retrieved_docs):
-        get_semantic_cache().set(question, company_code, answer, source_names, related_docs, doc_ids)
-
     return answer, source_names, related_docs, doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None)을 yield하고, 마지막에 ("", source_names, related_docs)를 yield합니다.
@@ -507,18 +510,11 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", "", []              # done 시그널
         return
 
-    # 시맨틱 캐시 체크
-    cached = get_semantic_cache().get(question, company_code)
-    if cached:
-        answer, source, related_docs, doc_ids = cached
-        save_interaction(user_id, question, answer)
-        yield answer, None, None
-        yield "", source, related_docs
-        return
-
     yield "__STAGE__searching", None, None
 
-    sub_questions = [q.strip() for q in re.split(r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+', question) if q.strip()]
+    sub_questions = [q.strip() for q in re.split(
+        r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*', question
+    ) if q.strip() and len(q.strip()) > 2]
     if len(sub_questions) < 2:
         sub_questions = [question]
 
@@ -560,7 +556,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             + formatted_context
         )
     user_style = _detect_user_style(chat_history, question)
-    company_name = _get_company_name(company_code)
+    company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
@@ -600,6 +596,13 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     save_interaction(user_id, question, fixed)
 
+    # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
+    if (company_code and retrieved_docs and not _is_unanswered(fixed, retrieved_docs)
+            and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
+        case_a_msg = f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
+        yield case_a_msg, None, None
+        fixed += case_a_msg
+
     # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림
     if _is_unanswered(full_answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
@@ -609,12 +612,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             contact_msg = f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
         yield contact_msg, None, None
         fixed += contact_msg
-        asyncio.create_task(_fire_unanswered_alert(user_id, question))
+        asyncio.create_task(_fire_unanswered_alert(user_id, question, company_code))
 
+    save_interaction(user_id, question, fixed)
     related_docs = find_related_docs(question)
-
-    # 캐시 저장 (미답변 제외)
-    if not _is_unanswered(fixed, retrieved_docs):
-        get_semantic_cache().set(question, company_code, fixed, source_names, related_docs, [])
 
     yield "", source_names, related_docs

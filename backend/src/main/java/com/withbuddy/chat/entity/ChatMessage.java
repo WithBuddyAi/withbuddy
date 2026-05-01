@@ -1,6 +1,13 @@
 package com.withbuddy.chat.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -36,17 +43,28 @@ public class ChatMessage {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "recommended_contacts_json", columnDefinition = "TEXT")
+    private String recommendedContactsJson;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    public ChatMessage(Long userId, Long suggestionId, SenderType senderType, MessageType messageType, String content) {
+    public ChatMessage(
+            Long userId,
+            Long suggestionId,
+            SenderType senderType,
+            MessageType messageType,
+            String content,
+            String recommendedContactsJson
+    ) {
         this.userId = userId;
         this.suggestionId = suggestionId;
         this.senderType = senderType;
         this.messageType = messageType;
         this.content = content;
+        this.recommendedContactsJson = recommendedContactsJson;
     }
 
     public static ChatMessage createSuggestionMessage(Long userId, Long suggestionId, String content) {
@@ -56,6 +74,7 @@ public class ChatMessage {
         message.senderType = SenderType.BOT;
         message.messageType = MessageType.suggestion;
         message.content = content;
+        message.recommendedContactsJson = null;
         return message;
     }
 }

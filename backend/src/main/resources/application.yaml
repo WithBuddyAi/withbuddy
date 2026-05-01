@@ -38,7 +38,7 @@ springdoc:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 7200000
+  access-expiration: 900000
 
 ai:
   server:
@@ -60,16 +60,20 @@ app:
           value: ${STORAGE_API_KEY_VALUE:}
           global-access: ${STORAGE_API_GLOBAL_ACCESS:true}
           active: ${STORAGE_API_KEY_ACTIVE:true}
+    internal-api:
+      enabled: ${INTERNAL_API_AUTH_ENABLED:true}
+      header-name: ${INTERNAL_API_HEADER_NAME:X-API-Key}
+      token: ${INTERNAL_API_TOKEN:}
   rabbitmq:
-    exchange: ${RABBITMQ_EXCHANGE:withbuddy.exchange}
-    dlx-exchange: ${RABBITMQ_DLX_EXCHANGE:withbuddy.dlx}
+    exchange: ${RABBITMQ_EXCHANGE:withbuddy.events}
     queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
     queue-nudge: ${RABBITMQ_QUEUE_NUDGE:q.nudge}
     queue-analytics: ${RABBITMQ_QUEUE_ANALYTICS:q.analytics}
-    queue-dlq: ${RABBITMQ_QUEUE_DLQ:withbuddy.report.dlq}
-    queue-dlq-nudge: ${RABBITMQ_QUEUE_DLQ_NUDGE:q.dlq.nudge}
-    queue-dlq-analytics: ${RABBITMQ_QUEUE_DLQ_ANALYTICS:q.dlq.analytics}
+    queue-internal-tasks: ${RABBITMQ_QUEUE_INTERNAL_TASKS:q.internal.tasks}
     nudge-ttl-ms: ${RABBITMQ_NUDGE_TTL_MS:86400000}
+    analytics-ttl-ms: ${RABBITMQ_ANALYTICS_TTL_MS:30000}
+    listener-prefetch: ${RABBITMQ_LISTENER_PREFETCH:10}
+    listener-max-attempts: ${RABBITMQ_LISTENER_MAX_ATTEMPTS:3}
   storage:
     provider: ${STORAGE_PROVIDER:local}
     local-base-dir: ${STORAGE_LOCAL_BASE_DIR:storage-data}

@@ -66,9 +66,10 @@ public class JwtService {
 
         return Jwts.builder()
                 .subject(String.valueOf(user.getId()))
-                .claim("companyCode", user.getCompany().getCompanyCode())
                 .claim("employeeNumber", user.getEmployeeNumber())
                 .claim("name", user.getName())
+                .claim("companyCode", user.getCompany().getCompanyCode())
+                .claim("companyName", user.getCompany().getName())
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)
@@ -145,11 +146,20 @@ public class JwtService {
             throw new TokenMissingException("인증 토큰이 누락되었습니다.");
         }
 
-        return Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        try {
+            return Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            throw e;
+        } catch (JwtException e) {
+            throw e;
+        } catch (Exception e) {
+            // 핸들러를 통과하지 못하고 500으로 빠지는 것을 방지
+            throw new UnauthorizedException("유효하지 않은 토큰입니다. 다시 로그인해 주세요.");
+        }
     }
 
     private Long parseUserId(Claims claims) {
