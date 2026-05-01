@@ -224,6 +224,7 @@ _NO_RESULT_KW = [
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요",
     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
+    "문서에 없어서", "안내드리기 어려워",
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
@@ -337,7 +338,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
         questionId=request.questionId,
         messageType=message_type,
         content=final_content,
-        documents=[{"documentId": did} for did in doc_ids],
+        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
         recommendedContacts=recommended_contacts,
     )
 
@@ -491,7 +492,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
-        documents=[{"documentId": did} for did in doc_ids],
+        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
         recommendedContacts=recommended_contacts,
     )
 
