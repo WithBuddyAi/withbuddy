@@ -72,12 +72,13 @@ public class SecurityConfig {
                     auth.anyRequest().permitAll();
                 });
 
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
         if (storageApiKeyProperties.isEnabled()) {
-            http.addFilterBefore(storageApiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            http.addFilterBefore(storageApiKeyAuthenticationFilter, JwtAuthenticationFilter.class);
             http.addFilterAfter(jwtAuthenticationFilter, StorageApiKeyAuthenticationFilter.class);
             return http.build();
         }
-        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
