@@ -33,8 +33,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
-@Tag(name = "Ai", description = "踰꾨뵒 梨꾪똿 API")
-public class ChatMessageController implements ChatMessageControllerDocs {
+@Tag(name = "Ai", description = "버디 채팅 API")
+public class ChatMessageController {
 
     private final ChatMessageService chatMessageService;
     private final ChatMessageQueryService chatMessageQueryService;
