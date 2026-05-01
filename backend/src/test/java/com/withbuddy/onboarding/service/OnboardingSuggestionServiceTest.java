@@ -1,12 +1,10 @@
 package com.withbuddy.onboarding.service;
 
 import com.withbuddy.auth.repository.UserRepository;
+import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.service.ChatMessageService;
-import com.withbuddy.chat.service.QuickQuestionCatalog;
 import com.withbuddy.company.entity.Company;
-import com.withbuddy.infrastructure.mq.NudgeEventPublisher;
-import com.withbuddy.onboarding.dto.OnboardingSuggestionItemResponse;
-import com.withbuddy.onboarding.dto.OnboardingSuggestionListResponse;
+import com.withbuddy.onboarding.dto.OnboardingSuggestionExposureResponse;
 import com.withbuddy.onboarding.entity.OnboardingSuggestion;
 import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.user.entity.User;
@@ -16,20 +14,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OnboardingSuggestionServiceTest {
-
-    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     @Mock
     private UserRepository userRepository;
@@ -40,102 +34,82 @@ class OnboardingSuggestionServiceTest {
     @Mock
     private ChatMessageService chatMessageService;
 
-    @Mock
-    private NudgeEventPublisher nudgeEventPublisher;
-
     @Test
-    void returnsSuggestionWithQuickTapsForExactDayOffset() {
-        QuickQuestionCatalog quickQuestionCatalog = new QuickQuestionCatalog();
-        OnboardingSuggestionService onboardingSuggestionService = new OnboardingSuggestionService(
+    void createsSuggestionExposureWhenTargetExists() {
+        OnboardingSuggestionService service = new OnboardingSuggestionService(
                 userRepository,
                 onboardingSuggestionRepository,
-                chatMessageService,
-                quickQuestionCatalog,
-                nudgeEventPublisher
+                chatMessageService
         );
 
-        User user = org.mockito.Mockito.mock(User.class);
-        Company company = org.mockito.Mockito.mock(Company.class);
-        OnboardingSuggestion suggestion = org.mockito.Mockito.mock(OnboardingSuggestion.class);
-        LocalDate hireDate = LocalDate.now(KST);
+        User user = mock(User.class);
+        Company company = mock(Company.class);
+        OnboardingSuggestion suggestion = mock(OnboardingSuggestion.class);
+        ChatMessage savedMessage = mock(ChatMessage.class);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(user.getHireDate()).thenReturn(hireDate);
+        when(user.getHireDate()).thenReturn(LocalDate.now().minusDays(1));
         when(user.getName()).thenReturn("Tester");
         when(user.getCompany()).thenReturn(company);
         when(company.getName()).thenReturn("WithBuddy");
-        when(onboardingSuggestionRepository.findTopByDayOffset(0)).thenReturn(Optional.of(suggestion));
-        when(chatMessageService.hasSuggestionMessageToday(1L, LocalDate.now(KST), KST)).thenReturn(false);
-        when(suggestion.getId()).thenReturn(99L);
-        when(suggestion.getTitle()).thenReturn("Day 1");
+        when(onboardingSuggestionRepository.findTopByDayOffset(1)).thenReturn(Optional.of(suggestion));
+        when(suggestion.getId()).thenReturn(4L);
         when(suggestion.getContent()).thenReturn("{N}day onboarding guide");
-        when(suggestion.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 3, 20, 9, 0));
+        when(chatMessageService.findSuggestionMessage(1L, 4L)).thenReturn(null);
+        when(chatMessageService.saveSuggestionMessageIfNotExists(1L, 4L, "2day onboarding guide")).thenReturn(savedMessage);
+        when(savedMessage.getId()).thenReturn(301L);
 
-        OnboardingSuggestionListResponse response = onboardingSuggestionService.getMyOnboardingSuggestions(1L);
+        OnboardingSuggestionExposureResponse response = service.exposeMyOnboardingSuggestion(1L);
 
-        assertThat(response.getSuggestions()).hasSize(1);
-
-        OnboardingSuggestionItemResponse item = response.getSuggestions().getFirst();
-        assertThat(item.getDayOffset()).isEqualTo(0);
-        assertThat(item.getContent()).isEqualTo("1day onboarding guide");
-        assertThat(item.getQuickTaps()).hasSize(3);
-        assertThat(item.getQuickTaps())
-                .extracting("eventTarget")
-                .containsExactly("QUICK_TAP_IT_SETUP", "QUICK_TAP_EQUIPMENT", "QUICK_TAP_LEAVE_START");
-
-        verify(nudgeEventPublisher).publish(any());
-        verify(chatMessageService, never()).saveSuggestionMessageIfNotExists(any(), any(), any());
+        assertThat(response.isCreated()).isTrue();
+        assertThat(response.getMessageId()).isEqualTo(301L);
+        assertThat(response.getSuggestionId()).isEqualTo(4L);
     }
 
     @Test
-    void returnsEmptyWhenNoSuggestionExistsForDayOffset() {
-        QuickQuestionCatalog quickQuestionCatalog = new QuickQuestionCatalog();
-        OnboardingSuggestionService onboardingSuggestionService = new OnboardingSuggestionService(
+    void returnsExistingMessageWhenSuggestionAlreadyExists() {
+        OnboardingSuggestionService service = new OnboardingSuggestionService(
                 userRepository,
                 onboardingSuggestionRepository,
-                chatMessageService,
-                quickQuestionCatalog,
-                nudgeEventPublisher
+                chatMessageService
         );
 
-        User user = org.mockito.Mockito.mock(User.class);
-        LocalDate hireDate = LocalDate.now(KST).minusDays(1);
+        User user = mock(User.class);
+        OnboardingSuggestion suggestion = mock(OnboardingSuggestion.class);
+        ChatMessage existing = mock(ChatMessage.class);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(user.getHireDate()).thenReturn(hireDate);
-        when(onboardingSuggestionRepository.findTopByDayOffset(1)).thenReturn(Optional.empty());
+        when(user.getHireDate()).thenReturn(LocalDate.now().minusDays(1));
+        when(onboardingSuggestionRepository.findTopByDayOffset(1)).thenReturn(Optional.of(suggestion));
+        when(suggestion.getId()).thenReturn(4L);
+        when(chatMessageService.findSuggestionMessage(1L, 4L)).thenReturn(existing);
+        when(existing.getId()).thenReturn(301L);
 
-        OnboardingSuggestionListResponse response = onboardingSuggestionService.getMyOnboardingSuggestions(1L);
+        OnboardingSuggestionExposureResponse response = service.exposeMyOnboardingSuggestion(1L);
 
-        assertThat(response.getSuggestions()).isEmpty();
-        verify(chatMessageService, never()).saveSuggestionMessageIfNotExists(any(), any(), any());
-        verify(nudgeEventPublisher, never()).publish(any());
+        assertThat(response.isCreated()).isFalse();
+        assertThat(response.getMessageId()).isEqualTo(301L);
+        verify(chatMessageService, never()).saveSuggestionMessageIfNotExists(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
-    void returnsEmptyWhenSuggestionAlreadySavedToday() {
-        QuickQuestionCatalog quickQuestionCatalog = new QuickQuestionCatalog();
-        OnboardingSuggestionService onboardingSuggestionService = new OnboardingSuggestionService(
+    void returnsNoExposureWhenSuggestionDoesNotExist() {
+        OnboardingSuggestionService service = new OnboardingSuggestionService(
                 userRepository,
                 onboardingSuggestionRepository,
-                chatMessageService,
-                quickQuestionCatalog,
-                nudgeEventPublisher
+                chatMessageService
         );
 
-        User user = org.mockito.Mockito.mock(User.class);
-        OnboardingSuggestion suggestion = org.mockito.Mockito.mock(OnboardingSuggestion.class);
-        LocalDate hireDate = LocalDate.now(KST);
+        User user = mock(User.class);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(user.getHireDate()).thenReturn(hireDate);
-        when(onboardingSuggestionRepository.findTopByDayOffset(0)).thenReturn(Optional.of(suggestion));
-        when(chatMessageService.hasSuggestionMessageToday(1L, LocalDate.now(KST), KST)).thenReturn(true);
+        when(user.getHireDate()).thenReturn(LocalDate.now().minusDays(100));
+        when(onboardingSuggestionRepository.findTopByDayOffset(100)).thenReturn(Optional.empty());
 
-        OnboardingSuggestionListResponse response = onboardingSuggestionService.getMyOnboardingSuggestions(1L);
+        OnboardingSuggestionExposureResponse response = service.exposeMyOnboardingSuggestion(1L);
 
-        assertThat(response.getSuggestions()).isEmpty();
-        verify(nudgeEventPublisher, never()).publish(any());
-        verify(chatMessageService, never()).saveSuggestionMessageIfNotExists(any(), any(), any());
+        assertThat(response.isCreated()).isFalse();
+        assertThat(response.getMessageId()).isNull();
+        assertThat(response.getSuggestionId()).isNull();
     }
 }
