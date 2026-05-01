@@ -338,7 +338,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
         questionId=request.questionId,
         messageType=message_type,
         content=final_content,
-        documents=[{"documentId": did} for did in doc_ids],
+        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
         recommendedContacts=recommended_contacts,
     )
 
@@ -492,7 +492,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
-        documents=[{"documentId": did} for did in doc_ids],
+        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
         recommendedContacts=recommended_contacts,
     )
 
