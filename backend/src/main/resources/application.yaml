@@ -63,7 +63,7 @@ app:
     internal-api:
       enabled: ${INTERNAL_API_AUTH_ENABLED:true}
       header-name: ${INTERNAL_API_HEADER_NAME:X-API-Key}
-      token: ${INTERNAL_API_TOKEN:}
+      token: ${INTERNAL_API_TOKEN:${INTERNAL_API_KEY:}}
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.events}
     queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
