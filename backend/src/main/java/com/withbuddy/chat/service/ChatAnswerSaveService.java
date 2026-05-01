@@ -69,7 +69,7 @@ public class ChatAnswerSaveService {
     }
 
     private ChatMessage saveAnswerMessage(Long userId, MessageType type, String content, List<Long> documentIds) {
-        ChatMessage answerMessage = new ChatMessage(userId, null, SenderType.BOT, type, content);
+        ChatMessage answerMessage = new ChatMessage(userId, null, SenderType.BOT, type, content, null);
         ChatMessage saved = chatMessageRepository.save(answerMessage);
         saveDocumentMappings(saved.getId(), documentIds);
         return saved;
