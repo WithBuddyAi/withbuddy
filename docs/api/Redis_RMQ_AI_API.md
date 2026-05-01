@@ -28,7 +28,7 @@
 | --- | --- |
 | Base URL | `http://<BACKEND_PRIVATE_IP>:8080` |
 | 내부 허용 대역 | `<AI_VCN_CIDR>` (AI 서버 대역) |
-| 인증 | `X-Internal-Token` 필수 |
+| 인증 | `X-API-Key` 필수 ( §3 공통 규약과 동일 ) |
 | 권장 | ACL + 토큰 동시 적용 |
 
 ---
