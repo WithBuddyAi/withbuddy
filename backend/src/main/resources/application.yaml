@@ -60,11 +60,16 @@ app:
           value: ${STORAGE_API_KEY_VALUE:}
           global-access: ${STORAGE_API_GLOBAL_ACCESS:true}
           active: ${STORAGE_API_KEY_ACTIVE:true}
+    internal-api:
+      enabled: ${INTERNAL_API_AUTH_ENABLED:true}
+      header-name: ${INTERNAL_API_HEADER_NAME:X-Internal-Token}
+      token: ${INTERNAL_API_TOKEN:}
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.events}
     queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
     queue-nudge: ${RABBITMQ_QUEUE_NUDGE:q.nudge}
     queue-analytics: ${RABBITMQ_QUEUE_ANALYTICS:q.analytics}
+    queue-internal-jobs: ${RABBITMQ_QUEUE_INTERNAL_JOBS:q.internal.jobs}
     nudge-ttl-ms: ${RABBITMQ_NUDGE_TTL_MS:86400000}
     analytics-ttl-ms: ${RABBITMQ_ANALYTICS_TTL_MS:30000}
     listener-prefetch: ${RABBITMQ_LISTENER_PREFETCH:10}

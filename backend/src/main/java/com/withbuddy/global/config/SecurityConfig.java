@@ -1,6 +1,7 @@
 package com.withbuddy.global.config;
 
 import com.withbuddy.global.security.StorageApiKeyAuthenticationFilter;
+import com.withbuddy.global.security.InternalApiAuthenticationFilter;
 import com.withbuddy.global.security.JwtAuthenticationFilter;
 import com.withbuddy.global.security.StorageApiKeyProperties;
 import org.springframework.context.annotation.Bean;
@@ -28,17 +29,20 @@ public class SecurityConfig {
     private static final List<String> DEFAULT_ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
     private static final List<String> DEFAULT_ALLOWED_HEADERS = List.of("*");
 
+    private final InternalApiAuthenticationFilter internalApiAuthenticationFilter;
     private final StorageApiKeyAuthenticationFilter storageApiKeyAuthenticationFilter;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final StorageApiKeyProperties storageApiKeyProperties;
     private final CorsProperties corsProperties;
 
     public SecurityConfig(
+            InternalApiAuthenticationFilter internalApiAuthenticationFilter,
             StorageApiKeyAuthenticationFilter storageApiKeyAuthenticationFilter,
             JwtAuthenticationFilter jwtAuthenticationFilter,
             StorageApiKeyProperties storageApiKeyProperties,
             CorsProperties corsProperties
     ) {
+        this.internalApiAuthenticationFilter = internalApiAuthenticationFilter;
         this.storageApiKeyAuthenticationFilter = storageApiKeyAuthenticationFilter;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.storageApiKeyProperties = storageApiKeyProperties;
@@ -72,13 +76,14 @@ public class SecurityConfig {
                     auth.anyRequest().permitAll();
                 });
 
-        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(internalApiAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         if (storageApiKeyProperties.isEnabled()) {
-            http.addFilterBefore(storageApiKeyAuthenticationFilter, JwtAuthenticationFilter.class);
+            http.addFilterAfter(storageApiKeyAuthenticationFilter, InternalApiAuthenticationFilter.class);
             http.addFilterAfter(jwtAuthenticationFilter, StorageApiKeyAuthenticationFilter.class);
             return http.build();
         }
+        http.addFilterAfter(jwtAuthenticationFilter, InternalApiAuthenticationFilter.class);
         return http.build();
     }
 

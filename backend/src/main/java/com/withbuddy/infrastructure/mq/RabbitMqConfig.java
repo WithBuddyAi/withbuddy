@@ -52,11 +52,17 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue internalJobsQueue(AppRabbitMqProperties properties) {
+        return QueueBuilder.durable(properties.queueInternalJobs()).build();
+    }
+
+    @Bean
     public Declarables appBindings(
             TopicExchange appExchange,
             Queue reportQueue,
             Queue nudgeQueue,
             Queue analyticsQueue,
+            Queue internalJobsQueue,
             AppRabbitMqProperties properties
     ) {
         Binding reportBinding = BindingBuilder
@@ -71,11 +77,16 @@ public class RabbitMqConfig {
                 .bind(analyticsQueue)
                 .to(appExchange)
                 .with("analytics.#");
+        Binding internalJobsBinding = BindingBuilder
+                .bind(internalJobsQueue)
+                .to(appExchange)
+                .with("internal.jobs.#");
 
         return new Declarables(
                 reportBinding,
                 nudgeBinding,
-                analyticsBinding
+                analyticsBinding,
+                internalJobsBinding
         );
     }
 
