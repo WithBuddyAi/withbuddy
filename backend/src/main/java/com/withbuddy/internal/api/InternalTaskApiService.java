@@ -7,8 +7,10 @@ import com.withbuddy.infrastructure.mq.AppRabbitMqProperties;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -20,6 +22,8 @@ import java.util.UUID;
 
 import static com.withbuddy.internal.api.InternalApiModels.TaskCreateRequest;
 import static com.withbuddy.internal.api.InternalApiModels.TaskCreateResponse;
+import static com.withbuddy.internal.api.InternalApiModels.TaskActionResponse;
+import static com.withbuddy.internal.api.InternalApiModels.TaskRetryRequest;
 import static com.withbuddy.internal.api.InternalApiModels.TaskStatusResponse;
 
 @Service
@@ -103,6 +107,66 @@ public class InternalTaskApiService {
     public TaskStatusResponse getResult(String taskId) {
         TaskState state = getStateOrThrow(taskId);
         return toStatusResponse(state);
+    }
+
+    public TaskActionResponse cancel(String taskId) {
+        TaskState state = getStateOrThrow(taskId);
+        if (isTerminal(state.status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 종료된 task는 취소할 수 없습니다.");
+        }
+        String now = nowUtc();
+        TaskState cancelled = state.withStatus("CANCELLED", now);
+        saveState(cancelled);
+        return new TaskActionResponse(cancelled.taskId, cancelled.status, null);
+    }
+
+    public TaskActionResponse retry(String taskId, TaskRetryRequest request) {
+        TaskState state = getStateOrThrow(taskId);
+        if (!isTerminal(state.status)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "터미널 상태 task만 재시도할 수 있습니다. currentStatus=" + state.status
+            );
+        }
+
+        String now = nowUtc();
+        String newTaskId = UUID.randomUUID().toString();
+        TaskState queued = new TaskState(
+                newTaskId,
+                state.type,
+                "QUEUED",
+                state.payload,
+                null,
+                null,
+                state.callbackUrl,
+                state.timeoutSeconds,
+                state.retryCount,
+                now,
+                now
+        );
+        saveState(queued);
+
+        InternalTaskMessage taskMessage = new InternalTaskMessage(
+                newTaskId,
+                state.type,
+                state.payload,
+                state.callbackUrl,
+                state.timeoutSeconds,
+                state.retryCount,
+                now
+        );
+        try {
+            rabbitTemplate.convertAndSend(
+                    rabbitMqProperties.exchange(),
+                    ROUTING_KEY,
+                    taskMessage
+            );
+        } catch (RuntimeException ex) {
+            TaskState failed = queued.withFailure("RMQ publish failed: " + ex.getMessage(), nowUtc());
+            saveState(failed);
+            throw new IllegalStateException("비동기 작업 큐 등록에 실패했습니다.", ex);
+        }
+        return new TaskActionResponse(newTaskId, "QUEUED", now);
     }
 
     private Optional<TaskCreateResponse> getByIdempotencyKey(String idempotencyKey) {
@@ -203,6 +267,13 @@ public class InternalTaskApiService {
         return "ai:tasks:task:" + taskId;
     }
 
+    private boolean isTerminal(String status) {
+        return "SUCCESS".equals(status)
+                || "FAILED".equals(status)
+                || "TIMED_OUT".equals(status)
+                || "CANCELLED".equals(status);
+    }
+
     private String idempotencyRedisKey(String key) {
         return "ai:tasks:idempotency:" + key;
     }
@@ -268,6 +339,22 @@ public class InternalTaskApiService {
                     this.payload,
                     this.result,
                     errorMessage,
+                    this.callbackUrl,
+                    this.timeoutSeconds,
+                    this.retryCount,
+                    this.createdAt,
+                    updatedAtUtc
+            );
+        }
+
+        public TaskState withStatus(String newStatus, String updatedAtUtc) {
+            return new TaskState(
+                    this.taskId,
+                    this.type,
+                    newStatus,
+                    this.payload,
+                    this.result,
+                    this.error,
                     this.callbackUrl,
                     this.timeoutSeconds,
                     this.retryCount,
