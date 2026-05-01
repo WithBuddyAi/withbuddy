@@ -16,7 +16,6 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from core.llm import get_llm
-from core.semantic_cache import get_response_cache
 from core.vectorstore import search_with_company_fallback, search_legal_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
@@ -169,14 +168,6 @@ def _extract_contact_from_docs(docs: List[Document]) -> str | None:
         if m:
             return m.group(1).strip()
     return None
-
-async def _publish_nudge_safe(user_id: str, content: str) -> None:
-    try:
-        from core.rmq_publisher import publish_nudge
-        await publish_nudge(user_id, content)
-    except Exception:
-        pass
-
 
 async def _fire_unanswered_alert(user_id: str, question: str) -> None:
     """미답변 저장 + Slack 알림 (백그라운드)"""
@@ -402,12 +393,6 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if ambiguous:
         return ambiguous, "", [], []
 
-    # 캐시 확인 (resolve_selection 결과 및 ambiguous는 제외)
-    if not resolved and company_code:
-        cached = get_response_cache().get(question, company_code)
-        if cached:
-            return cached
-
     # 복합 질문 분리 검색: "?" / "그리고" / "이랑" / "이 궁금하고" 패턴으로 분리
     sub_questions = [q.strip() for q in re.split(
         r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*', question
@@ -492,10 +477,6 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
-
-    # 캐시 저장 (미답변·resolve_selection 결과 제외)
-    if not resolved and company_code and not _is_unanswered(answer, retrieved_docs):
-        get_response_cache().set(question, company_code, answer, source_names, related_docs, doc_ids)
 
     return answer, source_names, related_docs, doc_ids
 
@@ -625,7 +606,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield contact_msg, None, None
         fixed += contact_msg
         asyncio.create_task(_fire_unanswered_alert(user_id, question))
-        asyncio.create_task(_publish_nudge_safe(user_id, "관련 담당자 연결이 필요해 보입니다."))
 
     save_interaction(user_id, question, fixed)
     related_docs = find_related_docs(question)
