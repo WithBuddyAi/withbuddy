@@ -148,6 +148,8 @@ _NO_ANSWER_KEYWORDS = [
     "찾을 수 없습니다",
     "포함되어 있지 않",
     "정보가 없",
+    "문서에 없어서",
+    "안내드리기 어려워",
 ]
 
 def _is_unanswered(answer: str, docs: List[Document]) -> bool:
