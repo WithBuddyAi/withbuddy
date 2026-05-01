@@ -24,7 +24,7 @@ public class MessagingQueueStatusService {
         response.put("queues", Map.of(
                 properties.queueNudge(), queueSnapshot(properties.queueNudge()),
                 properties.queueAnalytics(), queueSnapshot(properties.queueAnalytics()),
-                properties.queueInternalJobs(), queueSnapshot(properties.queueInternalJobs())
+                properties.queueInternalTasks(), queueSnapshot(properties.queueInternalTasks())
         ));
         response.put("metrics", metricsService.snapshot());
         return response;

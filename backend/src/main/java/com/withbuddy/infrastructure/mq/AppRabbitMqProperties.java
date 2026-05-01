@@ -8,7 +8,7 @@ public record AppRabbitMqProperties(
         String queueReport,
         String queueNudge,
         String queueAnalytics,
-        String queueInternalJobs,
+        String queueInternalTasks,
         Integer nudgeTtlMs,
         Integer analyticsTtlMs,
         Integer listenerPrefetch,
