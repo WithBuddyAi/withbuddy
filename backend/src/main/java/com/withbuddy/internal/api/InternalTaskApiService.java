@@ -29,7 +29,7 @@ public class InternalTaskApiService {
     private static final Duration TASK_TTL = Duration.ofHours(24);
     private static final int DEFAULT_TIMEOUT_SECONDS = 180;
     private static final int DEFAULT_RETRY_COUNT = 0;
-    private static final String ROUTING_KEY = "internal.jobs.requested";
+    private static final String ROUTING_KEY = "internal.tasks.requested";
 
     private final RabbitTemplate rabbitTemplate;
     private final AppRabbitMqProperties rabbitMqProperties;
