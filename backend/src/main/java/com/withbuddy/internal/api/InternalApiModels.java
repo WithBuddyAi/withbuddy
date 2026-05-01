@@ -75,7 +75,7 @@ public final class InternalApiModels {
     ) {
     }
 
-    public record JobCreateRequest(
+    public record TaskCreateRequest(
             @NotBlank @Size(max = 100) String type,
             @NotNull JsonNode payload,
             @Size(max = 500) String callbackUrl,
@@ -85,16 +85,16 @@ public final class InternalApiModels {
     ) {
     }
 
-    public record JobCreateResponse(
-            String jobId,
+    public record TaskCreateResponse(
+            String taskId,
             String status,
             boolean deduplicated,
             String createdAt
     ) {
     }
 
-    public record JobStatusResponse(
-            String jobId,
+    public record TaskStatusResponse(
+            String taskId,
             String type,
             String status,
             JsonNode payload,

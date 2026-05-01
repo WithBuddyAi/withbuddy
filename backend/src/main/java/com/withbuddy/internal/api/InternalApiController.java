@@ -18,9 +18,9 @@ import static com.withbuddy.internal.api.InternalApiModels.CacheGetResponse;
 import static com.withbuddy.internal.api.InternalApiModels.CacheSetMultiRequest;
 import static com.withbuddy.internal.api.InternalApiModels.CacheSetRequest;
 import static com.withbuddy.internal.api.InternalApiModels.CacheWriteResponse;
-import static com.withbuddy.internal.api.InternalApiModels.JobCreateRequest;
-import static com.withbuddy.internal.api.InternalApiModels.JobCreateResponse;
-import static com.withbuddy.internal.api.InternalApiModels.JobStatusResponse;
+import static com.withbuddy.internal.api.InternalApiModels.TaskCreateRequest;
+import static com.withbuddy.internal.api.InternalApiModels.TaskCreateResponse;
+import static com.withbuddy.internal.api.InternalApiModels.TaskStatusResponse;
 
 @RestController
 @RequiredArgsConstructor
@@ -28,7 +28,7 @@ import static com.withbuddy.internal.api.InternalApiModels.JobStatusResponse;
 public class InternalApiController {
 
     private final InternalCacheApiService cacheApiService;
-    private final InternalJobApiService jobApiService;
+    private final InternalTaskApiService taskApiService;
 
     @PostMapping("/cache/get")
     public ResponseEntity<CacheGetResponse> getCache(@Valid @RequestBody CacheGetRequest request) {
@@ -56,17 +56,17 @@ public class InternalApiController {
     }
 
     @PostMapping("/tasks")
-    public ResponseEntity<JobCreateResponse> createTask(@Valid @RequestBody JobCreateRequest request) {
-        return ResponseEntity.ok(jobApiService.create(request));
+    public ResponseEntity<TaskCreateResponse> createTask(@Valid @RequestBody TaskCreateRequest request) {
+        return ResponseEntity.ok(taskApiService.create(request));
     }
 
     @GetMapping("/tasks/{taskId}")
-    public ResponseEntity<JobStatusResponse> getTaskStatus(@PathVariable("taskId") String taskId) {
-        return ResponseEntity.ok(jobApiService.getStatus(taskId));
+    public ResponseEntity<TaskStatusResponse> getTaskStatus(@PathVariable("taskId") String taskId) {
+        return ResponseEntity.ok(taskApiService.getStatus(taskId));
     }
 
     @GetMapping("/tasks/{taskId}/result")
-    public ResponseEntity<JobStatusResponse> getTaskResult(@PathVariable("taskId") String taskId) {
-        return ResponseEntity.ok(jobApiService.getResult(taskId));
+    public ResponseEntity<TaskStatusResponse> getTaskResult(@PathVariable("taskId") String taskId) {
+        return ResponseEntity.ok(taskApiService.getResult(taskId));
     }
 }
