@@ -58,7 +58,7 @@ public class InternalApiAuthenticationFilter extends OncePerRequestFilter {
 
         String headerName = StringUtils.hasText(properties.getHeaderName())
                 ? properties.getHeaderName()
-                : "X-Internal-Token";
+                : "X-API-Key";
         String expectedToken = properties.getToken();
         String actualToken = request.getHeader(headerName);
 

@@ -32,6 +32,13 @@
 - `STORAGE_API_AUTH_ENABLED=false`:
   - Storage API가 기존 Bearer 흐름으로 동작(로컬/이행 단계)
 
+Internal API 공통 규정:
+- `INTERNAL_API_AUTH_ENABLED=true`:
+  - `X-API-Key` 필수
+  - Bearer만으로는 Internal API(`/internal/v1/*`) 접근 불가
+- `INTERNAL_API_AUTH_ENABLED=false`:
+  - Internal API가 기존 Bearer 흐름으로 동작(로컬/이행 단계)
+
 파일 제한:
 - 확장자: `pdf`, `docx`, `pptx`, `png`, `jpg`, `jpeg`
 - 크기: 문서 20MB, 이미지 5MB (환경변수로 조정)

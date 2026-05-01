@@ -62,7 +62,7 @@ app:
           active: ${STORAGE_API_KEY_ACTIVE:true}
     internal-api:
       enabled: ${INTERNAL_API_AUTH_ENABLED:true}
-      header-name: ${INTERNAL_API_HEADER_NAME:X-Internal-Token}
+      header-name: ${INTERNAL_API_HEADER_NAME:X-API-Key}
       token: ${INTERNAL_API_TOKEN:}
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.events}

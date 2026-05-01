@@ -3,7 +3,7 @@
 WithBuddy 프로젝트의 환경변수 설정 가이드입니다.
 
 **최종 업데이트**: 2026-05-01
-**버전**: 0.3.3
+**버전**: 0.3.4
 **작성일**: 2026-03-23
 
 ## 📋 목차
@@ -68,7 +68,7 @@ RABBITMQ_QUEUE_INTERNAL_TASKS=q.internal.tasks
 
 # Internal API 인증 (AI -> Backend)
 INTERNAL_API_AUTH_ENABLED=true
-INTERNAL_API_HEADER_NAME=X-Internal-Token
+INTERNAL_API_HEADER_NAME=X-API-Key
 INTERNAL_API_TOKEN=CHANGE_ME_INTERNAL_TOKEN
 
 # 이메일 설정 (선택)
@@ -170,6 +170,13 @@ CHROMA_PERSIST_DIR=./chroma_db
 BACKEND_INTERNAL_API_BASE_URL=http://<BACKEND_PRIVATE_IP>:8080/internal/v1
 BACKEND_INTERNAL_API_TOKEN=CHANGE_ME_INTERNAL_TOKEN
 ```
+
+Internal API 인증 모드 매트릭스:
+- `INTERNAL_API_AUTH_ENABLED=true`:
+  - `X-API-Key` 필수
+  - Bearer만으로는 Internal API 접근 불가
+- `INTERNAL_API_AUTH_ENABLED=false`:
+  - Internal API가 기존 Bearer 흐름으로 동작(로컬/이행 단계)
 
 ### 선택 환경변수
 
@@ -385,6 +392,7 @@ VITE_API_BASE_URL=xxx
 
 ## 변경 이력
 
+- 2026-05-01: Storage API 규칙과 공통으로 Internal API 인증 헤더 기본값을 `X-API-Key`로 통일하고, `INTERNAL_API_AUTH_ENABLED` 모드 매트릭스를 추가.
 - 2026-05-01: AI가 Redis/RabbitMQ를 직접 붙지 않고 Backend Internal API(`/internal/v1`)를 통해 사용하도록 환경변수 예시를 추가.
 - 2026-05-01: 현재 운영 아키텍처(`Frontend -> Backend -> AI`) 기준으로 AI의 Redis/RabbitMQ 직접 연결 안내를 제거하고, 해당 항목을 고도화(미적용)로 분리.
 - 2026-04-02: 공개 저장소 기준 서버 주소 표기를 플레이스홀더로 통일하고 문서 정합성을 보강.

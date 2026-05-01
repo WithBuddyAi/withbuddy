@@ -12,6 +12,6 @@ import org.springframework.stereotype.Component;
 public class InternalApiSecurityProperties {
 
     private boolean enabled = true;
-    private String headerName = "X-Internal-Token";
+    private String headerName = "X-API-Key";
     private String token;
 }
