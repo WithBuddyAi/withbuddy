@@ -171,14 +171,19 @@ def _extract_contact_from_docs(docs: List[Document]) -> str | None:
             return m.group(1).strip()
     return None
 
-async def _fire_unanswered_alert(user_id: str, question: str) -> None:
-    """미답변 저장 + Slack 알림 (백그라운드)"""
+async def _fire_unanswered_alert(user_id: str, question: str, company_code: str = "") -> None:
+    """미답변 저장 + Slack 알림 + nudge Task 등록 (백그라운드)"""
     try:
         from tasks.slack_notifier import notify_unanswered_question
         qid = add_unanswered(user_id, question)
         await notify_unanswered_question(user_id, question, qid)
     except Exception:
-        pass  # 알림 실패가 채팅 응답에 영향주지 않도록
+        pass
+    try:
+        from core.be_client import enqueue_nudge
+        enqueue_nudge(user_id, company_code, question, str(qid))
+    except Exception:
+        pass
 
 _COMPANY_NAMES: dict[str, str] = {
     "WB0001": "테크 주식회사",
@@ -607,7 +612,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             contact_msg = f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
         yield contact_msg, None, None
         fixed += contact_msg
-        asyncio.create_task(_fire_unanswered_alert(user_id, question))
+        asyncio.create_task(_fire_unanswered_alert(user_id, question, company_code))
 
     save_interaction(user_id, question, fixed)
     related_docs = find_related_docs(question)
