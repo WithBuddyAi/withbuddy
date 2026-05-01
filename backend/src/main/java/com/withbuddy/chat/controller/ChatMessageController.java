@@ -34,7 +34,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
 @Tag(name = "Ai", description = "버디 채팅 API")
-public class ChatMessageController implements ChatMessageControllerDocs {
+public class ChatMessageController {
 
     private final ChatMessageService chatMessageService;
     private final ChatMessageQueryService chatMessageQueryService;
