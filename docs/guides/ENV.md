@@ -3,7 +3,7 @@
 WithBuddy 프로젝트의 환경변수 설정 가이드입니다.
 
 **최종 업데이트**: 2026-05-01
-**버전**: 0.3.2
+**버전**: 0.3.3
 **작성일**: 2026-03-23
 
 ## 📋 목차
@@ -59,6 +59,17 @@ SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=10MB
 
 # CORS 설정
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# Redis / RabbitMQ
+REDIS_URL=redis://:CHANGE_ME_REDIS_PASSWORD@<DB_PRIVATE_IP>:6379/0
+RABBITMQ_URL=amqp://withbuddy_app:CHANGE_ME_RMQ_PASSWORD@<DB_PRIVATE_IP>:5672/%2F
+RABBITMQ_EXCHANGE=withbuddy.events
+RABBITMQ_QUEUE_INTERNAL_JOBS=q.internal.jobs
+
+# Internal API 인증 (AI -> Backend)
+INTERNAL_API_AUTH_ENABLED=true
+INTERNAL_API_HEADER_NAME=X-Internal-Token
+INTERNAL_API_TOKEN=CHANGE_ME_INTERNAL_TOKEN
 
 # 이메일 설정 (선택)
 SPRING_MAIL_HOST=smtp.gmail.com
@@ -154,6 +165,10 @@ MODEL_TEMPERATURE=0.7
 AI_SERVER_PORT=8000
 AI_BIND_HOST=0.0.0.0
 CHROMA_PERSIST_DIR=./chroma_db
+
+# Backend 내부 API 연동
+BACKEND_INTERNAL_API_BASE_URL=http://<BACKEND_PRIVATE_IP>:8080/internal/v1
+BACKEND_INTERNAL_API_TOKEN=CHANGE_ME_INTERNAL_TOKEN
 ```
 
 ### 선택 환경변수
@@ -370,6 +385,7 @@ VITE_API_BASE_URL=xxx
 
 ## 변경 이력
 
+- 2026-05-01: AI가 Redis/RabbitMQ를 직접 붙지 않고 Backend Internal API(`/internal/v1`)를 통해 사용하도록 환경변수 예시를 추가.
 - 2026-05-01: 현재 운영 아키텍처(`Frontend -> Backend -> AI`) 기준으로 AI의 Redis/RabbitMQ 직접 연결 안내를 제거하고, 해당 항목을 고도화(미적용)로 분리.
 - 2026-04-02: 공개 저장소 기준 서버 주소 표기를 플레이스홀더로 통일하고 문서 정합성을 보강.
 - 2026-04-01: 문서 메타데이터 위치를 표준화하고(`작성일/최종 업데이트/버전` 상단, `변경 이력` 하단) 형식을 통일.
