@@ -63,6 +63,19 @@ public final class InternalApiModels {
     ) {
     }
 
+    public record CacheSetMultiError(
+            String key,
+            String detail
+    ) {
+    }
+
+    public record CacheSetMultiResponse(
+            boolean ok,
+            int written,
+            List<CacheSetMultiError> errors
+    ) {
+    }
+
     public record CacheWriteResponse(
             String namespace,
             int affected
@@ -105,6 +118,18 @@ public final class InternalApiModels {
             Integer retryCount,
             String createdAt,
             String updatedAt
+    ) {
+    }
+
+    public record TaskRetryRequest(
+            @Size(max = 200) String reason
+    ) {
+    }
+
+    public record TaskActionResponse(
+            String taskId,
+            String status,
+            String queuedAt
     ) {
     }
 }

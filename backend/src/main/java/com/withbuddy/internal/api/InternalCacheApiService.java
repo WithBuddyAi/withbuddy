@@ -10,9 +10,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static com.withbuddy.internal.api.InternalApiModels.CacheDeleteRequest;
@@ -20,7 +18,9 @@ import static com.withbuddy.internal.api.InternalApiModels.CacheGetMultiRequest;
 import static com.withbuddy.internal.api.InternalApiModels.CacheGetMultiResponse;
 import static com.withbuddy.internal.api.InternalApiModels.CacheGetRequest;
 import static com.withbuddy.internal.api.InternalApiModels.CacheGetResponse;
+import static com.withbuddy.internal.api.InternalApiModels.CacheSetMultiError;
 import static com.withbuddy.internal.api.InternalApiModels.CacheSetMultiRequest;
+import static com.withbuddy.internal.api.InternalApiModels.CacheSetMultiResponse;
 import static com.withbuddy.internal.api.InternalApiModels.CacheSetRequest;
 import static com.withbuddy.internal.api.InternalApiModels.CacheWriteResponse;
 
@@ -70,24 +70,29 @@ public class InternalCacheApiService {
         return new CacheWriteResponse(namespace, 1);
     }
 
-    public CacheWriteResponse setMulti(CacheSetMultiRequest request) {
+    public CacheSetMultiResponse setMulti(CacheSetMultiRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         Duration ttl = resolveTtl(request.ttlSeconds());
-        Map<String, String> entries = new LinkedHashMap<>();
+        List<CacheSetMultiError> errors = new ArrayList<>();
+        List<String> seenKeys = new ArrayList<>();
+        int written = 0;
 
         for (InternalApiModels.CacheSetMultiItem item : request.items()) {
             String resolvedKey = buildRedisKey(namespace, item.key());
-            if (entries.containsKey(resolvedKey)) {
-                throw new IllegalArgumentException("중복된 cache key가 포함되어 있습니다: " + item.key());
+            if (seenKeys.contains(resolvedKey)) {
+                errors.add(new CacheSetMultiError(item.key(), "중복된 key 입니다."));
+                continue;
             }
-            entries.put(resolvedKey, serializeJson(item.value()));
+            seenKeys.add(resolvedKey);
+            try {
+                String serialized = serializeJson(item.value());
+                redisTemplate.opsForValue().set(resolvedKey, serialized, ttl);
+                written += 1;
+            } catch (RuntimeException ex) {
+                errors.add(new CacheSetMultiError(item.key(), ex.getMessage()));
+            }
         }
-
-        redisTemplate.opsForValue().multiSet(entries);
-        for (String key : entries.keySet()) {
-            redisTemplate.expire(key, ttl);
-        }
-        return new CacheWriteResponse(namespace, entries.size());
+        return new CacheSetMultiResponse(errors.isEmpty(), written, errors);
     }
 
     public CacheWriteResponse delete(CacheDeleteRequest request) {
