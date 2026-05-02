@@ -41,6 +41,7 @@ public class MessagingController {
                 null,
                 forceError ? "__FORCE_ERROR__" : "[TEST] withbuddy nudge pipeline check",
                 null,
+                null,
                 NudgeType.GENERAL,
                 System.currentTimeMillis()
         );

@@ -43,6 +43,9 @@ public class StorageProperties {
         private String executable = "oci";
         private String primaryProfile = "DEFAULT";
         private String backupProfile = "DEFAULT";
+        private String region = "";
+        private String publicEndpoint = "";
+        private int preauthTtlSeconds = 900;
         private boolean suppressFilePermissionsWarning = true;
     }
 
