@@ -20,7 +20,7 @@ spring:
     redis:
       url: ${REDIS_URL}
   rabbitmq:
-    uri: ${RABBITMQ_URL}
+    addresses: ${SPRING_RABBITMQ_ADDRESSES:${RABBITMQ_URL:amqp://guest:guest@localhost:5672}}
   jpa:
     hibernate:
       ddl-auto: none
