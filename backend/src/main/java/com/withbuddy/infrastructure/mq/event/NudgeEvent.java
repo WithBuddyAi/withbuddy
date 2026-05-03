@@ -6,6 +6,7 @@ public record NudgeEvent(
         Long suggestionId,
         String message,
         String fileId,
+        String actionUrl,
         NudgeType type,
         long publishedAt
 ) {

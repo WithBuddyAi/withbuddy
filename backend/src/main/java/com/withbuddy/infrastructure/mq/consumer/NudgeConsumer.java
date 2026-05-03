@@ -6,6 +6,7 @@ import com.withbuddy.infrastructure.mq.MessagingMetricsService;
 import com.withbuddy.infrastructure.mq.entity.MessagingEventLog;
 import com.withbuddy.infrastructure.mq.entity.MessagingEventType;
 import com.withbuddy.infrastructure.mq.event.NudgeEvent;
+import com.withbuddy.infrastructure.mq.event.NudgeType;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
@@ -67,7 +68,7 @@ public class NudgeConsumer {
                 return;
             }
 
-            chatMessageService.saveNudgeMessage(event.userId(), event.suggestionId(), event.message());
+            chatMessageService.saveNudgeMessage(event.userId(), event.suggestionId(), withActionUrl(event));
             eventLogRepository.save(new MessagingEventLog(
                     event.eventId(),
                     MessagingEventType.NUDGE,
@@ -91,6 +92,16 @@ public class NudgeConsumer {
             log.error("[NUDGE] processing failed. deliveryTag={}", deliveryTag, ex);
             throw new IllegalStateException("[NUDGE] processing failed", ex);
         }
+    }
+
+    private String withActionUrl(NudgeEvent event) {
+        if (event.type() != NudgeType.FILE && event.type() != NudgeType.RAG_RESULT) {
+            return event.message();
+        }
+        if (!StringUtils.hasText(event.actionUrl())) {
+            return event.message();
+        }
+        return event.message() + "\n\n다운로드 링크: " + event.actionUrl();
     }
 }
 
