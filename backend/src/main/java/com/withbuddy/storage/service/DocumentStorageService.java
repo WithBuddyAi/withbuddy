@@ -4,7 +4,6 @@ import com.withbuddy.infrastructure.storage.ObjectStorageClient;
 import com.withbuddy.infrastructure.storage.StorageProperties;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
-import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.global.security.StorageApiKeyPrincipal;
 import com.withbuddy.storage.dto.DocumentBulkDeleteCheckResponse;
 import com.withbuddy.storage.dto.DocumentBulkDeleteRequest;
@@ -44,6 +43,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -476,7 +476,7 @@ public class DocumentStorageService {
 
         StorageSource source = resolveSource(file);
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
-        String redisKey = RedisCacheKeys.presignedUrl(file.getId());
+        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
 
         String downloadUrl = redisCacheService.get(redisKey)
                 .filter(StringUtils::hasText)
@@ -508,7 +508,7 @@ public class DocumentStorageService {
             );
 
             if (StringUtils.hasText(preSignedUrl)) {
-                redisCacheService.put(redisKey, preSignedUrl, RedisCacheTtl.PRESIGNED_URL);
+                redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
                 return preSignedUrl;
             }
         } catch (Exception e) {
