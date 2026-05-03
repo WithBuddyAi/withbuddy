@@ -2,6 +2,8 @@ package com.withbuddy.storage.service;
 
 import com.withbuddy.infrastructure.storage.ObjectStorageClient;
 import com.withbuddy.infrastructure.storage.StorageProperties;
+import com.withbuddy.infrastructure.redis.RedisCacheKeys;
+import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.global.security.StorageApiKeyPrincipal;
 import com.withbuddy.storage.dto.DocumentBulkDeleteCheckResponse;
 import com.withbuddy.storage.dto.DocumentBulkDeleteRequest;
@@ -41,6 +43,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -82,19 +85,22 @@ public class DocumentStorageService {
     private final DocumentBackupJobRepository documentBackupJobRepository;
     private final ObjectStorageClient objectStorageClient;
     private final StorageProperties storageProperties;
+    private final RedisCacheService redisCacheService;
 
     public DocumentStorageService(
             DocumentRepository documentRepository,
             DocumentFileRepository documentFileRepository,
             DocumentBackupJobRepository documentBackupJobRepository,
             ObjectStorageClient objectStorageClient,
-            StorageProperties storageProperties
+            StorageProperties storageProperties,
+            RedisCacheService redisCacheService
     ) {
         this.documentRepository = documentRepository;
         this.documentFileRepository = documentFileRepository;
         this.documentBackupJobRepository = documentBackupJobRepository;
         this.objectStorageClient = objectStorageClient;
         this.storageProperties = storageProperties;
+        this.redisCacheService = redisCacheService;
     }
 
     @Transactional
@@ -469,9 +475,51 @@ public class DocumentStorageService {
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
 
         StorageSource source = resolveSource(file);
-        String downloadUrl = "/api/v1/documents/" + documentId + "/file?source=" + source.name();
+        int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
+        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
 
-        return new DocumentDownloadResponse(downloadUrl, storageProperties.getDownloadUrlTtlSeconds(), source.name());
+        String downloadUrl = redisCacheService.get(redisKey)
+                .filter(StringUtils::hasText)
+                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
+
+        return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
+    }
+
+    private String createAndCacheDownloadUrl(
+            Long documentId,
+            DocumentFile file,
+            StorageSource source,
+            String redisKey,
+            int preauthTtlSeconds
+    ) {
+        try {
+            String preSignedUrl = source == StorageSource.BACKUP
+                    ? objectStorageClient.createPreSignedGetUrl(
+                    file.getBackupNamespace(),
+                    file.getBackupBucket(),
+                    file.getBackupObjectKey(),
+                    preauthTtlSeconds
+            )
+                    : objectStorageClient.createPreSignedGetUrl(
+                    file.getPrimaryNamespace(),
+                    file.getPrimaryBucket(),
+                    file.getPrimaryObjectKey(),
+                    preauthTtlSeconds
+            );
+
+            if (StringUtils.hasText(preSignedUrl)) {
+                redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
+                return preSignedUrl;
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "pre-signed URL 생성 실패. documentId={}, source={}, reason={}",
+                    documentId,
+                    source.name(),
+                    safeMessage(e)
+            );
+        }
+        return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {
