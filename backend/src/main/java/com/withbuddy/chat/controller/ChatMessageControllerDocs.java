@@ -36,8 +36,31 @@ public interface ChatMessageControllerDocs {
             답변과 함께 관련 문서 ID가 반환되어 출처를 추적할 수 있다."""
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "메시지 전송 및 AI 답변 생성 성공",
-                content = @Content(schema = @Schema(implementation = ChatMessageCreateResponse.class))),
+        @ApiResponse(responseCode = "201", description = "메시지 전송 성공 (동기 완료: COMPLETED / 비동기 폴백: PENDING)",
+                content = @Content(
+                        schema = @Schema(implementation = ChatMessageCreateResponse.class),
+                        examples = {
+                                @ExampleObject(
+                                        name = "COMPLETED",
+                                        summary = "동기 AI 응답 완료",
+                                        value = """
+                                                {
+                                                  "question": { "id": 501, "messageType": "user_question", "content": "복지카드 신청 방법 알려줘요", "documents": [], "senderType": "USER", "quickTaps": [], "recommendedContacts": [], "createdAt": "2026-05-05T10:00:00" },
+                                                  "answer": { "id": 502, "messageType": "rag_answer", "content": "복지카드는 포털 > 복지 > 신청 메뉴에서 가능합니다.", "documents": [], "senderType": "BOT", "quickTaps": [], "recommendedContacts": [], "createdAt": "2026-05-05T10:00:02" },
+                                                  "status": "COMPLETED"
+                                                }"""
+                                ),
+                                @ExampleObject(
+                                        name = "PENDING",
+                                        summary = "동기 타임아웃 후 비동기 폴백 시작",
+                                        value = """
+                                                {
+                                                  "question": { "id": 601, "messageType": "user_question", "content": "점심시간 규정 알려줘", "documents": [], "senderType": "USER", "quickTaps": [], "recommendedContacts": [], "createdAt": "2026-05-05T10:10:00" },
+                                                  "answer": null,
+                                                  "status": "PENDING"
+                                                }"""
+                                )
+                        })),
         @ApiResponse(responseCode = "401", description = "인증 실패 — 유효하지 않은 토큰",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "504", description = "AI 서버 응답 시간 초과",
