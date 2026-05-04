@@ -64,6 +64,15 @@ def save_interaction(user_id: str, human_message: str, ai_message: str) -> None:
     _persist(user_id, mem)
 
 
+def replace_last_ai_message(user_id: str, new_ai_message: str) -> None:
+    """마지막 AI 메시지를 교체합니다 (agent fallback 시 no_result → 정상 답변 교체용)."""
+    from langchain_core.messages import AIMessage
+    mem = get_memory(user_id)
+    if mem.messages and mem.messages[-1].type == "ai":
+        mem.messages[-1] = AIMessage(content=new_ai_message)
+        _persist(user_id, mem)
+
+
 def clear_memory(user_id: str) -> None:
     _local.pop(user_id, None)
     cache_del("chat", _cache_key(user_id))
