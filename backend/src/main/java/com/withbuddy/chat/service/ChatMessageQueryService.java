@@ -168,7 +168,7 @@ public class ChatMessageQueryService {
         ChatMessageResponse.FileResponse fileResponse = null;
         if ("TEMPLATE".equals(document.getDocumentType())) {
             DocumentFile documentFile = documentFileMap.get(documentId);
-            fileResponse = toFileResponse(documentId, documentFile);
+            fileResponse = toFileResponse(document, documentFile);
         }
 
         return new ChatMessageResponse.DocumentResponse(
@@ -179,7 +179,7 @@ public class ChatMessageQueryService {
         );
     }
 
-    private ChatMessageResponse.FileResponse toFileResponse(Long documentId, DocumentFile documentFile) {
+    private ChatMessageResponse.FileResponse toFileResponse(Document document, DocumentFile documentFile) {
         if (documentFile == null) {
             return null;
         }
@@ -187,16 +187,16 @@ public class ChatMessageQueryService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-                resolveDownloadUrl(documentId)
+                resolveDownloadUrl(document, documentFile)
         );
     }
 
-    private String resolveDownloadUrl(Long documentId) {
+    private String resolveDownloadUrl(Document document, DocumentFile documentFile) {
         try {
-            return documentDownloadService.getDownloadUrl(documentId).getDownloadUrl();
+            return documentDownloadService.getDownloadUrl(document, documentFile).getDownloadUrl();
         } catch (RuntimeException ex) {
-            log.warn("문서 presigned URL 조회 실패. documentId={}, reason={}", documentId, ex.getMessage());
-            return "/api/v1/documents/" + documentId + "/download";
+            log.warn("문서 presigned URL 조회 실패. documentId={}, reason={}", document.getId(), ex.getMessage());
+            return "/api/v1/documents/" + document.getId() + "/download";
         }
     }
 

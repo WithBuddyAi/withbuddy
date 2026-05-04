@@ -468,20 +468,44 @@ public class DocumentStorageService implements DocumentDownloadService {
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
+        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
+
+        return buildDownloadResponse(requesterScope, document, file);
+    }
+
+    @Override
+    public DocumentDownloadResponse getDownloadUrl(Document document, DocumentFile file) {
+        RequesterScope requesterScope = resolveRequesterScope();
+        return buildDownloadResponse(requesterScope, document, file);
+    }
+
+    private DocumentDownloadResponse buildDownloadResponse(
+            RequesterScope requesterScope,
+            Document document,
+            DocumentFile file
+    ) {
+        if (document == null) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다.");
+        }
+        if (file == null) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다.");
+        }
+        if (!document.getId().equals(file.getDocumentId())) {
+            throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "documentId", "문서와 파일 메타데이터가 일치하지 않습니다.");
+        }
+
         validateCompanyBoundary(requesterScope, document.getCompanyCode());
         if (!requesterScope.globalAccess()) {
             validateTemplateDocument(document);
         }
-
-        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
-                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
 
         StorageSource source = resolveSource(file);
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
         String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
         String downloadUrl = redisCacheService.get(redisKey)
                 .filter(StringUtils::hasText)
-                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
+                .orElseGet(() -> createAndCacheDownloadUrl(document.getId(), file, source, redisKey, preauthTtlSeconds));
         return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
     }
 
