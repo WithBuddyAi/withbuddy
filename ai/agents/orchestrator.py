@@ -17,7 +17,7 @@ from langgraph.graph import END, StateGraph
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from core.llm import get_llm
+from core.llm import get_llm, get_intent_llm
 from memory.company_info_store import format_company_info_context, get_company_info
 from memory.profile_store import format_profile_context, get_profile
 from utils.sensitive_filter import check_sensitive
@@ -78,7 +78,7 @@ _intent_chain = None
 def _get_intent_chain():
     global _intent_chain
     if _intent_chain is None:
-        _intent_chain = _INTENT_PROMPT | get_llm() | StrOutputParser()
+        _intent_chain = _INTENT_PROMPT | get_intent_llm() | StrOutputParser()
     return _intent_chain
 
 
