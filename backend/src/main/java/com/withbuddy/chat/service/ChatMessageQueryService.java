@@ -188,7 +188,7 @@ public class ChatMessageQueryService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-                "/api/v1/chat/documents/" + documentId + "/download"
+                "/api/v1/chat/documents/" + document.getId() + "/download"
         );
     }
 
