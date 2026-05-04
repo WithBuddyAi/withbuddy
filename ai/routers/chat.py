@@ -425,6 +425,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     from langchain_core.messages import HumanMessage, AIMessage
     from utils.clarifying import (
         is_post_clarifying, check_and_generate_clarifying, expand_clarifying_query,
+        is_followup_question, expand_followup_query,
     )
 
     # ── Clarifying 처리 ──────────────────────────────────────────
@@ -452,7 +453,17 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             )
         rag_query = request.content
     else:
-        rag_query = request.content
+        # 단답형 후속 질문("어떻게", "왜" 등) → 대화 맥락 기반으로 쿼리 확장
+        if is_followup_question(request.content):
+            try:
+                async with asyncio.timeout(5):
+                    rag_query = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: expand_followup_query(request.content, request.conversationHistory)
+                    )
+            except asyncio.TimeoutError:
+                rag_query = request.content
+        else:
+            rag_query = request.content
 
     injected_history = None
     if request.conversationHistory:
