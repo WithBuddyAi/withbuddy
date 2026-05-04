@@ -92,7 +92,9 @@ def _download_file(api_url: str, doc_id: str, token: str) -> bytes:
     # 상대경로면 base URL 붙이기
     if download_url.startswith("/"):
         download_url = f"{api_url}{download_url}"
-    resp = requests.get(download_url, headers=headers, timeout=60)
+    # Object Storage pre-signed URL은 URL 자체에 인증 정보 포함 → 헤더 불필요
+    dl_headers = headers if download_url.startswith("/") else {}
+    resp = requests.get(download_url, headers=dl_headers, timeout=60)
     resp.raise_for_status()
     return resp.content
 
