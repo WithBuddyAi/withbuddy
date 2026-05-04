@@ -188,14 +188,6 @@ public class ChatMessageQueryService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-<<<<<<< Updated upstream
-                resolveDownloadUrl(documentId)
-        );
-    }
-
-    private String resolveDownloadUrl(Long documentId) {
-        return "/api/v1/documents/" + documentId + "/download";
-=======
                 "/api/v1/chat/documents/" + documentId + "/download"
         );
     }
@@ -209,7 +201,6 @@ public class ChatMessageQueryService {
         }
 
         return documentDownloadService.getDownloadUrl(documentId);
->>>>>>> Stashed changes
     }
 
     private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {
