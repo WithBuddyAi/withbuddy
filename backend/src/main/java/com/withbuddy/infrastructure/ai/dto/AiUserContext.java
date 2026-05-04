@@ -20,4 +20,7 @@ public class AiUserContext {
 
     @Schema(description = "회사명", example = "테크 주식회사")
     private String companyName;
+
+    @Schema(description = "입사일", example = "2026-04-01")
+    private String hireDate;
 }

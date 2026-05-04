@@ -68,7 +68,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     claims.get("employeeNumber", String.class),
                     claims.get("name", String.class),
                     claims.get("companyCode", String.class),
-                    claims.get("companyName", String.class)
+                    claims.get("companyName", String.class),
+                    claims.get("hireDate", String.class)
             );
 
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(

@@ -28,7 +28,6 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
-import com.withbuddy.storage.service.DocumentDownloadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -66,7 +65,6 @@ public class ChatMessageService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final DocumentDownloadService documentDownloadService;
     private final AiClient aiClient;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
@@ -79,6 +77,7 @@ public class ChatMessageService {
         String loginUserName = principal.name();
         String companyCode = principal.companyCode();
         String companyName = principal.companyName();
+        String hireDate = principal.hireDate();
         List<ConversationTurn> conversationHistory = sanitizeConversationHistoryForAi(
                 resolveConversationHistory(loginUserId)
         );
@@ -93,7 +92,8 @@ public class ChatMessageService {
                 loginUserId,
                 loginUserName,
                 companyCode,
-                companyName
+                companyName,
+                hireDate
         );
 
         AiAnswerServerRequest aiRequest = new AiAnswerServerRequest(
@@ -247,12 +247,7 @@ public class ChatMessageService {
     }
 
     private String resolveDownloadUrl(Document document, DocumentFile documentFile) {
-        try {
-            return documentDownloadService.getDownloadUrl(document, documentFile).getDownloadUrl();
-        } catch (RuntimeException ex) {
-            log.warn("문서 presigned URL 조회 실패. documentId={}, reason={}", document.getId(), ex.getMessage());
-            return "/api/v1/documents/" + document.getId() + "/download";
-        }
+        return "/api/v1/documents/" + document.getId() + "/download";
     }
 
     private Map<Long, Document> resolveDocumentMap(List<Long> documentIds) {
