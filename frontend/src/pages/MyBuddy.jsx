@@ -3,7 +3,6 @@ import { MessageSquare, Menu } from "lucide-react"
 import bot from '../assets/Bot_icon.svg'
 import { useEffect, useRef, useState } from "react"
 import { format } from 'date-fns';
-import axios from "axios";
 import axiosInstance from "../api/axiosInstance"
 import { useUser } from "../contexts/UserContext"
 import Sidebar from "../components/Sidebar"
@@ -254,20 +253,11 @@ function MyBuddy ({setIsLoggedIn}) {
   // 파일 다운로드
   const handleDownload = async (downloadUrl, fileName) => {
     try {
-      const isAbsoluteUrl = /^https?:\/\//i.test(downloadUrl)
-      let resolvedUrl = downloadUrl
+      const { data } = await axiosInstance.get(downloadUrl)
 
-      if (!isAbsoluteUrl) {
-        const { data } = await axiosInstance.get(downloadUrl)
-        if (typeof data?.downloadUrl === 'string' && data.downloadUrl.length > 0) {
-          resolvedUrl = data.downloadUrl
-        }
-      }
-
-      const isApiPath = /^\/api\//.test(resolvedUrl)
-      const response = isApiPath
-        ? await axiosInstance.get(resolvedUrl, { responseType: 'blob' })
-        : await axios.get(resolvedUrl, { responseType: 'blob' })
+      const response = await axiosInstance.get(data.downloadUrl, {
+        responseType: 'blob'
+      })
 
       const blob = new Blob([response.data])
       const objectUrl = URL.createObjectURL(blob)
