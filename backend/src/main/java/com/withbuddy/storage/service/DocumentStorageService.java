@@ -469,9 +469,7 @@ public class DocumentStorageService {
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
         validateCompanyBoundary(requesterScope, document.getCompanyCode());
-        if (!requesterScope.globalAccess()) {
-            validateTemplateDocument(document);
-        }
+        validateTemplateDocument(document);
 
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
@@ -479,9 +477,11 @@ public class DocumentStorageService {
         StorageSource source = resolveSource(file);
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
         String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
+
         String downloadUrl = redisCacheService.get(redisKey)
                 .filter(StringUtils::hasText)
                 .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
+
         return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
     }
 
@@ -529,9 +529,7 @@ public class DocumentStorageService {
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
         validateCompanyBoundary(requesterScope, document.getCompanyCode());
-        if (!requesterScope.globalAccess()) {
-            validateTemplateDocument(document);
-        }
+        validateTemplateDocument(document);
 
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
