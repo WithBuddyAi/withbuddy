@@ -28,6 +28,7 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
+import com.withbuddy.storage.service.DocumentDownloadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,7 @@ public class ChatMessageService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
+    private final DocumentDownloadService documentDownloadService;
     private final AiClient aiClient;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
@@ -221,7 +223,7 @@ public class ChatMessageService {
         ChatMessageResponse.FileResponse fileResponse = null;
         if ("TEMPLATE".equals(document.getDocumentType())) {
             DocumentFile documentFile = documentFileMap.get(documentId);
-            fileResponse = toFileResponse(documentId, documentFile);
+            fileResponse = toFileResponse(document, documentFile);
         }
 
         return new ChatMessageResponse.DocumentResponse(
@@ -232,7 +234,7 @@ public class ChatMessageService {
         );
     }
 
-    private ChatMessageResponse.FileResponse toFileResponse(Long documentId, DocumentFile documentFile) {
+    private ChatMessageResponse.FileResponse toFileResponse(Document document, DocumentFile documentFile) {
         if (documentFile == null) {
             return null;
         }
@@ -240,8 +242,17 @@ public class ChatMessageService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-                "/api/v1/documents/" + documentId + "/download"
+                resolveDownloadUrl(document, documentFile)
         );
+    }
+
+    private String resolveDownloadUrl(Document document, DocumentFile documentFile) {
+        try {
+            return documentDownloadService.getDownloadUrl(document, documentFile).getDownloadUrl();
+        } catch (RuntimeException ex) {
+            log.warn("문서 presigned URL 조회 실패. documentId={}, reason={}", document.getId(), ex.getMessage());
+            return "/api/v1/documents/" + document.getId() + "/download";
+        }
     }
 
     private Map<Long, Document> resolveDocumentMap(List<Long> documentIds) {

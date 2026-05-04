@@ -18,7 +18,9 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
+import com.withbuddy.storage.service.DocumentDownloadService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -33,6 +35,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatMessageQueryService {
 
     private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
@@ -42,6 +45,7 @@ public class ChatMessageQueryService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
+    private final DocumentDownloadService documentDownloadService;
     private final ObjectMapper objectMapper;
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
@@ -164,7 +168,7 @@ public class ChatMessageQueryService {
         ChatMessageResponse.FileResponse fileResponse = null;
         if ("TEMPLATE".equals(document.getDocumentType())) {
             DocumentFile documentFile = documentFileMap.get(documentId);
-            fileResponse = toFileResponse(documentId, documentFile);
+            fileResponse = toFileResponse(document, documentFile);
         }
 
         return new ChatMessageResponse.DocumentResponse(
@@ -175,7 +179,7 @@ public class ChatMessageQueryService {
         );
     }
 
-    private ChatMessageResponse.FileResponse toFileResponse(Long documentId, DocumentFile documentFile) {
+    private ChatMessageResponse.FileResponse toFileResponse(Document document, DocumentFile documentFile) {
         if (documentFile == null) {
             return null;
         }
@@ -183,8 +187,17 @@ public class ChatMessageQueryService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-                "/api/v1/documents/" + documentId + "/download"
+                resolveDownloadUrl(document, documentFile)
         );
+    }
+
+    private String resolveDownloadUrl(Document document, DocumentFile documentFile) {
+        try {
+            return documentDownloadService.getDownloadUrl(document, documentFile).getDownloadUrl();
+        } catch (RuntimeException ex) {
+            log.warn("문서 presigned URL 조회 실패. documentId={}, reason={}", document.getId(), ex.getMessage());
+            return "/api/v1/documents/" + document.getId() + "/download";
+        }
     }
 
     private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {
