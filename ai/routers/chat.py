@@ -404,9 +404,10 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             from memory.chat_history import get_chat_history, save_interaction
             chat_history = get_chat_history(user_id)
             history_text = "\n".join(
-                f"{'사용자' if m['role'] == 'human' else 'AI'}: {m['content']}"
+                f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
                 for m in chat_history[-6:]
             ) if chat_history else ""
+            from chains.rag_chain import _get_company_name
             from datetime import date as _date
             _today_str = _date.today().strftime("%Y년 %m월 %d일")
             _hire_info = ""
