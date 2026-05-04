@@ -95,7 +95,8 @@ public class ChatMessageService {
                 loginUserName,
                 companyCode,
                 companyName,
-                hireDate
+                hireDate,
+                LocalDate.now().toString()
         );
 
         AiAnswerServerRequest aiRequest = new AiAnswerServerRequest(

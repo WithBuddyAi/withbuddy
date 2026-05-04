@@ -23,4 +23,7 @@ public class AiUserContext {
 
     @Schema(description = "입사일", example = "2026-04-01")
     private String hireDate;
+
+    @Schema(description = "오늘 날짜 (서버 기준)", example = "2026-05-05")
+    private String today;
 }
