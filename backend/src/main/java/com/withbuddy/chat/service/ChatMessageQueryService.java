@@ -169,7 +169,7 @@ public class ChatMessageQueryService {
         ChatMessageResponse.FileResponse fileResponse = null;
         if ("TEMPLATE".equals(document.getDocumentType())) {
             DocumentFile documentFile = documentFileMap.get(documentId);
-            fileResponse = toFileResponse(documentId, documentFile);
+            fileResponse = toFileResponse(document, documentFile);
         }
 
         return new ChatMessageResponse.DocumentResponse(
@@ -180,7 +180,7 @@ public class ChatMessageQueryService {
         );
     }
 
-    private ChatMessageResponse.FileResponse toFileResponse(Long documentId, DocumentFile documentFile) {
+    private ChatMessageResponse.FileResponse toFileResponse(Document document, DocumentFile documentFile) {
         if (documentFile == null) {
             return null;
         }
@@ -188,15 +188,7 @@ public class ChatMessageQueryService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-<<<<<<< Updated upstream
-                resolveDownloadUrl(documentId)
-        );
-    }
-
-    private String resolveDownloadUrl(Long documentId) {
-        return "/api/v1/documents/" + documentId + "/download";
-=======
-                "/api/v1/chat/documents/" + documentId + "/download"
+                "/api/v1/chat/documents/" + document.getId() + "/download"
         );
     }
 
@@ -209,7 +201,6 @@ public class ChatMessageQueryService {
         }
 
         return documentDownloadService.getDownloadUrl(documentId);
->>>>>>> Stashed changes
     }
 
     private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {
