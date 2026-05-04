@@ -89,10 +89,12 @@ def _download_file(api_url: str, doc_id: str, token: str) -> bytes:
     url_resp = requests.get(f"{api_url}/api/v1/documents/{doc_id}/download", headers=headers, timeout=30)
     url_resp.raise_for_status()
     download_url = url_resp.json()["downloadUrl"]
-    # 상대경로면 base URL 붙이기
-    if download_url.startswith("/"):
+    # 상대경로(내부 API)는 X-API-Key 헤더 필요, 외부 pre-signed URL은 헤더 불필요
+    is_relative = download_url.startswith("/")
+    if is_relative:
         download_url = f"{api_url}{download_url}"
-    resp = requests.get(download_url, headers=headers, timeout=60)
+    dl_headers = headers if is_relative else {}
+    resp = requests.get(download_url, headers=dl_headers, timeout=60)
     resp.raise_for_status()
     return resp.content
 
