@@ -14,11 +14,15 @@ import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.onboarding.entity.OnboardingSuggestion;
 import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
+import com.withbuddy.storage.dto.DocumentDownloadResponse;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
+import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
+import com.withbuddy.storage.service.DocumentDownloadService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -42,6 +46,7 @@ public class ChatMessageQueryService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
+    private final DocumentDownloadService documentDownloadService;
     private final ObjectMapper objectMapper;
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
@@ -183,12 +188,37 @@ public class ChatMessageQueryService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
+<<<<<<< HEAD
                 resolveDownloadUrl(document, documentFile)
         );
     }
 
     private String resolveDownloadUrl(Document document, DocumentFile documentFile) {
         return "/api/v1/documents/" + document.getId() + "/download";
+=======
+<<<<<<< Updated upstream
+                resolveDownloadUrl(documentId)
+        );
+    }
+
+    private String resolveDownloadUrl(Long documentId) {
+        return "/api/v1/documents/" + documentId + "/download";
+=======
+                "/api/v1/chat/documents/" + documentId + "/download"
+        );
+    }
+
+    public DocumentDownloadResponse getDocumentDownloadUrl(Long userId, Long documentId) {
+        List<Long> messageIds = chatMessageRepository.findByUserIdOrderByCreatedAtAsc(userId)
+                .stream().map(ChatMessage::getId).toList();
+
+        if (messageIds.isEmpty() || !chatMessageDocumentRepository.existsByChatMessageIdInAndDocumentId(messageIds, documentId)) {
+            throw new StorageException(HttpStatus.FORBIDDEN, "FORBIDDEN", "documentId", "채팅에서 수신하지 않은 문서입니다.");
+        }
+
+        return documentDownloadService.getDownloadUrl(documentId);
+>>>>>>> Stashed changes
+>>>>>>> 76ebbb4 (feature: swagger interface복구, presgined url download구현)
     }
 
     private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {

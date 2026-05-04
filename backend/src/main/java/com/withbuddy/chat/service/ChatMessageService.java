@@ -259,7 +259,15 @@ public class ChatMessageService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
+<<<<<<< HEAD
                 resolveDownloadUrl(document, documentFile)
+=======
+<<<<<<< Updated upstream
+                resolveDownloadUrl(documentId)
+=======
+                "/api/v1/chat/documents/" + documentId + "/download"
+>>>>>>> Stashed changes
+>>>>>>> 76ebbb4 (feature: swagger interface복구, presgined url download구현)
         );
     }
 
