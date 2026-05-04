@@ -259,7 +259,11 @@ public class ChatMessageService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
+<<<<<<< Updated upstream
                 resolveDownloadUrl(documentId)
+=======
+                "/api/v1/chat/documents/" + documentId + "/download"
+>>>>>>> Stashed changes
         );
     }
 
