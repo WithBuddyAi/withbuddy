@@ -5,6 +5,7 @@ public record JwtAuthenticationPrincipal(
         String employeeNumber,
         String name,
         String companyCode,
-        String companyName
+        String companyName,
+        String hireDate
 ) {
 }
