@@ -438,7 +438,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     elif not request.conversationHistory:
         # 대화 첫 질문일 때만 clarifying 체크 (대화 중간이면 건너뜀)
         try:
-            async with asyncio.timeout(5):
+            async with asyncio.timeout(2):
                 clarifying_q = await asyncio.get_event_loop().run_in_executor(
                     None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
                 )
@@ -455,7 +455,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         # 단답형 후속 질문("어떻게", "왜" 등) → 대화 맥락 기반으로 쿼리 확장
         if is_followup_question(request.content):
             try:
-                async with asyncio.timeout(5):
+                async with asyncio.timeout(2):
                     rag_query = await asyncio.get_event_loop().run_in_executor(
                         None, lambda: expand_followup_query(request.content, request.conversationHistory)
                     )

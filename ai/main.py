@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     start_scheduler()   # 평일 17:00 Slack 자동 리포트 ON
 
-    # Gemini Embedding 콜드 스타트 제거 (비동기 백그라운드 실행)
+    # 임베딩 + LLM 콜드 스타트 제거 (비동기 백그라운드 실행)
     async def _warmup():
         try:
             from core.embeddings import get_embeddings
@@ -47,6 +47,25 @@ async def lifespan(_: FastAPI):
             logger.warning("임베딩 모델 웜업 완료")
         except Exception as e:
             logger.warning("임베딩 웜업 실패(무시): %s", e)
+        try:
+            from core.llm import get_llm, get_intent_llm
+            await asyncio.to_thread(get_llm().invoke, "warmup")
+            await asyncio.to_thread(get_intent_llm().invoke, "warmup")
+            logger.warning("LLM 웜업 완료")
+        except Exception as e:
+            logger.warning("LLM 웜업 실패(무시): %s", e)
+        try:
+            from core.vectorstore import get_vectorstore
+            await asyncio.to_thread(get_vectorstore)
+            logger.warning("ChromaDB 웜업 완료")
+        except Exception as e:
+            logger.warning("ChromaDB 웜업 실패(무시): %s", e)
+        try:
+            from agents.orchestrator import _get_intent_chain
+            await asyncio.to_thread(_get_intent_chain)
+            logger.warning("Intent 체인 웜업 완료")
+        except Exception as e:
+            logger.warning("Intent 체인 웜업 실패(무시): %s", e)
     asyncio.create_task(_warmup())
 
     # Slack Socket Mode (버튼·모달 인터랙션 수신)
