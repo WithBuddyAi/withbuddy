@@ -199,6 +199,7 @@ class InternalAIAnswerUser(BaseModel):
     name: str = ""
     companyCode: str = ""
     companyName: str = ""
+    hireDate: str = ""
 
 
 class ConversationTurn(BaseModel):
@@ -294,6 +295,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
                         str(request.user.userId), in_query,
                         user_name=user_name, company_code=company_code,
                         company_name=request.user.companyName,
+                        hire_date=request.user.hireDate,
                         injected_history=injected_history,
                     )
                 )
@@ -483,6 +485,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
                     company_name=request.user.companyName,
+                    hire_date=request.user.hireDate,
                     injected_history=injected_history,
                 )
             )
