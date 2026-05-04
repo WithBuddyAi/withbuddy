@@ -222,7 +222,8 @@ class InternalAIAnswerResponse(BaseModel):
 _NO_RESULT_KW = [
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
-    "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요",
+    "찾을 수 없습니다", "찾을 수 없었어요", "찾을 수 없어요", "찾을 수 없어",
+    "포함되어 있지 않", "정보가 없", "찾지 못했어요",
     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
     "문서에 없어서", "안내드리기 어려워",
 ]
@@ -424,6 +425,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     from langchain_core.messages import HumanMessage, AIMessage
     from utils.clarifying import (
         is_post_clarifying, check_and_generate_clarifying, expand_clarifying_query,
+        is_followup_question, expand_followup_query,
     )
 
     # ── Clarifying 처리 ──────────────────────────────────────────
@@ -436,9 +438,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         )
     elif not request.conversationHistory:
         # 대화 첫 질문일 때만 clarifying 체크 (대화 중간이면 건너뜀)
-        clarifying_q = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
-        )
+        try:
+            async with asyncio.timeout(5):
+                clarifying_q = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
+                )
+        except asyncio.TimeoutError:
+            clarifying_q = None
         if clarifying_q:
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
@@ -447,7 +453,17 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             )
         rag_query = request.content
     else:
-        rag_query = request.content
+        # 단답형 후속 질문("어떻게", "왜" 등) → 대화 맥락 기반으로 쿼리 확장
+        if is_followup_question(request.content):
+            try:
+                async with asyncio.timeout(5):
+                    rag_query = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: expand_followup_query(request.content, request.conversationHistory)
+                    )
+            except asyncio.TimeoutError:
+                rag_query = request.content
+        else:
+            rag_query = request.content
 
     injected_history = None
     if request.conversationHistory:
@@ -482,6 +498,24 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         message_type = "no_result"
     else:
         message_type = "rag_answer"
+
+    # RAG no_result → 에이전트 fallback (도구 기반 재검색)
+    if message_type == "no_result":
+        from chains.agent_rag_chain import _run_agent_search
+        from memory.chat_history import get_chat_history as _gc, replace_last_ai_message
+        uid = str(request.user.userId)
+        prior_hist = _gc(uid)[:-2]  # 현재 턴(no_result) 제외한 이전 히스토리
+        try:
+            async with asyncio.timeout(20):
+                agent_answer = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: _run_agent_search(rag_query, request.user.companyCode, prior_hist)
+                )
+            if agent_answer and not any(kw in agent_answer for kw in _NO_RESULT_KW):
+                answer = agent_answer
+                message_type = "rag_answer"
+                replace_last_ai_message(uid, agent_answer)
+        except Exception:
+            pass  # agent 실패 시 기존 no_result 유지
 
     recommended_contacts = []
     if message_type in ("no_result", "out_of_scope"):

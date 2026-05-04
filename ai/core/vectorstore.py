@@ -17,8 +17,8 @@ from core.embeddings import get_embeddings
 # ChromaDB 영구 저장 경로
 CHROMA_DB_PATH = "./chroma_db"
 
-# ChromaDB 컬렉션 이름
-COLLECTION_NAME = "onboarding_docs"
+# ChromaDB 컬렉션 이름 (gemini-embedding-2 전용, cosine distance)
+COLLECTION_NAME = "onboarding_docs_v2"
 
 
 @lru_cache(maxsize=1)
@@ -33,6 +33,7 @@ def get_vectorstore() -> Chroma:
         collection_name=COLLECTION_NAME,
         embedding_function=get_embeddings(),
         persist_directory=CHROMA_DB_PATH,
+        collection_metadata={"hnsw:space": "cosine"},
     )
 
 
@@ -66,10 +67,7 @@ def search_legal_docs(query: str, k: int = 7, score_threshold: float = 0.30) -> 
     raw = vs.similarity_search_with_relevance_scores(
         query, k=k, filter={"document_type": "LEGAL"}
     )
-    filtered = [doc for doc, score in raw if score >= score_threshold]
-    if not filtered and raw:
-        filtered = [doc for doc, _ in raw[:1]]
-    return filtered
+    return [doc for doc, score in raw if score >= score_threshold]
 
 
 def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.30, category: str = "") -> List[Document]:
@@ -98,27 +96,23 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     if not company_code:
         f = {"category": category} if category else {}
         raw = vs.similarity_search_with_relevance_scores(query, k=k, filter=f or None)
-        filtered = _filter_by_score(raw)
-        # 필터링 후 결과가 0개면 임계값 낮춰서 재시도 (최소 1개 보장)
-        if not filtered:
-            filtered = [doc for doc, _ in raw[:1]]
-        return filtered
+        return _filter_by_score(raw)
 
-    # 회사 특화 문서 검색
+    # 회사 특화 문서 검색 (TEMPLATE 제외)
     if category:
-        company_filter = {"$and": [{"company_code": company_code}, {"category": category}]}
+        company_filter = {"$and": [{"company_code": company_code}, {"category": category}, {"document_type": {"$ne": "TEMPLATE"}}]}
     else:
-        company_filter = {"company_code": company_code}
+        company_filter = {"$and": [{"company_code": company_code}, {"document_type": {"$ne": "TEMPLATE"}}]}
     company_raw = vs.similarity_search_with_relevance_scores(
         query, k=k, filter=company_filter
     )
     company_docs = _filter_by_score(company_raw)
 
-    # 공통 문서 검색 (company_code 메타데이터가 없는 문서)
+    # 공통 문서 검색 (company_code 메타데이터가 없는 문서, TEMPLATE 제외)
     if category:
-        common_filter = {"$and": [{"company_code": ""}, {"category": category}]}
+        common_filter = {"$and": [{"company_code": ""}, {"category": category}, {"document_type": {"$ne": "TEMPLATE"}}]}
     else:
-        common_filter = {"company_code": ""}
+        common_filter = {"$and": [{"company_code": ""}, {"document_type": {"$ne": "TEMPLATE"}}]}
     common_raw = vs.similarity_search_with_relevance_scores(
         query, k=k, filter=common_filter
     )
@@ -133,10 +127,7 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
             seen.add(key)
             merged.append(doc)
 
-    # 필터링 후 결과가 0개면 점수 무관하게 상위 1개 반환
     if not merged:
-        all_raw = [(doc for doc, _ in company_raw)] + [(doc for doc, _ in common_raw)]
-        fallback = [doc for doc, _ in (company_raw + common_raw)[:1]]
-        return fallback
+        return []
 
     return merged[:k]

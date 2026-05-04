@@ -70,6 +70,7 @@ public class JwtService {
                 .claim("name", user.getName())
                 .claim("companyCode", user.getCompany().getCompanyCode())
                 .claim("companyName", user.getCompany().getName())
+                .claim("hireDate", user.getHireDate().toString())
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)

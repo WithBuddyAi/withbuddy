@@ -4,7 +4,6 @@ import com.withbuddy.infrastructure.storage.ObjectStorageClient;
 import com.withbuddy.infrastructure.storage.StorageProperties;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
-import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.global.security.StorageApiKeyPrincipal;
 import com.withbuddy.storage.dto.DocumentBulkDeleteCheckResponse;
 import com.withbuddy.storage.dto.DocumentBulkDeleteRequest;
@@ -44,6 +43,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -56,7 +56,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class DocumentStorageService {
+public class DocumentStorageService implements DocumentDownloadService {
     private static final Logger log = LoggerFactory.getLogger(DocumentStorageService.class);
     private static final int BACKUP_JOB_ERROR_MAX_LENGTH = 1000;
     private static final String DEFAULT_DOCUMENT_CONTENT = "Object Storage 업로드 문서";
@@ -468,20 +468,44 @@ public class DocumentStorageService {
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
-        validateCompanyBoundary(requesterScope, document.getCompanyCode());
-        validateTemplateDocument(document);
-
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
 
+        return buildDownloadResponse(requesterScope, document, file);
+    }
+
+    @Override
+    public DocumentDownloadResponse getDownloadUrl(Document document, DocumentFile file) {
+        RequesterScope requesterScope = resolveRequesterScope();
+        return buildDownloadResponse(requesterScope, document, file);
+    }
+
+    private DocumentDownloadResponse buildDownloadResponse(
+            RequesterScope requesterScope,
+            Document document,
+            DocumentFile file
+    ) {
+        if (document == null) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다.");
+        }
+        if (file == null) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다.");
+        }
+        if (!document.getId().equals(file.getDocumentId())) {
+            throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "documentId", "문서와 파일 메타데이터가 일치하지 않습니다.");
+        }
+
+        validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        if (!requesterScope.globalAccess()) {
+            validateTemplateDocument(document);
+        }
+
         StorageSource source = resolveSource(file);
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
-        String redisKey = RedisCacheKeys.presignedUrl(file.getId());
-
+        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
         String downloadUrl = redisCacheService.get(redisKey)
                 .filter(StringUtils::hasText)
-                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
-
+                .orElseGet(() -> createAndCacheDownloadUrl(document.getId(), file, source, redisKey, preauthTtlSeconds));
         return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
     }
 
@@ -508,7 +532,7 @@ public class DocumentStorageService {
             );
 
             if (StringUtils.hasText(preSignedUrl)) {
-                redisCacheService.put(redisKey, preSignedUrl, RedisCacheTtl.PRESIGNED_URL);
+                redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
                 return preSignedUrl;
             }
         } catch (Exception e) {
@@ -529,7 +553,9 @@ public class DocumentStorageService {
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
         validateCompanyBoundary(requesterScope, document.getCompanyCode());
-        validateTemplateDocument(document);
+        if (!requesterScope.globalAccess()) {
+            validateTemplateDocument(document);
+        }
 
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));

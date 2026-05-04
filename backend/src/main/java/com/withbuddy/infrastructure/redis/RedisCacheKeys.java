@@ -45,8 +45,8 @@ public final class RedisCacheKeys {
         return "lock:conv:" + userId;
     }
 
-    public static String presignedUrl(Long fileId) {
-        return "presigned:url:" + fileId;
+    public static String presignedUrl(Long fileId, String source) {
+        return "presigned:url:" + fileId + ":" + normalize(source);
     }
 
     public static String docsListFirstPage(String scope, String formType) {
