@@ -28,6 +28,7 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
+import com.withbuddy.storage.service.DocumentStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,7 @@ public class ChatMessageService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
+    private final DocumentStorageService documentStorageService;
     private final AiClient aiClient;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
@@ -240,8 +242,17 @@ public class ChatMessageService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-                "/api/v1/documents/" + documentId + "/download"
+                resolveDownloadUrl(documentId)
         );
+    }
+
+    private String resolveDownloadUrl(Long documentId) {
+        try {
+            return documentStorageService.getDownloadUrl(documentId).getDownloadUrl();
+        } catch (RuntimeException ex) {
+            log.warn("문서 presigned URL 조회 실패. documentId={}, reason={}", documentId, ex.getMessage());
+            return "/api/v1/documents/" + documentId + "/download";
+        }
     }
 
     private Map<Long, Document> resolveDocumentMap(List<Long> documentIds) {
