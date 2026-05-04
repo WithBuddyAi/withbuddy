@@ -188,22 +188,6 @@ public class ChatMessageQueryService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-<<<<<<< HEAD
-                resolveDownloadUrl(document, documentFile)
-        );
-    }
-
-    private String resolveDownloadUrl(Document document, DocumentFile documentFile) {
-        return "/api/v1/documents/" + document.getId() + "/download";
-=======
-<<<<<<< Updated upstream
-                resolveDownloadUrl(documentId)
-        );
-    }
-
-    private String resolveDownloadUrl(Long documentId) {
-        return "/api/v1/documents/" + documentId + "/download";
-=======
                 "/api/v1/chat/documents/" + documentId + "/download"
         );
     }
@@ -217,8 +201,6 @@ public class ChatMessageQueryService {
         }
 
         return documentDownloadService.getDownloadUrl(documentId);
->>>>>>> Stashed changes
->>>>>>> 76ebbb4 (feature: swagger interface복구, presgined url download구현)
     }
 
     private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {
