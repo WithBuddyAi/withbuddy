@@ -259,12 +259,8 @@ public class ChatMessageService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-                "/api/v1/chat/documents/" + documentId + "/download"
+                "/api/v1/chat/documents/" + document.getId() + "/download"
         );
-    }
-
-    private String resolveDownloadUrl(Document document, DocumentFile documentFile) {
-        return "/api/v1/documents/" + document.getId() + "/download";
     }
 
     private Map<Long, Document> resolveDocumentMap(List<Long> documentIds) {
