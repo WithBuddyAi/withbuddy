@@ -436,9 +436,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         )
     elif not request.conversationHistory:
         # 대화 첫 질문일 때만 clarifying 체크 (대화 중간이면 건너뜀)
-        clarifying_q = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
-        )
+        try:
+            async with asyncio.timeout(5):
+                clarifying_q = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
+                )
+        except asyncio.TimeoutError:
+            clarifying_q = None
         if clarifying_q:
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
