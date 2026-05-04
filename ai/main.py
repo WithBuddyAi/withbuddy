@@ -23,11 +23,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+# .env 파일에서 환경변수 로드 (ANTHROPIC_API_KEY, SLACK_BOT_TOKEN 등)
+# 라우터 import 전에 호출해야 be_client 등 모듈 초기화 시 env var 반영됨
+load_dotenv()
+
 from routers import admin, callback, chat, docs, knowledge, leader, mybuddy, preboarding, profile, recommend, report, slack
 from tasks.scheduler import start_scheduler, stop_scheduler
-
-# .env 파일에서 환경변수 로드 (ANTHROPIC_API_KEY, SLACK_BOT_TOKEN 등)
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     start_scheduler()   # 평일 17:00 Slack 자동 리포트 ON
+
+    # Gemini Embedding 콜드 스타트 제거 (비동기 백그라운드 실행)
+    async def _warmup():
+        try:
+            from core.embeddings import get_embeddings
+            await asyncio.to_thread(get_embeddings().embed_query, "warmup")
+            logger.warning("임베딩 모델 웜업 완료")
+        except Exception as e:
+            logger.warning("임베딩 웜업 실패(무시): %s", e)
+    asyncio.create_task(_warmup())
 
     # Slack Socket Mode (버튼·모달 인터랙션 수신)
     socket_handler = None
