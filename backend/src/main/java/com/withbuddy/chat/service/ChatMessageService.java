@@ -19,6 +19,7 @@ import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.AiUserContext;
 import com.withbuddy.infrastructure.ai.dto.ConversationTurn;
+import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
@@ -66,6 +67,7 @@ public class ChatMessageService {
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
     private final AiClient aiClient;
+    private final AsyncAiCallService asyncAiCallService;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
@@ -110,7 +112,21 @@ public class ChatMessageService {
                 Collections.emptyMap()
         );
 
-        AiAnswerServerResponse aiResponse = aiClient.requestAnswer(aiRequest);
+        AiAnswerServerResponse aiResponse;
+        try {
+            aiResponse = aiClient.requestAnswer(aiRequest);
+        } catch (AiTimeoutException timeoutException) {
+            Long questionId = savedQuestionMessage.getId();
+            redisCacheService.put(
+                    RedisCacheKeys.ragStatus(questionId),
+                    "PENDING",
+                    RedisCacheTtl.RAG_STATUS
+            );
+            asyncAiCallService.callAndSaveAnswer(questionId, loginUserId, aiRequest);
+            log.warn("AI 타임아웃 비동기 폴백. questionId={}", questionId);
+
+            return new ChatMessageCreateResponse(questionResponse, null, "PENDING");
+        }
 
         if (!savedQuestionMessage.getId().equals(aiResponse.getQuestionId())) {
             throw new IllegalStateException("AI 응답의 questionId가 저장된 질문 ID와 일치하지 않습니다.");
@@ -139,7 +155,8 @@ public class ChatMessageService {
 
         return new ChatMessageCreateResponse(
                 questionResponse,
-                toResponse(savedAnswerMessage, answerDocumentIds, documentMap, documentFileMap)
+                toResponse(savedAnswerMessage, answerDocumentIds, documentMap, documentFileMap),
+                "COMPLETED"
         );
     }
 
