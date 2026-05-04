@@ -40,6 +40,22 @@ from core.vectorstore import get_vectorstore, COLLECTION_NAME
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
 
+_LEGAL_KEYWORDS = {"근로기준법", "최저임금법", "남녀고용평등법", "퇴직급여법", "기간제법"}
+_PRISM_KEYWORDS = {"프리즘", "prism"}
+
+
+def _infer_company_code(doc_meta: dict, fallback: str = "") -> str:
+    title = doc_meta.get("title", "")
+    filename = doc_meta.get("fileName", "")
+    doc_type = doc_meta.get("documentType", "")
+
+    if filename.lower().startswith("prism_") or any(k in title for k in _PRISM_KEYWORDS):
+        return "WB0002"
+    if doc_type == "LEGAL" or any(k in title for k in _LEGAL_KEYWORDS):
+        return ""
+    return fallback
+
+
 # 인덱싱 완료된 문서 ID 추적 파일
 _INDEXED_IDS_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -181,28 +197,30 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
                 print(f"  ⚠ 텍스트 추출 실패, 건너뜀: {title}")
                 continue
 
+            doc_company_code = _infer_company_code(doc_meta, fallback=company_code)
             metadata = {
                 "source": filename,
                 "title": title,
                 "doc_id": doc_id,
                 "document_type": doc_meta.get("documentType", ""),
                 "department": doc_meta.get("department", ""),
+                "company_code": doc_company_code,
             }
-            if company_code:
-                metadata["company_code"] = company_code
 
             chunks = _split_text(text, metadata)
-            for attempt in range(3):
-                try:
-                    import time
-                    vs.add_documents(chunks)
-                    break
-                except Exception as embed_err:
-                    if "429" in str(embed_err) and attempt < 2:
-                        print(f"  ⏳ Rate limit, {10 * (attempt + 1)}초 대기 후 재시도...")
-                        time.sleep(10 * (attempt + 1))
-                    else:
-                        raise
+            import time
+            for chunk in chunks:
+                for attempt in range(3):
+                    try:
+                        vs.add_documents([chunk])
+                        break
+                    except Exception as embed_err:
+                        if "429" in str(embed_err) and attempt < 2:
+                            print(f"  ⏳ Rate limit, {10 * (attempt + 1)}초 대기 후 재시도...")
+                            time.sleep(10 * (attempt + 1))
+                        else:
+                            raise
+                time.sleep(0.5)
             splitter_total += len(chunks)
             _save_indexed_id(doc_id)
             print(f"  ✓ {title} ({len(chunks)}청크)")
