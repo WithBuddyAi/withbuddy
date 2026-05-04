@@ -23,11 +23,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+# .env 파일에서 환경변수 로드 (ANTHROPIC_API_KEY, SLACK_BOT_TOKEN 등)
+# 라우터 import 전에 호출해야 be_client 등 모듈 초기화 시 env var 반영됨
+load_dotenv()
+
 from routers import admin, callback, chat, docs, knowledge, leader, mybuddy, preboarding, profile, recommend, report, slack
 from tasks.scheduler import start_scheduler, stop_scheduler
-
-# .env 파일에서 환경변수 로드 (ANTHROPIC_API_KEY, SLACK_BOT_TOKEN 등)
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
