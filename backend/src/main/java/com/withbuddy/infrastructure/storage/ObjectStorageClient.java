@@ -9,4 +9,6 @@ public interface ObjectStorageClient {
     boolean exists(String namespace, String bucket, String objectKey);
 
     byte[] getObject(String namespace, String bucket, String objectKey);
+
+    String createPreSignedGetUrl(String namespace, String bucket, String objectKey, int expiresInSeconds);
 }

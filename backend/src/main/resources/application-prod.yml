@@ -14,7 +14,10 @@ spring:
     redis:
       url: ${REDIS_URL}
   rabbitmq:
-    uri: ${RABBITMQ_URL}
+    addresses: ${SPRING_RABBITMQ_ADDRESSES:localhost:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
   jpa:
     hibernate:
       ddl-auto: none
@@ -68,6 +71,9 @@ app:
       executable: ${STORAGE_OCI_CLI_EXECUTABLE:oci}
       primary-profile: ${STORAGE_OCI_PRIMARY_PROFILE:DEFAULT}
       backup-profile: ${STORAGE_OCI_BACKUP_PROFILE:DEFAULT}
+      region: ${STORAGE_OCI_REGION:}
+      public-endpoint: ${STORAGE_OCI_PUBLIC_ENDPOINT:}
+      preauth-ttl-seconds: ${STORAGE_OCI_PREAUTH_TTL_SECONDS:900}
       suppress-file-permissions-warning: ${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING:true}
     primary:
       namespace: ${STORAGE_PRIMARY_NAMESPACE:primary}
