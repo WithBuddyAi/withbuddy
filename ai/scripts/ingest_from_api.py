@@ -105,6 +105,8 @@ def _extract_text(file_bytes: bytes, filename: str) -> str:
     ext = os.path.splitext(filename)[-1].lower()
 
     if ext == ".pdf":
+        if not file_bytes.startswith(b"%PDF-"):
+            return file_bytes.decode("utf-8", errors="ignore")
         import pypdf
         reader = pypdf.PdfReader(io.BytesIO(file_bytes))
         return "\n".join(page.extract_text() or "" for page in reader.pages)
