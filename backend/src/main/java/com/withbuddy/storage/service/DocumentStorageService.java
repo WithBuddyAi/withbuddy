@@ -56,7 +56,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class DocumentStorageService {
+public class DocumentStorageService implements DocumentDownloadService {
     private static final Logger log = LoggerFactory.getLogger(DocumentStorageService.class);
     private static final int BACKUP_JOB_ERROR_MAX_LENGTH = 1000;
     private static final String DEFAULT_DOCUMENT_CONTENT = "Object Storage 업로드 문서";
