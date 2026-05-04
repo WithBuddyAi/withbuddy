@@ -11,7 +11,7 @@ import com.withbuddy.chat.service.ChatMessageQueryService;
 import com.withbuddy.chat.service.ChatMessageService;
 import com.withbuddy.global.security.AuthenticationPrincipalResolver;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import com.withbuddy.storage.dto.DocumentDownloadResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,13 +34,13 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
-@Tag(name = "Ai", description = "버디 채팅 API")
-public class ChatMessageController {
+public class ChatMessageController implements ChatMessageControllerDocs {
 
     private final ChatMessageService chatMessageService;
     private final ChatMessageQueryService chatMessageQueryService;
     private final UserActivityLogService userActivityLogService;
 
+    @Override
     @PostMapping("/messages")
     @ResponseStatus(HttpStatus.CREATED)
     public ChatMessageCreateResponse sendMessage(
@@ -50,6 +51,7 @@ public class ChatMessageController {
         return chatMessageService.saveUserMessage(principal, request);
     }
 
+    @Override
     @GetMapping("/messages")
     @ResponseStatus(HttpStatus.OK)
     public ChatMessageListResponse getMessages(
@@ -61,6 +63,7 @@ public class ChatMessageController {
         return chatMessageQueryService.getMessages(principal.userId(), date);
     }
 
+    @Override
     @PostMapping("/session-start")
     public ResponseEntity<LogResponse> saveSessionStart(Authentication authentication) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
@@ -73,6 +76,7 @@ public class ChatMessageController {
         return ResponseEntity.ok(response);
     }
 
+    @Override
     @GetMapping("/quick-questions")
     @ResponseStatus(HttpStatus.OK)
     public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Authentication authentication) {
@@ -80,6 +84,7 @@ public class ChatMessageController {
         return chatMessageService.getQuickQuestions(principal.userId());
     }
 
+    @Override
     @PostMapping("/quick-questions/click")
     @ResponseStatus(HttpStatus.CREATED)
     public LogResponse saveQuickQuestionClick(
@@ -88,5 +93,15 @@ public class ChatMessageController {
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         return userActivityLogService.saveQuickQuestionClick(principal.userId(), request.getEventTarget());
+    }
+
+    @Override
+    @GetMapping("/documents/{documentId}/download")
+    public DocumentDownloadResponse getDocumentDownloadUrl(
+            Authentication authentication,
+            @PathVariable Long documentId
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return chatMessageQueryService.getDocumentDownloadUrl(principal.userId(), documentId);
     }
 }

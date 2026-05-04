@@ -13,4 +13,6 @@ public interface ChatMessageDocumentRepository extends JpaRepository<ChatMessage
     List<ChatMessageDocument> findByChatMessageIdIn(Collection<Long> chatMessageIds);
 
     List<ChatMessageDocument> findByChatMessageId(Long chatMessageId);
+
+    boolean existsByChatMessageIdInAndDocumentId(Collection<Long> chatMessageIds, Long documentId);
 }
