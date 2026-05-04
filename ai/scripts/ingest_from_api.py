@@ -84,11 +84,12 @@ def _fetch_document_list(api_url: str, token: str, company_code: str = "") -> li
 
 def _download_file(api_url: str, doc_id: str, token: str) -> bytes:
     """문서 파일 다운로드 (다운로드 URL 조회 후 파일 수신)"""
+    import time
     headers = {"X-API-Key": token}
-    # 다운로드 URL 조회
     url_resp = requests.get(f"{api_url}/api/v1/documents/{doc_id}/download", headers=headers, timeout=30)
     url_resp.raise_for_status()
-    download_url = url_resp.json()["downloadUrl"]
+    data = url_resp.json()
+    download_url = data["downloadUrl"] if isinstance(data, dict) else data[0]["downloadUrl"]
     # 상대경로(내부 API)는 X-API-Key 헤더 필요, 외부 pre-signed URL은 헤더 불필요
     is_relative = download_url.startswith("/")
     if is_relative:
@@ -189,11 +190,21 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
                 metadata["company_code"] = company_code
 
             chunks = _split_text(text, metadata)
-            vs.add_documents(chunks)
+            for attempt in range(3):
+                try:
+                    import time
+                    vs.add_documents(chunks)
+                    break
+                except Exception as embed_err:
+                    if "429" in str(embed_err) and attempt < 2:
+                        print(f"  ⏳ Rate limit, {10 * (attempt + 1)}초 대기 후 재시도...")
+                        time.sleep(10 * (attempt + 1))
+                    else:
+                        raise
             splitter_total += len(chunks)
-
             _save_indexed_id(doc_id)
             print(f"  ✓ {title} ({len(chunks)}청크)")
+            import time; time.sleep(2)  # RPM 초과 방지
 
         except Exception as e:
             print(f"  ✗ 오류 ({title}): {e}")
