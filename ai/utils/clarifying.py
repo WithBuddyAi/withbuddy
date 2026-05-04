@@ -76,6 +76,14 @@ _EXPAND_PROMPT = ChatPromptTemplate.from_messages([
     ("human", "clarifying 질문: {cq}\n사용자 답변: {ua}\n\n확장된 질문:"),
 ])
 
+# 단답형 후속 질문 감지 + 확장 프롬프트
+_FOLLOWUP_WORDS = {"어떻게", "왜", "언제", "어디", "어디서", "뭐", "뭔데", "그래서", "그럼", "그거"}
+
+_FOLLOWUP_EXPAND_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", "다음 대화에서 마지막 사용자 질문은 단답형 후속 질문입니다. 이전 대화 맥락을 참고해 RAG 검색에 적합한 구체적인 한 문장으로 확장하세요. 확장된 질문만 반환하세요."),
+    ("human", "[이전 대화]\n{history}\n\n[후속 질문] {question}\n\n확장된 질문:"),
+])
+
 
 def is_post_clarifying(conversation_history: list) -> tuple[bool, str]:
     """
@@ -115,6 +123,22 @@ def check_and_generate_clarifying(question: str, company_code: str) -> str | Non
     if first_line == "NONE" or not result:
         return None
     return result
+
+
+def is_followup_question(question: str) -> bool:
+    """'어떻게', '왜' 등 단답형 후속 질문 여부 감지"""
+    return question.strip().rstrip("?？") in _FOLLOWUP_WORDS
+
+
+def expand_followup_query(question: str, conversation_history: list) -> str:
+    """단답형 후속 질문을 이전 대화 맥락 기반으로 RAG 쿼리로 확장"""
+    recent = conversation_history[-4:]
+    history_text = "\n".join(
+        f"{'사용자' if t.role == 'user' else 'AI'}: {t.content[:200]}"
+        for t in recent
+    )
+    chain = _FOLLOWUP_EXPAND_PROMPT | get_llm() | StrOutputParser()
+    return chain.invoke({"history": history_text, "question": question}).strip()
 
 
 def expand_clarifying_query(clarifying_q: str, user_answer: str) -> str:
