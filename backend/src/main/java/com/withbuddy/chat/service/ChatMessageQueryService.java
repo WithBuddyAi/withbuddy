@@ -193,10 +193,7 @@ public class ChatMessageQueryService {
     }
 
     public DocumentDownloadResponse getDocumentDownloadUrl(Long userId, Long documentId) {
-        List<Long> messageIds = chatMessageRepository.findByUserIdOrderByCreatedAtAsc(userId)
-                .stream().map(ChatMessage::getId).toList();
-
-        if (messageIds.isEmpty() || !chatMessageDocumentRepository.existsByChatMessageIdInAndDocumentId(messageIds, documentId)) {
+        if (!chatMessageDocumentRepository.existsByUserIdAndDocumentId(userId, documentId)) {
             throw new StorageException(HttpStatus.FORBIDDEN, "FORBIDDEN", "documentId", "채팅에서 수신하지 않은 문서입니다.");
         }
 
