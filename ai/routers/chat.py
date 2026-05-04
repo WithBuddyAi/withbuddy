@@ -482,6 +482,24 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     else:
         message_type = "rag_answer"
 
+    # RAG no_result → 에이전트 fallback (도구 기반 재검색)
+    if message_type == "no_result":
+        from chains.agent_rag_chain import _run_agent_search
+        from memory.chat_history import get_chat_history as _gc, replace_last_ai_message
+        uid = str(request.user.userId)
+        prior_hist = _gc(uid)[:-2]  # 현재 턴(no_result) 제외한 이전 히스토리
+        try:
+            async with asyncio.timeout(20):
+                agent_answer = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: _run_agent_search(rag_query, request.user.companyCode, prior_hist)
+                )
+            if agent_answer and not any(kw in agent_answer for kw in _NO_RESULT_KW):
+                answer = agent_answer
+                message_type = "rag_answer"
+                replace_last_ai_message(uid, agent_answer)
+        except Exception:
+            pass  # agent 실패 시 기존 no_result 유지
+
     recommended_contacts = []
     if message_type in ("no_result", "out_of_scope"):
         from routers.recommend import get_contact_for_question
