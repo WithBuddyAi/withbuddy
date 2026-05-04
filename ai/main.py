@@ -39,13 +39,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     start_scheduler()   # 평일 17:00 Slack 자동 리포트 ON
 
-    # Gemini Embedding 콜드 스타트 제거
-    try:
-        from core.embeddings import get_embeddings
-        get_embeddings().embed_query("warmup")
-        logger.info("임베딩 모델 웜업 완료")
-    except Exception as e:
-        logger.warning("임베딩 웜업 실패(무시): %s", e)
+    # Gemini Embedding 콜드 스타트 제거 (비동기 백그라운드 실행)
+    async def _warmup():
+        try:
+            from core.embeddings import get_embeddings
+            await asyncio.to_thread(get_embeddings().embed_query, "warmup")
+            logger.warning("임베딩 모델 웜업 완료")
+        except Exception as e:
+            logger.warning("임베딩 웜업 실패(무시): %s", e)
+    asyncio.create_task(_warmup())
 
     # Slack Socket Mode (버튼·모달 인터랙션 수신)
     socket_handler = None
