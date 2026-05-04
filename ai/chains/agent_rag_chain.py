@@ -87,6 +87,26 @@ def _get_agent(company_code: str):
     return _agent_cache[company_code]
 
 
+# ── 내부 fallback 전용 (저장 없음) ───────────────────────────
+def _run_agent_search(question: str, company_code: str, history: list) -> str:
+    """
+    에이전트 검색·답변만 수행하고 히스토리 저장은 하지 않습니다.
+    RAG no_result fallback 용도. 호출자가 히스토리를 직접 관리합니다.
+    """
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    agent, _ = _get_agent(company_code)
+    messages = list(history) + [HumanMessage(content=question)]
+    result = agent.invoke({"messages": messages})
+
+    all_msgs = result.get("messages", [])
+    tool_messages = [m for m in all_msgs if isinstance(m, ToolMessage)]
+    if not tool_messages:
+        return ""  # 툴 미사용 → fallback 효과 없음
+
+    ai_messages = [m for m in all_msgs if isinstance(m, AIMessage)]
+    return _fix_names(ai_messages[-1].content if ai_messages else "")
+
+
 # ── 퍼블릭 API ───────────────────────────────────────────────
 
 def run_agent_rag_chain(
