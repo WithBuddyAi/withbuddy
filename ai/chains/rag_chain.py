@@ -220,6 +220,43 @@ def _get_company_specific_rules(company_code: str) -> str:
 
 
 _chain = None
+_dedup_llm = None
+
+
+def _get_dedup_llm():
+    global _dedup_llm
+    if _dedup_llm is None:
+        import os
+        from langchain_anthropic import ChatAnthropic
+        _dedup_llm = ChatAnthropic(
+            model="claude-haiku-4-5-20251001",
+            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+            temperature=0,
+            max_tokens=2048,
+        )
+    return _dedup_llm
+
+
+def _has_duplicate_lines(text: str) -> bool:
+    """연속 중복 줄 빠른 감지."""
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    for i in range(len(lines) - 1):
+        if lines[i] == lines[i + 1]:
+            return True
+    return False
+
+
+def _dedup_answer(text: str) -> str:
+    """중복 문장·단락이 감지되면 Haiku로 제거. 없으면 그대로 반환."""
+    if not _has_duplicate_lines(text):
+        return text
+    from langchain_core.messages import HumanMessage
+    result = _get_dedup_llm().invoke([HumanMessage(content=(
+        "다음 텍스트에서 완전히 동일하거나 거의 동일한 중복 문장·단락을 하나만 남기고 제거하세요. "
+        "내용·형식·말투·이모지는 절대 바꾸지 마세요. 설명 없이 정제된 텍스트만 반환하세요.\n\n"
+        + text
+    ))])
+    return result.content
 
 
 def _get_chain():
@@ -464,6 +501,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         "company_specific_rules": _get_company_specific_rules(company_code),
     })
     answer = _fix_names(answer)
+    answer = _dedup_answer(answer)
 
     # 2-6: 근로기준법 fallback
     if _needs_labor_law_fallback(question, answer):
@@ -474,13 +512,15 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
             and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
         answer += f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
 
-    # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입
+    # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입 (LLM이 이미 언급한 경우 중복 방지)
     if _is_unanswered(answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
         if contact:
-            answer += f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+            if contact not in answer:
+                answer += f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
         else:
-            answer += f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+            if hr_team not in answer:
+                answer += f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
 
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
@@ -589,8 +629,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield labor_fallback, None, None
         full_answer += labor_fallback
 
-    # 이름 교정: 스트리밍 완료 후 전체 텍스트 기준으로 교정본 전송
+    # 이름 교정 + 중복 제거: 스트리밍 완료 후 교정본 전송
     fixed = _fix_names(full_answer)
+    fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     if fixed != full_answer:
         yield "\x00" + fixed, None, None  # \x00 prefix → 프론트에서 전체 교체 신호
 
@@ -603,15 +644,19 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield case_a_msg, None, None
         fixed += case_a_msg
 
-    # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림
+    # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림 (LLM이 이미 언급한 경우 중복 방지)
     if _is_unanswered(full_answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
+        contact_msg = ""
         if contact:
-            contact_msg = f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+            if contact not in fixed:
+                contact_msg = f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
         else:
-            contact_msg = f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
-        yield contact_msg, None, None
-        fixed += contact_msg
+            if hr_team not in fixed:
+                contact_msg = f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        if contact_msg:
+            yield contact_msg, None, None
+            fixed += contact_msg
         asyncio.create_task(_fire_unanswered_alert(user_id, question, company_code))
 
     save_interaction(user_id, question, fixed)
