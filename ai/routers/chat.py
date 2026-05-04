@@ -407,6 +407,15 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 f"{'사용자' if m['role'] == 'human' else 'AI'}: {m['content']}"
                 for m in chat_history[-6:]
             ) if chat_history else ""
+            from datetime import date as _date
+            _today_str = _date.today().strftime("%Y년 %m월 %d일")
+            _hire_info = ""
+            if request.user.hireDate:
+                try:
+                    _days = (_date.today() - _date.fromisoformat(request.user.hireDate)).days + 1
+                    _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})"
+                except Exception:
+                    pass
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: _get_chitchat_chain().invoke({
@@ -414,6 +423,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "user_style": "",
                     "chat_history": history_text,
                     "company_name": request.user.companyName or _get_company_name(request.user.companyCode),
+                    "today_date": _today_str,
+                    "hire_info": _hire_info,
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
