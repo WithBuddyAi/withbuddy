@@ -18,9 +18,7 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
-import com.withbuddy.storage.service.DocumentDownloadService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -35,7 +33,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ChatMessageQueryService {
 
     private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
@@ -45,7 +42,6 @@ public class ChatMessageQueryService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final DocumentDownloadService documentDownloadService;
     private final ObjectMapper objectMapper;
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
@@ -192,12 +188,7 @@ public class ChatMessageQueryService {
     }
 
     private String resolveDownloadUrl(Long documentId) {
-        try {
-            return documentDownloadService.getDownloadUrl(documentId).getDownloadUrl();
-        } catch (RuntimeException ex) {
-            log.warn("문서 presigned URL 조회 실패. documentId={}, reason={}", documentId, ex.getMessage());
-            return "/api/v1/documents/" + documentId + "/download";
-        }
+        return "/api/v1/documents/" + documentId + "/download";
     }
 
     private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {
