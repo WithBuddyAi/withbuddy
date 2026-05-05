@@ -5,6 +5,7 @@ APScheduler 기반 자동 리포트 스케줄러
 자동으로 Slack 전송합니다.
 """
 
+import asyncio
 import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -13,6 +14,16 @@ from apscheduler.triggers.cron import CronTrigger
 from tasks.slack_notifier import send_all_reports, send_mybuddy_checkin_all
 
 logger = logging.getLogger(__name__)
+
+
+async def _keepalive_llm() -> None:
+    """LLM 콜드 스타트 방지 — 30분마다 최소 호출로 연결 유지"""
+    try:
+        from core.llm import get_llm
+        await asyncio.to_thread(get_llm().invoke, "ping")
+        logger.debug("LLM keep-alive 완료")
+    except Exception as e:
+        logger.warning("LLM keep-alive 실패(무시): %s", e)
 
 _scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
 
@@ -43,8 +54,15 @@ def start_scheduler() -> None:
         replace_existing=True,
         misfire_grace_time=300,
     )
+    _scheduler.add_job(
+        _keepalive_llm,
+        "interval",
+        minutes=30,
+        id="llm_keepalive",
+        replace_existing=True,
+    )
     _scheduler.start()
-    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 09:00 My Buddy 체크인 활성화")
+    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 09:00 My Buddy 체크인 / 30분 LLM keep-alive 활성화")
 
 
 def stop_scheduler() -> None:
