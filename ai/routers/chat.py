@@ -199,6 +199,7 @@ class InternalAIAnswerUser(BaseModel):
     name: str = ""
     companyCode: str = ""
     companyName: str = ""
+    hireDate: str = ""
 
 
 class ConversationTurn(BaseModel):
@@ -222,7 +223,8 @@ class InternalAIAnswerResponse(BaseModel):
 _NO_RESULT_KW = [
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
-    "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요",
+    "찾을 수 없습니다", "찾을 수 없었어요", "찾을 수 없어요", "찾을 수 없어",
+    "포함되어 있지 않", "정보가 없", "찾지 못했어요",
     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
     "문서에 없어서", "안내드리기 어려워",
 ]
@@ -293,6 +295,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
                         str(request.user.userId), in_query,
                         user_name=user_name, company_code=company_code,
                         company_name=request.user.companyName,
+                        hire_date=request.user.hireDate,
                         injected_history=injected_history,
                     )
                 )
@@ -401,9 +404,19 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             from memory.chat_history import get_chat_history, save_interaction
             chat_history = get_chat_history(user_id)
             history_text = "\n".join(
-                f"{'사용자' if m['role'] == 'human' else 'AI'}: {m['content']}"
+                f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
                 for m in chat_history[-6:]
             ) if chat_history else ""
+            from chains.rag_chain import _get_company_name
+            from datetime import date as _date
+            _today_str = _date.today().strftime("%Y년 %m월 %d일")
+            _hire_info = ""
+            if request.user.hireDate:
+                try:
+                    _days = (_date.today() - _date.fromisoformat(request.user.hireDate)).days + 1
+                    _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})"
+                except Exception:
+                    pass
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: _get_chitchat_chain().invoke({
@@ -411,6 +424,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "user_style": "",
                     "chat_history": history_text,
                     "company_name": request.user.companyName or _get_company_name(request.user.companyCode),
+                    "today_date": _today_str,
+                    "hire_info": _hire_info,
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
@@ -423,6 +438,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     from langchain_core.messages import HumanMessage, AIMessage
     from utils.clarifying import (
         is_post_clarifying, check_and_generate_clarifying, expand_clarifying_query,
+        is_followup_question, expand_followup_query,
     )
 
     # ── Clarifying 처리 ──────────────────────────────────────────
@@ -435,9 +451,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         )
     elif not request.conversationHistory:
         # 대화 첫 질문일 때만 clarifying 체크 (대화 중간이면 건너뜀)
-        clarifying_q = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
-        )
+        try:
+            async with asyncio.timeout(2):
+                clarifying_q = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
+                )
+        except asyncio.TimeoutError:
+            clarifying_q = None
         if clarifying_q:
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
@@ -446,7 +466,17 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             )
         rag_query = request.content
     else:
-        rag_query = request.content
+        # 단답형 후속 질문("어떻게", "왜" 등) → 대화 맥락 기반으로 쿼리 확장
+        if is_followup_question(request.content):
+            try:
+                async with asyncio.timeout(2):
+                    rag_query = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: expand_followup_query(request.content, request.conversationHistory)
+                    )
+            except asyncio.TimeoutError:
+                rag_query = request.content
+        else:
+            rag_query = request.content
 
     injected_history = None
     if request.conversationHistory:
@@ -467,6 +497,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
                     company_name=request.user.companyName,
+                    hire_date=request.user.hireDate,
                     injected_history=injected_history,
                 )
             )

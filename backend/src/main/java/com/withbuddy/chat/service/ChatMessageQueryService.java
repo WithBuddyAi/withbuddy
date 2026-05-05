@@ -14,11 +14,15 @@ import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.onboarding.entity.OnboardingSuggestion;
 import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
+import com.withbuddy.storage.dto.DocumentDownloadResponse;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
+import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
+import com.withbuddy.storage.service.DocumentDownloadService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -42,6 +46,7 @@ public class ChatMessageQueryService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
+    private final DocumentDownloadService documentDownloadService;
     private final ObjectMapper objectMapper;
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
@@ -164,7 +169,7 @@ public class ChatMessageQueryService {
         ChatMessageResponse.FileResponse fileResponse = null;
         if ("TEMPLATE".equals(document.getDocumentType())) {
             DocumentFile documentFile = documentFileMap.get(documentId);
-            fileResponse = toFileResponse(documentId, documentFile);
+            fileResponse = toFileResponse(document, documentFile);
         }
 
         return new ChatMessageResponse.DocumentResponse(
@@ -175,7 +180,7 @@ public class ChatMessageQueryService {
         );
     }
 
-    private ChatMessageResponse.FileResponse toFileResponse(Long documentId, DocumentFile documentFile) {
+    private ChatMessageResponse.FileResponse toFileResponse(Document document, DocumentFile documentFile) {
         if (documentFile == null) {
             return null;
         }
@@ -183,8 +188,16 @@ public class ChatMessageQueryService {
         return new ChatMessageResponse.FileResponse(
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
-                "/api/v1/documents/" + documentId + "/download"
+                "/api/v1/chat/documents/" + document.getId() + "/download"
         );
+    }
+
+    public DocumentDownloadResponse getDocumentDownloadUrl(Long userId, Long documentId) {
+        if (!chatMessageDocumentRepository.existsByUserIdAndDocumentId(userId, documentId)) {
+            throw new StorageException(HttpStatus.FORBIDDEN, "FORBIDDEN", "documentId", "채팅에서 수신하지 않은 문서입니다.");
+        }
+
+        return documentDownloadService.getDownloadUrl(documentId);
     }
 
     private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {

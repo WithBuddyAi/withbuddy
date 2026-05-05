@@ -17,7 +17,7 @@ from langgraph.graph import END, StateGraph
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from core.llm import get_llm
+from core.llm import get_llm, get_intent_llm
 from memory.company_info_store import format_company_info_context, get_company_info
 from memory.profile_store import format_profile_context, get_profile
 from utils.sensitive_filter import check_sensitive
@@ -47,7 +47,7 @@ class AgentState(TypedDict):
 _INTENT_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """사용자 메시지의 의도를 분류하세요. 반드시 아래 키워드 중 하나만 출력하세요.
 
-chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다")
+chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로, 오늘 날짜·요일 질문, 입사한 지 며칠인지·몇 일차인지 등 근무 일수 질문 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다", "오늘 몇일이지?", "입사한지 얼마나 됐지?", "나 입사한지 몇일이야", "아직 한 달 안됐어")
   ⚠️ "대화가 안 돼", "메시지가 안 보내져", "연결이 끊겼어" 같은 서비스 오류 문의는 out_of_scope_external로 분류
 out_of_scope_internal : 직무 실무·기술 등 사수님이 답할 수 있는 업무 관련 질문
   예) "코딩 어떻게 해", "엑셀 수식 알려줘", "SQL 쿼리 짜줘"
@@ -79,14 +79,14 @@ _intent_chain = None
 def _get_intent_chain():
     global _intent_chain
     if _intent_chain is None:
-        _intent_chain = _INTENT_PROMPT | get_llm() | StrOutputParser()
+        _intent_chain = _INTENT_PROMPT | get_intent_llm() | StrOutputParser()
     return _intent_chain
 
 
 # ── 회사 정보 응답 프롬프트 ──────────────────────────────────
 
 _COMPANY_INFO_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """당신은 With Buddy입니다. 수습사원의 든든한 온보딩 도우미예요.
+    ("system", """당신은 WithBuddy입니다. 수습사원의 든든한 온보딩 도우미예요.
 아래 회사 정보를 바탕으로 친절하게 답변하세요.
 
 [회사 정보]
@@ -224,9 +224,9 @@ def preboarding_agent_node(state: AgentState) -> dict:
 
 
 _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """당신은 With Buddy입니다. 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
+    ("system", """당신은 WithBuddy입니다. {company_name}에 새로 입사한 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
 인사말이나 잡담에는 친근하고 따뜻하게 짧게 답변하세요.
-자기소개 질문에는 With Buddy가 무엇인지 간단히 설명하세요.
+자기소개 질문에는 WithBuddy가 무엇인지, 그리고 {company_name} 소속임을 간단히 설명하세요.
 
 ⚠️ 사용자를 이름으로 절대 부르지 마세요. "○○님" 형식의 호칭 사용 금지. 이름 없이 바로 답변하세요.
 
@@ -251,7 +251,11 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
 반드시 존댓말(~요, ~세요, ~습니다)로만 답변하세요. 반말(~해, ~야, ~거든, ~어)은 절대 사용하지 마세요.
 {user_style}
 
-⚠️ 담당자 이름·연락처·팀 정보는 절대 언급하지 마세요. 담당자 안내가 필요한 질문은 이 에이전트의 역할이 아닙니다."""),
+⚠️ 담당자 이름·연락처·팀 정보는 절대 언급하지 마세요. 담당자 안내가 필요한 질문은 이 에이전트의 역할이 아닙니다.
+
+[날짜 / 입사 정보]
+오늘 날짜: {today_date}{hire_info}
+오늘 날짜나 입사 일수를 묻는 질문에는 위 정보를 활용해 직접 답변하세요."""),
     ("human", "{message}"),
 ])
 
@@ -291,10 +295,13 @@ def chitchat_agent_node(state: AgentState) -> dict:
     # classify_intent_node에서 이미 답변이 세팅된 경우(성희롱 등) LLM 호출 건너뜀
     if state.get("answer"):
         return {}
+    from datetime import date as _date
     answer = _get_chitchat_chain().invoke({
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
+        "today_date": _date.today().strftime("%Y년 %m월 %d일"),
+        "hire_info": "",
     })
     return {"answer": answer}
 

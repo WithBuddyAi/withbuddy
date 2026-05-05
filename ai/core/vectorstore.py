@@ -17,8 +17,8 @@ from core.embeddings import get_embeddings
 # ChromaDB 영구 저장 경로
 CHROMA_DB_PATH = "./chroma_db"
 
-# ChromaDB 컬렉션 이름
-COLLECTION_NAME = "onboarding_docs"
+# ChromaDB 컬렉션 이름 (gemini-embedding-2 전용, cosine distance)
+COLLECTION_NAME = "onboarding_docs_v2"
 
 
 @lru_cache(maxsize=1)
@@ -33,6 +33,7 @@ def get_vectorstore() -> Chroma:
         collection_name=COLLECTION_NAME,
         embedding_function=get_embeddings(),
         persist_directory=CHROMA_DB_PATH,
+        collection_metadata={"hnsw:space": "cosine"},
     )
 
 
@@ -57,7 +58,7 @@ def get_retriever(k: int = 3, company_code: str = "") -> VectorStoreRetriever:
     )
 
 
-def search_legal_docs(query: str, k: int = 7, score_threshold: float = 0.45) -> List[Document]:
+def search_legal_docs(query: str, k: int = 7, score_threshold: float = 0.30) -> List[Document]:
     """
     document_type=LEGAL 메타데이터를 가진 법률 문서만 검색합니다.
     정제된 txt 파일(근로기준법, 최저임금법, 퇴직급여법 등)만 대상으로 합니다.
@@ -69,7 +70,7 @@ def search_legal_docs(query: str, k: int = 7, score_threshold: float = 0.45) -> 
     return [doc for doc, score in raw if score >= score_threshold]
 
 
-def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.45, category: str = "") -> List[Document]:
+def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.30, category: str = "") -> List[Document]:
     """
     ST-027: company_code 기준 벡터 DB 격리 검색
     회사 특화 문서(company_code 일치) + 공통 문서(company_code 없음) OR 조건 검색.
