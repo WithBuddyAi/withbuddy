@@ -182,9 +182,16 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
         doc_id = str(doc_meta["documentId"])
         title = doc_meta.get("title", doc_id)
         original_filename = doc_meta.get("fileName", "")
-        ext = os.path.splitext(original_filename)[-1].lower() if original_filename else ".pdf"
+        ext = os.path.splitext(original_filename)[-1].lower() if original_filename else ""
         if not ext:
-            ext = ".pdf"
+            _ct = doc_meta.get("contentType", "")
+            ext = {
+                "application/pdf": ".pdf",
+                "text/plain": ".txt",
+                "text/markdown": ".md",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+            }.get(_ct, ".pdf")
 
         print(f"  처리 중: {title}")
 
