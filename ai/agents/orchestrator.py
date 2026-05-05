@@ -47,7 +47,8 @@ class AgentState(TypedDict):
 _INTENT_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """사용자 메시지의 의도를 분류하세요. 반드시 아래 키워드 중 하나만 출력하세요.
 
-chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로, 서비스 연결/오류 문의 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다", "ai 대화 끊겼어?", "대화가 안돼", "연결이 끊겼어")
+chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로, 오늘 날짜·요일 질문, 입사한 지 며칠인지·몇 일차인지 등 근무 일수 질문 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다", "오늘 몇일이지?", "입사한지 얼마나 됐지?", "나 입사한지 몇일이야", "아직 한 달 안됐어")
+  ⚠️ "대화가 안 돼", "메시지가 안 보내져", "연결이 끊겼어" 같은 서비스 오류 문의는 out_of_scope_external로 분류
 out_of_scope_internal : 직무 실무·기술 등 사수님이 답할 수 있는 업무 관련 질문
   예) "코딩 어떻게 해", "엑셀 수식 알려줘", "SQL 쿼리 짜줘"
 out_of_scope_external : 회사와 완전히 무관한 외부 주제 — 사수님도 답하기 어려운 것
@@ -252,9 +253,9 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
 
 ⚠️ 담당자 이름·연락처·팀 정보는 절대 언급하지 마세요. 담당자 안내가 필요한 질문은 이 에이전트의 역할이 아닙니다.
 
-[서비스 연결/오류 문의 처리]
-"ai 대화 끊겼어?", "대화가 안돼", "연결이 끊겼어" 같은 질문에는 현재 잘 연결되어 있음을 알리고 도움을 제안하세요.
-예) "저 여기 있어요! 잘 연결되어 있어요 😊 궁금한 게 있으면 편하게 물어보세요." """),
+[날짜 / 입사 정보]
+오늘 날짜: {today_date}{hire_info}
+오늘 날짜나 입사 일수를 묻는 질문에는 위 정보를 활용해 직접 답변하세요."""),
     ("human", "{message}"),
 ])
 
@@ -294,10 +295,13 @@ def chitchat_agent_node(state: AgentState) -> dict:
     # classify_intent_node에서 이미 답변이 세팅된 경우(성희롱 등) LLM 호출 건너뜀
     if state.get("answer"):
         return {}
+    from datetime import date as _date
     answer = _get_chitchat_chain().invoke({
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
+        "today_date": _date.today().strftime("%Y년 %m월 %d일"),
+        "hire_info": "",
     })
     return {"answer": answer}
 
