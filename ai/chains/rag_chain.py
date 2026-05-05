@@ -416,7 +416,7 @@ def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
     return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
@@ -482,6 +482,16 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
+    from datetime import date as _date
+    today_date = _date.today().strftime("%Y년 %m월 %d일")
+    hire_info = ""
+    if hire_date:
+        try:
+            days = (_date.today() - _date.fromisoformat(hire_date)).days + 1
+            hire_info = f"\n사용자 입사 {days}일차입니다. (입사일: {hire_date})"
+        except Exception:
+            pass
+
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
         from memory.profile_store import format_profile_context, get_profile
@@ -499,6 +509,8 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         "hr_team": hr_team,
         "it_contact": _get_it_contact(company_code),
         "company_specific_rules": _get_company_specific_rules(company_code),
+        "today_date": today_date,
+        "hire_info": hire_info,
     })
     answer = _fix_names(answer)
     answer = _dedup_answer(answer)
@@ -599,6 +611,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
+    from datetime import date as _date
+    today_date = _date.today().strftime("%Y년 %m월 %d일")
+
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
         from memory.profile_store import format_profile_context, get_profile
@@ -619,6 +634,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         "hr_team": hr_team,
         "it_contact": _get_it_contact(company_code),
         "company_specific_rules": _get_company_specific_rules(company_code),
+        "today_date": today_date,
+        "hire_info": "",
     }):
         full_answer += chunk
         yield chunk, None, None

@@ -199,6 +199,7 @@ class InternalAIAnswerUser(BaseModel):
     name: str = ""
     companyCode: str = ""
     companyName: str = ""
+    hireDate: str = ""
 
 
 class ConversationTurn(BaseModel):
@@ -294,6 +295,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
                         str(request.user.userId), in_query,
                         user_name=user_name, company_code=company_code,
                         company_name=request.user.companyName,
+                        hire_date=request.user.hireDate,
                         injected_history=injected_history,
                     )
                 )
@@ -402,9 +404,19 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             from memory.chat_history import get_chat_history, save_interaction
             chat_history = get_chat_history(user_id)
             history_text = "\n".join(
-                f"{'사용자' if m['role'] == 'human' else 'AI'}: {m['content']}"
+                f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
                 for m in chat_history[-6:]
             ) if chat_history else ""
+            from chains.rag_chain import _get_company_name
+            from datetime import date as _date
+            _today_str = _date.today().strftime("%Y년 %m월 %d일")
+            _hire_info = ""
+            if request.user.hireDate:
+                try:
+                    _days = (_date.today() - _date.fromisoformat(request.user.hireDate)).days + 1
+                    _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})"
+                except Exception:
+                    pass
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: _get_chitchat_chain().invoke({
@@ -412,6 +424,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "user_style": "",
                     "chat_history": history_text,
                     "company_name": request.user.companyName or _get_company_name(request.user.companyCode),
+                    "today_date": _today_str,
+                    "hire_info": _hire_info,
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
@@ -483,6 +497,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
                     company_name=request.user.companyName,
+                    hire_date=request.user.hireDate,
                     injected_history=injected_history,
                 )
             )
