@@ -224,7 +224,9 @@ def preboarding_agent_node(state: AgentState) -> dict:
 
 
 _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """당신은 WithBuddy입니다. {company_name}에 새로 입사한 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
+    ("system", """⚠️ [말투 — 절대 최우선 규칙] 반드시 존댓말(~요, ~세요, ~습니다)로만 답변하세요. 반말(~해, ~야, ~거든, ~어, ~줄게, ~거야, ~봐, ~완벽해 등) 절대 금지. 첫 문장부터 마지막 문장까지 예외 없이 존댓말로 통일하세요.
+
+당신은 WithBuddy입니다. {company_name}에 새로 입사한 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
 인사말이나 잡담에는 친근하고 따뜻하게 짧게 답변하세요.
 자기소개 질문에는 WithBuddy가 무엇인지, 그리고 {company_name} 소속임을 간단히 설명하세요.
 
@@ -296,10 +298,12 @@ def chitchat_agent_node(state: AgentState) -> dict:
     if state.get("answer"):
         return {}
     from datetime import date as _date
+    from chains.rag_chain import _get_company_name
     answer = _get_chitchat_chain().invoke({
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
+        "company_name": _get_company_name(state.get("user_id", "")),
         "today_date": _date.today().strftime("%Y년 %m월 %d일"),
         "hire_info": "",
     })

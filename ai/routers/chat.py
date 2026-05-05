@@ -546,6 +546,190 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     )
 
 
+@router.post("/internal/ai/answer/stream", tags=["internal"])
+async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
+    """백엔드 서버 → AI 서버 내부 연동 SSE 스트리밍 엔드포인트"""
+
+    async def event_generator():
+        def _yield_complete(msg_type: str, content: str, docs: list = None, contacts: list = None):
+            return [
+                f"data: {json.dumps({'text': content}, ensure_ascii=False)}\n\n",
+                f"data: {json.dumps({'done': True, 'questionId': request.questionId, 'messageType': msg_type, 'documents': docs or [], 'recommendedContacts': contacts or []}, ensure_ascii=False)}\n\n",
+            ]
+
+        try:
+            # 1. 전체 차단
+            action, answer = check_global_block(request.content, request.user.name)
+            if action == "block":
+                for _e in _yield_complete("out_of_scope", answer):
+                    yield _e
+                return
+
+            # 2. 복합 질문
+            from utils.composite import split_composite
+            composite_parts = split_composite(request.content)
+            if len(composite_parts) >= 2:
+                result = await _handle_composite(request, composite_parts)
+                for _e in _yield_complete(result.messageType, result.content, result.documents, result.recommendedContacts):
+                    yield _e
+                return
+
+            # 3. 민감 필터
+            action, answer = check_sensitive(request.content, request.user.name)
+            if action == "block":
+                for _e in _yield_complete("out_of_scope", answer):
+                    yield _e
+                return
+
+            # 4. Intent 체크
+            from agents.orchestrator import (
+                _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN,
+                _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
+            )
+            raw_intent = "rag"
+            if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
+                try:
+                    async with asyncio.timeout(3):
+                        raw_intent = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+                        )
+                except asyncio.TimeoutError:
+                    raw_intent = "rag"
+
+                if "out_of_scope_internal" in raw_intent:
+                    from routers.recommend import get_contact_for_question
+                    contact = await get_contact_for_question(request.user.companyCode, request.content)
+                    for _e in _yield_complete("out_of_scope", _OUT_OF_SCOPE_MESSAGE, contacts=[contact]):
+                        yield _e
+                    return
+                if "out_of_scope_external" in raw_intent:
+                    for _e in _yield_complete("out_of_scope", _OUT_OF_SCOPE_EXTERNAL_MESSAGE):
+                        yield _e
+                    return
+                if "chitchat" in raw_intent:
+                    uid = str(request.user.userId)
+                    from memory.chat_history import get_chat_history as _gc, save_interaction as _si
+                    history_text = "\n".join(
+                        f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
+                        for m in _gc(uid)[-6:]
+                    )
+                    from chains.rag_chain import _get_company_name
+                    from datetime import date as _date
+                    _today_str = _date.today().strftime("%Y년 %m월 %d일")
+                    _hire_info = ""
+                    if request.user.hireDate:
+                        try:
+                            _days = (_date.today() - _date.fromisoformat(request.user.hireDate)).days + 1
+                            _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})"
+                        except Exception:
+                            pass
+                    chitchat_answer = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: _get_chitchat_chain().invoke({
+                            "message": request.content,
+                            "user_style": "",
+                            "chat_history": history_text,
+                            "company_name": request.user.companyName or _get_company_name(request.user.companyCode),
+                            "today_date": _today_str,
+                            "hire_info": _hire_info,
+                        }),
+                    )
+                    _si(uid, request.content, chitchat_answer)
+                    for _e in _yield_complete("out_of_scope", chitchat_answer):
+                        yield _e
+                    return
+
+            # 5. Clarifying 처리
+            from utils.clarifying import (
+                is_post_clarifying, check_and_generate_clarifying, expand_clarifying_query,
+                is_followup_question, expand_followup_query,
+            )
+            is_clarifying_followup, last_clarifying_q = is_post_clarifying(request.conversationHistory)
+            if is_clarifying_followup:
+                rag_query = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: expand_clarifying_query(last_clarifying_q, request.content)
+                )
+            elif not request.conversationHistory:
+                try:
+                    async with asyncio.timeout(2):
+                        clarifying_q = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
+                        )
+                except asyncio.TimeoutError:
+                    clarifying_q = None
+                if clarifying_q:
+                    for _e in _yield_complete("clarifying", clarifying_q):
+                        yield _e
+                    return
+                rag_query = request.content
+            else:
+                if is_followup_question(request.content):
+                    try:
+                        async with asyncio.timeout(2):
+                            rag_query = await asyncio.get_event_loop().run_in_executor(
+                                None, lambda: expand_followup_query(request.content, request.conversationHistory)
+                            )
+                    except asyncio.TimeoutError:
+                        rag_query = request.content
+                else:
+                    rag_query = request.content
+
+            # injected_history 변환
+            from langchain_core.messages import HumanMessage, AIMessage
+            injected_history = None
+            if request.conversationHistory:
+                injected_history = [
+                    HumanMessage(content=t.content) if t.role == "user" else AIMessage(content=t.content)
+                    for t in request.conversationHistory
+                ]
+
+            # 6. RAG 스트리밍
+            accumulated_text = []
+            final_docs = []
+            async for chunk, source, related_docs in stream_rag_chain(
+                str(request.user.userId), rag_query,
+                user_name=request.user.name,
+                company_code=request.user.companyCode,
+                company_name=request.user.companyName,
+                hire_date=request.user.hireDate,
+                injected_history=injected_history,
+            ):
+                if source is not None:
+                    final_docs = related_docs or []
+                    full_answer = "".join(accumulated_text)
+                    if any(kw in full_answer for kw in _OUT_OF_SCOPE_KW):
+                        msg_type = "out_of_scope"
+                    elif any(kw in full_answer for kw in _NO_RESULT_KW):
+                        msg_type = "no_result"
+                    else:
+                        msg_type = "rag_answer"
+                    contacts = []
+                    if msg_type in ("no_result", "out_of_scope"):
+                        from routers.recommend import get_contact_for_question
+                        contact = await get_contact_for_question(request.user.companyCode, request.content)
+                        contacts = [contact]
+                    doc_ids = [{"documentId": d.get("doc_id") or d.get("documentId")} for d in final_docs if d.get("doc_id") or d.get("documentId")]
+                    yield f"data: {json.dumps({'done': True, 'questionId': request.questionId, 'messageType': msg_type, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
+                elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
+                    yield f"data: {json.dumps({'stage': chunk[9:]}, ensure_ascii=False)}\n\n"
+                elif isinstance(chunk, str) and chunk.startswith("\x00"):
+                    accumulated_text.clear()
+                    accumulated_text.append(chunk[1:])
+                    yield f"data: {json.dumps({'replace': chunk[1:]}, ensure_ascii=False)}\n\n"
+                else:
+                    accumulated_text.append(chunk)
+                    yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 class SummarizeRequest(BaseModel):
     user_id: int = Field(..., description="사용자 고유 ID")
 
