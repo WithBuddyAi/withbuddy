@@ -553,8 +553,8 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
     async def event_generator():
         def _yield_complete(msg_type: str, content: str, docs: list = None, contacts: list = None):
             return [
-                f"data: {json.dumps({'text': content}, ensure_ascii=False)}\n\n",
-                f"data: {json.dumps({'done': True, 'questionId': request.questionId, 'messageType': msg_type, 'documents': docs or [], 'recommendedContacts': contacts or []}, ensure_ascii=False)}\n\n",
+                f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': content}, ensure_ascii=False)}\n\n",
+                f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': content, 'documents': docs or [], 'recommendedContacts': contacts or []}, ensure_ascii=False)}\n\n",
             ]
 
         try:
@@ -709,7 +709,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                         contact = await get_contact_for_question(request.user.companyCode, request.content)
                         contacts = [contact]
                     doc_ids = [{"documentId": d.get("doc_id") or d.get("documentId")} for d in final_docs if d.get("doc_id") or d.get("documentId")]
-                    yield f"data: {json.dumps({'done': True, 'questionId': request.questionId, 'messageType': msg_type, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
+                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                     yield f"data: {json.dumps({'stage': chunk[9:]}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("\x00"):
@@ -718,10 +718,10 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                     yield f"data: {json.dumps({'replace': chunk[1:]}, ensure_ascii=False)}\n\n"
                 else:
                     accumulated_text.append(chunk)
-                    yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
 
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_generator(),
