@@ -3,9 +3,12 @@ package com.withbuddy.chat.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
 import com.withbuddy.chat.dto.ChatMessageResponse;
+import com.withbuddy.chat.dto.ChatStreamAnswerCompletedResponse;
+import com.withbuddy.chat.dto.ChatStreamAnswerDeltaResponse;
+import com.withbuddy.chat.dto.ChatStreamErrorResponse;
+import com.withbuddy.chat.dto.ChatStreamQuestionSavedResponse;
 import com.withbuddy.chat.dto.QuickQuestionResponse;
 import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.entity.ChatMessageDocument;
@@ -14,10 +17,8 @@ import com.withbuddy.chat.entity.SenderType;
 import com.withbuddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
-import com.withbuddy.infrastructure.ai.client.AiClient;
-import com.withbuddy.infrastructure.ai.dto.AiAnswerServerRequest;
+import com.withbuddy.infrastructure.ai.client.AiStreamClient;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
-import com.withbuddy.infrastructure.ai.dto.AiUserContext;
 import com.withbuddy.infrastructure.ai.dto.ConversationTurn;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
@@ -31,23 +32,23 @@ import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.time.Duration;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -57,8 +58,6 @@ import java.util.stream.Collectors;
 public class ChatMessageService {
 
     private static final int MAX_HISTORY_MESSAGES = 10;
-    private static final Duration CONVERSATION_LOCK_TTL = Duration.ofSeconds(5);
-    private static final List<MessageType> HISTORY_TYPES = List.of(MessageType.user_question, MessageType.rag_answer);
     private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
             new TypeReference<>() {};
 
@@ -66,109 +65,106 @@ public class ChatMessageService {
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
-    private final AiClient aiClient;
-    private final AsyncAiCallService asyncAiCallService;
+    private final AiStreamClient aiStreamClient;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    @Qualifier("aiCallExecutor")
+    private final Executor aiCallExecutor;
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
 
-    public ChatMessageCreateResponse saveUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
-        Long loginUserId = principal.userId();
-        String loginUserName = principal.name();
-        String companyCode = principal.companyCode();
-        String companyName = principal.companyName();
-        String hireDate = principal.hireDate();
-        List<ConversationTurn> conversationHistory = sanitizeConversationHistoryForAi(
-                resolveConversationHistory(loginUserId)
-        );
+    public SseEmitter streamUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
+        SseEmitter emitter = new SseEmitter(0L);
 
-        ChatMessage savedQuestionMessage = transactionTemplate.execute(status -> saveQuestionMessage(loginUserId, request.getContent()));
-        if (savedQuestionMessage == null) {
-            throw new IllegalStateException("질문 메시지 저장에 실패했습니다.");
-        }
-        saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
+        aiCallExecutor.execute(() -> {
+            Long questionId = null;
+            try {
+                Long loginUserId = principal.userId();
+                String loginUserName = principal.name();
+                String companyCode = principal.companyCode();
+                String hireDate = principal.hireDate();
 
-        AiUserContext userContext = new AiUserContext(
-                loginUserId,
-                loginUserName,
-                companyCode,
-                companyName,
-                hireDate
-        );
+                ChatMessage savedQuestionMessage = transactionTemplate.execute(
+                        status -> saveQuestionMessage(loginUserId, request.getContent())
+                );
+                if (savedQuestionMessage == null) {
+                    throw new IllegalStateException("질문 메시지 저장에 실패했습니다.");
+                }
 
-        AiAnswerServerRequest aiRequest = new AiAnswerServerRequest(
-                savedQuestionMessage.getId(),
-                userContext,
-                savedQuestionMessage.getContent(),
-                conversationHistory
-        );
+                questionId = savedQuestionMessage.getId();
+                saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
 
-        ChatMessageResponse questionResponse = toResponse(
-                savedQuestionMessage,
-                Collections.emptyList(),
-                Collections.emptyMap(),
-                Collections.emptyMap()
-        );
+                ChatMessageResponse questionResponse = toResponse(
+                        savedQuestionMessage,
+                        Collections.emptyList(),
+                        Collections.emptyMap(),
+                        Collections.emptyMap()
+                );
+                sendStreamEvent(emitter, "question_saved", new ChatStreamQuestionSavedResponse(questionResponse));
 
-        AiAnswerServerResponse aiResponse;
-        try {
-            aiResponse = aiClient.requestAnswer(aiRequest);
-        } catch (AiTimeoutException timeoutException) {
-            Long questionId = savedQuestionMessage.getId();
-            redisCacheService.put(
-                    RedisCacheKeys.ragStatus(questionId),
-                    "PENDING",
-                    RedisCacheTtl.RAG_STATUS
-            );
-            asyncAiCallService.callAndSaveAnswer(questionId, loginUserId, aiRequest);
-            log.warn("AI 타임아웃 비동기 폴백. questionId={}", questionId);
-
-            return new ChatMessageCreateResponse(questionResponse, null, "PENDING");
-        }
-
-        if (!savedQuestionMessage.getId().equals(aiResponse.getQuestionId())) {
-            throw new IllegalStateException("AI 응답의 questionId가 저장된 질문 ID와 일치하지 않습니다.");
-        }
-        MessageType answerMessageType = aiResponse.getMessageType();
-        List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
-        List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
-                toRecommendedContactResponses(aiResponse.getRecommendedContacts());
-        String recommendedContactsJson = serializeRecommendedContacts(recommendedContacts);
-        ChatMessage savedAnswerMessage = transactionTemplate.execute(
-                status -> saveAnswerMessage(
+                AiAnswerServerResponse aiResponse = aiStreamClient.streamAnswer(
+                        questionId,
                         loginUserId,
-                        answerMessageType,
-                        aiResponse.getContent(),
+                        loginUserName,
+                        companyCode,
+                        hireDate,
+                        savedQuestionMessage.getContent(),
+                        delta -> forwardDelta(emitter, delta)
+                );
+
+                MessageType answerMessageType = aiResponse.getMessageType();
+                List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
+                List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
+                        toRecommendedContactResponses(aiResponse.getRecommendedContacts());
+                String recommendedContactsJson = serializeRecommendedContacts(recommendedContacts);
+
+                ChatMessage savedAnswerMessage = transactionTemplate.execute(
+                        status -> saveAnswerMessage(
+                                loginUserId,
+                                answerMessageType,
+                                aiResponse.getContent(),
+                                answerDocumentIds,
+                                recommendedContactsJson
+                        )
+                );
+                if (savedAnswerMessage == null) {
+                    throw new IllegalStateException("답변 메시지 저장에 실패했습니다.");
+                }
+
+                Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
+                Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
+                saveConversationAnswer(loginUserId, savedAnswerMessage.getContent());
+
+                ChatMessageResponse answerResponse = toResponse(
+                        savedAnswerMessage,
                         answerDocumentIds,
-                        recommendedContactsJson
-                )
-        );
-        if (savedAnswerMessage == null) {
-            throw new IllegalStateException("답변 메시지 저장에 실패했습니다.");
-        }
+                        documentMap,
+                        documentFileMap
+                );
+                sendStreamEvent(
+                        emitter,
+                        "answer_completed",
+                        new ChatStreamAnswerCompletedResponse(questionId, answerResponse)
+                );
+                emitter.complete();
+            } catch (AiTimeoutException exception) {
+                sendStreamError(emitter, "AI_TIMEOUT", "AI 답변 생성 시간이 초과되었습니다.", questionId);
+            } catch (Exception exception) {
+                log.error("SSE chat stream failed. questionId={}", questionId, exception);
+                sendStreamError(emitter, "AI_STREAM_FAILED", "AI 답변 생성 중 오류가 발생했습니다.", questionId);
+            }
+        });
 
-        Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
-        Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
-        saveConversationAnswer(loginUserId, savedAnswerMessage.getContent());
-
-        return new ChatMessageCreateResponse(
-                questionResponse,
-                toResponse(savedAnswerMessage, answerDocumentIds, documentMap, documentFileMap),
-                "COMPLETED"
-        );
+        return emitter;
     }
 
-    private List<ConversationTurn> sanitizeConversationHistoryForAi(List<ConversationTurn> history) {
-        if (history == null || history.isEmpty()) {
-            return List.of();
+    private void forwardDelta(SseEmitter emitter, ChatStreamAnswerDeltaResponse delta) {
+        try {
+            sendStreamEvent(emitter, "answer_delta", delta);
+        } catch (IOException e) {
+            throw new IllegalStateException("answer_delta 전송에 실패했습니다.", e);
         }
-
-        return history.stream()
-                .filter(Objects::nonNull)
-                .filter(turn -> isValidRole(turn.role()) && hasText(turn.content()))
-                .toList();
     }
 
     private ChatMessage saveQuestionMessage(Long userId, String content) {
@@ -326,97 +322,6 @@ public class ChatMessageService {
         chatMessageDocumentRepository.saveAll(mappings);
     }
 
-    private List<ConversationTurn> resolveConversationHistory(Long userId) {
-        List<ConversationTurn> redisHistory = loadConversationHistoryFromRedis(userId);
-        if (!redisHistory.isEmpty()) {
-            return redisHistory;
-        }
-
-        String lockKey = RedisCacheKeys.conversationLock(userId);
-        String lockValue = UUID.randomUUID().toString();
-
-        if (redisCacheService.putIfAbsent(lockKey, lockValue, CONVERSATION_LOCK_TTL)) {
-            try {
-                List<ConversationTurn> dbHistory = loadConversationHistoryFromDb(userId);
-                if (!dbHistory.isEmpty()) {
-                    saveConversationHistoryList(userId, dbHistory);
-                }
-                return dbHistory;
-            } finally {
-                redisCacheService.releaseLock(lockKey, lockValue);
-            }
-        }
-
-        sleepBriefly();
-        return loadConversationHistoryFromRedis(userId);
-    }
-
-    private void sleepBriefly() {
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private List<ConversationTurn> loadConversationHistoryFromRedis(Long userId) {
-        String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        List<String> serialized;
-        try {
-            serialized = redisCacheService.listRange(key, 0, -1);
-        } catch (RuntimeException ex) {
-            if (isRedisWrongType(ex)) {
-                redisCacheService.delete(key);
-                return List.of();
-            }
-            throw ex;
-        }
-        if (serialized.isEmpty()) {
-            return List.of();
-        }
-
-        List<ConversationTurn> history = new ArrayList<>();
-        for (String item : serialized) {
-            try {
-                ConversationTurn turn = objectMapper.readValue(item, ConversationTurn.class);
-                if (isValidRole(turn.role()) && hasText(turn.content())) {
-                    history.add(turn);
-                }
-            } catch (JsonProcessingException ignored) {
-            }
-        }
-        return history;
-    }
-
-    private boolean isRedisWrongType(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            String message = current.getMessage();
-            if (message != null && message.contains("WRONGTYPE")) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
-
-    private List<ConversationTurn> loadConversationHistoryFromDb(Long userId) {
-        List<ChatMessage> recent = chatMessageRepository.findTop10ByUserIdAndMessageTypeInOrderByCreatedAtDesc(userId, HISTORY_TYPES);
-        if (recent.isEmpty()) {
-            return List.of();
-        }
-
-        return recent.stream()
-                .sorted(Comparator.comparing(ChatMessage::getCreatedAt))
-                .map(this::toConversationTurn)
-                .toList();
-    }
-
-    private ConversationTurn toConversationTurn(ChatMessage message) {
-        String role = message.getSenderType() == SenderType.USER ? "user" : "assistant";
-        return new ConversationTurn(role, message.getContent());
-    }
-
     private void saveConversationQuestion(Long userId, String userQuestion) {
         saveConversationTurn(userId, new ConversationTurn("user", userQuestion));
     }
@@ -428,14 +333,6 @@ public class ChatMessageService {
     private void saveConversationTurn(Long userId, ConversationTurn turn) {
         String key = RedisCacheKeys.conversation(String.valueOf(userId));
         writeConversationTurnsWithRecovery(key, List.of(turn));
-    }
-
-    private void saveConversationHistoryList(Long userId, List<ConversationTurn> history) {
-        if (history.isEmpty()) {
-            return;
-        }
-        String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        writeConversationTurnsWithRecovery(key, history);
     }
 
     private void writeConversationTurnsWithRecovery(String key, List<ConversationTurn> turns) {
@@ -467,12 +364,33 @@ public class ChatMessageService {
         }
     }
 
-    private boolean isValidRole(String role) {
-        return "user".equals(role) || "assistant".equals(role);
+    private boolean isRedisWrongType(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("WRONGTYPE")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
+    private void sendStreamEvent(SseEmitter emitter, String eventName, Object payload) throws IOException {
+        emitter.send(
+                SseEmitter.event()
+                        .name(eventName)
+                        .data(payload)
+        );
+    }
+
+    private void sendStreamError(SseEmitter emitter, String code, String message, Long questionId) {
+        try {
+            sendStreamEvent(emitter, "error", new ChatStreamErrorResponse(code, message, questionId));
+            emitter.complete();
+        } catch (IOException ioException) {
+            emitter.completeWithError(ioException);
+        }
     }
 
     @Transactional

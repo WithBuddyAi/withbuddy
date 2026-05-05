@@ -3,7 +3,7 @@
 > WithBuddy MVP 기준 REST API 문서
 >
 **버전**: 1.9.0
-**최종 업데이트**: 2026-05-04
+**최종 업데이트**: 2026-05-05
 
 ---
 
@@ -1434,11 +1434,11 @@ AI 서버
 
 - 사용자가 질문을 전송한다.
 - 백엔드가 `/api/v1/chat/messages/stream` 요청을 받는다.
-- 백엔드가 JWT에서 현재 사용자 ID, 이름, 회사 코드를 확인한다.
+- 백엔드는 JWT를 검증한 뒤 현재 사용자 ID와 회사 코드를 확인하고, 사용자 정보에서 이름과 입사일(`hireDate`)을 조회한다.
 - 백엔드가 사용자 질문 메시지를 `chat_messages`에 저장한다.
 - 백엔드가 생성된 질문 메시지의 `id`를 `questionId`로 사용한다.
 - 백엔드가 AI 서버의 `/chat/stream`을 호출한다.
-- AI 서버가 `content` 질문과 `user.companyCode`를 기준으로 답변을 생성한다.
+- AI 서버가 `content`, `user.companyCode`, `user.hireDate`를 기준으로 회사 문서 범위와 입사일 기반 온보딩 맥락을 반영해 답변을 생성한다.
 - AI 서버가 답변 조각을 `answer_delta` 이벤트로 스트리밍 반환한다.
 - 백엔드는 AI 서버에서 받은 답변 조각을 프론트엔드에 `answer_delta` 이벤트로 전달한다.
 - AI 서버는 답변 생성이 완료되면 `answer_completed` 이벤트를 반드시 한 번 전송한다.
@@ -1474,7 +1474,8 @@ AI 서버 Swagger의 `/chat/stream` 요청 예시 기준으로 작성한다.
   "user": {
     "userId": 1,
     "name": "김지원",
-    "companyCode": "WB0001"
+    "companyCode": "WB0001",
+    "hireDate": "2026-05-01"
   },
   "content": "연차 신청 방법이 뭐야?"
 }
@@ -1485,7 +1486,7 @@ AI 서버 Swagger의 `/chat/stream` 요청 예시 기준으로 작성한다.
 | 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
 |---|---|---|---|---|---|
 | `questionId` | Long | Y | `201` | 백엔드가 저장한 사용자 질문 메시지 ID | 양의 정수 |
-| `user` | Object | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별, 개인화, 회사 문서 범위 판별에 사용 |
+| `user` | Object | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001", "hireDate": "2026-05-01" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별, 개인화, 회사 문서 범위 판별, 입사일 기준 온보딩 맥락 판단에 사용 |
 | `content` | String | Y | `"연차 신청 방법이 뭐야?"` | 사용자가 입력한 질문 내용 | 길이 1~500자 / 공백만 입력 불가 |
 
 #### Request Field (`user`)
@@ -1495,6 +1496,7 @@ AI 서버 Swagger의 `/chat/stream` 요청 예시 기준으로 작성한다.
 | `user.userId` | Long | Y | `1` | 로그인한 사용자 ID | 양의 정수 |
 | `user.name` | String | Y | `"김지원"` | 로그인한 사용자 이름 | 길이 1~100자 |
 | `user.companyCode` | String | Y | `"WB0001"` | 로그인한 사용자의 회사 코드 | 길이 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| `user.hireDate` | String | Y | `"2026-05-01"` | 로그인한 사용자의 입사일 | ISO-8601 날짜 형식(`yyyy-MM-dd`) / 답변 개인화 및 입사일 기준 온보딩 맥락 판단에 사용 |
 
 #### 기존 내부 AI 요청과의 차이
 
@@ -1510,7 +1512,7 @@ SSE 적용 후 AI 서버 Swagger의 `/chat/stream` 기준 요청에는 `conversa
 따라서 본 명세에서는 AI 서버로 전달하는 필드를 아래 세 가지로 제한한다.
 
 - `questionId`
-- `user.userId`, `user.name`, `user.companyCode`
+- `user.userId`, `user.name`, `user.companyCode`, `user.hireDate`
 - `content`
 
 향후 AI 서버가 `conversationHistory` 또는 `companyName`을 스트림 요청 스키마에 추가하면, 백엔드 내부 요청 DTO를 확장한다.
@@ -1779,7 +1781,9 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 - `user.userId`는 사용자별 대화 맥락 식별에 사용할 수 있다.
 - `user.name`은 개인화된 답변 생성에 사용할 수 있다.
 - `user.companyCode`는 회사별 문서 범위 판별에 사용한다.
+- `user.hireDate`는 입사일 기준 온보딩 맥락 판단 및 개인화 답변 생성에 사용한다.
 - AI 서버는 `user.companyCode`를 기준으로 해당 회사 문서와 공통 문서만 조회 대상으로 사용해야 한다.
+- AI 서버는 `user.hireDate`를 기준으로 입사 후 경과일, 온보딩 단계, 신입 사용자 상황을 답변 맥락에 반영할 수 있다.
 - AI 서버는 질문 내용에 대해 답변 조각을 `answer_delta` 이벤트로 반환한다.
 - 백엔드는 AI 서버의 `answer_delta`를 프론트엔드에 `answer_delta`로 중계한다.
 - AI 서버는 답변 생성 완료 시 `answer_completed` 이벤트를 반드시 전송한다.
@@ -2082,5 +2086,6 @@ Authorization: Bearer {accessToken}
   - 신입 계정 생성 API(`POST /api/v1/users`) 추가, 동일 회사 내 사원번호 중복 방지를 위한 `company_id + employee_number` 복합 UNIQUE 제약조건 및 `409 Conflict`, `DUPLICATE_EMPLOYEE_NUMBER` 에러 응답 규격 추가
 - **v1.8.0 (2026-04-29)**:
   - 온보딩 제안 조회 응답에 D-day별 빠른 질문 버튼(`quickTaps`) 추가, 빠른 질문 목록 및 클릭 로그 응답 형식 수정
-- **v1.9.0 (2026-05-04)**:
+- **v1.9.0 (2026-05-05)**:
   - 질문 전송 API를 SSE 스트리밍 방식으로 변경하고, 백엔드가 AI 서버 `/chat/stream` 응답을 중계하도록 내부 연동 규격을 수정했다. AI 답변 조각은 `answer_delta`로 실시간 전달하며, 최종 답변 저장 및 문서/담당자 정보는 `answer_completed` 기준으로 처리한다.
+  - AI 서버 `/chat/stream` 요청 body의 `user` 객체에 `hireDate`를 추가
