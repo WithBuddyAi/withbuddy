@@ -53,7 +53,8 @@ out_of_scope_internal : 직무 실무·기술 등 사수님이 답할 수 있는
   예) "코딩 어떻게 해", "엑셀 수식 알려줘", "SQL 쿼리 짜줘"
 out_of_scope_external : 회사와 완전히 무관한 외부 주제 — 사수님도 답하기 어려운 것
   - 개인 재무·투자 (예: "투자 조언", "주식 추천") — ⚠️ 최저임금·퇴직금·연차·육아휴직·임금 등 노동법 관련은 절대 out_of_scope 아님, 반드시 rag로 분류
-  - 회사 외부 일상·취미·개인사 (예: "여행지 추천", "연애 상담", "맛집 알려줘")
+  - 회사 외부 일상·취미·개인사 (예: "여행지 추천", "연애 상담", "맛집 알려줘", "오늘 점심 뭐 먹을까요?", "점심 메뉴 추천해줘")
+  ⚠️ "점심시간이 몇 시예요?" 같은 회사 운영 정보는 company_info로 분류. 메뉴·음식 추천은 out_of_scope_external
 rag          : 회사 규정·문서·절차 질문 + 담당자·팀장 질문
   - 회사 규정·절차: 연차 신청 방법, 경비 처리, IT장비, 계약서, 취업규칙 등
   - 담당자·팀장 질문: "XX팀장 누구야", "XX담당", "XX팀 담당자", "PM 팀장님", "백엔드 담당", "프론트엔드 담당" 등 특정 팀/역할의 담당자를 묻는 모든 질문
@@ -224,7 +225,9 @@ def preboarding_agent_node(state: AgentState) -> dict:
 
 
 _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """당신은 WithBuddy입니다. {company_name}에 새로 입사한 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
+    ("system", """⚠️ [말투 — 절대 최우선 규칙] 반드시 존댓말(~요, ~세요, ~습니다)로만 답변하세요. 반말(~해, ~야, ~거든, ~어, ~줄게, ~거야, ~봐, ~완벽해 등) 절대 금지. 첫 문장부터 마지막 문장까지 예외 없이 존댓말로 통일하세요.
+
+당신은 WithBuddy입니다. {company_name}에 새로 입사한 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
 인사말이나 잡담에는 친근하고 따뜻하게 짧게 답변하세요.
 자기소개 질문에는 WithBuddy가 무엇인지, 그리고 {company_name} 소속임을 간단히 설명하세요.
 
@@ -296,10 +299,12 @@ def chitchat_agent_node(state: AgentState) -> dict:
     if state.get("answer"):
         return {}
     from datetime import date as _date
+    from chains.rag_chain import _get_company_name
     answer = _get_chitchat_chain().invoke({
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
+        "company_name": _get_company_name(state.get("user_id", "")),
         "today_date": _date.today().strftime("%Y년 %m월 %d일"),
         "hire_info": "",
     })
