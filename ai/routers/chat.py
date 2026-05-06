@@ -44,6 +44,8 @@ class ChatUser(BaseModel):
     userId: int = Field(..., description="사용자 고유 ID", example=1)
     name: str = Field("", description="사용자 이름")
     companyCode: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
+    companyName: str = Field("", description="회사명")
+    hireDate: str = Field("", description="입사일 (YYYY-MM-DD)")
 
 
 class ChatRequest(BaseModel):
@@ -93,7 +95,7 @@ async def chat_stream(request: ChatRequest):
     """
     async def event_generator():
         try:
-            from chains.rag_chain import _resolve_selection
+            from chains.rag_chain import _resolve_selection, _fix_names
             from memory.chat_history import get_chat_history as _get_history
             # 2-7: 숫자 선택("1"~"4")을 이전 ambiguous 응답과 매핑
             uid = str(request.user.userId)
@@ -104,23 +106,44 @@ async def chat_stream(request: ChatRequest):
 
             result = run_orchestrator(uid, request.user.name, message)
             if result.intent != "rag":
-                from chains.rag_chain import _fix_names
-                is_team_cards = result.metadata.get("type") == "team_cards"
                 fixed_answer = _fix_names(result.answer)
                 save_interaction(uid, message, fixed_answer)
-                yield f"data: {json.dumps({'text': fixed_answer}, ensure_ascii=False)}\n\n"
-                yield f"data: {json.dumps({'done': True, 'source': result.intent, 'docs': [], 'team_cards': is_team_cards}, ensure_ascii=False)}\n\n"
+                yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': fixed_answer}, ensure_ascii=False)}\n\n"
+                yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': 'out_of_scope', 'content': fixed_answer, 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
                 return
 
-            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user.name, request.user.companyCode):
+            accumulated_text: list[str] = []
+            final_docs: list = []
+            async for chunk, source, related_docs in stream_rag_chain(
+                uid, message, request.user.name, request.user.companyCode,
+                company_name=request.user.companyName,
+                hire_date=request.user.hireDate,
+            ):
                 if source is not None:
-                    yield f"data: {json.dumps({'done': True, 'source': source, 'docs': related_docs or []}, ensure_ascii=False)}\n\n"
+                    final_docs = related_docs or []
+                    full_answer = "".join(accumulated_text)
+                    if any(kw in full_answer for kw in _NO_RESULT_KW):
+                        msg_type = "no_result"
+                    else:
+                        msg_type = "rag_answer"
+                    contacts = []
+                    if msg_type == "no_result":
+                        from routers.recommend import get_contact_for_question
+                        contact = await get_contact_for_question(request.user.companyCode, request.content)
+                        contacts = [contact]
+                    doc_ids = [{"documentId": d.get("doc_id") or d.get("documentId")} for d in final_docs if d.get("doc_id") or d.get("documentId")]
+                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
-                    yield f"data: {json.dumps({'stage': chunk[9:]}, ensure_ascii=False)}\n\n"
+                    pass  # 내부 스테이지 마커는 클라이언트에 전달하지 않음
+                elif isinstance(chunk, str) and chunk.startswith("\x00"):
+                    accumulated_text.clear()
+                    accumulated_text.append(chunk[1:])
+                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk[1:]}, ensure_ascii=False)}\n\n"
                 else:
-                    yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+                    accumulated_text.append(chunk)
+                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -227,6 +250,7 @@ _NO_RESULT_KW = [
     "포함되어 있지 않", "정보가 없", "찾지 못했어요",
     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
     "문서에 없어서", "안내드리기 어려워",
+    "문서에 없네요", "문서에 없어요",
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 

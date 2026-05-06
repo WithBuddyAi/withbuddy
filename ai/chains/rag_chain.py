@@ -540,14 +540,14 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     return answer, source_names, related_docs, doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None)을 yield하고, 마지막에 ("", source_names, related_docs)를 yield합니다.
     """
     from routers.docs import find_related_docs
 
-    chat_history = get_chat_history(user_id)
+    chat_history = injected_history if injected_history is not None else get_chat_history(user_id)
 
     # 2-7: 숫자 선택 해석
     resolved = _resolve_selection(question, chat_history)
@@ -613,6 +613,13 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     from datetime import date as _date
     today_date = _date.today().strftime("%Y년 %m월 %d일")
+    hire_info = ""
+    if hire_date:
+        try:
+            days = (_date.today() - _date.fromisoformat(hire_date)).days + 1
+            hire_info = f"\n사용자 입사 {days}일차입니다. (입사일: {hire_date})"
+        except Exception:
+            pass
 
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
@@ -635,7 +642,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         "it_contact": _get_it_contact(company_code),
         "company_specific_rules": _get_company_specific_rules(company_code),
         "today_date": today_date,
-        "hire_info": "",
+        "hire_info": hire_info,
     }):
         full_answer += chunk
         yield chunk, None, None
