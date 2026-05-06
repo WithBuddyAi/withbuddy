@@ -38,7 +38,7 @@ springdoc:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 900000
+  access-expiration: 604800000
 
 ai:
   server:
