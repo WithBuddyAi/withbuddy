@@ -104,7 +104,7 @@ async def chat_stream(request: ChatRequest):
             if resolved:
                 message = resolved
 
-            result = run_orchestrator(uid, request.user.name, message)
+            result = run_orchestrator(uid, request.user.name, message, request.user.companyCode)
             if result.intent != "rag":
                 fixed_answer = _fix_names(result.answer)
                 save_interaction(uid, message, fixed_answer)
