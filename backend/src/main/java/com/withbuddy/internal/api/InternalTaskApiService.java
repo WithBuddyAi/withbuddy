@@ -122,8 +122,11 @@ public class InternalTaskApiService {
 
     public TaskActionResponse retry(String taskId, TaskRetryRequest request) {
         TaskState state = getStateOrThrow(taskId);
-        if ("RUNNING".equals(state.status)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "RUNNING 상태 task는 재시도할 수 없습니다.");
+        if (!isTerminal(state.status)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "터미널 상태 task만 재시도할 수 있습니다. currentStatus=" + state.status
+            );
         }
 
         String now = nowUtc();

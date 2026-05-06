@@ -126,7 +126,6 @@ public class RabbitMqConfig {
         factory.setMessageConverter(messageConverter);
         factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
         factory.setDefaultRequeueRejected(false);
-        factory.setContainerCustomizer(container -> container.setPossibleAuthenticationFailureFatal(false));
         factory.setPrefetchCount(intOrDefault(properties.listenerPrefetch(), 10));
         factory.setAdviceChain(retryInterceptor(properties));
         return factory;

@@ -84,6 +84,6 @@ public class InternalApiController {
             @PathVariable("taskId") String taskId,
             @RequestBody(required = false) TaskRetryRequest request
     ) {
-        return ResponseEntity.ok(taskApiService.retry(taskId, request));
+        return ResponseEntity.accepted().body(taskApiService.retry(taskId, request));
     }
 }
