@@ -304,7 +304,7 @@ def chitchat_agent_node(state: AgentState) -> dict:
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
-        "company_name": _get_company_name(state.get("user_id", "")),
+        "company_name": _get_company_name(state.get("company_code", "")),
         "today_date": _date.today().strftime("%Y년 %m월 %d일"),
         "hire_info": "",
     })
