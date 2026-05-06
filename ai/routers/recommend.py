@@ -38,20 +38,20 @@ _COMPANY_DEFAULT_PERSON: dict[str, str] = {
 }
 
 _COMPANY_DEFAULT_CONTACT: dict[str, dict] = {
-    "WB0001": {"department": "경영지원팀", "name": "김지수", "position": "", "connects": []},
-    "WB0002": {"department": "운영팀(HR)", "name": "김현아", "position": "", "connects": []},
+    "WB0001": {"department": "경영지원팀", "name": "김지수", "position": "매니저", "connects": [{"type": "SLACK", "value": "@jisoo.kim"}]},
+    "WB0002": {"department": "운영팀(HR)", "name": "김현아", "position": "매니저", "connects": [{"type": "SLACK", "value": "@hyuna.kim"}, {"type": "EMAIL", "value": "hyuna.kim@studioprism.kr"}]},
 }
 
 _COMPANY_CONTACTS_STRUCTURED: dict[str, list] = {
     "WB0001": [
-        {"department": "경영지원팀", "name": "김지수", "position": "", "connects": []},
-        {"department": "IT담당", "name": "박민준", "position": "", "connects": []},
+        {"department": "경영지원팀", "name": "김지수", "position": "매니저", "connects": [{"type": "SLACK", "value": "@jisoo.kim"}]},
+        {"department": "IT담당", "name": "박민준", "position": "IT담당", "connects": [{"type": "SLACK", "value": "@minjun.park"}, {"type": "EMAIL", "value": "minjun.park@techco.co.kr"}]},
     ],
     "WB0002": [
-        {"department": "운영팀(HR)", "name": "김현아", "position": "", "connects": []},
-        {"department": "운영팀(IT)", "name": "박소연", "position": "", "connects": []},
-        {"department": "크리에이티브팀", "name": "박서준", "position": "", "connects": []},
-        {"department": "퍼포먼스마케팅팀", "name": "이도윤", "position": "", "connects": []},
+        {"department": "운영팀(HR)", "name": "김현아", "position": "매니저", "connects": [{"type": "SLACK", "value": "@hyuna.kim"}, {"type": "EMAIL", "value": "hyuna.kim@studioprism.kr"}]},
+        {"department": "운영팀(IT)", "name": "박소연", "position": "담당자", "connects": [{"type": "SLACK", "value": "@soyeon.park"}, {"type": "EMAIL", "value": "soyeon.park@studioprism.kr"}]},
+        {"department": "크리에이티브팀", "name": "박서준", "position": "리드", "connects": [{"type": "SLACK", "value": "@seojun.park"}, {"type": "EMAIL", "value": "seojun.park@studioprism.kr"}]},
+        {"department": "퍼포먼스마케팅팀", "name": "이도윤", "position": "매니저", "connects": [{"type": "SLACK", "value": "@doyun.lee"}]},
     ],
 }
 
