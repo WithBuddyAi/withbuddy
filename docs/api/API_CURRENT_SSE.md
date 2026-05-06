@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 >
-**버전**: 1.9.0
-**최종 업데이트**: 2026-05-05
+**버전**: 1.9.1
+**최종 업데이트**: 2026-05-06
 
 ---
 
@@ -21,12 +21,13 @@
 - 내부 AI 스트리밍 연동 규격
 - 토큰 만료 처리 규격
 - 스토리지 문서 API
+- 관리자 지표 집계 API
 
 ### 제외 범위
 - 토큰 재발급
 - 로그아웃
 - 내 정보 조회
-- 관리자 화면 기능
+- 관리자 화면 UI
 - 체크리스트
 - 기타 미구현 기능
 
@@ -2047,7 +2048,412 @@ Authorization: Bearer {accessToken}
 
 ---
 
-## 9. 변경 이력
+## 9. 관리 지표
+
+이 항목은 회사별 핵심 지표 집계 API를 설명한다.  
+`users`, `chat_messages`, `user_activity_logs` 데이터를 기준으로 계산하며, 집계 쿼리와 조회 API만 구현한다.
+
+### 9-1. 관리자 지표 개요
+
+| 구분 | 지표 |
+|---|---|
+| 북극성 | D+7 RAG 답변 수신 경험률 |
+| 보조 1 | D+0 첫 인터랙션 발생률 |
+| 보조 2 | D+7 재방문률 |
+| 보조 3 | Quick Tap 클릭 유저율 |
+| 가드레일 | 미답변 비율 |
+| 가드레일 | TTA, 최초 로그인 → 첫 RAG |
+| 학습 | 신입 적응 곡선 |
+| 학습 | 미답변 질문 패턴 |
+
+| API | 설명 |
+|---|---|
+| `GET /api/v1/admin/metrics/rag-experience-rate` | 회사별 D+7 RAG 답변 수신 경험률 |
+| `GET /api/v1/admin/metrics/first-interaction-rate` | 회사별 D+0 첫 인터랙션 발생률 |
+| `GET /api/v1/admin/metrics/revisit-rate` | 회사별 D+7 재방문률 |
+| `GET /api/v1/admin/metrics/unanswered-rate` | 회사별 미답변 비율 |
+| `GET /api/v1/admin/metrics/tta` | 회사별 평균 TTA, 최초 로그인 → 첫 RAG 소요 시간 |
+
+#### 공통 인증 및 권한 규칙
+
+- 이 API는 제품 지표 확인을 위해 사용하는 내부 관리자(`SERVICE_ADMIN`) API다.
+- 일반 사용자(`USER`)와 고객사 관리자(`ADMIN`)는 호출할 수 없다.
+- 일반 사용자가 호출하면 `403 Forbidden`을 반환한다.
+- 인증 오류와 토큰 만료 처리 방식은 **5-3. 인증 오류 및 토큰 만료 처리**를 따른다.
+
+#### 공통 Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. 생략하면 회사별 전체 집계 결과를 반환한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### 공통 산정 규칙
+
+- 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
+- `D+0`은 `DATEDIFF(이벤트 발생일, users.hire_date) = 1`인 경우를 의미한다.
+- `D+7`은 입사일 기준 1일차부터 8일차까지의 기간을 의미한다.
+- 비율은 `numerator / denominator * 100`으로 계산한다.
+- 소수점은 기본적으로 소수점 첫째 자리까지 반올림한다.
+- 분모가 0인 경우 비율은 `0.0`으로 반환한다.
+- 회사별 집계 결과는 `companies` 배열로 반환한다.
+
+---
+
+### 9-2. 북극성: D+7 RAG 답변 수신 경험률
+
+입사 후 7일 이내에 `rag_answer` 메시지를 1건 이상 수신한 신입 사용자 비율을 회사별로 조회한다.
+
+```http
+GET /api/v1/admin/metrics/rag-experience-rate
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "rag_experience_rate",
+  "asOfDate": "2026-05-06",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "targetUsers": 20,
+      "ragReceivedUsers": 15,
+      "ragExperienceRate": 75.0
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 지표 식별자. `rag_experience_rate` |
+| `asOfDate` | String | 집계 기준일 |
+| `companies` | Array | 회사별 집계 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].companyName` | String | 회사명 |
+| `companies[].targetUsers` | Number | D+7 RAG 경험률 산정 대상 사용자 수 |
+| `companies[].ragReceivedUsers` | Number | 입사 후 7일 이내 `rag_answer`를 1건 이상 수신한 사용자 수 |
+| `companies[].ragExperienceRate` | Number | D+7 RAG 답변 수신 경험률, 단위 `%` |
+
+#### 집계 기준
+
+- `chat_messages.message_type = rag_answer`인 BOT 메시지를 기준으로 계산한다.
+- `chat_messages.sender_type = BOT`인 메시지만 AI 답변으로 본다.
+- `DATEDIFF(chat_messages.created_at, users.hire_date) BETWEEN 0 AND 7` 조건을 만족하는 `rag_answer`가 1건 이상 있으면 RAG 답변 수신 경험 사용자로 계산한다.
+- `asOfDate` 기준으로 입사 후 7일 산정 기간이 완료된 사용자만 기본 분모에 포함한다.
+- 회사별로 `companies.company_code` 또는 `users.company_code` 기준으로 그룹화한다.
+
+---
+
+### 9-3. D+0 첫 인터랙션 발생률
+
+입사 당일에 빠른 질문 버튼 클릭 또는 직접 질문을 1회 이상 수행한 신입 사용자 비율을 회사별로 조회한다.
+
+```http
+GET /api/v1/admin/metrics/first-interaction-rate
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "first_interaction_rate",
+  "asOfDate": "2026-05-06",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "targetUsers": 20,
+      "firstInteractionUsers": 16,
+      "firstInteractionRate": 80.0
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 지표 식별자. `first_interaction_rate` |
+| `asOfDate` | String | 집계 기준일 |
+| `companies` | Array | 회사별 집계 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].companyName` | String | 회사명 |
+| `companies[].targetUsers` | Number | 첫 인터랙션 발생률 산정 대상 사용자 수 |
+| `companies[].firstInteractionUsers` | Number | D+0에 첫 인터랙션이 발생한 사용자 수 |
+| `companies[].firstInteractionRate` | Number | D+0 첫 인터랙션 발생률, 단위 `%` |
+
+#### 집계 기준
+
+- 첫 인터랙션은 아래 둘 중 하나가 D+0에 1회 이상 발생한 경우로 본다.
+  - `user_activity_logs.event_type = BUTTON_CLICK`
+  - `chat_messages.message_type = user_question`
+- `BUTTON_CLICK`은 `user_activity_logs`를 기준으로 확인한다.
+- 직접 질문은 `chat_messages.sender_type = USER`, `chat_messages.message_type = user_question`을 기준으로 확인한다.
+- `DATEDIFF(이벤트 발생일, users.hire_date) = 0`인 이벤트만 D+0 첫 인터랙션으로 계산한다.
+- 동일 사용자가 D+0에 여러 번 클릭하거나 여러 번 질문해도 사용자 수는 1명으로 계산한다.
+
+---
+
+### 9-4. D+7 재방문률
+
+D+0에 MyBuddy 채팅 화면에 진입한 신입 중, D+1부터 D+7 사이에 1회 이상 다시 진입한 사용자 비율을 회사별로 조회한다.
+
+```http
+GET /api/v1/admin/metrics/revisit-rate
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "revisit_rate",
+  "asOfDate": "2026-05-06",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "d0Users": 18,
+      "revisitUsers": 12,
+      "revisitRate": 66.7
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 지표 식별자. `revisit_rate` |
+| `asOfDate` | String | 집계 기준일 |
+| `companies` | Array | 회사별 집계 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].companyName` | String | 회사명 |
+| `companies[].d0Users` | Number | D+0에 MyBuddy 채팅 화면에 진입한 사용자 수 |
+| `companies[].revisitUsers` | Number | D+1~D+7 사이에 1회 이상 재진입한 사용자 수 |
+| `companies[].revisitRate` | Number | D+7 재방문률, 단위 `%` |
+
+#### 집계 기준
+
+- 화면 진입은 `user_activity_logs.event_type = SESSION_START`, `event_target = CHAT` 로그를 기준으로 계산한다.
+- 분모는 D+0에 MyBuddy 채팅 화면에 진입한 사용자 수다.
+- 분자는 분모 사용자 중 D+1~D+7 사이에 `SESSION_START + CHAT` 로그가 1건 이상 있는 사용자 수다.
+- D+0에 접속하지 않고 D+1 이후 처음 접속한 사용자는 재방문률 분모에 포함하지 않는다.
+- `POST /api/v1/chat/session-start`의 30분 중복 제외 정책 때문에 동일 사용자의 짧은 시간 내 반복 진입은 중복 집계되지 않는다.
+
+---
+
+### 9-5. 미답변 비율
+
+전체 AI 답변 중 `no_result` 또는 `out_of_scope`로 종료된 답변 비율을 회사별로 조회한다.
+
+```http
+GET /api/v1/admin/metrics/unanswered-rate
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "unanswered_rate",
+  "asOfDate": "2026-05-06",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "totalAiAnswers": 120,
+      "unansweredAnswers": 18,
+      "unansweredRate": 15.0
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 지표 식별자. `unanswered_rate` |
+| `asOfDate` | String | 집계 기준일 |
+| `companies` | Array | 회사별 집계 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].companyName` | String | 회사명 |
+| `companies[].totalAiAnswers` | Number | 전체 AI 답변 수 |
+| `companies[].unansweredAnswers` | Number | 미답변 처리된 AI 답변 수 |
+| `companies[].unansweredRate` | Number | 미답변 비율, 단위 `%` |
+
+#### 집계 기준
+
+- 전체 AI 답변은 `chat_messages.sender_type = BOT`이고 `message_type IN (rag_answer, no_result, out_of_scope)`인 메시지 수다.
+- 미답변은 `message_type IN (no_result, out_of_scope)`인 BOT 메시지 수다.
+- `suggestion` 메시지는 온보딩 제안 메시지이므로 전체 AI 답변 수와 미답변 수에서 제외한다.
+- `user_question` 메시지는 사용자 입력이므로 전체 AI 답변 수와 미답변 수에서 제외한다.
+
+---
+
+### 9-6. 평균 TTA, 최초 로그인 → 첫 RAG
+
+사용자가 최초 로그인한 시점부터 첫 `rag_answer`를 수신하기까지 걸린 평균 시간을 분 단위로 회사별 조회한다.
+
+```http
+GET /api/v1/admin/metrics/tta
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "tta",
+  "asOfDate": "2026-05-06",
+  "unit": "minutes",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "loggedInUsers": 20,
+      "measuredUsers": 15,
+      "averageTtaMinutes": 42.6
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 지표 식별자. `tta` |
+| `asOfDate` | String | 집계 기준일 |
+| `unit` | String | 측정 단위. `minutes` |
+| `companies` | Array | 회사별 집계 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].companyName` | String | 회사명 |
+| `companies[].loggedInUsers` | Number | 최초 로그인 기록이 있는 사용자 수 |
+| `companies[].measuredUsers` | Number | 최초 로그인과 첫 RAG 답변 수신 기록이 모두 있는 사용자 수 |
+| `companies[].averageTtaMinutes` | Number 또는 null | 회사별 평균 TTA. 측정 대상이 없으면 `null` |
+
+#### 집계 기준
+
+- 최초 로그인은 `user_activity_logs.event_type = SESSION_START`, `event_target = LOGIN`의 최소 `created_at`으로 계산한다.
+- 첫 RAG 답변 수신은 `chat_messages.sender_type = BOT`, `message_type = rag_answer`의 최소 `created_at`으로 계산한다.
+- 사용자별 TTA는 `TIMESTAMPDIFF(MINUTE, 최초 로그인 시각, 첫 RAG 답변 시각)`으로 계산한다.
+- 평균 TTA는 최초 로그인과 첫 RAG 답변이 모두 존재하는 사용자만 대상으로 계산한다.
+- 첫 RAG 답변이 없는 사용자는 `measuredUsers`와 평균 계산에서 제외한다.
+- 첫 RAG 답변 시각이 최초 로그인 시각보다 빠른 비정상 데이터는 평균 계산에서 제외한다.
+
+---
+
+### 9-7. 관리자 지표 API 공통 에러 처리
+
+#### Error Response (401 Unauthorized)
+
+인증 헤더가 없거나, 토큰이 유효하지 않거나, 토큰이 만료된 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-06T09:30:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "UNAUTHORIZED",
+  "errors": [
+    {
+      "field": "auth",
+      "message": "인증 정보가 유효하지 않습니다."
+    }
+  ],
+  "path": "/api/v1/admin/metrics/rag-experience-rate"
+}
+```
+
+#### Error Response (403 Forbidden)
+
+관리자 권한이 없는 사용자가 호출한 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-06T09:30:00",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "ACCESS_DENIED",
+  "errors": [
+    {
+      "field": "role",
+      "message": "관리자 권한이 필요한 API입니다."
+    }
+  ],
+  "path": "/api/v1/admin/metrics/rag-experience-rate"
+}
+```
+
+#### Error Response (400 Bad Request)
+
+쿼리 파라미터 형식이 올바르지 않은 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-06T09:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "asOfDate",
+      "message": "집계 기준일은 yyyy-MM-dd 형식이어야 합니다."
+    }
+  ],
+  "path": "/api/v1/admin/metrics/rag-experience-rate"
+}
+```
+
+---
+
+## 10. 변경 이력
 
 - **v1.0.0 (2026-03-10)**:
   - 초기 버전 작성
@@ -2089,3 +2495,5 @@ Authorization: Bearer {accessToken}
 - **v1.9.0 (2026-05-05)**:
   - 질문 전송 API를 SSE 스트리밍 방식으로 변경하고, 백엔드가 AI 서버 `/chat/stream` 응답을 중계하도록 내부 연동 규격을 수정했다. AI 답변 조각은 `answer_delta`로 실시간 전달하며, 최종 답변 저장 및 문서/담당자 정보는 `answer_completed` 기준으로 처리한다.
   - AI 서버 `/chat/stream` 요청 body의 `user` 객체에 `hireDate`를 추가
+- **v1.9.1 (2026-05-06)**:
+  - 관리자용 서비스 측정 지표 조회 API 추가
