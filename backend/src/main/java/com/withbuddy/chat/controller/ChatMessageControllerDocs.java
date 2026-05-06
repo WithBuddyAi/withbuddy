@@ -1,7 +1,6 @@
 package com.withbuddy.chat.controller;
 
 import com.withbuddy.activity.dto.LogResponse;
-import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
 import com.withbuddy.chat.dto.QuickQuestionClickRequest;
@@ -21,58 +20,84 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-@Tag(name = "Chat", description = "버디 채팅 API — 수습사원이 AI 버디와 대화하고 온보딩 정보를 얻는 핵심 채널")
+@Tag(name = "Chat", description = "With Buddy chat APIs")
 public interface ChatMessageControllerDocs {
 
     @Operation(
-        summary = "메시지 전송 및 AI 답변 요청",
-        description = """
-            [목적] 수습사원의 질문을 저장하고 AI 서버(RAG)에 답변을 요청한다.
-            [베네핏] 사내 문서 기반의 정확한 AI 답변을 즉시 제공해 수습사원이 사수나 HR 없이도 \
-            온보딩 관련 정보를 자기 주도적으로 해결할 수 있다. \
-            답변과 함께 관련 문서 ID가 반환되어 출처를 추적할 수 있다."""
+            summary = "질문 전송 및 AI 답변 SSE 스트리밍",
+            description = """
+                    [목적] 사용자의 질문 메시지를 저장한 뒤 AI 답변을 SSE 스트림으로 전달한다.
+                    [동작] 공개 API는 `question_saved`, `answer_delta`, `answer_completed`, `error` 이벤트를 사용한다.
+                    프론트엔드는 `answer_delta.content`를 이어 붙여 임시 답변을 표시하고,
+                    `answer_completed.answer`를 기준으로 최종 BOT 메시지를 확정한다.
+                    """
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "메시지 전송 및 AI 답변 생성 성공",
-                content = @Content(schema = @Schema(implementation = ChatMessageCreateResponse.class))),
-        @ApiResponse(responseCode = "401", description = "인증 실패 — 유효하지 않은 토큰",
-                content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "504", description = "AI 서버 응답 시간 초과",
-                content = @Content(
-                        schema = @Schema(implementation = ErrorResponse.class),
-                        examples = @ExampleObject(value = """
-                                {
-                                  "timestamp": "2026-03-25T10:30:00Z",
-                                  "status": 504,
-                                  "error": "Gateway Timeout",
-                                  "code": "AI_TIMEOUT",
-                                  "errors": [{"field": "ai", "message": "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."}],
-                                  "path": "/api/v1/chat/messages"
-                                }""")))
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "SSE 스트림 시작 성공",
+                    content = @Content(
+                            mediaType = "text/event-stream",
+                            schema = @Schema(type = "string"),
+                            examples = {
+                                    @ExampleObject(
+                                            name = "question_saved",
+                                            summary = "질문 저장 완료 이벤트",
+                                            value = """
+                                                    event: question_saved
+                                                    data: {"question":{"id":201,"suggestionId":null,"documents":[],"senderType":"USER","messageType":"user_question","content":"복지카드는 어떻게 요청하나요?","quickTaps":[],"recommendedContacts":[],"createdAt":"2026-05-04T09:30:00"}}
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "answer_delta",
+                                            summary = "답변 조각 이벤트",
+                                            value = """
+                                                    event: answer_delta
+                                                    data: {"questionId":201,"content":"복지카드는"}
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "answer_completed",
+                                            summary = "최종 답변 완료 이벤트",
+                                            value = """
+                                                    event: answer_completed
+                                                    data: {"questionId":201,"answer":{"id":202,"suggestionId":null,"documents":[],"senderType":"BOT","messageType":"rag_answer","content":"복지카드는 안내 문서를 기준으로 요청하실 수 있습니다.","quickTaps":[],"recommendedContacts":[],"createdAt":"2026-05-04T09:30:03"}}
+                                                    """
+                                    ),
+                                    @ExampleObject(
+                                            name = "error",
+                                            summary = "스트림 오류 이벤트",
+                                            value = """
+                                                    event: error
+                                                    data: {"code":"AI_STREAM_FAILED","message":"AI 답변 생성 중 오류가 발생했습니다.","questionId":201}
+                                                    """
+                                    )
+                            }
+                    )
+            ),
+            @ApiResponse(responseCode = "401", description = "인증 실패 또는 유효하지 않은 토큰",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ChatMessageCreateResponse sendMessage(
+    SseEmitter streamMessage(
             @Parameter(hidden = true) Authentication authentication,
             ChatMessageRequest request
     );
 
     @Operation(
             summary = "대화 이력 조회",
-            description = """
-            [목적] 로그인한 사용자의 전체 또는 특정 날짜의 대화 이력을 조회한다.
-            [베네핏] 이전 대화 내용을 복원해 연속적인 대화 경험을 제공한다. \
-            날짜 필터(date 파라미터)를 사용하면 특정 일자의 대화만 조회할 수 있어 \
-            온보딩 진행 흐름을 일자별로 파악할 수 있다."""
+            description = "로그인 사용자의 채팅 메시지 이력을 조회한다."
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "대화 이력 조회 성공",
-                content = @Content(schema = @Schema(implementation = ChatMessageListResponse.class))),
-        @ApiResponse(responseCode = "401", description = "인증 실패 — 유효하지 않은 토큰",
-                content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "200", description = "대화 이력 조회 성공",
+                    content = @Content(schema = @Schema(implementation = ChatMessageListResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ChatMessageListResponse getMessages(
             @Parameter(hidden = true) Authentication authentication,
@@ -80,17 +105,14 @@ public interface ChatMessageControllerDocs {
     );
 
     @Operation(
-            summary = "채팅 세션 시작 로깅",
-            description = """
-            [목적] 수습사원이 채팅을 시작한 시점을 기록한다. 하루 1회만 기록된다.
-            [베네핏] 수습사원의 챗봇 활용 빈도와 패턴을 분석해 온보딩 참여도를 측정할 수 있다. \
-            이 데이터를 기반으로 챗봇 미활용자를 조기에 식별하고 개입할 수 있다."""
+            summary = "채팅 세션 시작 로그",
+            description = "사용자의 채팅 세션 시작을 기록한다."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "세션 시작 최초 기록"),
-            @ApiResponse(responseCode = "200", description = "이미 오늘 기록됨 (중복 로깅 방지)"),
+            @ApiResponse(responseCode = "200", description = "이미 기록된 세션"),
             @ApiResponse(responseCode = "401", description = "인증 실패",
-                content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<LogResponse> saveSessionStart(
             @Parameter(hidden = true) Authentication authentication
@@ -98,33 +120,25 @@ public interface ChatMessageControllerDocs {
 
     @Operation(
             summary = "추천 질문 목록 조회",
-            description = """
-            [목적] 수습사원에게 챗봇에서 물어볼 수 있는 대표 질문 목록을 제공한다.
-            [베네핏] 어떤 질문을 해야 할지 모르는 수습사원의 진입 장벽을 낮추고 \
-            챗봇 첫 사용을 유도한다. 추천 질문 클릭만으로 유의미한 답변을 얻을 수 있어 \
-            초기 온보딩 완료율을 높이는 데 기여한다."""
+            description = "채팅 진입 시 노출할 추천 질문 목록을 조회한다."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "추천 질문 목록 반환"),
             @ApiResponse(responseCode = "401", description = "인증 실패",
-                content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     Map<String, List<QuickQuestionResponse>> getQuickQuestions(
             @Parameter(hidden = true) Authentication authentication
     );
 
     @Operation(
-            summary = "추천 질문 클릭 로깅",
-            description = """
-            [목적] 수습사원이 추천 질문을 클릭한 행동을 기록한다.
-            [베네핏] 어떤 추천 질문이 자주 선택되는지 데이터를 수집해 \
-            콘텐츠 팀이 추천 질문 목록을 지속적으로 개선할 수 있다. \
-            클릭 데이터는 온보딩 콘텐츠 효과 측정의 지표로 활용된다."""
+            summary = "추천 질문 클릭 로그",
+            description = "추천 질문 클릭 이벤트를 기록한다."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "클릭 로그 기록 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패",
-                content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     LogResponse saveQuickQuestionClick(
             @Parameter(hidden = true) Authentication authentication,
@@ -133,15 +147,12 @@ public interface ChatMessageControllerDocs {
 
     @Operation(
             summary = "채팅 문서 다운로드 URL 조회",
-            description = """
-            [목적] 채팅 메시지에 포함된 문서의 OCI presigned 다운로드 URL을 발급한다.
-            [베네핏] 사용자가 실제 수신한 채팅 메시지의 문서만 다운로드할 수 있도록 접근을 제한한다. \
-            발급된 URL은 OCI Object Storage에서 직접 다운로드되어 백엔드 트래픽을 절감한다."""
+            description = "채팅 답변에 연결된 문서의 다운로드 URL을 조회한다."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "presigned URL 발급 성공",
+            @ApiResponse(responseCode = "200", description = "다운로드 URL 조회 성공",
                     content = @Content(schema = @Schema(implementation = DocumentDownloadResponse.class))),
-            @ApiResponse(responseCode = "403", description = "접근 권한 없음 — 채팅에서 수신하지 않은 문서",
+            @ApiResponse(responseCode = "403", description = "접근 권한 없음",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "문서 없음",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),

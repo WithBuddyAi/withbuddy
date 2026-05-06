@@ -14,10 +14,7 @@ spring:
     redis:
       url: ${REDIS_URL}
   rabbitmq:
-    addresses: ${SPRING_RABBITMQ_ADDRESSES:localhost:5672}
-    username: ${SPRING_RABBITMQ_USERNAME:guest}
-    password: ${SPRING_RABBITMQ_PASSWORD:guest}
-    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
+    uri: ${RABBITMQ_URL}
   jpa:
     hibernate:
       ddl-auto: none

@@ -2,7 +2,6 @@ package com.withbuddy.chat.controller;
 
 import com.withbuddy.activity.dto.LogResponse;
 import com.withbuddy.activity.service.UserActivityLogService;
-import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
 import com.withbuddy.chat.dto.ChatMessageRequest;
 import com.withbuddy.chat.dto.QuickQuestionClickRequest;
@@ -16,6 +15,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -41,14 +42,13 @@ public class ChatMessageController implements ChatMessageControllerDocs {
     private final UserActivityLogService userActivityLogService;
 
     @Override
-    @PostMapping("/messages")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ChatMessageCreateResponse sendMessage(
+    @PostMapping(value = "/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamMessage(
             Authentication authentication,
             @Valid @RequestBody ChatMessageRequest request
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
-        return chatMessageService.saveUserMessage(principal, request);
+        return chatMessageService.streamUserMessage(principal, request);
     }
 
     @Override
