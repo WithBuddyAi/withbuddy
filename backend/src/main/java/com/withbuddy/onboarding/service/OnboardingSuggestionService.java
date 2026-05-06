@@ -31,7 +31,9 @@ public class OnboardingSuggestionService {
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
         int dayOffset = calculateDayOffset(user.getHireDate());
-        OnboardingSuggestion suggestion = onboardingSuggestionRepository.findTopByDayOffset(dayOffset)
+        OnboardingSuggestion suggestion = onboardingSuggestionRepository.findTopByDayOffset(
+                        resolveSuggestionDayOffset(dayOffset)
+                )
                 .orElse(null);
 
         if (suggestion == null) {
@@ -88,6 +90,16 @@ public class OnboardingSuggestionService {
 
     private int calculateDayOffset(LocalDate hireDate) {
         return (int) ChronoUnit.DAYS.between(hireDate, LocalDate.now(KST));
+    }
+
+    private int resolveSuggestionDayOffset(int dayOffset) {
+        if (dayOffset >= -7 && dayOffset <= -4) {
+            return -7;
+        }
+        if (dayOffset >= -3 && dayOffset <= -1) {
+            return -3;
+        }
+        return dayOffset;
     }
 
     private String replacePlaceholders(
