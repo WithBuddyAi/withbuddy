@@ -68,8 +68,8 @@ function MyBuddy ({setIsLoggedIn}) {
 
   // 첫 렌딩 시 화면
   useEffect (() => {
-    setIsLoading(true)
     const fetchData = async () => {
+      setIsLoading(true)
       try {
         const [messageResponse, quickResponse] = await Promise.allSettled([
           axiosInstance.get('/api/v1/chat/messages', {}),
@@ -113,18 +113,29 @@ function MyBuddy ({setIsLoggedIn}) {
         setIsLoading(false)
       }
     } 
-  fetchData()
+
   const sessionStart = async () => {
     try {
-      await axiosInstance.post(
-        '/api/v1/chat/session-start',
-        {}
-      )
+      await axiosInstance.post('/api/v1/chat/session-start', {})
     } catch (error) {
       console.error('session-start 실패:', error)
     }
   }
-  sessionStart()
+
+  const exposure = async () => {
+    try {
+      await axiosInstance.post('/api/v1/onboarding-suggestions/me/exposure')
+    } catch (error) {
+      console.error('exposure 실패:', error)
+    }
+  }
+
+  const init = async () => {
+    await sessionStart()
+    await exposure()
+    fetchData()
+  }
+  init()
   }, [])
   
   // 자동 스크롤
@@ -182,62 +193,115 @@ function MyBuddy ({setIsLoggedIn}) {
       createdAt: new Date().toISOString()
     }])
 
-    let data = null
-
     try {
-      const response = await axiosInstance.post('/api/v1/chat/messages',
-        {content: sendText}
-      )
-      data = response.data
-      if (data.answer !== null) {
-        setMessageList(prev => [...prev, data.answer])
-        setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
-      }
-    } catch (error) {
-      if (error.response?.status === 400) {
-        error.response.data.errors.forEach(err => {
-          if (err.field === 'content') {
-            setErrorMessage(err.message)
-          }
-        })
-      } else if (error.response?.status === 504 || (!error.response && error.message?.includes('504'))) {
-        const timeoutMessage = error.response?.data?.errors?.[0]?.message
-        setMessageList(prev => [...prev, {
-          id: `error-${Date.now()}`,
-          senderType: 'BOT',
-          messageType: 'ai_timeout',
-          content: timeoutMessage || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
-          createdAt: new Date().toISOString()
-        }])
-      } else {
-        setErrorMessage('메시지 전송에 실패했어요.')
-        setMessageList(prev => [...prev, {
-          id: `error-${Date.now()}`,
-          senderType: 'BOT',
-          messageType: 'send_error',
-          content: '메시지 전송에 실패했어요. 다시 시도해 주세요.',
-          createdAt: new Date().toISOString()
-        }])
-      }
-    } finally {
-      if (data?.status !== 'PENDING') {
-        setIsLoading(false)
-      } else {
-        setLoadingMessage('잠시만요! 우리 사내 문서에서 관련 내용을 꼼꼼히 찾아보고 있어요!')
-        setTimeout(() => {
-          setLoadingMessage(`거의 완성됐어요! ${name}님을 돕기 위해 최선을 다하는 중입니다! 😊`)
-        }, 5000);
-        setTimeout(() => {
-          setIsLoading(false)
+      const response = await fetch('/api/v1/chat/messages/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify({ content: sendText })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        const message = errorData?.errors?.[0]?.message
+        if (response.status === 504) {
           setMessageList(prev => [...prev, {
             id: `error-${Date.now()}`,
             senderType: 'BOT',
             messageType: 'ai_timeout',
-            content: 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
+            content: message || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
             createdAt: new Date().toISOString()
           }])
-        }, 10000);
+        } else {
+          setErrorMessage(message || '메시지 전송에 실패했어요.')
+        }
+        return
       }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        // 버퍼에 누적
+        buffer += decoder.decode(value, { stream: true })
+
+        // \n\n 기준으로 이벤트 단위 분리
+        let delimiterIndex
+        while ((delimiterIndex = buffer.indexOf('\n\n')) !== -1) {
+          const rawEvent = buffer.slice(0, delimiterIndex).trim()
+          buffer = buffer.slice(delimiterIndex + 2)
+
+          if (!rawEvent) continue
+
+          const lines = rawEvent.split('\n')
+          let eventName = ''
+
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              eventName = line.replace('event:', '').trim()
+            }
+
+            if (line.startsWith('data:')) {
+              const parsed = JSON.parse(line.replace('data:', '').trim())
+
+              if (eventName === 'question_saved') {
+                setMessageList(prev => prev.map(msg =>
+                  msg.id.toString().startsWith('temp-') ? parsed.question : msg
+                ))
+              } else if (eventName === 'answer_delta') {
+                setMessageList(prev => {
+                  const last = prev[prev.length - 1]
+                  if (last?.senderType === 'BOT' && last?.messageType === 'streaming') {
+                    return prev.map((msg, i) =>
+                      i === prev.length - 1
+                        ? { ...msg, content: msg.content + parsed.content }
+                        : msg
+                    )
+                  } else {
+                    return [...prev, {
+                      id: `streaming-${Date.now()}`,
+                      senderType: 'BOT',
+                      messageType: 'streaming',
+                      content: parsed.content,
+                      createdAt: new Date().toISOString()
+                    }]
+                  }
+                })
+              } else if (eventName === 'answer_completed') {
+                setMessageList(prev => prev.map(msg =>
+                  msg.messageType === 'streaming' ? parsed.answer : msg
+                ))
+                setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+              } else if (eventName === 'error') {
+                setMessageList(prev => [...prev, {
+                  id: `error-${Date.now()}`,
+                  senderType: 'BOT',
+                  messageType: 'ai_timeout',
+                  content: parsed.message || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
+                  createdAt: new Date().toISOString()
+                }])
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      setErrorMessage('메시지 전송에 실패했어요.')
+      setMessageList(prev => [...prev, {
+        id: `error-${Date.now()}`,
+        senderType: 'BOT',
+        messageType: 'send_error',
+        content: '메시지 전송에 실패했어요. 다시 시도해 주세요.',
+        createdAt: new Date().toISOString()
+      }])
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -298,7 +362,6 @@ function MyBuddy ({setIsLoggedIn}) {
   lg:py-[20px]
   lg:px-[24px]
   whitespace-pre-wrap
-  mb-[12px]
   ml-[16px]
   drop-shadow
   y-2
