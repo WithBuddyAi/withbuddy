@@ -222,70 +222,71 @@ function MyBuddy ({setIsLoggedIn}) {
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
+      let buffer = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
+        // 버퍼에 누적
+        buffer += decoder.decode(value, { stream: true })
 
-        let eventName = ''
+        // \n\n 기준으로 이벤트 단위 분리
+        let delimiterIndex
+        while ((delimiterIndex = buffer.indexOf('\n\n')) !== -1) {
+          const rawEvent = buffer.slice(0, delimiterIndex).trim()
+          buffer = buffer.slice(delimiterIndex + 2)
 
-        for (const line of lines) {
-          if (line.startsWith('event:')) {
-            eventName = line.replace('event:', '').trim()
-          }
+          if (!rawEvent) continue
 
-          // 데이터 추출 및 이벤트 처리
-          if (line.startsWith('data:')) {
-            const parsed = JSON.parse(line.replace('data:', '').trim())
+          const lines = rawEvent.split('\n')
+          let eventName = ''
 
-            if (eventName === 'question_saved') {
-              // 임시 USER 메시지 → 진짜 메시지로 교체
-              setMessageList(prev => prev.map(msg =>
-                msg.id.toString().startsWith('temp-') ? parsed.question : msg
-              ))
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              eventName = line.replace('event:', '').trim()
+            }
 
-            } else if (eventName === 'answer_delta') {
-              // 답변 조각을 BOT 메시지에 이어붙이기
-              setMessageList(prev => {
-                const last = prev[prev.length - 1]
-                if (last?.senderType === 'BOT' && last?.messageType === 'streaming') {
-                  // 이미 BOT 메시지가 있으면 내용 이어붙이기
-                  return prev.map((msg, i) =>
-                    i === prev.length - 1
-                      ? { ...msg, content: msg.content + parsed.content }
-                      : msg
-                  )
-                } else {
-                  // 없으면 새로 만들기
-                  return [...prev, {
-                    id: `streaming-${Date.now()}`,
-                    senderType: 'BOT',
-                    messageType: 'streaming',
-                    content: parsed.content,
-                    createdAt: new Date().toISOString()
-                  }]
-                }
-              })
+            if (line.startsWith('data:')) {
+              const parsed = JSON.parse(line.replace('data:', '').trim())
 
-            } else if (eventName === 'answer_completed') {
-              // 스트리밍 임시 BOT 메시지 → 최종 메시지로 교체
-              setMessageList(prev => prev.map(msg =>
-                msg.messageType === 'streaming' ? parsed.answer : msg
-              ))
-              setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
-
-            } else if (eventName === 'error') {
-              // 에러 처리
-              setMessageList(prev => [...prev, {
-                id: `error-${Date.now()}`,
-                senderType: 'BOT',
-                messageType: 'ai_timeout',
-                content: parsed.message || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
-                createdAt: new Date().toISOString()
-              }])
+              if (eventName === 'question_saved') {
+                setMessageList(prev => prev.map(msg =>
+                  msg.id.toString().startsWith('temp-') ? parsed.question : msg
+                ))
+              } else if (eventName === 'answer_delta') {
+                setMessageList(prev => {
+                  const last = prev[prev.length - 1]
+                  if (last?.senderType === 'BOT' && last?.messageType === 'streaming') {
+                    return prev.map((msg, i) =>
+                      i === prev.length - 1
+                        ? { ...msg, content: msg.content + parsed.content }
+                        : msg
+                    )
+                  } else {
+                    return [...prev, {
+                      id: `streaming-${Date.now()}`,
+                      senderType: 'BOT',
+                      messageType: 'streaming',
+                      content: parsed.content,
+                      createdAt: new Date().toISOString()
+                    }]
+                  }
+                })
+              } else if (eventName === 'answer_completed') {
+                setMessageList(prev => prev.map(msg =>
+                  msg.messageType === 'streaming' ? parsed.answer : msg
+                ))
+                setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+              } else if (eventName === 'error') {
+                setMessageList(prev => [...prev, {
+                  id: `error-${Date.now()}`,
+                  senderType: 'BOT',
+                  messageType: 'ai_timeout',
+                  content: parsed.message || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
+                  createdAt: new Date().toISOString()
+                }])
+              }
             }
           }
         }

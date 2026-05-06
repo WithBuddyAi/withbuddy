@@ -1,6 +1,6 @@
 import { format } from "date-fns"
 import { ko } from 'date-fns/locale';
-import { Link, RotateCw, Phone } from "lucide-react"
+import { Link, RotateCw, Phone, Bold } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import bot from '../assets/Bot_icon.svg'
 
@@ -111,8 +111,7 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                               <p className="text-[12px] text-[#336B97] font-medium">{contact.department} {contact.name} {contact.position}</p>
                               {contact.connects.map((c) => (
                                 <div key={c.type}>
-                                  <p className="text-[11px] text-[#868E96] font-medium">{c.type}</p>
-                                  <p className="text-[11px] text-[#868E96]">{c.value}</p>
+                                  <p className="text-[11px] text-[#868E96] font-medium">{c.type} | <span>{c.value}</span></p>
                                 </div>
                               ))}
                             </div>
