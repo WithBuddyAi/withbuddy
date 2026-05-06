@@ -146,7 +146,7 @@ public class OciCliObjectStorageClient implements ObjectStorageClient {
         String profile = resolveProfile(namespace, bucket);
         String expiresAt = OffsetDateTime.now(ZoneOffset.UTC)
                 .plusSeconds(Math.max(1, expiresInSeconds))
-                .toString();
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"));
 
         ExecResult result = exec(List.of(
                 storageProperties.getOciCli().getExecutable(),
