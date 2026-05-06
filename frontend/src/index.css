@@ -26,6 +26,7 @@ body {
   align-items: center !important;
   padding: 1px 0 !important;
   margin: 2px auto !important;
+  background-color: transparent !important;
   position: relative !important;
 }
 

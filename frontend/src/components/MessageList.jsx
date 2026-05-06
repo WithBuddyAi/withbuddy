@@ -1,6 +1,6 @@
 import { format } from "date-fns"
 import { ko } from 'date-fns/locale';
-import { Link, RotateCw } from "lucide-react"
+import { Link, RotateCw, Phone } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import bot from '../assets/Bot_icon.svg'
 
@@ -26,7 +26,6 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
   md:px-[24px]
   whitespace-pre-wrap
   mt-[20px]
-  mb-[12px]
   md:mr-[42px]
   drop-shadow
   `
@@ -97,6 +96,30 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                         </div>
                       </div>
                     )}
+
+                    {/* 담당자 카드 */}
+                    {message.recommendedContacts?.length > 0 && (
+                      <div className="inline-flex flex-col mt-[8px]">
+                        {message.recommendedContacts.map((contact) => (
+                          <div key={`${contact.department}-${contact.name}`} className="flex items-center gap-[12px] py-[10px] px-[16px] rounded-[8px] border-[1px] border-[#336B9733] bg-[#F7FBFF] mt-[8px]">
+                            {/* 전화기 아이콘 */}
+                            <div className="flex items-center justify-center w-[26px] h-[26px] rounded-[4px] bg-[#FFFFFF] flex-shrink-0">
+                              <Phone size={14} className="text-[#336B97]"/>
+                            </div>
+                            {/* 담당자 정보 */}
+                            <div className="flex flex-col gap-[2px]">
+                              <p className="text-[12px] text-[#336B97] font-medium">{contact.department} {contact.name} {contact.position}</p>
+                              {contact.connects.map((c) => (
+                                <div key={c.type}>
+                                  <p className="text-[11px] text-[#868E96] font-medium">{c.type}</p>
+                                  <p className="text-[11px] text-[#868E96]">{c.value}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     </>)
                   }
                 </div>
@@ -104,11 +127,11 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                 {/* 버디 넛지 빠른 질문 */}
                 {message.messageType === 'suggestion' && message.quickTaps?.length > 0 && (
                   <div className="flex flex-wrap gap-[8px] mt-[8px] ml-[16px]">
-                    {message.quickTaps.map((tap, i) => (
+                    {message.quickTaps.map((tap) => (
                       <button
-                        key={i}
+                        key={tap.eventTarget}
                         onClick={() => handleSubmit(null, tap.content)}
-                        className="border-[1px] border-[#DEE2E6] py-[8px] px-[16px] rounded-[9999px] text-[#868E96] text-[11px] md:text-[12px]">
+                        className="border-[1px] border-[#DEE2E6] py-[8px] px-[16px] rounded-[9999px] text-[#868E96] text-[11px] md:text-[12px] shadow-md">
                         {tap.buttonText}
                       </button>
                     ))}
@@ -118,7 +141,7 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                 {/* 시간 */}
                 <div className={
                   `${message.senderType === 'USER' ? 'text-right md:mr-[48px]' : 'text-left ml-[16px]'}`}>
-                  <p className="text-[#868E96] text-[10px] md:text-[16px] ">{message.createdAt && format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
+                  <p className="text-[#868E96] text-[10px] md:text-[16px] mt-[8px]">{message.createdAt && format(new Date(message.createdAt), 'a h:mm', {locale: ko})}</p>
                 </div>
               </div>
             </div>
