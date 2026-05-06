@@ -33,6 +33,18 @@ public class UserActivityLogService {
     }
 
     @Transactional
+    public void saveLoginSessionEnd(Long userId) {
+        UserActivityLog log = new UserActivityLog(
+                userId,
+                EventType.SESSION_END,
+                EventTarget.LOGOUT,
+                LocalDateTime.now()
+        );
+
+        userActivityLogRepository.save(log);
+    }
+
+    @Transactional
     public LogResponse saveChatSessionStart(Long userId) {
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 
