@@ -2,7 +2,6 @@ package com.withbuddy.activity.entity;
 
 public enum EventTarget {
     LOGIN,
-    LOGOUT,
     CHAT,
     QUICK_TAP_LOCATION,
     QUICK_TAP_WORK_HOUR,
