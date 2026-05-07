@@ -33,6 +33,7 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
 
   return(
     <div>
+      
       {messageList.map((message, index) => {
         const currentDate = message.createdAt?.slice(0, 10)
         const prevDate = index > 0 ? messageList[index - 1].createdAt?.slice(0, 10) : null
@@ -55,13 +56,13 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                   <img 
                     src={bot} 
                     alt="WithBuddy 채팅봇 이미지"
-                    className={message.messageType === 'suggestion' && Number(dayCount) === 0 ? 'brightness-125' : ''}
+                    className={message.messageType === 'suggestion' && Number(dayCount) === 0 ? 'brightness-125 w-[34px] h-[27px]' : 'w-[34px] h-[27px]'}
                   />
                   {message.messageType === 'suggestion' && Number(dayCount) === 0 && (
                     <img 
                       src={confetti} 
                       alt="컨페티 이미지" 
-                      className="absolute top-[-19px] right-[-23px] w-[24px] h-[24px]"
+                      className="absolute top-[-19px] right-[-23px]"
                     />
                   )}
                 </div>
@@ -85,7 +86,11 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                     :
                     (<>
                     {/* 메시지 내용 */}
-                    <ReactMarkdown>{message.content?.replace(/\\n/g, '\n')}</ReactMarkdown>
+                    {message.messageType === 'streaming' ? (
+                      <p>{message.content}</p>
+                    ) : (
+                      <ReactMarkdown>{message.content?.replace(/\\n/g, '\n')}</ReactMarkdown>
+                    )}
 
                     {/* 문서 출처 */}
                     {message.documents && message.documents.length > 0 && message.messageType !== 'no_result' && message.messageType !== 'out_of_scope' && (
@@ -146,7 +151,7 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                       <button
                         key={tap.eventTarget}
                         onClick={() => handleSubmit(null, tap.content)}
-                        className="border-[1px] border-[#DEE2E6] py-[8px] px-[16px] rounded-[9999px] text-[#868E96] text-[11px] md:text-[12px] shadow-md">
+                        className="border-[1px] border-[#DEE2E6] hover:bg-[#E9ECEF] hover:border-[#E9ECEF] py-[8px] px-[16px] rounded-[9999px] text-[#495057] text-[11px] md:text-[12px] shadow-md">
                         {tap.buttonText}
                       </button>
                     ))}

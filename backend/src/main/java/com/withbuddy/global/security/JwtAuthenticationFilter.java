@@ -5,10 +5,12 @@ import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
-import com.withbuddy.global.jwt.SessionNotActiveException;
+import com.withbuddy.global.jwt.SessionExpiredException;
+import com.withbuddy.global.jwt.SessionRevokedException;
 import com.withbuddy.global.jwt.TokenMissingException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -88,8 +90,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.error("[REDIS_ERROR] path={}, message={}", request.getRequestURI(), e.getMessage(), e);
             writeServiceUnavailable(response, request.getRequestURI());
             return;
-        } catch (TokenMissingException | UnauthorizedException | SessionNotActiveException | JwtException | IllegalArgumentException e) {
-            writeUnauthorized(response, request.getRequestURI(), e.getMessage());
+        } catch (TokenMissingException e) {
+            writeUnauthorized(response, request.getRequestURI(), "TOKEN_MISSING", "auth", e.getMessage());
+            return;
+        } catch (SessionExpiredException | ExpiredJwtException e) {
+            writeUnauthorized(response, request.getRequestURI(), "SESSION_EXPIRED", "session", e.getMessage());
+            return;
+        } catch (SessionRevokedException e) {
+            writeUnauthorized(response, request.getRequestURI(), "SESSION_REVOKED", "session", e.getMessage());
+            return;
+        } catch (UnauthorizedException | JwtException | IllegalArgumentException e) {
+            writeUnauthorized(response, request.getRequestURI(), "INVALID_TOKEN", "token", e.getMessage());
             return;
         }
 
@@ -99,6 +110,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void writeUnauthorized(
             HttpServletResponse response,
             String path,
+            String code,
+            String field,
             String message
     ) throws IOException {
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
@@ -109,8 +122,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "INVALID_TOKEN",
-                List.of(new FieldValidationError("auth", message)),
+                code,
+                List.of(new FieldValidationError(field, message)),
                 path
         );
 
@@ -130,7 +143,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 HttpStatus.SERVICE_UNAVAILABLE.value(),
                 HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase(),
                 "SESSION_STORE_UNAVAILABLE",
-                List.of(new FieldValidationError("server", "세션 저장소 연결에 실패했습니다. 잠시 후 다시 시도해주세요.")),
+                List.of(new FieldValidationError("server", "세션 저장소 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.")),
                 path
         );
 

@@ -6,9 +6,12 @@ import { differenceInCalendarDays } from 'date-fns'
 import Tooltip from '../components/Tooltip'
 import axios from 'axios'
 import { useUser } from '../contexts/UserContext'
+import SessionModal from '../components/SessionModal'
 
 
 function Login ({setIsLoggedIn}) {
+  // 'redis' 에러
+  const [modalType, setModalType] = useState(null)
   // 로딩 스피너
   const [isLoading, setIsLoading] = useState(false)
 
@@ -100,6 +103,10 @@ function Login ({setIsLoggedIn}) {
           }
         })
       }
+      // 503 에러인 경우
+      else if (error.response?.status === 503) {
+        setModalType('redis')
+      }
       // 500 에러인 경우
       else if (error.response?.status === 500) {
         setErrorMessage('일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.')
@@ -179,11 +186,7 @@ function Login ({setIsLoggedIn}) {
 
   const buttonClass = 
     `font-semibold
-    bg-[#F1F3F5]
-    border-[1px]
-    border-[#F1F3F5]
     rounded-[8px]
-    text-[#868E96]
     mt-[-4px]
     p-[12px]
     w-[297px]
@@ -191,26 +194,24 @@ function Login ({setIsLoggedIn}) {
     text-[12px]
     md:w-[430px]
     md:h-[49px]
-    md:text-[16px]
-    hover:bg-[#E9ECEF] 
-    hover:border-[0.5px] 
-    hover:border-[#DEE2E6] 
-    hover:text-[#ADB5BD]
-    active:bg-[#204867] 
-    active:border-[0.5px]
-    active:border-[#204867]
-    active:text-[#FFFFFF]
-    disabled:text-[#F8F9FA]
-    disabled:border[0.5px]
-    disabled:border-[#204867]
-    disabled:bg-[#204867]`
+    md:text-[16px]`
 
     const errorClass = 
     'text-[#F03E3E] text-[10px] w-[297px] md:text-[12px] md:w-[430px]'
 
   return (
     <div className='h-screen bg-[#FFFFFF] flex flex-col'>
-      <div className='flex-1 flex flex-col items-center justify-center lg:flex-row lg:gap-[64px]'>
+      
+      {/* 로그인 화면에서는 'redis' 타입만 사용 */}
+      <SessionModal 
+      modalType={modalType}
+      setModalType={setModalType}
+      handleRetry={handleLogin}
+      />
+
+      <div className='flex-1 flex flex-col items-center justify-center lg:flex-row lg:gap-[64px]'
+      inert={modalType !== null ? true : undefined}
+      >
         <div className='flex flex-row items-center justify-center mb-[38px] 
         md:mb-[45px] 
         lg:flex-col lg:mr-[340px] lg:items-center'>
@@ -283,7 +284,13 @@ function Login ({setIsLoggedIn}) {
               
               <button 
               disabled={isLoading}
-              className={`${buttonClass} ${isLoading ? 'opacity-50' : ''}`}
+              className={`${buttonClass} ${isLoading ? 'opacity-50' : ''} ${
+                companyCode && !companyCodeError && 
+                employeeNumber && !employeeNumberError && 
+                name && !nameError
+                ? 'bg-[#204867] border-[0.5px] border-[#DEE2E6] text-[#FFFFFF] hover:bg-[#183348] hover:border-[0.5px] hover:border-[#DEE2E6] disabled:text-[#F8F9FA] disabled:border[0.5px] disabled:border-[#204867] disabled:bg-[#204867]' 
+                : 'bg-[#F1F3F5] border-[1px] border-[#F1F3F5] text-[#868E96]'
+              }`}
               type="submit">
                 <div className='flex items-center justify-center gap-3'>
                   <span>시작하기</span>
