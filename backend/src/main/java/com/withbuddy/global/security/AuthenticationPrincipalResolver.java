@@ -1,6 +1,7 @@
 package com.withbuddy.global.security;
 
 import com.withbuddy.global.exception.UnauthorizedException;
+import com.withbuddy.global.jwt.TokenMissingException;
 import org.springframework.security.core.Authentication;
 
 public final class AuthenticationPrincipalResolver {
@@ -10,7 +11,7 @@ public final class AuthenticationPrincipalResolver {
 
     public static JwtAuthenticationPrincipal requireJwtPrincipal(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedException("인증 토큰이 없습니다.");
+            throw new TokenMissingException("인증 토큰이 없습니다.");
         }
 
         Object principal = authentication.getPrincipal();
