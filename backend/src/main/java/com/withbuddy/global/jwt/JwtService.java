@@ -81,7 +81,8 @@ public class JwtService {
         try {
             validateAndTouchSession(token);
             return true;
-        } catch (JwtException | SessionNotActiveException | UnauthorizedException | TokenMissingException e) {
+        } catch (JwtException | SessionExpiredException | SessionRevokedException
+                 | UnauthorizedException | TokenMissingException e) {
             return false;
         }
     }
@@ -104,7 +105,7 @@ public class JwtService {
 
     public String extractBearerToken(String bearerToken) {
         if (!StringUtils.hasText(bearerToken)) {
-            throw new TokenMissingException("인증 토큰이 누락되었습니다.");
+            throw new TokenMissingException("인증 토큰이 없습니다.");
         }
 
         String trimmedBearerToken = bearerToken.trim();
@@ -116,7 +117,7 @@ public class JwtService {
         String token = trimmedBearerToken.substring(7).trim();
 
         if (!StringUtils.hasText(token)) {
-            throw new TokenMissingException("인증 토큰이 누락되었습니다.");
+            throw new TokenMissingException("인증 토큰이 없습니다.");
         }
 
         return token;
@@ -127,10 +128,14 @@ public class JwtService {
         Long userId = parseUserId(claims);
 
         String activeToken = redisCacheService.get(RedisCacheKeys.userSession(userId))
-                .orElseThrow(() -> new SessionNotActiveException("활성 세션이 만료되었거나 존재하지 않습니다."));
+                .orElseThrow(() -> new SessionExpiredException(
+                        "로그인 세션 또는 액세스 토큰이 만료되었습니다. 다시 로그인해 주세요."
+                ));
 
         if (!Objects.equals(activeToken, token)) {
-            throw new SessionNotActiveException("다른 기기에서 다시 로그인되어 현재 세션이 종료되었습니다.");
+            throw new SessionRevokedException(
+                    "다른 기기 또는 브라우저에서 다시 로그인되어 현재 세션이 종료되었습니다. 다시 로그인해 주세요."
+            );
         }
 
         redisCacheService.put(
@@ -144,7 +149,7 @@ public class JwtService {
 
     private Claims parseValidClaims(String token) {
         if (!StringUtils.hasText(token)) {
-            throw new TokenMissingException("인증 토큰이 누락되었습니다.");
+            throw new TokenMissingException("인증 토큰이 없습니다.");
         }
 
         try {
@@ -158,8 +163,7 @@ public class JwtService {
         } catch (JwtException e) {
             throw e;
         } catch (Exception e) {
-            // 핸들러를 통과하지 못하고 500으로 빠지는 것을 방지
-            throw new UnauthorizedException("유효하지 않은 토큰입니다. 다시 로그인해 주세요.");
+            throw new UnauthorizedException("인증 토큰이 유효하지 않습니다.");
         }
     }
 
