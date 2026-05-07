@@ -19,6 +19,15 @@ spring:
   data:
     redis:
       url: ${REDIS_URL}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: 1000ms
+        shutdown-timeout: 100ms
+      connect-timeout: 2000ms
+      timeout: 1000ms
   rabbitmq:
     uri: ${RABBITMQ_URL}
   jpa:
