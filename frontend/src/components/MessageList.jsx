@@ -3,8 +3,9 @@ import { ko } from 'date-fns/locale';
 import { Link, RotateCw, Phone, Bold } from "lucide-react"
 import ReactMarkdown from 'react-markdown'
 import bot from '../assets/Bot_icon.svg'
+import confetti from '../assets/confetti.svg'
 
-function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoading, handleDownload, lastUserMessageRef }) {
+function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoading, dayCount, handleDownload, lastUserMessageRef }) {
   
   const lastUserIndex = [...messageList].map(m => m.senderType).lastIndexOf('USER')
 
@@ -17,7 +18,7 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
   rounded-br-[24px]
   text-[#FFFFFF]
   text-[12px]
-  md:text-[16px]
+  md:text-[15px]
   text-left
   max-w-[310px]
   md:max-w-[550px]
@@ -49,7 +50,22 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
             {/* 말풍선 영역 */}
             <div className={
               message.senderType === 'USER' ? 'flex justify-end' : 'flex justify-start items-start mt-[32px]'}>
-              {message.senderType === 'BOT' && <img src={bot} alt="WithBuddy 채팅봇 이미지"/>}
+              {message.senderType === 'BOT' && (
+                <div className="relative">
+                  <img 
+                    src={bot} 
+                    alt="WithBuddy 채팅봇 이미지"
+                    className={message.messageType === 'suggestion' && Number(dayCount) === 0 ? 'brightness-125' : ''}
+                  />
+                  {message.messageType === 'suggestion' && Number(dayCount) === 0 && (
+                    <img 
+                      src={confetti} 
+                      alt="컨페티 이미지" 
+                      className="absolute top-[-19px] right-[-23px] w-[24px] h-[24px]"
+                    />
+                  )}
+                </div>
+              )}
               <div className="flex flex-col">
                 <div className={
                   message.senderType === 'USER' ? `${userClass}` : `${botClass}`}
@@ -58,18 +74,18 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                   {/* 에러 메시지/재시도 버튼 */}
                   {message.messageType === 'ai_timeout' || message.messageType === 'send_error' ? (
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-[10px]">
-                      <p className="text-[#495057] text-[14px] lg:text-[16px]">{message.content}</p>
+                      <p className="text-[#495057] text-[13px] lg:text-[16px]">{message.content}</p>
                       <button 
                       onClick={handleRetry} 
                       disabled={isLoading}
-                      className={`flex items-center justify-cnter gap-[5px] text-[12px] rounded-[9999px] py-[6px] px-[12px]  ${message.messageType === 'ai_timeout' ? 'bg-[#EAF6FF] text-[#204867] hover:bg-[#D2E2F6]' : 'bg-[#336B974D] text-[#FFFFFF] hover:bg-[#336B97B2]'}`}>
+                      className={`flex items-center justify-cnter gap-[5px] text-[11px] rounded-[9999px] py-[6px] px-[12px]  ${message.messageType === 'ai_timeout' ? 'bg-[#EAF6FF] text-[#204867] hover:bg-[#D2E2F6]' : 'bg-[#336B974D] text-[#FFFFFF] hover:bg-[#336B97B2]'}`}>
                         <RotateCw size={14} />다시 물어보기
                       </button>
                     </div>)
                     :
                     (<>
                     {/* 메시지 내용 */}
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                    <ReactMarkdown>{message.content?.replace(/\\n/g, '\n')}</ReactMarkdown>
 
                     {/* 문서 출처 */}
                     {message.documents && message.documents.length > 0 && message.messageType !== 'no_result' && message.messageType !== 'out_of_scope' && (
