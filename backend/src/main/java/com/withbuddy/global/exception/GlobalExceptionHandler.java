@@ -1,21 +1,25 @@
 package com.withbuddy.global.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.withbuddy.auth.exception.LoginFailedException;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
-import com.withbuddy.auth.exception.LoginFailedException;
+import com.withbuddy.global.jwt.SessionExpiredException;
 import com.withbuddy.global.jwt.SessionNotActiveException;
+import com.withbuddy.global.jwt.SessionRevokedException;
 import com.withbuddy.global.jwt.TokenMissingException;
-import com.withbuddy.user.exception.DuplicateEmployeeNumberException;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import io.jsonwebtoken.JwtException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
+import com.withbuddy.user.exception.DuplicateEmployeeNumberException;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -26,9 +30,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -62,7 +63,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("auth", e.getMessage())
+                new FieldValidationError("token", e.getMessage())
         );
 
         ErrorResponse response = new ErrorResponse(
@@ -83,37 +84,58 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("token", "액세스 토큰이 만료되었습니다.")
+                new FieldValidationError("session", "로그인 세션 또는 액세스 토큰이 만료되었습니다. 다시 로그인해 주세요.")
         );
 
         ErrorResponse response = new ErrorResponse(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "TOKEN_EXPIRED",
+                "SESSION_EXPIRED",
                 errors,
                 request.getRequestURI()
         );
 
-        log.warn("토큰 만료: path={}, message={}", request.getRequestURI(), e.getMessage());
+        log.warn("Token expired: path={}, message={}", request.getRequestURI(), e.getMessage());
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
-    @ExceptionHandler(SessionNotActiveException.class)
-    public ResponseEntity<ErrorResponse> handleSessionNotActiveException(
-            SessionNotActiveException e,
+    @ExceptionHandler({SessionNotActiveException.class, SessionExpiredException.class})
+    public ResponseEntity<ErrorResponse> handleSessionExpiredException(
+            RuntimeException e,
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("auth", e.getMessage())
+                new FieldValidationError("session", e.getMessage())
         );
 
         ErrorResponse response = new ErrorResponse(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "INVALID_TOKEN",
+                "SESSION_EXPIRED",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(SessionRevokedException.class)
+    public ResponseEntity<ErrorResponse> handleSessionRevokedException(
+            SessionRevokedException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("session", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "SESSION_REVOKED",
                 errors,
                 request.getRequestURI()
         );
@@ -127,7 +149,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("token", "유효하지 않은 토큰입니다. 다시 로그인해 주세요.")
+                new FieldValidationError("token", "인증 토큰이 유효하지 않습니다.")
         );
 
         ErrorResponse response = new ErrorResponse(
@@ -139,7 +161,7 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
 
-        log.warn("유효하지 않은 토큰: path={}, message={}", request.getRequestURI(), e.getMessage());
+        log.warn("Invalid token: path={}, message={}", request.getRequestURI(), e.getMessage());
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
@@ -252,7 +274,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("auth", "인증 토큰이 누락되었습니다.")
+                new FieldValidationError("auth", "인증 토큰이 없습니다.")
         );
 
         ErrorResponse response = new ErrorResponse(
@@ -285,7 +307,7 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
 
-        log.warn("스토리지 예외: path={}, field={}, message={}", request.getRequestURI(), e.getField(), e.getMessage());
+        log.warn("Storage error: path={}, field={}, message={}", request.getRequestURI(), e.getField(), e.getMessage());
 
         return ResponseEntity.status(e.getStatus()).body(response);
     }
@@ -319,7 +341,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("server", "세션 저장소 연결에 실패했습니다. 잠시 후 다시 시도해주세요.")
+                new FieldValidationError("server", "세션 저장소 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.")
         );
 
         ErrorResponse response = new ErrorResponse(
