@@ -20,6 +20,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -220,6 +221,31 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatchException(
+            MethodArgumentTypeMismatchException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError(e.getName(), "요청 파라미터 형식이 올바르지 않습니다.")
+        );
+
+        if (e.getRequiredType() != null && LocalDate.class.isAssignableFrom(e.getRequiredType())) {
+            errors = List.of(new FieldValidationError(e.getName(), "집계 기준일은 yyyy-MM-dd 형식이어야 합니다."));
+        }
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "BAD_REQUEST",
+                errors,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
             MissingRequestHeaderException e,
@@ -381,14 +407,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError("auth", e.getMessage())
+                new FieldValidationError(e.getField(), e.getMessage())
         );
 
         ErrorResponse response = new ErrorResponse(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.FORBIDDEN.value(),
                 HttpStatus.FORBIDDEN.getReasonPhrase(),
-                "FORBIDDEN",
+                e.getCode(),
                 errors,
                 request.getRequestURI()
         );
