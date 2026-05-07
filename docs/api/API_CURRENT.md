@@ -2055,23 +2055,20 @@ Authorization: Bearer {accessToken}
 
 ### 9-1. 관리자 지표 개요
 
-| 구분 | 지표 |
-|---|---|
-| 북극성 | D+7 RAG 답변 수신 경험률 |
-| 보조 1 | D+0 첫 인터랙션 발생률 |
-| 보조 2 | D+7 재방문률 |
-| 보조 3 | Quick Tap 클릭 유저율 |
-| 가드레일 | 미답변 비율 |
+| 구분 | 지표                  |
+|---|---------------------|
+| 북극성 | D+6 RAG 답변 수신 경험률   |
+| 보조 1 | D+0 첫 인터랙션 발생률      |
+| 보조 2 | D+6 재방문률            |
+| 가드레일 | 미답변 비율              |
 | 가드레일 | TTA, 최초 로그인 → 첫 RAG |
-| 학습 | 신입 적응 곡선 |
-| 학습 | 미답변 질문 패턴 |
 
-| API | 설명 |
-|---|---|
-| `GET /api/v1/admin/metrics/rag-experience-rate` | 회사별 D+7 RAG 답변 수신 경험률 |
-| `GET /api/v1/admin/metrics/first-interaction-rate` | 회사별 D+0 첫 인터랙션 발생률 |
-| `GET /api/v1/admin/metrics/revisit-rate` | 회사별 D+7 재방문률 |
-| `GET /api/v1/admin/metrics/unanswered-rate` | 회사별 미답변 비율 |
+| API | 설명                               |
+|---|----------------------------------|
+| `GET /api/v1/admin/metrics/rag-experience-rate` | 회사별 D+6 RAG 답변 수신 경험률            |
+| `GET /api/v1/admin/metrics/first-interaction-rate` | 회사별 D+0 첫 인터랙션 발생률               |
+| `GET /api/v1/admin/metrics/revisit-rate` | 회사별 D+6 재방문률                     |
+| `GET /api/v1/admin/metrics/unanswered-rate` | 회사별 미답변 비율                       |
 | `GET /api/v1/admin/metrics/tta` | 회사별 평균 TTA, 최초 로그인 → 첫 RAG 소요 시간 |
 
 #### 공통 인증 및 권한 규칙
@@ -2091,12 +2088,13 @@ Authorization: Bearer {accessToken}
 #### 공통 산정 규칙
 
 - 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
-- `D+0`은 `DATEDIFF(이벤트 발생일, users.hire_date) = 1`인 경우를 의미한다.
-- `D+6`은 입사일 기준 1일차부터 7일차까지의 기간을 의미한다.
+- `D+0`은 `DATEDIFF(이벤트 발생일, users.hire_date) = 0`인 경우를 의미한다.
+- `D+6` 지표는 입사일을 포함한 7일 관찰 기간을 기준으로 하며, 세부 포함 범위는 각 지표의 집계 기준을 따른다.
 - 비율은 `numerator / denominator * 100`으로 계산한다.
 - 소수점은 기본적으로 소수점 첫째 자리까지 반올림한다.
 - 분모가 0인 경우 비율은 `0.0`으로 반환한다.
 - 회사별 집계 결과는 `companies` 배열로 반환한다.
+- 집계 대상 사용자는 기본적으로 `users.role = USER`인 일반 사용자, 즉 신입 사용자로 한정한다.
 
 ---
 
@@ -2136,23 +2134,24 @@ Authorization: Bearer {accessToken}
 
 #### Response Field
 
-| 필드 | 타입 | 설명 |
-|---|---|---|
-| `metric` | String | 지표 식별자. `rag_experience_rate` |
-| `asOfDate` | String | 집계 기준일 |
-| `companies` | Array | 회사별 집계 결과 |
-| `companies[].companyCode` | String | 회사 코드 |
-| `companies[].companyName` | String | 회사명 |
-| `companies[].targetUsers` | Number | D+7 RAG 경험률 산정 대상 사용자 수 |
+| 필드 | 타입 | 설명                                       |
+|---|---|------------------------------------------|
+| `metric` | String | 지표 식별자. `rag_experience_rate`            |
+| `asOfDate` | String | 집계 기준일                                   |
+| `companies` | Array | 회사별 집계 결과                                |
+| `companies[].companyCode` | String | 회사 코드                                    |
+| `companies[].companyName` | String | 회사명                                      |
+| `companies[].targetUsers` | Number | D+6 RAG 경험률 산정 대상 사용자 수                  |
 | `companies[].ragReceivedUsers` | Number | 입사 후 7일 이내 `rag_answer`를 1건 이상 수신한 사용자 수 |
-| `companies[].ragExperienceRate` | Number | D+7 RAG 답변 수신 경험률, 단위 `%` |
+| `companies[].ragExperienceRate` | Number | D+6 RAG 답변 수신 경험률, 단위 `%`                |
 
 #### 집계 기준
 
 - `chat_messages.message_type = rag_answer`인 BOT 메시지를 기준으로 계산한다.
 - `chat_messages.sender_type = BOT`인 메시지만 AI 답변으로 본다.
-- `DATEDIFF(chat_messages.created_at, users.hire_date) BETWEEN 0 AND 7` 조건을 만족하는 `rag_answer`가 1건 이상 있으면 RAG 답변 수신 경험 사용자로 계산한다.
-- `asOfDate` 기준으로 입사 후 7일 산정 기간이 완료된 사용자만 기본 분모에 포함한다.
+- `DATEDIFF(chat_messages.created_at, users.hire_date) BETWEEN 0 AND 6` 조건을 만족하는 `rag_answer`가 1건 이상 있으면 RAG 답변 수신 경험 사용자로 계산한다.
+- `asOfDate` 기준으로 D+6 산정 기간이 완료된 사용자만 기본 분모에 포함한다.
+- 즉 `DATEDIFF(:asOfDate, users.hire_date) >= 6`인 사용자만 기본 산정 대상이다.
 - 회사별로 `companies.company_code` 또는 `users.company_code` 기준으로 그룹화한다.
 
 ---
@@ -2252,24 +2251,27 @@ Authorization: Bearer {accessToken}
 
 #### Response Field
 
-| 필드 | 타입 | 설명 |
-|---|---|---|
-| `metric` | String | 지표 식별자. `revisit_rate` |
-| `asOfDate` | String | 집계 기준일 |
-| `companies` | Array | 회사별 집계 결과 |
-| `companies[].companyCode` | String | 회사 코드 |
-| `companies[].companyName` | String | 회사명 |
+| 필드 | 타입 | 설명                            |
+|---|---|-------------------------------|
+| `metric` | String | 지표 식별자. `revisit_rate`        |
+| `asOfDate` | String | 집계 기준일                        |
+| `companies` | Array | 회사별 집계 결과                     |
+| `companies[].companyCode` | String | 회사 코드                         |
+| `companies[].companyName` | String | 회사명                           |
 | `companies[].d0Users` | Number | D+0에 MyBuddy 채팅 화면에 진입한 사용자 수 |
-| `companies[].revisitUsers` | Number | D+1~D+7 사이에 1회 이상 재진입한 사용자 수 |
-| `companies[].revisitRate` | Number | D+7 재방문률, 단위 `%` |
+| `companies[].revisitUsers` | Number | D+1~D+6 사이에 1회 이상 재진입한 사용자 수  |
+| `companies[].revisitRate` | Number | D+6 재방문률, 단위 `%`              |
 
 #### 집계 기준
 
 - 화면 진입은 `user_activity_logs.event_type = SESSION_START`, `event_target = CHAT` 로그를 기준으로 계산한다.
 - 분모는 D+0에 MyBuddy 채팅 화면에 진입한 사용자 수다.
-- 분자는 분모 사용자 중 D+1~D+7 사이에 `SESSION_START + CHAT` 로그가 1건 이상 있는 사용자 수다.
+- 분자는 분모 사용자 중 D+1~D+6 사이에 `SESSION_START + CHAT` 로그가 1건 이상 있는 사용자 수다.
+- `asOfDate` 기준으로 D+6 산정 기간이 완료된 사용자만 분모에 포함한다.
+- 즉 `DATEDIFF(:asOfDate, users.hire_date) >= 6`인 사용자만 기본 산정 대상이다.
 - D+0에 접속하지 않고 D+1 이후 처음 접속한 사용자는 재방문률 분모에 포함하지 않는다.
 - `POST /api/v1/chat/session-start`의 30분 중복 제외 정책 때문에 동일 사용자의 짧은 시간 내 반복 진입은 중복 집계되지 않는다.
+- 별도 `session_id` 없이 기존 `user_activity_logs` 데이터만으로 집계한다.
 
 ---
 
