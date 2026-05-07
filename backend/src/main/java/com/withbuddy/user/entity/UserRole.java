@@ -2,5 +2,6 @@ package com.withbuddy.user.entity;
 
 public enum UserRole {
     USER,
-    ADMIN
+    ADMIN,
+    SERVICE_ADMIN
 }

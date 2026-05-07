@@ -30,6 +30,7 @@ Intent = Literal["rag", "communication", "preboarding", "company_info", "chitcha
 class AgentState(TypedDict):
     user_id: str
     user_name: str
+    company_code: str
     message: str
     intent: str
     profile: dict
@@ -304,7 +305,7 @@ def chitchat_agent_node(state: AgentState) -> dict:
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
-        "company_name": _get_company_name(state.get("user_id", "")),
+        "company_name": _get_company_name(state.get("company_code", "")),
         "today_date": _date.today().strftime("%Y년 %m월 %d일"),
         "hire_info": "",
     })
@@ -382,7 +383,7 @@ class OrchestratorResult:
     company_info: dict
 
 
-def run_orchestrator(user_id: str, user_name: str, message: str) -> OrchestratorResult:
+def run_orchestrator(user_id: str, user_name: str, message: str, company_code: str = "") -> OrchestratorResult:
     """
     오케스트레이터 실행.
     - RAG 의도: answer="" 반환 → 호출자가 stream_rag_chain으로 스트리밍 처리
@@ -391,6 +392,7 @@ def run_orchestrator(user_id: str, user_name: str, message: str) -> Orchestrator
     initial: AgentState = {
         "user_id": user_id,
         "user_name": user_name,
+        "company_code": company_code,
         "message": message,
         "intent": "",
         "profile": {},
