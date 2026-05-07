@@ -13,6 +13,10 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.QueryTimeoutException;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -31,6 +35,7 @@ import java.util.List;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     private static final String AUTHORIZATION_HEADER = "Authorization";
 
     private final JwtService jwtService;
@@ -79,6 +84,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             );
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
+        } catch (RedisConnectionFailureException | QueryTimeoutException e) {
+            log.error("[REDIS_ERROR] path={}, message={}", request.getRequestURI(), e.getMessage(), e);
+            writeServiceUnavailable(response, request.getRequestURI());
+            return;
         } catch (TokenMissingException | UnauthorizedException | SessionNotActiveException | JwtException | IllegalArgumentException e) {
             writeUnauthorized(response, request.getRequestURI(), e.getMessage());
             return;
@@ -102,6 +111,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "INVALID_TOKEN",
                 List.of(new FieldValidationError("auth", message)),
+                path
+        );
+
+        objectMapper.writeValue(response.getWriter(), errorResponse);
+    }
+
+    private void writeServiceUnavailable(
+            HttpServletResponse response,
+            String path
+    ) throws IOException {
+        response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase(),
+                "SESSION_STORE_UNAVAILABLE",
+                List.of(new FieldValidationError("server", "세션 저장소 연결에 실패했습니다. 잠시 후 다시 시도해주세요.")),
                 path
         );
 
