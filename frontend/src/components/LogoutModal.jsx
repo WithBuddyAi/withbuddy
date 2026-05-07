@@ -9,8 +9,8 @@ function LogoutModal({ isLogoutModal, setIsLogoutModal, handleLogout }) {
               <p className="text-[14px] text-[#868E96]">도움이 필요할 때 언제든 다시 찾아주세요!</p>
             </div>
             <div className="flex justify-end gap-[12px] mt-[20px]">
-                <button onClick={() => setIsLogoutModal(false)} className="w-[52px] h-[32px] border-[1px] border-[#E9ECEF] px-[12px] rounded-[8px] text-[#868E96] text-[14px]">취소</button>
-              <button onClick={handleLogout} className="w-[76px] h-[32px] bg-[#868E96] px-[12px] rounded-[8px] text-[#FFFFFF] text-[14px]">로그아웃</button>
+                <button onClick={() => setIsLogoutModal(false)} className="w-[52px] h-[32px] border-[1px] border-[#E9ECEF] hover:bg-[#E9ECEF] px-[12px] rounded-[8px] text-[#868E96] text-[14px]">취소</button>
+              <button onClick={handleLogout} className="w-[76px] h-[32px] bg-[#868E96] hover:bg-[#585A5C] px-[12px] rounded-[8px] text-[#FFFFFF] text-[14px]">로그아웃</button>
             </div>
           </div>
         </div>
