@@ -145,6 +145,21 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/internal/circuit-breaker/status", tags=["internal"])
+async def circuit_breaker_status():
+    """서킷브레이커 현재 상태 조회"""
+    from utils.circuit_breaker import get_state
+    return get_state().status()
+
+
+@app.post("/internal/circuit-breaker/reset", tags=["internal"])
+async def circuit_breaker_reset():
+    """서킷브레이커 수동 리셋 (차단 해제 + 시간당 카운터 초기화)"""
+    from utils.circuit_breaker import get_state
+    get_state().reset()
+    return {"ok": True, "message": "서킷브레이커 리셋 완료"}
+
+
 # ── 로컬 실행 진입점 ─────────────────────────
 
 if __name__ == "__main__":
