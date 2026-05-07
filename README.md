@@ -3,7 +3,7 @@
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
 **최종 업데이트**: 2026-05-07
-**버전**: 0.57.0
+**버전**: 0.60.0
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/pulls)
