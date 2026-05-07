@@ -138,10 +138,12 @@ async def chat_stream(request: ChatRequest):
                 elif isinstance(chunk, str) and chunk.startswith("\x00"):
                     accumulated_text.clear()
                     accumulated_text.append(chunk[1:])
-                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk[1:]}, ensure_ascii=False)}\n\n"
+                    if chunk[1:].strip():
+                        yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk[1:]}, ensure_ascii=False)}\n\n"
                 else:
                     accumulated_text.append(chunk)
-                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
+                    if chunk.strip():
+                        yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
