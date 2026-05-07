@@ -15,7 +15,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -288,12 +287,9 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(response);
     }
 
-    @ExceptionHandler({
-            RedisConnectionFailureException.class,
-            QueryTimeoutException.class
-    })
-    public ResponseEntity<ErrorResponse> handleRedisException(
-            Exception e,
+    @ExceptionHandler(RedisConnectionFailureException.class)
+    public ResponseEntity<ErrorResponse> handleRedisConnectionFailureException(
+            RedisConnectionFailureException e,
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
