@@ -41,7 +41,11 @@ function ChatInput({ handleSubmit, isLoading }) {
             {text.length}/500</p>
         </div>
         <button 
-        className="flex items-center justify-center bg-[#F1F3F5] border-[1px] border-[#E9ECEF] rounded-[8px] w-[40px] h-[44px] md:h-[48px] text-[#ADB5BD] active:text-[#FFFFFF] active:bg-[#336B97] active:enabled:bg-[#336B97]"
+        className={`flex items-center justify-center border-[1px] rounded-[8px] w-[40px] h-[44px] md:h-[48px]
+          ${text.trim() && !isLoading && text.length <= 500
+            ? 'bg-[#204867] border-[#204867] text-[#FFFFFF] hover:bg-[#183348]'
+            : 'bg-[#F1F3F5] border-[#E9ECEF] text-[#ADB5BD]'
+          }`}
         disabled={!text.trim() || isLoading || text.length > 500}>
           <Send size={15} className="text-inherit" />
         </button>

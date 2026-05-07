@@ -1,9 +1,14 @@
 import axios from "axios"
 
 let logoutHandler = null
+let modalHandler = null
 
 export const setLogoutHandler = (handler) => {
   logoutHandler = handler
+}
+
+export const setModalHandler = (handler) => {
+  modalHandler = handler
 }
 
 const axiosInstance = axios.create({
@@ -29,18 +34,24 @@ axiosInstance.interceptors.response.use(
   (error) => {
         if (error.response?.status === 401) {
       const code = error.response?.data?.code
+      // 세션 모달을 띄워야 하는 경우
+      if (code === 'SESSION_EXPIRED' || code === 'SESSION_REVOKED') {
+        if (modalHandler) modalHandler(
+          code === 'SESSION_EXPIRED' ? 'sessionExpired' : 'duplicateLogin'
+        )
+        return Promise.reject(error)
+      }
+
+      // 바로 로그인 페이지로 이동하는 경우
       if (code === 'TOKEN_MISSING' || 
-          code === 'TOKEN_EXPIRED' || 
           code === 'INVALID_TOKEN' || 
           code === 'USER_NOT_FOUND'
         ) {
-          localStorage.removeItem('accessToken')
-          localStorage.removeItem('dayCount')
-          localStorage.removeItem('hireDate')
-          localStorage.removeItem('name')
-          if (logoutHandler) {
-            logoutHandler()
-          }
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('dayCount')
+        localStorage.removeItem('hireDate')
+        localStorage.removeItem('name')
+        if (logoutHandler) logoutHandler()
         return Promise.reject(error)
       }
     }
