@@ -206,7 +206,22 @@ function MyBuddy ({setIsLoggedIn}) {
       if (!response.ok) {
         const errorData = await response.json()
         const message = errorData?.errors?.[0]?.message
-        if (response.status === 504) {
+        const code = errorData?.code
+
+        if (response.status === 401) {
+          if (code === 'TOKEN_MISSING' || 
+              code === 'TOKEN_EXPIRED' || 
+              code === 'INVALID_TOKEN' || 
+              code === 'USER_NOT_FOUND') {
+            localStorage.removeItem('accessToken')
+            localStorage.removeItem('dayCount')
+            localStorage.removeItem('hireDate')
+            localStorage.removeItem('name')
+            navigate('/login')
+            return
+          }
+        }
+        if (response.status === 504) {h
           setMessageList(prev => [...prev, {
             id: `error-${Date.now()}`,
             senderType: 'BOT',
@@ -278,6 +293,7 @@ function MyBuddy ({setIsLoggedIn}) {
                   msg.messageType === 'streaming' ? parsed.answer : msg
                 ))
                 setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+                setIsLoading(false)
               } else if (eventName === 'error') {
                 setMessageList(prev => [...prev, {
                   id: `error-${Date.now()}`,
@@ -286,6 +302,7 @@ function MyBuddy ({setIsLoggedIn}) {
                   content: parsed.message || 'AI 답변 생성 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.',
                   createdAt: new Date().toISOString()
                 }])
+                setIsLoading(false)
               }
             }
           }
@@ -353,7 +370,7 @@ function MyBuddy ({setIsLoggedIn}) {
   bg-[#FFFFFF]
   text-[#000000]
   text-[12px]
-  md:text-[16px]
+  md:text-[15px]
   text-left
   max-w-[310px]
   md:max-w-[500px]
@@ -437,6 +454,7 @@ function MyBuddy ({setIsLoggedIn}) {
           handleSubmit={handleSubmit}
           handleRetry={handleRetry}
           isLoading={isLoading}
+          dayCount={dayCount}
           handleDownload={handleDownload}
           lastUserMessageRef={lastUserMessageRef}
         />
