@@ -148,6 +148,8 @@ _NO_ANSWER_KEYWORDS = [
     "찾을 수 없습니다",
     "포함되어 있지 않",
     "정보가 없",
+    "문서에 없어서",
+    "안내드리기 어려워",
 ]
 
 def _is_unanswered(answer: str, docs: List[Document]) -> bool:
@@ -169,14 +171,19 @@ def _extract_contact_from_docs(docs: List[Document]) -> str | None:
             return m.group(1).strip()
     return None
 
-async def _fire_unanswered_alert(user_id: str, question: str) -> None:
-    """미답변 저장 + Slack 알림 (백그라운드)"""
+async def _fire_unanswered_alert(user_id: str, question: str, company_code: str = "") -> None:
+    """미답변 저장 + Slack 알림 + nudge Task 등록 (백그라운드)"""
     try:
         from tasks.slack_notifier import notify_unanswered_question
         qid = add_unanswered(user_id, question)
         await notify_unanswered_question(user_id, question, qid)
     except Exception:
-        pass  # 알림 실패가 채팅 응답에 영향주지 않도록
+        pass
+    try:
+        from core.be_client import enqueue_nudge
+        enqueue_nudge(user_id, company_code, question, str(qid))
+    except Exception:
+        pass
 
 _COMPANY_NAMES: dict[str, str] = {
     "WB0001": "테크 주식회사",
@@ -213,6 +220,43 @@ def _get_company_specific_rules(company_code: str) -> str:
 
 
 _chain = None
+_dedup_llm = None
+
+
+def _get_dedup_llm():
+    global _dedup_llm
+    if _dedup_llm is None:
+        import os
+        from langchain_anthropic import ChatAnthropic
+        _dedup_llm = ChatAnthropic(
+            model="claude-haiku-4-5-20251001",
+            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+            temperature=0,
+            max_tokens=2048,
+        )
+    return _dedup_llm
+
+
+def _has_duplicate_lines(text: str) -> bool:
+    """연속 중복 줄 빠른 감지."""
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    for i in range(len(lines) - 1):
+        if lines[i] == lines[i + 1]:
+            return True
+    return False
+
+
+def _dedup_answer(text: str) -> str:
+    """중복 문장·단락이 감지되면 Haiku로 제거. 없으면 그대로 반환."""
+    if not _has_duplicate_lines(text):
+        return text
+    from langchain_core.messages import HumanMessage
+    result = _get_dedup_llm().invoke([HumanMessage(content=(
+        "다음 텍스트에서 완전히 동일하거나 거의 동일한 중복 문장·단락을 하나만 남기고 제거하세요. "
+        "내용·형식·말투·이모지는 절대 바꾸지 마세요. 설명 없이 정제된 텍스트만 반환하세요.\n\n"
+        + text
+    ))])
+    return result.content
 
 
 def _get_chain():
@@ -372,7 +416,7 @@ def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
     return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
@@ -438,6 +482,16 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
+    from datetime import date as _date
+    today_date = _date.today().strftime("%Y년 %m월 %d일")
+    hire_info = ""
+    if hire_date:
+        try:
+            days = (_date.today() - _date.fromisoformat(hire_date)).days + 1
+            hire_info = f"\n사용자 입사 {days}일차입니다. (입사일: {hire_date})"
+        except Exception:
+            pass
+
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
         from memory.profile_store import format_profile_context, get_profile
@@ -455,8 +509,11 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         "hr_team": hr_team,
         "it_contact": _get_it_contact(company_code),
         "company_specific_rules": _get_company_specific_rules(company_code),
+        "today_date": today_date,
+        "hire_info": hire_info,
     })
     answer = _fix_names(answer)
+    answer = _dedup_answer(answer)
 
     # 2-6: 근로기준법 fallback
     if _needs_labor_law_fallback(question, answer):
@@ -467,13 +524,15 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
             and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
         answer += f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
 
-    # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입
+    # no_result 시 문서 헤더에서 담당자 정보 추출하여 삽입 (LLM이 이미 언급한 경우 중복 방지)
     if _is_unanswered(answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
         if contact:
-            answer += f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+            if contact not in answer:
+                answer += f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
         else:
-            answer += f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+            if hr_team not in answer:
+                answer += f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
 
     save_interaction(user_id, question, answer)
     related_docs = find_related_docs(question)
@@ -481,14 +540,14 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     return answer, source_names, related_docs, doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None)을 yield하고, 마지막에 ("", source_names, related_docs)를 yield합니다.
     """
     from routers.docs import find_related_docs
 
-    chat_history = get_chat_history(user_id)
+    chat_history = injected_history if injected_history is not None else get_chat_history(user_id)
 
     # 2-7: 숫자 선택 해석
     resolved = _resolve_selection(question, chat_history)
@@ -552,6 +611,16 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     company_name = company_name or _get_company_name(company_code)
     hr_team, _ = _get_hr_contact(company_code)
 
+    from datetime import date as _date
+    today_date = _date.today().strftime("%Y년 %m월 %d일")
+    hire_info = ""
+    if hire_date:
+        try:
+            days = (_date.today() - _date.fromisoformat(hire_date)).days + 1
+            hire_info = f"\n사용자 입사 {days}일차입니다. (입사일: {hire_date})"
+        except Exception:
+            pass
+
     _PROFILE_KEYWORDS = ["팀장", "내 부서", "우리 팀", "내 팀", "나의 팀장", "누구야"]
     if any(kw in question for kw in _PROFILE_KEYWORDS):
         from memory.profile_store import format_profile_context, get_profile
@@ -572,6 +641,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         "hr_team": hr_team,
         "it_contact": _get_it_contact(company_code),
         "company_specific_rules": _get_company_specific_rules(company_code),
+        "today_date": today_date,
+        "hire_info": hire_info,
     }):
         full_answer += chunk
         yield chunk, None, None
@@ -582,8 +653,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield labor_fallback, None, None
         full_answer += labor_fallback
 
-    # 이름 교정: 스트리밍 완료 후 전체 텍스트 기준으로 교정본 전송
+    # 이름 교정 + 중복 제거: 스트리밍 완료 후 교정본 전송
     fixed = _fix_names(full_answer)
+    fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     if fixed != full_answer:
         yield "\x00" + fixed, None, None  # \x00 prefix → 프론트에서 전체 교체 신호
 
@@ -596,16 +668,20 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield case_a_msg, None, None
         fixed += case_a_msg
 
-    # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림
+    # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림 (LLM이 이미 언급한 경우 중복 방지)
     if _is_unanswered(full_answer, retrieved_docs):
         contact = _extract_contact_from_docs(retrieved_docs)
+        contact_msg = ""
         if contact:
-            contact_msg = f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+            if contact not in fixed:
+                contact_msg = f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
         else:
-            contact_msg = f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
-        yield contact_msg, None, None
-        fixed += contact_msg
-        asyncio.create_task(_fire_unanswered_alert(user_id, question))
+            if hr_team not in fixed:
+                contact_msg = f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        if contact_msg:
+            yield contact_msg, None, None
+            fixed += contact_msg
+        asyncio.create_task(_fire_unanswered_alert(user_id, question, company_code))
 
     save_interaction(user_id, question, fixed)
     related_docs = find_related_docs(question)

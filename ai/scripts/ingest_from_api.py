@@ -40,6 +40,22 @@ from core.vectorstore import get_vectorstore, COLLECTION_NAME
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
 
+_LEGAL_KEYWORDS = {"근로기준법", "최저임금법", "남녀고용평등법", "퇴직급여법", "기간제법"}
+_PRISM_KEYWORDS = {"프리즘", "prism"}
+
+
+def _infer_company_code(doc_meta: dict, fallback: str = "") -> str:
+    title = doc_meta.get("title", "")
+    filename = doc_meta.get("fileName", "")
+    doc_type = doc_meta.get("documentType", "")
+
+    if filename.lower().startswith("prism_") or any(k in title for k in _PRISM_KEYWORDS):
+        return "WB0002"
+    if doc_type == "LEGAL" or any(k in title for k in _LEGAL_KEYWORDS):
+        return ""
+    return fallback
+
+
 # 인덱싱 완료된 문서 ID 추적 파일
 _INDEXED_IDS_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -84,15 +100,18 @@ def _fetch_document_list(api_url: str, token: str, company_code: str = "") -> li
 
 def _download_file(api_url: str, doc_id: str, token: str) -> bytes:
     """문서 파일 다운로드 (다운로드 URL 조회 후 파일 수신)"""
+    import time
     headers = {"X-API-Key": token}
-    # 다운로드 URL 조회
     url_resp = requests.get(f"{api_url}/api/v1/documents/{doc_id}/download", headers=headers, timeout=30)
     url_resp.raise_for_status()
-    download_url = url_resp.json()["downloadUrl"]
-    # 상대경로면 base URL 붙이기
-    if download_url.startswith("/"):
+    data = url_resp.json()
+    download_url = data["downloadUrl"] if isinstance(data, dict) else data[0]["downloadUrl"]
+    # 상대경로(내부 API)는 X-API-Key 헤더 필요, 외부 pre-signed URL은 헤더 불필요
+    is_relative = download_url.startswith("/")
+    if is_relative:
         download_url = f"{api_url}{download_url}"
-    resp = requests.get(download_url, headers=headers, timeout=60)
+    dl_headers = headers if is_relative else {}
+    resp = requests.get(download_url, headers=dl_headers, timeout=60)
     resp.raise_for_status()
     return resp.content
 
@@ -102,6 +121,8 @@ def _extract_text(file_bytes: bytes, filename: str) -> str:
     ext = os.path.splitext(filename)[-1].lower()
 
     if ext == ".pdf":
+        if not file_bytes.startswith(b"%PDF-"):
+            return file_bytes.decode("utf-8", errors="ignore")
         import pypdf
         reader = pypdf.PdfReader(io.BytesIO(file_bytes))
         return "\n".join(page.extract_text() or "" for page in reader.pages)
@@ -161,9 +182,16 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
         doc_id = str(doc_meta["documentId"])
         title = doc_meta.get("title", doc_id)
         original_filename = doc_meta.get("fileName", "")
-        ext = os.path.splitext(original_filename)[-1].lower() if original_filename else ".pdf"
+        ext = os.path.splitext(original_filename)[-1].lower() if original_filename else ""
         if not ext:
-            ext = ".pdf"
+            _ct = doc_meta.get("contentType", "")
+            ext = {
+                "application/pdf": ".pdf",
+                "text/plain": ".txt",
+                "text/markdown": ".md",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+            }.get(_ct, ".pdf")
 
         print(f"  처리 중: {title}")
 
@@ -176,22 +204,34 @@ def run(api_url: str, token: str, company_code: str = "") -> None:
                 print(f"  ⚠ 텍스트 추출 실패, 건너뜀: {title}")
                 continue
 
+            doc_company_code = _infer_company_code(doc_meta, fallback=company_code)
             metadata = {
                 "source": filename,
                 "title": title,
                 "doc_id": doc_id,
                 "document_type": doc_meta.get("documentType", ""),
                 "department": doc_meta.get("department", ""),
+                "company_code": doc_company_code,
             }
-            if company_code:
-                metadata["company_code"] = company_code
 
             chunks = _split_text(text, metadata)
-            vs.add_documents(chunks)
+            import time
+            for chunk in chunks:
+                for attempt in range(3):
+                    try:
+                        vs.add_documents([chunk])
+                        break
+                    except Exception as embed_err:
+                        if "429" in str(embed_err) and attempt < 2:
+                            print(f"  ⏳ Rate limit, {10 * (attempt + 1)}초 대기 후 재시도...")
+                            time.sleep(10 * (attempt + 1))
+                        else:
+                            raise
+                time.sleep(0.5)
             splitter_total += len(chunks)
-
             _save_indexed_id(doc_id)
             print(f"  ✓ {title} ({len(chunks)}청크)")
+            import time; time.sleep(2)  # RPM 초과 방지
 
         except Exception as e:
             print(f"  ✗ 오류 ({title}): {e}")

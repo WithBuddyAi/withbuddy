@@ -19,6 +19,15 @@ spring:
   data:
     redis:
       url: ${REDIS_URL}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: 1000ms
+        shutdown-timeout: 100ms
+      connect-timeout: 2000ms
+      timeout: 1000ms
   rabbitmq:
     uri: ${RABBITMQ_URL}
   jpa:
@@ -38,7 +47,7 @@ springdoc:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 900000
+  access-expiration: 604800000
 
 ai:
   server:
@@ -60,11 +69,16 @@ app:
           value: ${STORAGE_API_KEY_VALUE:}
           global-access: ${STORAGE_API_GLOBAL_ACCESS:true}
           active: ${STORAGE_API_KEY_ACTIVE:true}
+    internal-api:
+      enabled: ${INTERNAL_API_AUTH_ENABLED:true}
+      header-name: ${INTERNAL_API_HEADER_NAME:X-API-Key}
+      token: ${INTERNAL_API_TOKEN:${INTERNAL_API_KEY:${STORAGE_API_KEY_VALUE:}}}
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.events}
     queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
     queue-nudge: ${RABBITMQ_QUEUE_NUDGE:q.nudge}
     queue-analytics: ${RABBITMQ_QUEUE_ANALYTICS:q.analytics}
+    queue-internal-tasks: ${RABBITMQ_QUEUE_INTERNAL_TASKS:q.internal.tasks}
     nudge-ttl-ms: ${RABBITMQ_NUDGE_TTL_MS:86400000}
     analytics-ttl-ms: ${RABBITMQ_ANALYTICS_TTL_MS:30000}
     listener-prefetch: ${RABBITMQ_LISTENER_PREFETCH:10}
@@ -86,6 +100,9 @@ app:
       executable: ${STORAGE_OCI_CLI_EXECUTABLE:oci}
       primary-profile: ${STORAGE_OCI_PRIMARY_PROFILE:DEFAULT}
       backup-profile: ${STORAGE_OCI_BACKUP_PROFILE:DEFAULT}
+      region: ${STORAGE_OCI_REGION:}
+      public-endpoint: ${STORAGE_OCI_PUBLIC_ENDPOINT:}
+      preauth-ttl-seconds: ${STORAGE_OCI_PREAUTH_TTL_SECONDS:900}
       suppress-file-permissions-warning: ${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING:true}
     primary:
       namespace: ${STORAGE_PRIMARY_NAMESPACE:primary}

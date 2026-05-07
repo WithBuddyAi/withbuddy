@@ -1,14 +1,9 @@
 package com.withbuddy.onboarding.service;
 
 import com.withbuddy.auth.repository.UserRepository;
-import com.withbuddy.chat.dto.QuickQuestionResponse;
+import com.withbuddy.chat.entity.ChatMessage;
 import com.withbuddy.chat.service.ChatMessageService;
-import com.withbuddy.chat.service.QuickQuestionCatalog;
-import com.withbuddy.infrastructure.mq.NudgeEventPublisher;
-import com.withbuddy.infrastructure.mq.event.NudgeEvent;
-import com.withbuddy.infrastructure.mq.event.NudgeType;
-import com.withbuddy.onboarding.dto.OnboardingSuggestionItemResponse;
-import com.withbuddy.onboarding.dto.OnboardingSuggestionListResponse;
+import com.withbuddy.onboarding.dto.OnboardingSuggestionExposureResponse;
 import com.withbuddy.onboarding.entity.OnboardingSuggestion;
 import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.user.entity.User;
@@ -19,8 +14,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,24 +25,25 @@ public class OnboardingSuggestionService {
     private final UserRepository userRepository;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
     private final ChatMessageService chatMessageService;
-    private final QuickQuestionCatalog quickQuestionCatalog;
-    private final NudgeEventPublisher nudgeEventPublisher;
 
-    public OnboardingSuggestionListResponse getMyOnboardingSuggestions(Long userId) {
+    public OnboardingSuggestionExposureResponse exposeMyOnboardingSuggestion(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
         int dayOffset = calculateDayOffset(user.getHireDate());
-
-        OnboardingSuggestion suggestion = onboardingSuggestionRepository.findTopByDayOffset(dayOffset)
+        OnboardingSuggestion suggestion = onboardingSuggestionRepository.findTopByDayOffset(
+                        resolveSuggestionDayOffset(dayOffset)
+                )
                 .orElse(null);
 
         if (suggestion == null) {
-            return new OnboardingSuggestionListResponse(List.of());
-        }
-
-        if (chatMessageService.hasSuggestionMessageToday(userId, LocalDate.now(KST), KST)) {
-            return new OnboardingSuggestionListResponse(List.of());
+            log.info("[ONBOARDING] exposure skipped because suggestion not found. userId={}, dayOffset={}", userId, dayOffset);
+            return new OnboardingSuggestionExposureResponse(
+                    false,
+                    null,
+                    null,
+                    "오늘 노출할 온보딩 제안이 없습니다."
+            );
         }
 
         String content = replacePlaceholders(
@@ -59,47 +53,53 @@ public class OnboardingSuggestionService {
                 dayOffset
         );
 
-        List<QuickQuestionResponse> quickTaps = quickQuestionCatalog.getOnboardingQuickTaps(dayOffset);
-
-        NudgeEvent nudgeEvent = new NudgeEvent(
-                UUID.randomUUID().toString(),
-                userId,
-                suggestion.getId(),
-                content,
-                null,
-                NudgeType.GENERAL,
-                System.currentTimeMillis()
-        );
-
-        try {
-            nudgeEventPublisher.publish(nudgeEvent);
-        } catch (RuntimeException ex) {
-            log.warn("[NUDGE] publish failed. fallback to direct save. userId={}, dayOffset={}",
-                    userId,
-                    dayOffset,
-                    ex
-            );
-
-            chatMessageService.saveSuggestionMessageIfNotExists(
+        ChatMessage existing = chatMessageService.findSuggestionMessage(userId, suggestion.getId());
+        if (existing != null) {
+            log.info("[ONBOARDING] exposure reused existing suggestion message. userId={}, suggestionId={}, messageId={}",
                     userId,
                     suggestion.getId(),
-                    content
+                    existing.getId()
+            );
+            return new OnboardingSuggestionExposureResponse(
+                    false,
+                    existing.getId(),
+                    suggestion.getId(),
+                    "이미 생성된 온보딩 제안 메시지가 있습니다."
             );
         }
 
-        OnboardingSuggestionItemResponse response = new OnboardingSuggestionItemResponse(
-                suggestion.getTitle(),
-                content,
-                dayOffset,
-                suggestion.getCreatedAt().toString(),
-                quickTaps
+        ChatMessage savedMessage = chatMessageService.saveSuggestionMessageIfNotExists(
+                userId,
+                suggestion.getId(),
+                content
         );
 
-        return new OnboardingSuggestionListResponse(List.of(response));
+        log.info("[ONBOARDING] exposure created suggestion message. userId={}, suggestionId={}, messageId={}",
+                userId,
+                suggestion.getId(),
+                savedMessage.getId()
+        );
+
+        return new OnboardingSuggestionExposureResponse(
+                true,
+                savedMessage.getId(),
+                suggestion.getId(),
+                "온보딩 제안 메시지가 생성되었습니다."
+        );
     }
 
     private int calculateDayOffset(LocalDate hireDate) {
         return (int) ChronoUnit.DAYS.between(hireDate, LocalDate.now(KST));
+    }
+
+    private int resolveSuggestionDayOffset(int dayOffset) {
+        if (dayOffset >= -7 && dayOffset <= -4) {
+            return -7;
+        }
+        if (dayOffset >= -3 && dayOffset <= -1) {
+            return -3;
+        }
+        return dayOffset;
     }
 
     private String replacePlaceholders(

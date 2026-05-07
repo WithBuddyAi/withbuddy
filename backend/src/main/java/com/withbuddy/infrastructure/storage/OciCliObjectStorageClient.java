@@ -1,23 +1,31 @@
 package com.withbuddy.infrastructure.storage;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @ConditionalOnProperty(prefix = "app.storage", name = "provider", havingValue = "oci-cli")
 public class OciCliObjectStorageClient implements ObjectStorageClient {
 
     private final StorageProperties storageProperties;
+    private final ObjectMapper objectMapper;
 
-    public OciCliObjectStorageClient(StorageProperties storageProperties) {
+    public OciCliObjectStorageClient(StorageProperties storageProperties, ObjectMapper objectMapper) {
         this.storageProperties = storageProperties;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -133,6 +141,40 @@ public class OciCliObjectStorageClient implements ObjectStorageClient {
         }
     }
 
+    @Override
+    public String createPreSignedGetUrl(String namespace, String bucket, String objectKey, int expiresInSeconds) {
+        String profile = resolveProfile(namespace, bucket);
+        String expiresAt = OffsetDateTime.now(ZoneOffset.UTC)
+                .plusSeconds(Math.max(1, expiresInSeconds))
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"));
+
+        ExecResult result = exec(List.of(
+                storageProperties.getOciCli().getExecutable(),
+                "os", "preauth-request", "create",
+                "--namespace-name", namespace,
+                "--bucket-name", bucket,
+                "--name", "withbuddy-" + UUID.randomUUID(),
+                "--access-type", "ObjectRead",
+                "--object-name", objectKey,
+                "--time-expires", expiresAt,
+                "--profile", profile
+        ));
+        if (result.exitCode != 0) {
+            throw new IllegalStateException("OCI pre-auth URL 생성 실패: " + result.output);
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(result.output);
+            String accessUri = root.path("data").path("access-uri").asText("");
+            if (!StringUtils.hasText(accessUri)) {
+                throw new IllegalStateException("OCI pre-auth URL access-uri 응답이 비어 있습니다.");
+            }
+            return resolveObjectStorageEndpoint() + accessUri;
+        } catch (IOException e) {
+            throw new IllegalStateException("OCI pre-auth URL 응답 파싱 실패", e);
+        }
+    }
+
     private String resolveProfile(String namespace, String bucket) {
         StorageProperties.Bucket primary = storageProperties.getPrimary();
         StorageProperties.Bucket backup = storageProperties.getBackup();
@@ -147,6 +189,33 @@ public class OciCliObjectStorageClient implements ObjectStorageClient {
             return storageProperties.getOciCli().getBackupProfile();
         }
         return storageProperties.getOciCli().getPrimaryProfile();
+    }
+
+    private String resolveObjectStorageEndpoint() {
+        String configured = trimTrailingSlash(storageProperties.getOciCli().getPublicEndpoint());
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+
+        String region = storageProperties.getOciCli().getRegion();
+        if (!StringUtils.hasText(region)) {
+            region = System.getenv("OCI_REGION");
+        }
+        if (!StringUtils.hasText(region)) {
+            throw new IllegalStateException("Object Storage endpoint 구성을 위해 STORAGE_OCI_REGION 또는 STORAGE_OCI_PUBLIC_ENDPOINT 설정이 필요합니다.");
+        }
+        return "https://objectstorage." + region.trim() + ".oraclecloud.com";
+    }
+
+    private String trimTrailingSlash(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String normalized = value.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private ExecResult exec(List<String> command) {

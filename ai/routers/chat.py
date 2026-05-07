@@ -44,6 +44,8 @@ class ChatUser(BaseModel):
     userId: int = Field(..., description="사용자 고유 ID", example=1)
     name: str = Field("", description="사용자 이름")
     companyCode: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
+    companyName: str = Field("", description="회사명")
+    hireDate: str = Field("", description="입사일 (YYYY-MM-DD)")
 
 
 class ChatRequest(BaseModel):
@@ -93,7 +95,7 @@ async def chat_stream(request: ChatRequest):
     """
     async def event_generator():
         try:
-            from chains.rag_chain import _resolve_selection
+            from chains.rag_chain import _resolve_selection, _fix_names
             from memory.chat_history import get_chat_history as _get_history
             # 2-7: 숫자 선택("1"~"4")을 이전 ambiguous 응답과 매핑
             uid = str(request.user.userId)
@@ -104,23 +106,44 @@ async def chat_stream(request: ChatRequest):
 
             result = run_orchestrator(uid, request.user.name, message)
             if result.intent != "rag":
-                from chains.rag_chain import _fix_names
-                is_team_cards = result.metadata.get("type") == "team_cards"
                 fixed_answer = _fix_names(result.answer)
                 save_interaction(uid, message, fixed_answer)
-                yield f"data: {json.dumps({'text': fixed_answer}, ensure_ascii=False)}\n\n"
-                yield f"data: {json.dumps({'done': True, 'source': result.intent, 'docs': [], 'team_cards': is_team_cards}, ensure_ascii=False)}\n\n"
+                yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': fixed_answer}, ensure_ascii=False)}\n\n"
+                yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': 'out_of_scope', 'content': fixed_answer, 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
                 return
 
-            async for chunk, source, related_docs in stream_rag_chain(uid, message, request.user.name, request.user.companyCode):
+            accumulated_text: list[str] = []
+            final_docs: list = []
+            async for chunk, source, related_docs in stream_rag_chain(
+                uid, message, request.user.name, request.user.companyCode,
+                company_name=request.user.companyName,
+                hire_date=request.user.hireDate,
+            ):
                 if source is not None:
-                    yield f"data: {json.dumps({'done': True, 'source': source, 'docs': related_docs or []}, ensure_ascii=False)}\n\n"
+                    final_docs = related_docs or []
+                    full_answer = "".join(accumulated_text)
+                    if any(kw in full_answer for kw in _NO_RESULT_KW):
+                        msg_type = "no_result"
+                    else:
+                        msg_type = "rag_answer"
+                    contacts = []
+                    if msg_type == "no_result":
+                        from routers.recommend import get_contact_for_question
+                        contact = await get_contact_for_question(request.user.companyCode, request.content)
+                        contacts = [contact]
+                    doc_ids = [{"documentId": d.get("doc_id") or d.get("documentId")} for d in final_docs if d.get("doc_id") or d.get("documentId")]
+                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
-                    yield f"data: {json.dumps({'stage': chunk[9:]}, ensure_ascii=False)}\n\n"
+                    pass  # 내부 스테이지 마커는 클라이언트에 전달하지 않음
+                elif isinstance(chunk, str) and chunk.startswith("\x00"):
+                    accumulated_text.clear()
+                    accumulated_text.append(chunk[1:])
+                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk[1:]}, ensure_ascii=False)}\n\n"
                 else:
-                    yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+                    accumulated_text.append(chunk)
+                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -199,6 +222,7 @@ class InternalAIAnswerUser(BaseModel):
     name: str = ""
     companyCode: str = ""
     companyName: str = ""
+    hireDate: str = ""
 
 
 class ConversationTurn(BaseModel):
@@ -222,8 +246,11 @@ class InternalAIAnswerResponse(BaseModel):
 _NO_RESULT_KW = [
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
-    "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "찾지 못했어요",
+    "찾을 수 없습니다", "찾을 수 없었어요", "찾을 수 없어요", "찾을 수 없어",
+    "포함되어 있지 않", "정보가 없", "찾지 못했어요",
     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
+    "문서에 없어서", "안내드리기 어려워",
+    "문서에 없네요", "문서에 없어요",
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
@@ -292,6 +319,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
                         str(request.user.userId), in_query,
                         user_name=user_name, company_code=company_code,
                         company_name=request.user.companyName,
+                        hire_date=request.user.hireDate,
                         injected_history=injected_history,
                     )
                 )
@@ -337,7 +365,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
         questionId=request.questionId,
         messageType=message_type,
         content=final_content,
-        documents=[{"documentId": did} for did in doc_ids],
+        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
         recommendedContacts=recommended_contacts,
     )
 
@@ -400,9 +428,19 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             from memory.chat_history import get_chat_history, save_interaction
             chat_history = get_chat_history(user_id)
             history_text = "\n".join(
-                f"{'사용자' if m['role'] == 'human' else 'AI'}: {m['content']}"
+                f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
                 for m in chat_history[-6:]
             ) if chat_history else ""
+            from chains.rag_chain import _get_company_name
+            from datetime import date as _date
+            _today_str = _date.today().strftime("%Y년 %m월 %d일")
+            _hire_info = ""
+            if request.user.hireDate:
+                try:
+                    _days = (_date.today() - _date.fromisoformat(request.user.hireDate)).days + 1
+                    _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})"
+                except Exception:
+                    pass
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: _get_chitchat_chain().invoke({
@@ -410,6 +448,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "user_style": "",
                     "chat_history": history_text,
                     "company_name": request.user.companyName or _get_company_name(request.user.companyCode),
+                    "today_date": _today_str,
+                    "hire_info": _hire_info,
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
@@ -422,6 +462,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     from langchain_core.messages import HumanMessage, AIMessage
     from utils.clarifying import (
         is_post_clarifying, check_and_generate_clarifying, expand_clarifying_query,
+        is_followup_question, expand_followup_query,
     )
 
     # ── Clarifying 처리 ──────────────────────────────────────────
@@ -434,9 +475,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         )
     elif not request.conversationHistory:
         # 대화 첫 질문일 때만 clarifying 체크 (대화 중간이면 건너뜀)
-        clarifying_q = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
-        )
+        try:
+            async with asyncio.timeout(2):
+                clarifying_q = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
+                )
+        except asyncio.TimeoutError:
+            clarifying_q = None
         if clarifying_q:
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
@@ -445,7 +490,17 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             )
         rag_query = request.content
     else:
-        rag_query = request.content
+        # 단답형 후속 질문("어떻게", "왜" 등) → 대화 맥락 기반으로 쿼리 확장
+        if is_followup_question(request.content):
+            try:
+                async with asyncio.timeout(2):
+                    rag_query = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: expand_followup_query(request.content, request.conversationHistory)
+                    )
+            except asyncio.TimeoutError:
+                rag_query = request.content
+        else:
+            rag_query = request.content
 
     injected_history = None
     if request.conversationHistory:
@@ -466,6 +521,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     user_name=request.user.name,
                     company_code=request.user.companyCode,
                     company_name=request.user.companyName,
+                    hire_date=request.user.hireDate,
                     injected_history=injected_history,
                 )
             )
@@ -481,6 +537,24 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     else:
         message_type = "rag_answer"
 
+    # RAG no_result → 에이전트 fallback (도구 기반 재검색)
+    if message_type == "no_result":
+        from chains.agent_rag_chain import _run_agent_search
+        from memory.chat_history import get_chat_history as _gc, replace_last_ai_message
+        uid = str(request.user.userId)
+        prior_hist = _gc(uid)[:-2]  # 현재 턴(no_result) 제외한 이전 히스토리
+        try:
+            async with asyncio.timeout(20):
+                agent_answer = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: _run_agent_search(rag_query, request.user.companyCode, prior_hist)
+                )
+            if agent_answer and not any(kw in agent_answer for kw in _NO_RESULT_KW):
+                answer = agent_answer
+                message_type = "rag_answer"
+                replace_last_ai_message(uid, agent_answer)
+        except Exception:
+            pass  # agent 실패 시 기존 no_result 유지
+
     recommended_contacts = []
     if message_type in ("no_result", "out_of_scope"):
         from routers.recommend import get_contact_for_question
@@ -491,7 +565,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
-        documents=[{"documentId": did} for did in doc_ids],
+        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
         recommendedContacts=recommended_contacts,
     )
 

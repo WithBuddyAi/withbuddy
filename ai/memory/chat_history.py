@@ -1,62 +1,51 @@
 """
 대화 히스토리 관리 모듈
 ────────────────────────────────────────────
-사용자별 멀티턴 대화를 관리합니다.
-JSON 파일로 영속화하여 서버 재시작 후에도 이전 대화가 유지됩니다.
-data/history/{user_id}.json 에 저장됩니다.
+BE Internal Cache API를 통해 Redis에 영속화합니다.
+로컬 인메모리 캐시로 BE 요청을 최소화합니다.
 """
 
-import json
-from pathlib import Path
 from typing import Dict, List
 
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.messages import BaseMessage
 
-# 히스토리 저장 디렉토리
-_HISTORY_DIR = Path(__file__).parent.parent / "data" / "history"
-_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+from core.be_client import cache_del, cache_get, cache_set
 
-# 인메모리 캐시: 파일을 매번 읽지 않기 위해 한 번 로드 후 캐시
-_memory_store: Dict[str, InMemoryChatMessageHistory] = {}
+_MAX_TURNS = 5
+_TTL = 86400  # 24시간
 
-_MAX_TURNS = 5  # 최대 유지 대화 쌍 수
+_local: Dict[str, InMemoryChatMessageHistory] = {}
 
 
-def _history_path(user_id: str) -> Path:
-    return _HISTORY_DIR / f"{user_id}.json"
+def _cache_key(user_id: str) -> str:
+    return f"history:{user_id}"
 
 
-def _load_from_file(user_id: str) -> InMemoryChatMessageHistory:
+def _load(user_id: str) -> InMemoryChatMessageHistory:
     mem = InMemoryChatMessageHistory()
-    path = _history_path(user_id)
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            for item in data:
-                if item.get("role") == "human":
-                    mem.add_user_message(item["content"])
-                elif item.get("role") == "ai":
-                    mem.add_ai_message(item["content"])
-        except Exception:
-            pass
+    data = cache_get("chat", _cache_key(user_id))
+    if data and isinstance(data, list):
+        for item in data:
+            if item.get("role") == "human":
+                mem.add_user_message(item["content"])
+            elif item.get("role") == "ai":
+                mem.add_ai_message(item["content"])
     return mem
 
 
-def _save_to_file(user_id: str, mem: InMemoryChatMessageHistory) -> None:
+def _persist(user_id: str, mem: InMemoryChatMessageHistory) -> None:
     data = [
         {"role": "human" if msg.type == "human" else "ai", "content": msg.content}
         for msg in mem.messages
     ]
-    _history_path(user_id).write_text(
-        json.dumps(data, ensure_ascii=False), encoding="utf-8"
-    )
+    cache_set("chat", _cache_key(user_id), data, _TTL)
 
 
 def get_memory(user_id: str) -> InMemoryChatMessageHistory:
-    if user_id not in _memory_store:
-        _memory_store[user_id] = _load_from_file(user_id)
-    return _memory_store[user_id]
+    if user_id not in _local:
+        _local[user_id] = _load(user_id)
+    return _local[user_id]
 
 
 def get_chat_history(user_id: str) -> List[BaseMessage]:
@@ -68,20 +57,25 @@ def save_interaction(user_id: str, human_message: str, ai_message: str) -> None:
     mem.add_user_message(human_message)
     mem.add_ai_message(ai_message)
 
-    # 오래된 메시지 정리
     max_messages = _MAX_TURNS * 2
     if len(mem.messages) > max_messages:
         mem.messages = mem.messages[-max_messages:]
 
-    _save_to_file(user_id, mem)
+    _persist(user_id, mem)
+
+
+def replace_last_ai_message(user_id: str, new_ai_message: str) -> None:
+    """마지막 AI 메시지를 교체합니다 (agent fallback 시 no_result → 정상 답변 교체용)."""
+    from langchain_core.messages import AIMessage
+    mem = get_memory(user_id)
+    if mem.messages and mem.messages[-1].type == "ai":
+        mem.messages[-1] = AIMessage(content=new_ai_message)
+        _persist(user_id, mem)
 
 
 def clear_memory(user_id: str) -> None:
-    if user_id in _memory_store:
-        _memory_store[user_id].clear()
-    path = _history_path(user_id)
-    if path.exists():
-        path.unlink()
+    _local.pop(user_id, None)
+    cache_del("chat", _cache_key(user_id))
 
 
 def get_history_as_text(user_id: str) -> str:

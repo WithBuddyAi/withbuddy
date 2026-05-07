@@ -2,21 +2,20 @@ package com.withbuddy.chat.controller;
 
 import com.withbuddy.activity.dto.LogResponse;
 import com.withbuddy.activity.service.UserActivityLogService;
-import com.withbuddy.chat.dto.ChatMessageCreateResponse;
 import com.withbuddy.chat.dto.ChatMessageListResponse;
-import com.withbuddy.chat.dto.QuickQuestionClickRequest;
 import com.withbuddy.chat.dto.ChatMessageRequest;
+import com.withbuddy.chat.dto.QuickQuestionClickRequest;
 import com.withbuddy.chat.dto.QuickQuestionResponse;
-import com.withbuddy.chat.dto.ChatMessageStatusResponse;
 import com.withbuddy.chat.service.ChatMessageQueryService;
 import com.withbuddy.chat.service.ChatMessageService;
 import com.withbuddy.global.security.AuthenticationPrincipalResolver;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import com.withbuddy.storage.dto.DocumentDownloadResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -35,23 +35,23 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
-@Tag(name = "Ai", description = "버디 채팅 API")
 public class ChatMessageController implements ChatMessageControllerDocs {
 
     private final ChatMessageService chatMessageService;
     private final ChatMessageQueryService chatMessageQueryService;
     private final UserActivityLogService userActivityLogService;
 
-    @PostMapping("/messages")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ChatMessageCreateResponse sendMessage(
+    @Override
+    @PostMapping(value = "/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamMessage(
             Authentication authentication,
             @Valid @RequestBody ChatMessageRequest request
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
-        return chatMessageService.saveUserMessage(principal, request);
+        return chatMessageService.streamUserMessage(principal, request);
     }
 
+    @Override
     @GetMapping("/messages")
     @ResponseStatus(HttpStatus.OK)
     public ChatMessageListResponse getMessages(
@@ -63,6 +63,7 @@ public class ChatMessageController implements ChatMessageControllerDocs {
         return chatMessageQueryService.getMessages(principal.userId(), date);
     }
 
+    @Override
     @PostMapping("/session-start")
     public ResponseEntity<LogResponse> saveSessionStart(Authentication authentication) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
@@ -75,6 +76,7 @@ public class ChatMessageController implements ChatMessageControllerDocs {
         return ResponseEntity.ok(response);
     }
 
+    @Override
     @GetMapping("/quick-questions")
     @ResponseStatus(HttpStatus.OK)
     public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Authentication authentication) {
@@ -82,6 +84,7 @@ public class ChatMessageController implements ChatMessageControllerDocs {
         return chatMessageService.getQuickQuestions(principal.userId());
     }
 
+    @Override
     @PostMapping("/quick-questions/click")
     @ResponseStatus(HttpStatus.CREATED)
     public LogResponse saveQuickQuestionClick(
@@ -92,13 +95,13 @@ public class ChatMessageController implements ChatMessageControllerDocs {
         return userActivityLogService.saveQuickQuestionClick(principal.userId(), request.getEventTarget());
     }
 
-    @GetMapping("/messages/{questionId}/status")
-    @ResponseStatus(HttpStatus.OK)
-    public ChatMessageStatusResponse getMessageStatus(
+    @Override
+    @GetMapping("/documents/{documentId}/download")
+    public DocumentDownloadResponse getDocumentDownloadUrl(
             Authentication authentication,
-            @PathVariable Long questionId
+            @PathVariable Long documentId
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
-        return chatMessageQueryService.getMessageStatus(principal.userId(), questionId);
+        return chatMessageQueryService.getDocumentDownloadUrl(principal.userId(), documentId);
     }
 }

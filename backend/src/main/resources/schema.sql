@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS `chat_messages` (
     sender_type VARCHAR(20) NOT NULL,
     message_type VARCHAR(30) NOT NULL,
     content TEXT NOT NULL,
+    recommended_contacts_json TEXT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_chat_messages PRIMARY KEY (id),
     CONSTRAINT fk_chat_messages_user

@@ -2,8 +2,8 @@
 
 WithBuddy 프로젝트의 환경변수 설정 가이드입니다.
 
-**최종 업데이트**: 2026-04-07
-**버전**: 0.3.1
+**최종 업데이트**: 2026-05-01
+**버전**: 0.3.4
 **작성일**: 2026-03-23
 
 ## 📋 목차
@@ -59,6 +59,17 @@ SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE=10MB
 
 # CORS 설정
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# Redis / RabbitMQ
+REDIS_URL=redis://:CHANGE_ME_REDIS_PASSWORD@<DB_PRIVATE_IP>:6379/0
+RABBITMQ_URL=amqp://withbuddy_app:CHANGE_ME_RMQ_PASSWORD@<DB_PRIVATE_IP>:5672/%2F
+RABBITMQ_EXCHANGE=withbuddy.events
+RABBITMQ_QUEUE_INTERNAL_TASKS=q.internal.tasks
+
+# Internal API 인증 (AI -> Backend)
+INTERNAL_API_AUTH_ENABLED=true
+INTERNAL_API_HEADER_NAME=X-API-Key
+INTERNAL_API_TOKEN=CHANGE_ME_INTERNAL_TOKEN  # 또는 INTERNAL_API_KEY / STORAGE_API_KEY_VALUE
 
 # 이메일 설정 (선택)
 SPRING_MAIL_HOST=smtp.gmail.com
@@ -154,7 +165,18 @@ MODEL_TEMPERATURE=0.7
 AI_SERVER_PORT=8000
 AI_BIND_HOST=0.0.0.0
 CHROMA_PERSIST_DIR=./chroma_db
+
+# Backend 내부 API 연동 (AI 코드 기준)
+BACKEND_INTERNAL_URL=http://<BACKEND_PRIVATE_IP>:8080
+INTERNAL_API_KEY=CHANGE_ME_INTERNAL_TOKEN
 ```
+
+Internal API 인증 모드 매트릭스:
+- `INTERNAL_API_AUTH_ENABLED=true`:
+  - `X-API-Key` 필수
+  - Bearer만으로는 Internal API 접근 불가
+- `INTERNAL_API_AUTH_ENABLED=false`:
+  - Internal API가 기존 Bearer 흐름으로 동작(로컬/이행 단계)
 
 ### 선택 환경변수
 
@@ -164,17 +186,6 @@ MAX_TOKENS=2048
 TOP_P=0.9
 FREQUENCY_PENALTY=0.0
 PRESENCE_PENALTY=0.0
-
-# 캐싱 설정
-REDIS_URL=redis://localhost:6379
-CACHE_TTL=3600  # 1시간
-
-# 메시징 설정 (RabbitMQ)
-RABBITMQ_URL=amqp://withbuddy_app:password@localhost:5672/%2F
-RABBITMQ_EXCHANGE=wb.ai.events
-RABBITMQ_QUEUE_REPORT=wb.report.generate
-RABBITMQ_QUEUE_REINDEX=wb.docs.reindex
-RABBITMQ_QUEUE_SLACK=wb.notification.slack
 
 # 로깅
 LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
@@ -193,37 +204,19 @@ MODEL_NAME=claude
 MODEL_TEMPERATURE=0.7
 AI_SERVER_PORT=8000
 CHROMA_PERSIST_DIR=./chroma_db
-
-# Redis (선택)
-REDIS_URL=redis://localhost:6379
-CACHE_TTL=3600
-
-# RabbitMQ (선택)
-RABBITMQ_URL=amqp://withbuddy_app:password@localhost:5672/%2F
-RABBITMQ_EXCHANGE=wb.ai.events
-RABBITMQ_QUEUE_REPORT=wb.report.generate
 ```
 
-### 운영 권장값 (Redis/RabbitMQ)
+### 현재 운영 기준 (2026-04-06 이후)
 
-```bash
-# Redis
-REDIS_URL=redis://:CHANGE_ME_REDIS_PASSWORD@10.0.3.10:6379/0
-CACHE_TTL=300
+- AI 서버는 `POST /internal/ai/answer`만 제공한다.
+- AI 서버는 Redis/RabbitMQ에 직접 연결하지 않는다.
+- Redis/RabbitMQ는 Backend 서버에서만 사용한다.
+- 따라서 AI 서버 `.env`에는 `REDIS_URL`, `RABBITMQ_URL`을 넣지 않는다.
 
-# RabbitMQ
-RABBITMQ_URL=amqp://withbuddy_app:CHANGE_ME_RMQ_PASSWORD@10.0.3.10:5672/%2F
-RABBITMQ_EXCHANGE=wb.ai.events
-RABBITMQ_QUEUE_REPORT=wb.report.generate
-RABBITMQ_QUEUE_REINDEX=wb.docs.reindex
-RABBITMQ_QUEUE_SLACK=wb.notification.slack
-RABBITMQ_QUEUE_DLQ=wb.deadletter
-```
+### 고도화 기간 검토 항목 (미적용)
 
-운영 원칙:
-- 채팅/간단 액션은 Redis 경로를 우선 사용한다.
-- 주간 회고/리포트/재인덱싱은 RabbitMQ 메시징 시스템 기반 비동기 작업으로 분리한다.
-- Redis/RabbitMQ 접속 정보는 코드 하드코딩 없이 Secrets/Environment로만 주입한다.
+- AI 서버에서 Redis/RabbitMQ를 직접 쓰는 구조는 현재 운영 범위 밖이다.
+- 필요 시 `docs/PLANNED_API.md`와 아키텍처 문서 합의 후 별도 버전으로 도입한다.
 
 ---
 
@@ -265,11 +258,11 @@ ${{ secrets.AI_SERVICE_NAME }}=withbuddy-ai
 - `SENTRY_DSN` - 에러 트래킹 DSN
 - `AWS_ACCESS_KEY_ID` - AWS 액세스 키 (배포 시)
 - `AWS_SECRET_ACCESS_KEY` - AWS 시크릿 키 (배포 시)
-- `REDIS_URL` - Redis 캐시 접속 정보
-- `RABBITMQ_URL` - RabbitMQ 브로커 접속 정보
-- `RABBITMQ_EXCHANGE` - RabbitMQ exchange 이름
-- `RABBITMQ_QUEUE_REPORT` - 주간 회고/리포트 큐 이름
-- `RABBITMQ_QUEUE_DLQ` - DLQ 큐 이름
+- `REDIS_URL` - Backend 서버용 Redis 접속 정보
+- `RABBITMQ_URL` - Backend 서버용 RabbitMQ 접속 정보
+- `RABBITMQ_EXCHANGE` - Backend 서버용 RabbitMQ exchange
+- `RABBITMQ_QUEUE_REPORT` - Backend 서버용 리포트 큐 이름
+- `RABBITMQ_QUEUE_DLQ` - Backend 서버용 DLQ 큐 이름
 
 ---
 
@@ -399,6 +392,9 @@ VITE_API_BASE_URL=xxx
 
 ## 변경 이력
 
+- 2026-05-01: Storage API 규칙과 공통으로 Internal API 인증 헤더 기본값을 `X-API-Key`로 통일하고, `INTERNAL_API_AUTH_ENABLED` 모드 매트릭스를 추가.
+- 2026-05-01: AI가 Redis/RabbitMQ를 직접 붙지 않고 Backend Internal API(`/internal/v1`)를 통해 사용하도록 환경변수 예시를 추가.
+- 2026-05-01: 현재 운영 아키텍처(`Frontend -> Backend -> AI`) 기준으로 AI의 Redis/RabbitMQ 직접 연결 안내를 제거하고, 해당 항목을 고도화(미적용)로 분리.
 - 2026-04-02: 공개 저장소 기준 서버 주소 표기를 플레이스홀더로 통일하고 문서 정합성을 보강.
 - 2026-04-01: 문서 메타데이터 위치를 표준화하고(`작성일/최종 업데이트/버전` 상단, `변경 이력` 하단) 형식을 통일.
 - 2026-04-01: AI 지연 대응 설계를 반영해 Redis(캐시)와 RabbitMQ(메시징) 환경변수/Secrets 항목을 추가.

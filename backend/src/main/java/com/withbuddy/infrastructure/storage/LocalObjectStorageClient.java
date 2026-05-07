@@ -53,6 +53,11 @@ public class LocalObjectStorageClient implements ObjectStorageClient {
         }
     }
 
+    @Override
+    public String createPreSignedGetUrl(String namespace, String bucket, String objectKey, int expiresInSeconds) {
+        return "";
+    }
+
     private Path resolvePath(String namespace, String bucket, String objectKey) {
         String sanitizedKey = objectKey.replace("..", "").replace("\\", "/");
         return Path.of(storageProperties.getLocalBaseDir(), namespace, bucket, sanitizedKey);

@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -284,6 +285,29 @@ public class GlobalExceptionHandler {
         log.warn("AI timeout: path={}, message={}", request.getRequestURI(), e.getMessage());
 
         return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(response);
+    }
+
+    @ExceptionHandler(RedisConnectionFailureException.class)
+    public ResponseEntity<ErrorResponse> handleRedisConnectionFailureException(
+            RedisConnectionFailureException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("server", "세션 저장소 연결에 실패했습니다. 잠시 후 다시 시도해주세요.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase(),
+                "SESSION_STORE_UNAVAILABLE",
+                errors,
+                request.getRequestURI()
+        );
+
+        log.error("[REDIS_ERROR] path={}, message={}", request.getRequestURI(), e.getMessage(), e);
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
     }
 
     @ExceptionHandler(Exception.class)

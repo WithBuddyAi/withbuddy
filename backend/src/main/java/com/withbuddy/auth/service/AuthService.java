@@ -81,9 +81,14 @@ public class AuthService {
     public void logout(Long userId) {
         String token = redisCacheService.get(RedisCacheKeys.userSession(userId)).orElse(null);
         redisCacheService.delete(RedisCacheKeys.userSession(userId));
+        redisCacheService.delete(RedisCacheKeys.userProfile(userId));
         if (token != null) {
             redisCacheService.delete(RedisCacheKeys.sessionToken(token));
         }
+
+        userActivityLogService.saveLoginSessionEnd(userId);
+        redisActivityLogService.append(userId, EventType.SESSION_END, EventTarget.LOGOUT);
+        rmqActivityLogService.publish(userId, EventType.SESSION_END, EventTarget.LOGOUT);
     }
 
     private void cacheUserProfile(Long userId, LoginUserResponse userResponse) {

@@ -25,10 +25,6 @@ public final class RedisCacheKeys {
         return "sse:missed:" + userId;
     }
 
-    public static String ragStatus(Long requestId) {
-        return "rag:status:" + requestId;
-    }
-
     public static String nudgeSent(Long userId, int day) {
         return "nudge:sent:" + userId + ":" + day;
     }
@@ -41,12 +37,8 @@ public final class RedisCacheKeys {
         return "conversation:" + sessionId;
     }
 
-    public static String conversationLock(Long userId) {
-        return "lock:conv:" + userId;
-    }
-
-    public static String presignedUrl(Long fileId) {
-        return "presigned:url:" + fileId;
+    public static String presignedUrl(Long fileId, String source) {
+        return "presigned:url:" + fileId + ":" + normalize(source);
     }
 
     public static String docsListFirstPage(String scope, String formType) {

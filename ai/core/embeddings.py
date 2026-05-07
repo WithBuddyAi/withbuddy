@@ -1,25 +1,26 @@
 """
 임베딩 모델 초기화 모듈
 ────────────────────────────────────────────
-HuggingFace의 한국어 문장 임베딩 모델(jhgan/ko-sroberta-multitask)을 로드합니다.
-싱글톤 패턴(@lru_cache)을 사용해 앱 실행 중 모델을 한 번만 로드합니다.
+Google Gemini Embedding 2 (gemini-embedding-2) 모델을 사용합니다.
+싱글톤 패턴(@lru_cache)을 사용해 앱 실행 중 한 번만 초기화합니다.
 """
 
+import os
 from functools import lru_cache
-from langchain_huggingface import HuggingFaceEmbeddings
+
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 
 @lru_cache(maxsize=1)
-def get_embeddings() -> HuggingFaceEmbeddings:
+def get_embeddings() -> GoogleGenerativeAIEmbeddings:
     """
-    HuggingFace 임베딩 모델 인스턴스 반환 (싱글톤)
+    Google Gemini Embedding 2 인스턴스 반환 (싱글톤)
 
     Returns:
-        HuggingFaceEmbeddings: 한국어 문장 임베딩 모델
+        GoogleGenerativeAIEmbeddings: gemini-embedding-2
     """
-    print("임베딩 모델 로드 중: jhgan/ko-sroberta-multitask")
-    return HuggingFaceEmbeddings(
-        model_name="jhgan/ko-sroberta-multitask",
-        model_kwargs={"device": "cpu"},           # GPU 미사용 환경 기본값
-        encode_kwargs={"normalize_embeddings": True},  # 코사인 유사도 계산 최적화
+    print("임베딩 모델 초기화: models/gemini-embedding-2")
+    return GoogleGenerativeAIEmbeddings(
+        model="models/gemini-embedding-2",
+        google_api_key=os.getenv("GOOGLE_API_KEY"),
     )
