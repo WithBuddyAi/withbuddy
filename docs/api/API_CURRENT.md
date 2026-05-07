@@ -2092,7 +2092,7 @@ Authorization: Bearer {accessToken}
 
 - 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
 - `D+0`은 `DATEDIFF(이벤트 발생일, users.hire_date) = 1`인 경우를 의미한다.
-- `D+7`은 입사일 기준 1일차부터 8일차까지의 기간을 의미한다.
+- `D+6`은 입사일 기준 1일차부터 7일차까지의 기간을 의미한다.
 - 비율은 `numerator / denominator * 100`으로 계산한다.
 - 소수점은 기본적으로 소수점 첫째 자리까지 반올림한다.
 - 분모가 0인 경우 비율은 `0.0`으로 반환한다.
@@ -2100,7 +2100,7 @@ Authorization: Bearer {accessToken}
 
 ---
 
-### 9-2. 북극성: D+7 RAG 답변 수신 경험률
+### 9-2. 북극성: D+6 RAG 답변 수신 경험률
 
 입사 후 7일 이내에 `rag_answer` 메시지를 1건 이상 수신한 신입 사용자 비율을 회사별로 조회한다.
 
@@ -2216,9 +2216,9 @@ Authorization: Bearer {accessToken}
 
 ---
 
-### 9-4. D+7 재방문률
+### 9-4. D+6 재방문률
 
-D+0에 MyBuddy 채팅 화면에 진입한 신입 중, D+1부터 D+7 사이에 1회 이상 다시 진입한 사용자 비율을 회사별로 조회한다.
+D+0에 MyBuddy 채팅 화면에 진입한 신입 중, D+1부터 D+6 사이에 1회 이상 다시 진입한 사용자 비율을 회사별로 조회한다.
 
 ```http
 GET /api/v1/admin/metrics/revisit-rate
