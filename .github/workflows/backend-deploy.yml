@@ -155,6 +155,23 @@ jobs:
             exit 1
           fi
 
+      - name: Debug Cloudflare Access SSH (temporary)
+        env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          echo "BACKEND_ACCESS_HOST=${BACKEND_ACCESS_HOST}"
+          cloudflared --version
+      
+          cloudflared access token --app "https://${BACKEND_ACCESS_HOST}" \
+            --id "${CF_ACCESS_CLIENT_ID}" \
+            --secret "${CF_ACCESS_CLIENT_SECRET}" >/dev/null
+          echo "Access token OK"
+          
+          ssh -vvv -o BatchMode=yes -o ConnectTimeout=10 "${BACKEND_ACCESS_HOST}" "echo ssh_ok"
+
       - name: Upload app.jar to server
         uses: appleboy/scp-action@v0.1.7
         with:
