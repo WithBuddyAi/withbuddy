@@ -1,5 +1,7 @@
 package com.withbuddy.storage.service;
 
+import com.withbuddy.auth.repository.UserRepository;
+import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.infrastructure.storage.ObjectStorageClient;
 import com.withbuddy.infrastructure.storage.StorageProperties;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
@@ -39,6 +41,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import com.withbuddy.user.entity.User;
+import com.withbuddy.user.entity.UserRole;
 
 import java.io.IOException;
 import java.security.MessageDigest;
@@ -86,6 +90,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     private final ObjectStorageClient objectStorageClient;
     private final StorageProperties storageProperties;
     private final RedisCacheService redisCacheService;
+    private final UserRepository userRepository;
 
     public DocumentStorageService(
             DocumentRepository documentRepository,
@@ -93,7 +98,8 @@ public class DocumentStorageService implements DocumentDownloadService {
             DocumentBackupJobRepository documentBackupJobRepository,
             ObjectStorageClient objectStorageClient,
             StorageProperties storageProperties,
-            RedisCacheService redisCacheService
+            RedisCacheService redisCacheService,
+            UserRepository userRepository
     ) {
         this.documentRepository = documentRepository;
         this.documentFileRepository = documentFileRepository;
@@ -101,6 +107,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         this.objectStorageClient = objectStorageClient;
         this.storageProperties = storageProperties;
         this.redisCacheService = redisCacheService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -111,7 +118,7 @@ public class DocumentStorageService implements DocumentDownloadService {
             String department,
             String requestCompanyCode
     ) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
         validateFile(file);
 
         String finalCompanyCode;
@@ -214,7 +221,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     public DocumentBackupRetryResponse retryBackup(Long documentId) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -233,7 +240,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
     @Transactional
     public DocumentDeleteResponse deleteDocument(Long documentId, boolean confirm) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
         if (!confirm) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "문서 삭제는 confirm=true가 필요합니다.");
         }
@@ -250,7 +257,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     public DocumentDeleteCheckResponse getDeleteCheck(Long documentId) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -272,7 +279,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     public DocumentBulkDeleteCheckResponse getBulkDeleteCheck(DocumentBulkDeleteRequest request) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
         LinkedHashSet<Long> deduplicatedIds = deduplicateDocumentIds(request.getDocumentIds());
 
         DeleteInspection inspection = inspectDeleteOutcomes(requesterScope, deduplicatedIds);
@@ -295,7 +302,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     public DocumentBulkDeleteCheckResponse getDeleteAllCheck() {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
         List<Long> allDocumentIds = requesterScope.globalAccess()
                 ? documentRepository.findAllActiveDocumentIds()
                 : documentRepository.findActiveDocumentIdsByCompanyCode(requesterScope.companyCode());
@@ -323,7 +330,7 @@ public class DocumentStorageService implements DocumentDownloadService {
             DocumentBulkDeleteRequest request,
             boolean confirm
     ) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
         if (!confirm) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "선택 삭제는 confirm=true가 필요합니다.");
         }
@@ -333,7 +340,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
     @Transactional
     public DocumentBulkDeleteResponse deleteAllDocuments(boolean confirm) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
         if (!confirm) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "전체 삭제는 confirm=true가 필요합니다.");
         }
@@ -371,7 +378,7 @@ public class DocumentStorageService implements DocumentDownloadService {
             String documentType,
             String search
     ) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
 
         Page<Document> documentPage;
         if (requesterScope.globalAccess()) {
@@ -422,7 +429,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     public DocumentDetailResponse getDetail(Long documentId) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentManagementScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -463,7 +470,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     public DocumentDownloadResponse getDownloadUrl(Long documentId) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentAccessScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -523,7 +530,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {
-        RequesterScope requesterScope = resolveRequesterScope();
+        RequesterScope requesterScope = resolveDocumentAccessScope();
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -847,13 +854,27 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
     }
 
-    private RequesterScope resolveRequesterScope() {
+    private RequesterScope resolveDocumentManagementScope() {
         RequesterScope scopeFromApiKey = resolveScopeFromApiKeyAuthentication();
         if (scopeFromApiKey != null) {
             return scopeFromApiKey;
         }
 
-        RequesterScope scopeFromJwt = resolveScopeFromJwtAuthentication();
+        RequesterScope scopeFromJwt = resolveScopeFromJwtAuthentication(true);
+        if (scopeFromJwt != null) {
+            return scopeFromJwt;
+        }
+
+        throw new StorageException(HttpStatus.UNAUTHORIZED, "TOKEN_MISSING", "auth", "인증 토큰이 없습니다.");
+    }
+
+    private RequesterScope resolveDocumentAccessScope() {
+        RequesterScope scopeFromApiKey = resolveScopeFromApiKeyAuthentication();
+        if (scopeFromApiKey != null) {
+            return scopeFromApiKey;
+        }
+
+        RequesterScope scopeFromJwt = resolveScopeFromJwtAuthentication(false);
         if (scopeFromJwt != null) {
             return scopeFromJwt;
         }
@@ -882,7 +903,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         return authorizationHeader.substring(7);
     }
 
-    private RequesterScope resolveScopeFromJwtAuthentication() {
+    private RequesterScope resolveScopeFromJwtAuthentication(boolean requireAdmin) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             return null;
@@ -890,7 +911,19 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         Object principal = authentication.getPrincipal();
         if (principal instanceof JwtAuthenticationPrincipal jwtPrincipal) {
-            return new RequesterScope(jwtPrincipal.companyCode(), false);
+            User currentUser = userRepository.findById(jwtPrincipal.userId())
+                    .orElseThrow(() -> new StorageException(
+                            HttpStatus.UNAUTHORIZED,
+                            "USER_NOT_FOUND",
+                            "auth",
+                            "사용자 정보를 찾을 수 없습니다."
+                    ));
+
+            if (requireAdmin && currentUser.getRole() != UserRole.ADMIN) {
+                throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
+            }
+
+            return new RequesterScope(currentUser.getCompany().getCompanyCode(), false);
         }
         return null;
     }
