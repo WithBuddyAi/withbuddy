@@ -20,6 +20,7 @@ from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
 from utils.sensitive_filter import check_sensitive, check_global_block
+from utils.circuit_breaker import check_circuit_breaker
 
 router = APIRouter(tags=["chat"])
 
@@ -93,6 +94,8 @@ async def chat_stream(request: ChatRequest):
     오케스트레이터 기반 멀티에이전트 질의응답 (SSE 스트리밍)
     토큰 단위로 실시간 응답을 전송합니다.
     """
+    check_circuit_breaker()
+
     async def event_generator():
         try:
             from chains.rag_chain import _resolve_selection, _fix_names
@@ -375,6 +378,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
+    check_circuit_breaker()
     # 욕설·극단적 위기 → 전체 차단 (복합 질문 여부 무관)
     action, answer = check_global_block(request.content, request.user.name)
     if action == "block":

@@ -11,8 +11,16 @@ import ErrorToast from "../components/ErrorToast"
 import MessageList from "../components/MessageList";
 import QuickQuestions from "../components/QuickQuestions";
 import ChatInput from "../components/ChatInput";
+import SessionModal from '../components/SessionModal'
+import { setModalHandler } from '../api/axiosInstance'
 
 function MyBuddy ({setIsLoggedIn}) {
+  // 세션 정책 부분
+  // 에러 타입 'redis' | 'sessionExpired' | 'duplicateLogin'
+  const [modalType, setModalType] = useState(null)
+  // 재시도 기능
+  const [retryBt, setRetryBt] = useState(null)
+
   const { dayOffset } = useUser()
   const dayCount = dayOffset !== undefined && dayOffset !== null ? dayOffset : localStorage.getItem('dayCount')
   // 사이드바에 표시되는 정보 state
@@ -51,6 +59,11 @@ function MyBuddy ({setIsLoggedIn}) {
       setMessageList([
         ...message.messages])
     } catch (error) {
+      if (error.response?.status === 503) {
+        setRetryBt(() => () => handleDateChange(date))
+        setModalType('redis')
+        return
+      }
       const serverMessage = error.response?.data?.errors?.[0]?.message
       setErrorMessage(serverMessage || '에러가 발생했어요')
     }
@@ -65,6 +78,11 @@ function MyBuddy ({setIsLoggedIn}) {
     setIsLoggedIn(false)
     navigate('/login')
   }
+
+  // setModalHandler 연결
+  useEffect(() => {
+    setModalHandler((type) => setModalType(type))
+  }, [])
 
   // 첫 렌딩 시 화면
   useEffect (() => {
@@ -83,22 +101,6 @@ function MyBuddy ({setIsLoggedIn}) {
           setActiveDates(dates)
           
           setMessageList(messages)
-
-          // // 환영메시지 작성 (suggestion이랑 기능이 유사해서 우선 주석 처리함)
-          // const isFirstLogin = localStorage.getItem('isFirstLogin')
-
-          // if (!isFirstLogin) {
-          //   localStorage.setItem('isFirstLogin', 'true')
-          //   setMessageList( [{
-          //     id: 'welcome',
-          //     senderType: 'BOT',
-          //     content: `${name}님, 만나서 반가워요😊\n저는 ${name}님의 회사 생활을 함께 할 위드버디예요.\n\n인사(연차/급여)부터 행정(비품/보안/시설)까지,\n회사 생활에 필요한 모든 정보를 편하게 물어봐 주세요!\n\n오늘부터 제가 ${name}님의 든든한 위드버디가 되어 드릴게요!`,
-          //     createdAt: new Date().toISOString()
-          //   }, ...messages])
-          // } else {
-          //   setMessageList(messages)
-          // }
-
         } else {
           const error = messageResponse.reason
           throw error
@@ -194,7 +196,7 @@ function MyBuddy ({setIsLoggedIn}) {
     }])
 
     try {
-      const response = await fetch('/api/v1/chat/messages/stream', {
+      const response = await fetch('https://api-wb.itsdev.kr/api/v1/chat/messages/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -209,8 +211,15 @@ function MyBuddy ({setIsLoggedIn}) {
         const code = errorData?.code
 
         if (response.status === 401) {
+          if (code === 'SESSION_EXPIRED') {
+            setModalType('sessionExpired')
+            return
+          }
+          if (code === 'SESSION_REVOKED') {
+            setModalType('duplicateLogin')
+            return
+          }
           if (code === 'TOKEN_MISSING' || 
-              code === 'TOKEN_EXPIRED' || 
               code === 'INVALID_TOKEN' || 
               code === 'USER_NOT_FOUND') {
             localStorage.removeItem('accessToken')
@@ -221,7 +230,12 @@ function MyBuddy ({setIsLoggedIn}) {
             return
           }
         }
-        if (response.status === 504) {h
+        if (response.status === 503) {
+          setRetryBt(() => () => handleSubmit(null, sendText))
+          setModalType('redis')
+          return
+        }
+        if (response.status === 504) {
           setMessageList(prev => [...prev, {
             id: `error-${Date.now()}`,
             senderType: 'BOT',
@@ -386,8 +400,16 @@ function MyBuddy ({setIsLoggedIn}) {
 
   return (
     <div className="h-screen flex relative overflow-hidden">
+      {/* 세션 정책 모달 - 컴포넌트 분리 완료 */}
+      <SessionModal
+        modalType={modalType}
+        setModalType={setModalType}
+        handleRetry={retryBt || handleRetry}
+        setIsLoggedIn={setIsLoggedIn}
+      />
+
       {/* 전송 실패 에러 메시지 - 컴포넌트 분리 완료 */}
-      <ErrorToast errorMessage={errorMessage}/>
+      <ErrorToast errorMessage={errorMessage && !modalType}/>
 
       {/* 로그아웃 모달 - 컴포넌트 분리 완료 */}
       <LogoutModal
@@ -396,99 +418,104 @@ function MyBuddy ({setIsLoggedIn}) {
         handleLogout={handleLogout}  
       />
 
-      {/* 배경 이미지 적용 */}
-      <div className="absolute inset-0 z-0"
-      style={{
-        backgroundImage: `url('/chat_bg.png')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}>
-      </div>
-
-      {/* 모바일 사이드바 오버레이 */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-[#00000080] md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* 사이드바 - 컴포넌트 분리 완료 */}
-      <Sidebar
-        name={name}
-        dayCount={dayCount}
-        isSidebarOpen={isSidebarOpen}
-        setIsSidebarOpen={setIsSidebarOpen}
-        selectedDate={selectedDate}
-        activeDates={activeDates}
-        handleDateChange={handleDateChange}
-        setIsLogoutModal={setIsLogoutModal}
-        />
-
-      {/* 채팅 영역 */}
-      <div className="relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between md:p-[40px] overflow-hidden">
-        {/* 모바일 헤더 */}
-        <>
-          <div className="flex md:hidden items-center py-[16px] px-[24px] bg-[#EAF6FF]">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-              <Menu size={16}/>
-            </button>
-            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[8px] text-[#336B97]">
-              {navItems.map(item => 
-              location.pathname === item.path && (
-                <div key={item.path} className="flex items-center justify-center gap-[10px]">
-                  {item.icon}
-                  <p>{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-
-        <div className="flex-1 overflow-y-auto px-[24px] pb-[16px]">
-        {/* 답변(messageList에 온보딩 제안도 포함됨) */}
-        <MessageList
-          messageList={messageList}
-          botClass={botClass}
-          handleSubmit={handleSubmit}
-          handleRetry={handleRetry}
-          isLoading={isLoading}
-          dayCount={dayCount}
-          handleDownload={handleDownload}
-          lastUserMessageRef={lastUserMessageRef}
-        />
-
-          {/* 로딩 인디케이터 */}
-          {isLoading && (
-            <div className="flex justify-start items-start mt-[32px]">
-              <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
-              <div className={botClass}>
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-[#CED4DA] rounded-full animate-bounce" style={{animationDelay: '0ms'}}/>
-                  <div className="w-2 h-2 bg-[#868E96] rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
-                  <div className="w-2 h-2 bg-[#868E96] rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
-                </div>
-                {loadingMessage && <p className="mt-[18px]">{loadingMessage}</p>}
-              </div>
-            </div>
-          )}
-
-          {/* 질문 전송 시 하단으로 자동 스크롤 */}
-          <div ref={chatBottomRef}/>
+      <div 
+        className="flex flex-1 relative overflow-hidden"
+        inert={modalType !== null || isLogoutModal ? true : undefined}
+      >
+        {/* 배경 이미지 적용 */}
+        <div className="absolute inset-0 z-0"
+        style={{
+          backgroundImage: `url('/chat_bg.png')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed'
+        }}>
         </div>
 
-        {/* 빠른 질문 */}
-        <QuickQuestions
-          quickQuestion={quickQuestion}
-          handleSubmit={handleSubmit}
-        />
+        {/* 모바일 사이드바 오버레이 */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-[#00000080] md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
 
-        {/* 입력 창 */}
-        <ChatInput
-          handleSubmit={handleSubmit}
-          isLoading={isLoading}
-        />
+        {/* 사이드바 - 컴포넌트 분리 완료 */}
+        <Sidebar
+          name={name}
+          dayCount={dayCount}
+          isSidebarOpen={isSidebarOpen}
+          setIsSidebarOpen={setIsSidebarOpen}
+          selectedDate={selectedDate}
+          activeDates={activeDates}
+          handleDateChange={handleDateChange}
+          setIsLogoutModal={setIsLogoutModal}
+          />
+
+        {/* 채팅 영역 */}
+        <div className="relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between md:p-[40px] overflow-hidden">
+          {/* 모바일 헤더 */}
+          <>
+            <div className="flex md:hidden items-center py-[16px] px-[24px] bg-[#EAF6FF]">
+              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+                <Menu size={16}/>
+              </button>
+              <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[8px] text-[#336B97]">
+                {navItems.map(item => 
+                location.pathname === item.path && (
+                  <div key={item.path} className="flex items-center justify-center gap-[10px]">
+                    {item.icon}
+                    <p>{item.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+
+          <div className="flex-1 overflow-y-auto px-[24px] pb-[16px]">
+          {/* 답변(messageList에 온보딩 제안도 포함됨) */}
+          <MessageList
+            messageList={messageList}
+            botClass={botClass}
+            handleSubmit={handleSubmit}
+            handleRetry={handleRetry}
+            isLoading={isLoading}
+            dayCount={dayCount}
+            handleDownload={handleDownload}
+            lastUserMessageRef={lastUserMessageRef}
+          />
+
+            {/* 로딩 인디케이터 */}
+            {isLoading && !messageList.some(msg => msg.messageType === 'streaming') && (
+              <div className="flex justify-start items-start mt-[32px]">  
+                <img src={bot} alt="WithBuddy 채팅봇 이미지"/>
+                <div className={botClass}>
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-[#CED4DA] rounded-full animate-bounce" style={{animationDelay: '0ms'}}/>
+                    <div className="w-2 h-2 bg-[#868E96] rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
+                    <div className="w-2 h-2 bg-[#868E96] rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
+                  </div>
+                  {loadingMessage && <p className="mt-[18px]">{loadingMessage}</p>}
+                </div>
+              </div>
+            )}
+
+            {/* 질문 전송 시 하단으로 자동 스크롤 */}
+            <div ref={chatBottomRef}/>
+          </div>
+
+          {/* 빠른 질문 */}
+          <QuickQuestions
+            quickQuestion={quickQuestion}
+            handleSubmit={handleSubmit}
+          />
+
+          {/* 입력 창 */}
+          <ChatInput
+            handleSubmit={handleSubmit}
+            isLoading={isLoading}
+          />
+        </div>
       </div>
     </div>
   )
