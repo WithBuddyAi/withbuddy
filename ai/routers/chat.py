@@ -20,6 +20,7 @@ from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
 from utils.sensitive_filter import check_sensitive, check_global_block
+from utils.circuit_breaker import check_circuit_breaker
 
 router = APIRouter(tags=["chat"])
 
@@ -93,6 +94,8 @@ async def chat_stream(request: ChatRequest):
     오케스트레이터 기반 멀티에이전트 질의응답 (SSE 스트리밍)
     토큰 단위로 실시간 응답을 전송합니다.
     """
+    check_circuit_breaker()
+
     async def event_generator():
         try:
             from chains.rag_chain import _resolve_selection, _fix_names
@@ -104,7 +107,7 @@ async def chat_stream(request: ChatRequest):
             if resolved:
                 message = resolved
 
-            result = run_orchestrator(uid, request.user.name, message)
+            result = run_orchestrator(uid, request.user.name, message, request.user.companyCode)
             if result.intent != "rag":
                 fixed_answer = _fix_names(result.answer)
                 save_interaction(uid, message, fixed_answer)
@@ -138,10 +141,12 @@ async def chat_stream(request: ChatRequest):
                 elif isinstance(chunk, str) and chunk.startswith("\x00"):
                     accumulated_text.clear()
                     accumulated_text.append(chunk[1:])
-                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk[1:]}, ensure_ascii=False)}\n\n"
+                    if chunk[1:].strip():
+                        yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk[1:]}, ensure_ascii=False)}\n\n"
                 else:
                     accumulated_text.append(chunk)
-                    yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
+                    if chunk.strip():
+                        yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
@@ -373,6 +378,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
+    check_circuit_breaker()
     # 욕설·극단적 위기 → 전체 차단 (복합 질문 여부 무관)
     action, answer = check_global_block(request.content, request.user.name)
     if action == "block":

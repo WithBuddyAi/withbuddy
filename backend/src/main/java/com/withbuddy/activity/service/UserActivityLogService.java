@@ -23,22 +23,10 @@ public class UserActivityLogService {
     @Transactional
     public void saveLoginSessionStart(Long userId) {
         UserActivityLog log = new UserActivityLog(
-                userId,
-                EventType.SESSION_START,
-                EventTarget.LOGIN,
-                LocalDateTime.now()
-        );
-
-        userActivityLogRepository.save(log);
-    }
-
-    @Transactional
-    public void saveLoginSessionEnd(Long userId) {
-        UserActivityLog log = new UserActivityLog(
-                userId,
-                EventType.SESSION_END,
-                EventTarget.LOGOUT,
-                LocalDateTime.now()
+            userId,
+            EventType.SESSION_START,
+            EventTarget.LOGIN,
+            LocalDateTime.now()
         );
 
         userActivityLogRepository.save(log);
@@ -49,62 +37,62 @@ public class UserActivityLogService {
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 
         Optional<UserActivityLog> recentLog =
-                userActivityLogRepository
-                        .findTopByUserIdAndEventTypeAndEventTargetAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
-                                userId,
-                                EventType.SESSION_START,
-                                EventTarget.CHAT,
-                                thirtyMinutesAgo
-                        );
+            userActivityLogRepository
+                .findTopByUserIdAndEventTypeAndEventTargetAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+                    userId,
+                    EventType.SESSION_START,
+                    EventTarget.CHAT,
+                    thirtyMinutesAgo
+                );
 
         if (recentLog.isPresent()) {
             return new LogResponse(
-                    false,
-                    EventType.SESSION_START.name(),
-                    EventTarget.CHAT.name(),
-                    "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다.",
-                    null
+                false,
+                EventType.SESSION_START.name(),
+                EventTarget.CHAT.name(),
+                "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다.",
+                null
             );
         }
 
         UserActivityLog savedLog = userActivityLogRepository.save(
-                new UserActivityLog(
-                        userId,
-                        EventType.SESSION_START,
-                        EventTarget.CHAT,
-                        LocalDateTime.now()
-                )
+            new UserActivityLog(
+                userId,
+                EventType.SESSION_START,
+                EventTarget.CHAT,
+                LocalDateTime.now()
+            )
         );
 
         return new LogResponse(
-                true,
-                savedLog.getEventType().name(),
-                savedLog.getEventTarget().name(),
-                null,
-                savedLog.getCreatedAt().toString()
+            true,
+            savedLog.getEventType().name(),
+            savedLog.getEventTarget().name(),
+            null,
+            savedLog.getCreatedAt().toString()
         );
     }
 
     @Transactional
     public LogResponse saveQuickQuestionClick(Long userId, String eventTarget) {
         EventTarget resolvedTarget = quickQuestionCatalog.resolveEventTarget(eventTarget)
-                .orElseThrow(() -> new IllegalArgumentException("지원하지 않는 eventTarget입니다."));
+            .orElseThrow(() -> new IllegalArgumentException("지원하지 않는 eventTarget입니다."));
 
         UserActivityLog log = new UserActivityLog(
-                userId,
-                EventType.BUTTON_CLICK,
-                resolvedTarget,
-                LocalDateTime.now()
+            userId,
+            EventType.BUTTON_CLICK,
+            resolvedTarget,
+            LocalDateTime.now()
         );
 
         UserActivityLog savedLog = userActivityLogRepository.save(log);
 
         return new LogResponse(
-                true,
-                savedLog.getEventType().name(),
-                savedLog.getEventTarget().name(),
-                null,
-                savedLog.getCreatedAt().toString()
+            true,
+            savedLog.getEventType().name(),
+            savedLog.getEventTarget().name(),
+            null,
+            savedLog.getCreatedAt().toString()
         );
     }
 }
