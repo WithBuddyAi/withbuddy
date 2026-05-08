@@ -155,7 +155,45 @@ jobs:
             exit 1
           fi
 
+      - name: Install cloudflared client on runner
+        run: |
+          set -euo pipefail
+          sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Configure SSH over Cloudflare Access
+        env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
+          BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          cat > ~/.ssh/backend_key <<'KEY_EOF'
+          ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          KEY_EOF
+          chmod 600 ~/.ssh/backend_key
+
+          cat > ~/.ssh/config <<EOF
+          Host ${BACKEND_ACCESS_HOST}
+            HostName ${BACKEND_ACCESS_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/backend_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+          chmod 600 ~/.ssh/config
+
       - name: Debug Cloudflare Access SSH (temporary)
+        continue-on-error: true
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
