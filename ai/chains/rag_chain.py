@@ -185,6 +185,30 @@ async def _fire_unanswered_alert(user_id: str, question: str, company_code: str 
     except Exception:
         pass
 
+_TEMPLATE_STOPWORDS = {"신청", "신청서", "방법", "처리", "서류", "안내", "가이드", "작성", "주세요", "알려줘"}
+
+def _match_template_docs(company_code: str, question: str) -> list[int]:
+    """질문 키워드와 BE TEMPLATE 문서 title/fileName 매칭 → documentId 리스트 반환."""
+    if not company_code:
+        return []
+    try:
+        from core.be_client import get_template_docs
+        import re
+        templates = get_template_docs(company_code)
+        if not templates:
+            return []
+        q_words = {w for w in re.split(r"[\s_\-?？]+", question) if len(w) >= 2} - _TEMPLATE_STOPWORDS
+        result = []
+        for doc in templates:
+            target = f"{doc.get('title', '')} {doc.get('fileName', '')}"
+            t_words = {w for w in re.split(r"[\s_\-\.]+", target) if len(w) >= 2} - _TEMPLATE_STOPWORDS
+            if any(qw in tw or tw in qw for qw in q_words for tw in t_words):
+                result.append(doc["documentId"])
+        return result
+    except Exception:
+        return []
+
+
 _COMPANY_NAMES: dict[str, str] = {
     "WB0001": "테크 주식회사",
     "WB0002": "스튜디오 프리즘",
@@ -463,7 +487,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         retrieved_docs = retrieved_docs[:top_k]
 
     source_names = _extract_sources(retrieved_docs)
-    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
+    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")} | set(_match_template_docs(company_code, question)))
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
@@ -591,7 +615,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         top_k = min(3 * len(sub_questions), 6)
         retrieved_docs = retrieved_docs[:top_k]
     source_names = _extract_sources(retrieved_docs)
-    rag_doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
+    rag_doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")} | set(_match_template_docs(company_code, question)))
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
