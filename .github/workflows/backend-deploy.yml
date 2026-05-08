@@ -1,5 +1,5 @@
 name: Deploy Backend
-# Flyway repair step runs on DB server via DB_SERVER_* production secrets. (secret-refresh trigger)
+# Deploy is executed over Cloudflare Access SSH without inbound port 22.
 
 on:
   push:
@@ -50,12 +50,11 @@ jobs:
 
       - name: Validate required environment secrets
         env:
-          BACKEND_SERVER_HOST: ${{ secrets.BACKEND_SERVER_HOST }}
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
           BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
-          DB_SERVER_HOST: ${{ secrets.DB_SERVER_HOST }}
-          DB_SERVER_USER: ${{ secrets.DB_SERVER_USER }}
-          DB_SERVER_SSH_KEY: ${{ secrets.DB_SERVER_SSH_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
@@ -103,10 +102,11 @@ jobs:
         run: |
           set -euo pipefail
           required_vars=(
-            BACKEND_SERVER_HOST
+            BACKEND_ACCESS_HOST
             BACKEND_SERVER_USER
             BACKEND_SERVER_SSH_KEY
-            DB_SERVER_HOST
+            CF_ACCESS_CLIENT_ID
+            CF_ACCESS_CLIENT_SECRET
             BACKEND_APP_DIR
             SPRING_DB_URL
             SPRING_DB_USERNAME
@@ -159,32 +159,64 @@ jobs:
             exit 1
           fi
 
+      - name: Install cloudflared client on runner
+        run: |
+          set -euo pipefail
+          sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Configure SSH over Cloudflare Access
+        env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
+          BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          cat > ~/.ssh/backend_key <<'KEY_EOF'
+          ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          KEY_EOF
+          chmod 600 ~/.ssh/backend_key
+
+          cat > ~/.ssh/config <<EOF
+          Host ${BACKEND_ACCESS_HOST}
+            HostName ${BACKEND_ACCESS_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/backend_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+          chmod 600 ~/.ssh/config
+
       - name: Upload app.jar to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.BACKEND_SERVER_HOST }}
-          username: ${{ secrets.BACKEND_SERVER_USER }}
-          key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
-          source: "app.jar"
-          target: ${{ secrets.BACKEND_APP_DIR }}
-          overwrite: true
+        env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
+        run: |
+          set -euo pipefail
+          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}'"
+          scp app.jar "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/app.jar"
 
       - name: Repair Flyway failed migrations
-        uses: appleboy/ssh-action@v1.2.0
         env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
-        with:
-          host: ${{ secrets.DB_SERVER_HOST }}
-          username: ${{ secrets.DB_SERVER_USER != '' && secrets.DB_SERVER_USER || secrets.BACKEND_SERVER_USER }}
-          key: ${{ contains(secrets.DB_SERVER_SSH_KEY, 'PRIVATE KEY-----') && secrets.DB_SERVER_SSH_KEY || secrets.BACKEND_SERVER_SSH_KEY }}
-          proxy_host: ${{ secrets.DB_SERVER_PROXY_HOST }}
-          proxy_username: ${{ secrets.DB_SERVER_PROXY_USER }}
-          proxy_key: ${{ secrets.DB_SERVER_PROXY_SSH_KEY }}
-          debug: true
-          envs: SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD
-          script: |
+        run: |
+          set -euo pipefail
+          printf -v SPRING_DB_URL_Q '%q' "${SPRING_DB_URL}"
+          printf -v SPRING_DB_USERNAME_Q '%q' "${SPRING_DB_USERNAME}"
+          printf -v SPRING_DB_PASSWORD_Q '%q' "${SPRING_DB_PASSWORD}"
+          ssh "${BACKEND_ACCESS_HOST}" "SPRING_DB_URL=${SPRING_DB_URL_Q} SPRING_DB_USERNAME=${SPRING_DB_USERNAME_Q} SPRING_DB_PASSWORD=${SPRING_DB_PASSWORD_Q} bash -s" <<'REMOTE_EOF'
             set -euo pipefail
 
             # Parse JDBC URL: jdbc:mysql://host:port/dbname?params
@@ -330,10 +362,11 @@ jobs:
 
             echo "No eligible failed migration versions found for auto-repair."
             exit 0
+          REMOTE_EOF
 
       - name: Restart backend
-        uses: appleboy/ssh-action@v1.2.0
         env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_ACCESS_EXPIRATION: ${{ secrets.JWT_ACCESS_EXPIRATION }}
@@ -383,12 +416,69 @@ jobs:
           CORS_ALLOWED_ORIGIN_PATTERNS: ${{ secrets.CORS_ALLOWED_ORIGIN_PATTERNS }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
-        with:
-          host: ${{ secrets.BACKEND_SERVER_HOST }}
-          username: ${{ secrets.BACKEND_SERVER_USER }}
-          key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
-          envs: DB_PASSWORD,JWT_SECRET,JWT_ACCESS_EXPIRATION,AI_SERVER_BASE_URL,AI_SERVER_CONNECT_TIMEOUT_MS,AI_SERVER_READ_TIMEOUT_MS,AI_SERVER_ASYNC_READ_TIMEOUT_MS,SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD,SPRING_DB_DRIVER_CLASS_NAME,SPRING_FLYWAY_BASELINE_ON_MIGRATE,SPRING_FLYWAY_BASELINE_VERSION,REDIS_URL,RABBITMQ_URL,SPRING_RABBITMQ_ADDRESSES,SPRING_RABBITMQ_USERNAME,SPRING_RABBITMQ_PASSWORD,SPRING_RABBITMQ_VIRTUAL_HOST,RABBITMQ_EXCHANGE,RABBITMQ_QUEUE_REPORT,RABBITMQ_QUEUE_DLQ,STORAGE_API_AUTH_ENABLED,STORAGE_API_KEY_ID,STORAGE_API_KEY_VALUE,STORAGE_API_GLOBAL_ACCESS,STORAGE_API_KEY_ACTIVE,STORAGE_PROVIDER,STORAGE_LOCAL_BASE_DIR,STORAGE_MAX_DOCUMENT_SIZE_MB,STORAGE_MAX_IMAGE_SIZE_MB,STORAGE_DOWNLOAD_URL_TTL_SECONDS,STORAGE_RETRY_ENABLED,STORAGE_RETRY_MAX_ATTEMPTS,STORAGE_RETRY_INTERVAL_MS,STORAGE_RETRY_BASE_BACKOFF_SECONDS,STORAGE_RETRY_MAX_BACKOFF_SECONDS,STORAGE_RETRY_BATCH_SIZE,STORAGE_OCI_CLI_EXECUTABLE,STORAGE_OCI_PRIMARY_PROFILE,STORAGE_OCI_BACKUP_PROFILE,STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING,STORAGE_PRIMARY_NAMESPACE,STORAGE_PRIMARY_BUCKET,STORAGE_BACKUP_NAMESPACE,STORAGE_BACKUP_BUCKET,CORS_ALLOWED_ORIGIN_PATTERNS,BACKEND_HEALTH_URL,BACKEND_APP_DIR
-          script: |
+        run: |
+          set -euo pipefail
+          assign_env_vars() {
+            local var_name var_value var_quoted
+            for var_name in "$@"; do
+              var_value="${!var_name:-}"
+              printf -v var_quoted '%q' "${var_value}"
+              printf '%s=%s ' "${var_name}" "${var_quoted}"
+            done
+          }
+          REMOTE_ENV_ASSIGNMENTS="$(
+            assign_env_vars \
+              DB_PASSWORD \
+              JWT_SECRET \
+              JWT_ACCESS_EXPIRATION \
+              AI_SERVER_BASE_URL \
+              AI_SERVER_CONNECT_TIMEOUT_MS \
+              AI_SERVER_READ_TIMEOUT_MS \
+              AI_SERVER_ASYNC_READ_TIMEOUT_MS \
+              SPRING_DB_URL \
+              SPRING_DB_USERNAME \
+              SPRING_DB_PASSWORD \
+              SPRING_DB_DRIVER_CLASS_NAME \
+              SPRING_FLYWAY_BASELINE_ON_MIGRATE \
+              SPRING_FLYWAY_BASELINE_VERSION \
+              REDIS_URL \
+              RABBITMQ_URL \
+              SPRING_RABBITMQ_ADDRESSES \
+              SPRING_RABBITMQ_USERNAME \
+              SPRING_RABBITMQ_PASSWORD \
+              SPRING_RABBITMQ_VIRTUAL_HOST \
+              RABBITMQ_EXCHANGE \
+              RABBITMQ_QUEUE_REPORT \
+              RABBITMQ_QUEUE_DLQ \
+              STORAGE_API_AUTH_ENABLED \
+              STORAGE_API_KEY_ID \
+              STORAGE_API_KEY_VALUE \
+              STORAGE_API_GLOBAL_ACCESS \
+              STORAGE_API_KEY_ACTIVE \
+              STORAGE_PROVIDER \
+              STORAGE_LOCAL_BASE_DIR \
+              STORAGE_MAX_DOCUMENT_SIZE_MB \
+              STORAGE_MAX_IMAGE_SIZE_MB \
+              STORAGE_DOWNLOAD_URL_TTL_SECONDS \
+              STORAGE_RETRY_ENABLED \
+              STORAGE_RETRY_MAX_ATTEMPTS \
+              STORAGE_RETRY_INTERVAL_MS \
+              STORAGE_RETRY_BASE_BACKOFF_SECONDS \
+              STORAGE_RETRY_MAX_BACKOFF_SECONDS \
+              STORAGE_RETRY_BATCH_SIZE \
+              STORAGE_OCI_CLI_EXECUTABLE \
+              STORAGE_OCI_PRIMARY_PROFILE \
+              STORAGE_OCI_BACKUP_PROFILE \
+              STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING \
+              STORAGE_PRIMARY_NAMESPACE \
+              STORAGE_PRIMARY_BUCKET \
+              STORAGE_BACKUP_NAMESPACE \
+              STORAGE_BACKUP_BUCKET \
+              CORS_ALLOWED_ORIGIN_PATTERNS \
+              BACKEND_HEALTH_URL \
+              BACKEND_APP_DIR
+          )"
+          ssh "${BACKEND_ACCESS_HOST}" "${REMOTE_ENV_ASSIGNMENTS}bash -s" <<'REMOTE_EOF'
             set -euo pipefail
 
             APP_DIR="${BACKEND_APP_DIR}"
@@ -672,5 +762,6 @@ jobs:
             collect_diagnostics
             print_flyway_recovery_hint_if_needed
             exit 1
+          REMOTE_EOF
 
 
