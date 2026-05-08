@@ -42,6 +42,7 @@ public class AiStreamClient {
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeoutMs))
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
         this.baseUri = URI.create(aiBaseUrl.endsWith("/") ? aiBaseUrl : aiBaseUrl + "/");
         this.streamTimeout = Duration.ofMillis(streamTimeoutMs);
