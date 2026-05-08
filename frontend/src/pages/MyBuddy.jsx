@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom"
 import { MessageSquare, Menu } from "lucide-react"
 import bot from '../assets/Bot_icon.svg'
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { format } from 'date-fns';
 import axiosInstance from "../api/axiosInstance"
 import { useUser } from "../contexts/UserContext"
@@ -46,7 +46,42 @@ function MyBuddy ({setIsLoggedIn}) {
   const lastUserMessageRef = useRef(null)
   const [loadingMessage, setLoadingMessage] = useState('')
   const [hasSubmitted, setHasSubmitted] = useState(false)
-
+  const charQueueRef = useRef([])
+  const isTypingRef = useRef(false)
+  const streamDoneRef = useRef(null)
+  const processQueue = useCallback(() => {
+    if (charQueueRef.current.length === 0) {
+      isTypingRef.current = false
+      if (streamDoneRef.current) {
+        const final = streamDoneRef.current
+        streamDoneRef.current = null
+        setMessageList(prev => prev.map(msg =>
+          msg.messageType === 'streaming' ? final : msg
+        ))
+        setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+        setIsLoading(false)
+      }
+      return
+    }
+    const char = charQueueRef.current.shift()
+    setMessageList(prev => {
+      const last = prev[prev.length - 1]
+      if (last?.senderType === 'BOT' && last?.messageType === 'streaming') {
+        return prev.map((msg, i) =>
+          i === prev.length - 1 ? { ...msg, content: msg.content + char } : msg
+        )
+      } else {
+        return [...prev, {
+          id: `streaming-${Date.now()}-${Math.random()}`,
+          senderType: 'BOT',
+          messageType: 'streaming',
+          content: char,
+          createdAt: new Date().toISOString()
+        }]
+      }
+    })
+    setTimeout(processQueue, 10)
+  }, [today])
 
   // 대화 기록 달력
   const handleDateChange = async (date) => {
@@ -186,6 +221,7 @@ function MyBuddy ({setIsLoggedIn}) {
     e?.preventDefault()
     const sendText = submitText
     if (!sendText.trim()) return
+    if (isLoading) return
     setIsLoading(true)
     setHasSubmitted(true)
     setMessageList(prev => [...prev, {
@@ -283,31 +319,25 @@ function MyBuddy ({setIsLoggedIn}) {
                 setMessageList(prev => prev.map(msg =>
                   msg.id.toString().startsWith('temp-') ? parsed.question : msg
                 ))
-              } else if (eventName === 'answer_delta') {
-                setMessageList(prev => {
-                  const last = prev[prev.length - 1]
-                  if (last?.senderType === 'BOT' && last?.messageType === 'streaming') {
-                    return prev.map((msg, i) =>
-                      i === prev.length - 1
-                        ? { ...msg, content: msg.content + parsed.content }
-                        : msg
-                    )
-                  } else {
-                    return [...prev, {
-                      id: `streaming-${Date.now()}`,
-                      senderType: 'BOT',
-                      messageType: 'streaming',
-                      content: parsed.content,
-                      createdAt: new Date().toISOString()
-                    }]
+                } else if (eventName === 'answer_delta') {
+                  const words = parsed.content.split(' ')
+                  words.forEach((word, i) => {
+                    charQueueRef.current.push(i < words.length - 1 ? word + ' ' : word)
+                  })
+                  if (!isTypingRef.current) {
+                    isTypingRef.current = true
+                    setTimeout(processQueue, 10)
                   }
-                })
-              } else if (eventName === 'answer_completed') {
-                setMessageList(prev => prev.map(msg =>
-                  msg.messageType === 'streaming' ? parsed.answer : msg
-                ))
-                setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
-                setIsLoading(false)
+                } else if (eventName === 'answer_completed') {
+                if (!isTypingRef.current && charQueueRef.current.length === 0) {
+                  setMessageList(prev => prev.map(msg =>
+                    msg.messageType === 'streaming' ? parsed.answer : msg
+                  ))
+                  setActiveDates(prev => prev.includes(today) ? prev : [...prev, today])
+                  setIsLoading(false)
+                } else {
+                  streamDoneRef.current = parsed.answer
+                }
               } else if (eventName === 'error') {
                 setMessageList(prev => [...prev, {
                   id: `error-${Date.now()}`,
@@ -331,9 +361,7 @@ function MyBuddy ({setIsLoggedIn}) {
         content: '메시지 전송에 실패했어요. 다시 시도해 주세요.',
         createdAt: new Date().toISOString()
       }])
-    } finally {
-      setIsLoading(false)
-    }
+    } 
   }
 
   // 응답 지연 시 재시도
@@ -508,6 +536,7 @@ function MyBuddy ({setIsLoggedIn}) {
           <QuickQuestions
             quickQuestion={quickQuestion}
             handleSubmit={handleSubmit}
+            isLoading={isLoading}
           />
 
           {/* 입력 창 */}

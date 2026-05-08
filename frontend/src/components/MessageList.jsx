@@ -86,11 +86,7 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                     :
                     (<>
                     {/* 메시지 내용 */}
-                    {message.messageType === 'streaming' ? (
-                      <p>{message.content}</p>
-                    ) : (
-                      <ReactMarkdown>{message.content?.replace(/\\n/g, '\n')}</ReactMarkdown>
-                    )}
+                    <ReactMarkdown>{message.content?.replace(/\\n/g, '\n')}</ReactMarkdown>
 
                     {/* 문서 출처 */}
                     {message.documents && message.documents.length > 0 && message.messageType !== 'no_result' && message.messageType !== 'out_of_scope' && (
@@ -151,6 +147,8 @@ function MessageList({ messageList, botClass, handleSubmit, handleRetry, isLoadi
                       <button
                         key={tap.eventTarget}
                         onClick={() => handleSubmit(null, tap.content)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}
+                        disabled={isLoading}
                         className="border-[1px] border-[#DEE2E6] hover:bg-[#E9ECEF] hover:border-[#E9ECEF] py-[8px] px-[16px] rounded-[9999px] text-[#495057] text-[11px] md:text-[12px] shadow-md">
                         {tap.buttonText}
                       </button>

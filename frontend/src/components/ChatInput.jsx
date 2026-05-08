@@ -10,6 +10,7 @@ function ChatInput({ handleSubmit, isLoading }) {
       <form
       className="flex gap-[12px] mx-[10px]"
       onSubmit={(e) => {
+        if (isLoading) return
         handleSubmit(e, text)
         setText('')
         textareaRef.current?.focus()
