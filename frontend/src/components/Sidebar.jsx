@@ -71,7 +71,7 @@ function Sidebar({ name, dayCount, isSidebarOpen, setIsSidebarOpen, selectedDate
                       setView('month')
                       handleDateChange(new Date())
                     }}
-                    className="absolute top-[18px] right-[13px] text-[#336B97] text-[13px] hover:underline hover:underline-offset-2 hover:decoration-[#336B97]">
+                    className="absolute top-[11px] md:top-[18px] right-[18px] md:right-[13px] text-[#336B97] text-[12px] md:text-[13px] hover:underline hover:underline-offset-2 hover:decoration-[#336B97]">
                     오늘
                   </button>
                   <Calendar
