@@ -171,15 +171,6 @@ jobs:
           echo "Access token OK"
           
           ssh -vvv -o BatchMode=yes -o ConnectTimeout=10 "${BACKEND_ACCESS_HOST}" "echo ssh_ok"
-          echo "BACKEND_ACCESS_HOST=${BACKEND_ACCESS_HOST}"
-          cloudflared --version
-          
-          cloudflared access token --app "https://${BACKEND_ACCESS_HOST}" \
-            --id "${CF_ACCESS_CLIENT_ID}" \
-            --secret "${CF_ACCESS_CLIENT_SECRET}" >/dev/null
-          echo "Access token OK"
-          
-          ssh -vvv -o BatchMode=yes -o ConnectTimeout=10 "${BACKEND_ACCESS_HOST}" "echo ssh_ok"
 
       - name: Upload app.jar to server
         uses: appleboy/scp-action@v0.1.7
