@@ -2,8 +2,8 @@
 
 > WithBuddy MVP 기준 REST API 문서
 >
-**버전**: 1.9.2
-**최종 업데이트**: 2026-05-07
+**버전**: 1.9.3
+**최종 업데이트**: 2026-05-08
 
 ---
 
@@ -13,7 +13,8 @@
 
 ### 포함 범위
 - 로그인
-- 신입 계정 생성
+- 관리자 계정 페이지 API
+- 관리자 계정 페이지 내 신입 계정 생성
 - 채팅 메시지 목록 조회
 - 질문 전송 및 AI 답변 스트리밍
 - 온보딩 제안 조회
@@ -74,10 +75,46 @@ Frontend Development: http://localhost:5173
 백엔드 공개 API는 `/api/v1` prefix를 사용한다.
 AI 서버 연동은 별도 AI 서버 base URL을 사용하며, 현재 스트리밍 endpoint는 `/chat/stream`이다.
 
+### 공개 API 경로 그룹
+
+| 경로 | 용도 | 호출 권한 |
+|---|---|---|
+| `/api/v1/auth/*` | 로그인 및 인증 | 비로그인 |
+| `/api/v1/chat/*` | MyBuddy 채팅 및 빠른 질문 | `USER`, `SERVICE_ADMIN` |
+| `/api/v1/onboarding-suggestions/*` | 온보딩 제안 노출 처리 | `USER`, `SERVICE_ADMIN` |
+| `/api/v1/documents/upload` | 문서 업로드 | `ADMIN` |
+| `/api/v1/documents` | 문서 목록 조회·전체 삭제 등 문서 관리 | `ADMIN` |
+| `/api/v1/documents/{documentId}` | 문서 상세 조회·삭제 등 문서 관리 | `ADMIN` |
+| `/api/v1/documents/{documentId}/download` | TEMPLATE 문서 다운로드 URL 발급 | `USER`, `SERVICE_ADMIN`, `ADMIN` |
+| `/api/v1/documents/{documentId}/file` | TEMPLATE 문서 파일 직접 다운로드 | `USER`, `SERVICE_ADMIN`, `ADMIN` |
+| `/api/v1/admin/users` | 고객사 관리자 계정 페이지의 신입 계정 생성 | `ADMIN` |
+| `/api/v1/admin/metrics/*` | 제품 내부 관리자용 지표 조회 | `SERVICE_ADMIN` |
+
+`/api/v1/admin` 하위 경로는 관리자 성격의 API를 모아둔다.
+
+- `ADMIN`은 고객사 관리자 계정으로, 관리자 계정 페이지에서 신입 계정 생성 및 문서 관리 API를 호출할 수 있다.
+- `SERVICE_ADMIN`은 제품 내부 지표 조회용 계정이다. MVP 기준 일반 `USER`와 동일하게 MyBuddy 기능을 사용할 수 있으며, 추가로 Swagger, Postman, 내부 운영 도구 등을 통해 관리자 지표 API(`/api/v1/admin/metrics/*`)를 호출할 수 있다.
+- `SERVICE_ADMIN`은 고객사 관리자 계정 페이지 API(`/api/v1/admin/users`)와 문서 관리 API(`/api/v1/documents/*`)를 호출하지 않는다.
+
+### Frontend 권장 라우트
+
+프론트엔드 화면 라우트는 API 경로와 별도로 관리한다. MVP 기준 권장 라우트는 아래와 같다.
+
+| 화면 | Frontend route | Backend API |
+|---|---|---|
+| MyBuddy 채팅 화면 | `/mybuddy` | `/api/v1/chat/*` |
+| 관리자 계정 페이지 | `/admin` | `/api/v1/admin/users` |
+| 신입 계정 생성 화면 | `/admin/users/new` | `POST /api/v1/admin/users` |
+
+제품 내부 관리자(`SERVICE_ADMIN`) 계정의 진입 화면은 일반 사용자와 동일하게 MyBuddy 채팅 화면(`/mybuddy`)으로 분기한다.
+`SERVICE_ADMIN`은 MVP 기준 별도 관리자 지표 화면을 사용하지 않으며, Swagger, Postman, 내부 운영 도구 등을 통해 관리자 지표 API를 직접 호출한다.
+프론트엔드는 로그인 성공 응답의 `user.role` 값을 기준으로 최초 진입 화면을 분기할 수 있다.
+
 ### 데이터 범위
 
 모든 데이터 조회 및 저장은 로그인한 사용자의 회사 기준으로 처리한다.  
 문서 기반 Q&A는 로그인한 사용자의 회사 문서와 공통 문서(`company_code = null`)를 함께 대상으로 처리한다.
+단, 제품 내부 관리자(`SERVICE_ADMIN`) 전용 관리자 지표 API는 `companyCode` 파라미터 기준으로 특정 회사를 조회하거나, 파라미터 생략 시 회사별 전체 집계 결과를 반환할 수 있다.
 
 ### 공통 헤더
 
@@ -174,11 +211,12 @@ AI Swagger UI: https://ai.itsdev.kr/docs
 - `400 Bad Request`: 요청값 검증 실패
 - `401 Unauthorized`: 로그인 실패(회사코드/사번/이름 불일치)
 
-#### 신입 계정 생성 API (`POST /api/v1/users`) 상태 코드
+#### 신입 계정 생성 API (`POST /api/v1/admin/users`) 상태 코드
 
 - `201 Created`: 계정 생성 성공
 - `400 Bad Request`: 요청값 검증 실패
 - `401 Unauthorized`: 인증 실패, 세션 만료 또는 세션 무효화
+- `403 Forbidden`: 관리자 권한 없음
 - `409 Conflict`: 동일 회사 내 중복 사원번호
 
 ### 공통 에러 코드
@@ -232,6 +270,9 @@ Content-Type: application/json
 - 서버는 입력된 `companyCode`로 `companies`를 조회한다.
 - 서버는 조회된 `company_code`와 사용자 이름, 사번을 기준으로 `users`에서 사용자를 확인한다.
 - 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
+- 로그인 성공 응답의 `user.role`에는 로그인한 사용자의 역할을 반환한다.
+- 프론트엔드는 `user.role` 값을 기준으로 `USER`와 `SERVICE_ADMIN`은 MyBuddy 화면으로, `ADMIN`은 관리자 계정 페이지로 분기할 수 있다.
+- 권한 검증의 최종 기준은 프론트엔드 판단이 아니라 백엔드의 인증 토큰 검증 및 `users.role` 확인 결과다.
 - 동일 사용자가 다시 로그인하면 서버는 기존 활성 세션을 무효화하고 새 `accessToken`을 기준으로 세션을 갱신할 수 있다.
 - 이때 기존 `accessToken`으로 인증이 필요한 API를 호출하면 `401 Unauthorized`와 `SESSION_REVOKED` 코드를 반환한다.
 - 로그인에 성공하면 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = LOGIN` 로그를 기록한다.
@@ -248,10 +289,36 @@ Content-Type: application/json
     "companyName": "테크 주식회사",
     "employeeNumber": "20260001",
     "name": "김지원",
+    "role": "USER",
     "hireDate": "2026-03-01"
   }
 }
 ```
+
+#### Response Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `accessToken` | String | Y | 인증이 필요한 API 호출 시 사용할 액세스 토큰 |
+| `user` | Object | Y | 로그인한 사용자 정보 |
+| `user.id` | Number | Y | 사용자 ID |
+| `user.companyCode` | String | Y | 사용자 소속 회사 코드 |
+| `user.companyName` | String | Y | 사용자 소속 회사명 |
+| `user.employeeNumber` | String | Y | 사용자 사번 |
+| `user.name` | String | Y | 사용자 이름 |
+| `user.role` | String | Y | 사용자 역할. `USER`, `ADMIN`, `SERVICE_ADMIN` 중 하나 |
+| `user.hireDate` | String | Y | 사용자 입사일 |
+
+#### 프론트엔드 role 분기 기준
+
+| `user.role` | 설명 | 권장 진입 화면 또는 처리 |
+|---|---|---|
+| `USER` | 일반 신입 사용자 | MyBuddy 채팅 화면(`/mybuddy`) |
+| `ADMIN` | 고객사 관리자. 신입 계정 생성 등 고객사 관리자 페이지 접근 가능 | 관리자 계정 페이지(`/admin`) |
+| `SERVICE_ADMIN` | 제품 내부 지표 조회용 계정. 일반 사용자와 동일하게 MyBuddy 기능 사용 가능 | MyBuddy 채팅 화면(`/mybuddy`). 지표 조회는 별도 프론트 화면 없이 Swagger, Postman, 내부 운영 도구 등을 통해 API 직접 호출 |
+
+프론트엔드는 로그인 성공 직후 `user.role`을 저장해 화면 라우팅에 사용할 수 있다.  
+다만 API 권한 검증은 항상 백엔드에서 수행한다.
 
 #### Error Response (400 Bad Request)
 
@@ -304,13 +371,13 @@ Content-Type: application/json
 }
 ```
 
-### 5-2. 신입 계정 생성
+### 5-2. 관리자 계정 페이지 - 신입 계정 생성
 
-신입 사원의 계정을 직접 생성한다.  
+관리자 계정 페이지에서 신입 사원의 계정을 직접 생성한다.  
 계정 생성 후 사용자는 등록된 회사코드, 사원번호, 이름으로 로그인할 수 있다.
 
 ```http
-POST /api/v1/users
+POST /api/v1/admin/users
 Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
@@ -335,13 +402,16 @@ Content-Type: application/json
 
 #### 동작 규칙
 
-- 현재 로그인한 사용자의 회사 기준으로 신입 계정을 생성한다.
-- 서버는 인증 토큰에서 현재 사용자의 `companyCode` 또는 회사 식별 정보를 확인한다.
-- 서버는 해당 회사에 매핑되는 `companies.id`를 기준으로 `users.company_id`를 저장한다.
+- 이 API는 고객사 관리자(`users.role = ADMIN`)만 호출할 수 있다.
+- 일반 사용자(`USER`)와 제품 내부 관리자(`SERVICE_ADMIN`)가 호출하면 `403 Forbidden`과 `ACCESS_DENIED` 에러 코드를 반환한다.
+- `ADMIN`은 자신의 회사 기준으로 신입 계정을 생성한다.
+- 서버는 인증 토큰에서 현재 관리자의 `companyCode`를 확인한다.
+- 서버는 현재 로그인한 관리자 사용자의 `companyCode`를 기준으로 신입 계정의 `users.company_code`를 저장한다.
 - 입력받은 `name`, `employeeNumber`, `hireDate`를 `users` 테이블에 저장한다.
+- 생성되는 신입 계정의 `role`은 항상 `USER`로 저장한다.
 - 동일 회사 내에서 같은 사원번호로 계정을 중복 생성할 수 없다.
-- DB에는 `company_id + employee_number` 복합 UNIQUE 제약조건을 둔다.
-- 동일 `company_id + employee_number` 조합이 이미 존재하는 경우 `409 Conflict`와 `DUPLICATE_EMPLOYEE_NUMBER` 에러 코드를 반환한다.
+- DB에는 `company_code + employee_number` 복합 UNIQUE 제약조건을 둔다.
+- 동일 `company_code + employee_number` 조합이 이미 존재하는 경우 `409 Conflict`와 `DUPLICATE_EMPLOYEE_NUMBER` 에러 코드를 반환한다.
 - 계정 생성이 완료되면 해당 사용자는 `POST /api/v1/auth/login`에서 회사코드, 사원번호, 이름을 입력해 로그인할 수 있다.
 - 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
 
@@ -350,7 +420,7 @@ Content-Type: application/json
 ```sql
 ALTER TABLE users
   ADD CONSTRAINT uq_users_company_employee_number
-    UNIQUE (company_id, employee_number);
+    UNIQUE (company_code, employee_number);
 ```
 
 > 실제 마이그레이션 파일에서는 기존 제약조건명 및 컬럼명과 충돌하지 않도록 현재 스키마를 확인한 뒤 적용한다.
@@ -364,10 +434,24 @@ ALTER TABLE users
   "companyName": "테크 주식회사",
   "employeeNumber": "20260001",
   "name": "김지원",
+  "role": "USER",
   "hireDate": "2026-03-01",
   "createdAt": "2026-04-28T09:30:00"
 }
 ```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | Number | 생성된 신입 사용자 ID |
+| `companyCode` | String | 신입 사용자가 소속된 회사 코드 |
+| `companyName` | String | 신입 사용자가 소속된 회사명 |
+| `employeeNumber` | String | 신입 사용자 사번 |
+| `name` | String | 신입 사용자 이름 |
+| `role` | String | 생성된 사용자 역할. 신입 계정 생성 API에서는 항상 `USER` |
+| `hireDate` | String | 신입 사용자 입사일 |
+| `createdAt` | String | 계정 생성 시각 |
 
 #### Error Response (400 Bad Request)
 
@@ -391,7 +475,25 @@ ALTER TABLE users
       "message": "입사일은 필수입니다."
     }
   ],
-  "path": "/api/v1/users"
+  "path": "/api/v1/admin/users"
+}
+```
+
+#### Error Response (403 Forbidden)
+
+```json
+{
+  "timestamp": "2026-04-28T09:30:00",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "ACCESS_DENIED",
+  "errors": [
+    {
+      "field": "role",
+      "message": "관리자 권한이 필요한 API입니다."
+    }
+  ],
+  "path": "/api/v1/admin/users"
 }
 ```
 
@@ -409,7 +511,7 @@ ALTER TABLE users
       "message": "이미 등록된 사번입니다."
     }
   ],
-  "path": "/api/v1/users"
+  "path": "/api/v1/admin/users"
 }
 ```
 
@@ -419,7 +521,8 @@ ALTER TABLE users
 - `name`, `employeeNumber`는 공백만 입력할 수 없다.
 - `hireDate`는 `yyyy-MM-dd` 형식이어야 한다.
 - 길이 제한 또는 형식 검증에 실패하면 `400 Bad Request`를 반환한다.
-- 중복 사번 검증은 현재 로그인한 사용자의 회사 범위 안에서 수행한다.
+- 중복 사번 검증은 현재 로그인한 관리자 사용자의 회사 범위 안에서 수행한다.
+- 이 API의 권한 검증은 `users.role = ADMIN` 기준으로 수행한다.
 - 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
 
 ### 5-3. 인증 오류 및 세션 만료/무효화 처리
@@ -1338,6 +1441,14 @@ Content-Type: application/json
 | `out_of_scope` | 서비스 범위를 벗어난 질문에 대한 안내 메시지 |
 | `suggestion` | 온보딩 제안 메시지 |
 
+#### UserRole
+
+| 값 | 설명 |
+|---|---|
+| `USER` | 일반 신입 사용자. MyBuddy 채팅 기능을 사용한다. |
+| `ADMIN` | 고객사 관리자. 관리자 계정 페이지에서 신입 계정 생성 및 문서 관리 API를 호출할 수 있다. |
+| `SERVICE_ADMIN` | 제품 내부 지표 조회용 계정. MVP 기준 일반 `USER`와 동일하게 MyBuddy 기능을 사용할 수 있으며, 추가로 관리자 지표 API(`/api/v1/admin/metrics/*`)를 호출할 수 있다. 고객사 관리자 계정 페이지 API와 문서 관리 API는 호출할 수 없다. |
+
 #### ContactType
 
 | 값 | 설명 |
@@ -1857,6 +1968,9 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 이 항목은 문서 업로드, 조회, 다운로드, 삭제, 백업 재시도 등 스토리지 문서 관리 기능에 대한 API를 설명한다.
 이 섹션의 엔드포인트는 현재 Swagger UI 기준으로 확인된 항목을 정리한 것이며, 요청/응답의 상세 스키마는 실제 Swagger UI 정의를 우선 기준으로 한다.
 
+문서 관리 API는 고객사 관리자(`ADMIN`)만 호출할 수 있다.
+일반 사용자(`USER`)와 제품 내부 관리자(`SERVICE_ADMIN`)는 문서 관리 API를 호출할 수 없다.
+
 ### 8-1. 문서 업로드
 
 ```http
@@ -2128,8 +2242,9 @@ Authorization: Bearer {accessToken}
 #### 공통 인증 및 권한 규칙
 
 - 이 API는 제품 지표 확인을 위해 사용하는 내부 관리자(`SERVICE_ADMIN`) API다.
+- 고객사 관리자 계정 페이지 API(`/api/v1/admin/users`)와 권한 목적이 다르다.
 - 일반 사용자(`USER`)와 고객사 관리자(`ADMIN`)는 호출할 수 없다.
-- 일반 사용자가 호출하면 `403 Forbidden`을 반환한다.
+- 권한이 없는 사용자가 호출하면 `403 Forbidden`을 반환한다.
 - 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
 
 #### 공통 Query Parameter
@@ -2470,7 +2585,7 @@ Authorization: Bearer {accessToken}
 
 #### Error Response (403 Forbidden)
 
-관리자 권한이 없는 사용자가 호출한 경우 반환한다.
+`SERVICE_ADMIN` 권한이 없는 사용자가 호출한 경우 반환한다.
 
 ```json
 {
@@ -2556,3 +2671,5 @@ Authorization: Bearer {accessToken}
   - 관리자용 서비스 측정 지표 조회 API 추가
 - **v1.9.2 (2026-05-07)**:
   - 인증 에러 코드 규격을 수정
+- **v1.9.3 (2026-05-08)**:
+  - 관리자 계정 경로 설정 및 로그인 응답에 `role` 추가, 내부 지표 API의 경로·권한 규격을 분리 정리

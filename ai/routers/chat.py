@@ -116,14 +116,12 @@ async def chat_stream(request: ChatRequest):
                 return
 
             accumulated_text: list[str] = []
-            final_docs: list = []
-            async for chunk, source, related_docs in stream_rag_chain(
+            async for chunk, source, related_docs, rag_doc_ids in stream_rag_chain(
                 uid, message, request.user.name, request.user.companyCode,
                 company_name=request.user.companyName,
                 hire_date=request.user.hireDate,
             ):
                 if source is not None:
-                    final_docs = related_docs or []
                     full_answer = "".join(accumulated_text)
                     if any(kw in full_answer for kw in _NO_RESULT_KW):
                         msg_type = "no_result"
@@ -134,7 +132,7 @@ async def chat_stream(request: ChatRequest):
                         from routers.recommend import get_contact_for_question
                         contact = await get_contact_for_question(request.user.companyCode, request.content)
                         contacts = [contact]
-                    doc_ids = [{"documentId": d.get("doc_id") or d.get("documentId")} for d in final_docs if d.get("doc_id") or d.get("documentId")]
+                    doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])]
                     yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                     pass  # 내부 스테이지 마커는 클라이언트에 전달하지 않음
