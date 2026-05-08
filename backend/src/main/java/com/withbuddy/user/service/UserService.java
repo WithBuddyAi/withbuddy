@@ -8,8 +8,8 @@ import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.user.dto.CreateUserRequest;
 import com.withbuddy.user.dto.CreateUserResponse;
-import com.withbuddy.user.entity.UserRole;
 import com.withbuddy.user.entity.User;
+import com.withbuddy.user.entity.UserRole;
 import com.withbuddy.user.exception.DuplicateEmployeeNumberException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -44,7 +44,7 @@ public class UserService {
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
         if (currentUser.getRole() != UserRole.ADMIN) {
-            throw new ForbiddenException("관리자만 신입 계정을 생성할 수 있습니다.");
+            throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
         }
 
         if (!currentUser.getCompany().getCompanyCode().equals(companyCode)) {

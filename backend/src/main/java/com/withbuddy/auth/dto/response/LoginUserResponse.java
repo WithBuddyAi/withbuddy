@@ -15,10 +15,10 @@ public class LoginUserResponse {
     @Schema(description = "사용자 식별자", example = "1")
     private Long id;
 
-    @Schema(description = "회사 코드", example = "1001")
+    @Schema(description = "회사 코드", example = "WB0001")
     private String companyCode;
 
-    @Schema(description = "사용자 역할", example = "ADMIN", allowableValues = {"USER", "ADMIN"})
+    @Schema(description = "사용자 역할", example = "ADMIN", allowableValues = {"USER", "ADMIN", "SERVICE_ADMIN"})
     private UserRole role;
 
     @Schema(description = "회사명", example = "테크 주식회사")
@@ -32,5 +32,4 @@ public class LoginUserResponse {
 
     @Schema(description = "입사일", example = "2026-03-01")
     private LocalDate hireDate;
-
 }
