@@ -526,7 +526,15 @@ public class DocumentStorageService implements DocumentDownloadService {
                     safeMessage(e)
             );
         }
-        return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
+        if ("local".equalsIgnoreCase(storageProperties.getProvider())) {
+            return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
+        }
+        throw new StorageException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "FILE_003",
+                "documentId",
+                "다운로드 URL 발급에 실패했습니다."
+        );
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {

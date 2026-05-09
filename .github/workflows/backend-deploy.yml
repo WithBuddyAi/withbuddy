@@ -93,6 +93,8 @@ jobs:
           STORAGE_OCI_CLI_EXECUTABLE: ${{ secrets.STORAGE_OCI_CLI_EXECUTABLE }}
           STORAGE_OCI_PRIMARY_PROFILE: ${{ secrets.STORAGE_OCI_PRIMARY_PROFILE }}
           STORAGE_OCI_BACKUP_PROFILE: ${{ secrets.STORAGE_OCI_BACKUP_PROFILE }}
+          STORAGE_OCI_REGION: ${{ secrets.STORAGE_OCI_REGION }}
+          STORAGE_OCI_PUBLIC_ENDPOINT: ${{ secrets.STORAGE_OCI_PUBLIC_ENDPOINT }}
           STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING: ${{ secrets.STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING }}
           STORAGE_PRIMARY_NAMESPACE: ${{ secrets.STORAGE_PRIMARY_NAMESPACE }}
           STORAGE_PRIMARY_BUCKET: ${{ secrets.STORAGE_PRIMARY_BUCKET }}
@@ -158,6 +160,19 @@ jobs:
           done
           if [ "${#missing_vars[@]}" -gt 0 ]; then
             echo "Missing required secrets: ${missing_vars[*]}"
+            exit 1
+          fi
+
+          # Guardrail: production backend must use OCI storage mode.
+          if [ "${STORAGE_PROVIDER}" != "oci-cli" ]; then
+            echo "Invalid STORAGE_PROVIDER for production: '${STORAGE_PROVIDER}'"
+            echo "Set STORAGE_PROVIDER=oci-cli to ensure presigned URL issuance."
+            exit 1
+          fi
+
+          # Guardrail: OCI endpoint resolution requires at least one of region or public endpoint.
+          if [ -z "${STORAGE_OCI_REGION:-}" ] && [ -z "${STORAGE_OCI_PUBLIC_ENDPOINT:-}" ]; then
+            echo "Missing OCI endpoint config: set STORAGE_OCI_REGION or STORAGE_OCI_PUBLIC_ENDPOINT."
             exit 1
           fi
 
@@ -417,6 +432,8 @@ jobs:
           STORAGE_OCI_CLI_EXECUTABLE: ${{ secrets.STORAGE_OCI_CLI_EXECUTABLE }}
           STORAGE_OCI_PRIMARY_PROFILE: ${{ secrets.STORAGE_OCI_PRIMARY_PROFILE }}
           STORAGE_OCI_BACKUP_PROFILE: ${{ secrets.STORAGE_OCI_BACKUP_PROFILE }}
+          STORAGE_OCI_REGION: ${{ secrets.STORAGE_OCI_REGION }}
+          STORAGE_OCI_PUBLIC_ENDPOINT: ${{ secrets.STORAGE_OCI_PUBLIC_ENDPOINT }}
           STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING: ${{ secrets.STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING }}
           STORAGE_PRIMARY_NAMESPACE: ${{ secrets.STORAGE_PRIMARY_NAMESPACE }}
           STORAGE_PRIMARY_BUCKET: ${{ secrets.STORAGE_PRIMARY_BUCKET }}
@@ -477,6 +494,8 @@ jobs:
               STORAGE_OCI_CLI_EXECUTABLE \
               STORAGE_OCI_PRIMARY_PROFILE \
               STORAGE_OCI_BACKUP_PROFILE \
+              STORAGE_OCI_REGION \
+              STORAGE_OCI_PUBLIC_ENDPOINT \
               STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING \
               STORAGE_PRIMARY_NAMESPACE \
               STORAGE_PRIMARY_BUCKET \
@@ -614,6 +633,8 @@ jobs:
                 "STORAGE_OCI_CLI_EXECUTABLE=${STORAGE_OCI_CLI_EXECUTABLE}" \
                 "STORAGE_OCI_PRIMARY_PROFILE=${STORAGE_OCI_PRIMARY_PROFILE}" \
                 "STORAGE_OCI_BACKUP_PROFILE=${STORAGE_OCI_BACKUP_PROFILE}" \
+                "STORAGE_OCI_REGION=${STORAGE_OCI_REGION}" \
+                "STORAGE_OCI_PUBLIC_ENDPOINT=${STORAGE_OCI_PUBLIC_ENDPOINT}" \
                 "STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING=${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING}" \
                 "STORAGE_PRIMARY_NAMESPACE=${STORAGE_PRIMARY_NAMESPACE}" \
                 "STORAGE_PRIMARY_BUCKET=${STORAGE_PRIMARY_BUCKET}" \
