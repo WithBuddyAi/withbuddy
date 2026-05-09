@@ -161,6 +161,14 @@ jobs:
             exit 1
           fi
 
+          # Guardrail: RabbitMQ password must be raw text, not URL-encoded.
+          # e.g. use "asdf1234##" (OK), not "asdf1234%23%23" (NOT OK)
+          if [[ "${SPRING_RABBITMQ_PASSWORD}" == *"%23"* ]]; then
+            echo "Invalid SPRING_RABBITMQ_PASSWORD: URL-encoded value detected (%23)."
+            echo "Use raw password text in secret (example: asdf1234##)."
+            exit 1
+          fi
+
       - name: Install cloudflared client on runner
         run: |
           set -euo pipefail
