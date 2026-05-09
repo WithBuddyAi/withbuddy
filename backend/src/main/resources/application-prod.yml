@@ -14,7 +14,7 @@ spring:
     redis:
       url: ${REDIS_URL}
   rabbitmq:
-    uri: ${RABBITMQ_URL}
+    addresses: ${RABBITMQ_URL}
   jpa:
     hibernate:
       ddl-auto: none
