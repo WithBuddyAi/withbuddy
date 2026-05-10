@@ -6,9 +6,10 @@ export function UserProvider ({children}) {
   const [hireDate, setHireDate] = useState()
   const [dayOffset, setDayOffset] = useState()
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('accessToken'))
+  const [role, setRole] = useState()
 
   return (
-    <UserContext.Provider value = {{hireDate, setHireDate, dayOffset, setDayOffset}}>
+    <UserContext.Provider value = {{hireDate, setHireDate, dayOffset, setDayOffset, role, setRole}}>
       {children}
     </UserContext.Provider>
   )
