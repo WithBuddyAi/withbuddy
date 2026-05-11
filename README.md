@@ -2,7 +2,7 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-05-07
+**최종 업데이트**: 2026-05-11
 **버전**: MVP 1.0
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
@@ -73,15 +73,15 @@ WithBuddy는 회사 문서를 학습해 신입의 자연어 질문에 즉시 답
 ---
 
 **서비스 성공 지표**
-| 구분 | 지표 | 목표 |
-|------|------|--------|
-|북극성|D+7 RAG 답변 수신 경험률 (입사 당일 포함 7일간 기준)|70% 이상|
-|보조|D+0 첫 인터랙션 발생률|80% 이상|
-|보조|D+7 재방문률|30% 이상|
-|보조|Quick Tap 클릭 유저율|40% 이상|
-|가드레일|IN SCOPE 정답률|80% 이상|
-|가드레일|미답변 비율 (no_result + out_of_scope)|20% 이하|
-|가드레일|TTA (최초 로그인 → 첫 RAG 답변)|5분 이내|
+| 구분 | 지표 | 목표 | 실측 |
+|------|------|--------|--------|
+|북극성|D+7 RAG 답변 수신 경험률 (입사 당일 포함 7일간 기준)|70% 이상|    |
+|보조|D+0 첫 인터랙션 발생률|80% 이상|    |
+|보조|D+7 재방문률|30% 이상|    |
+|보조|Quick Tap 클릭 유저율|40% 이상|    |
+|가드레일|IN SCOPE 정답률|80% 이상|98% 이상|
+|가드레일|미답변 비율 (no_result + out_of_scope)|20% 이하|    |
+|가드레일|TTA (최초 로그인 → 첫 RAG 답변)|5분 이내|0.7초|
 
 ---
 
@@ -104,7 +104,7 @@ WithBuddy는 회사 문서를 학습해 신입의 자연어 질문에 즉시 답
 |------|------|
 | **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, Redis, RabbitMQ, JWT, Flyway |
 | **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
-| **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude API |
+| **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude Haiku 4.5, Gemini Embedding 2 |
 | **배포** | Oracle Cloud (Backend/AI/MySQL/Object Storage), Vercel (Frontend) |
 | **CI/CD** | GitHub Actions |
 
@@ -231,10 +231,6 @@ withbuddy/
 │  │  ├─ DEPLOYMENT-ORACLE.md                       # BE/CI  (OCI 배포 가이드)
 │  │  ├─ DEPLOYMENT.md                              # BE/CI  (배포 가이드)
 │  │  └─ INFRASTRUCTURE.md                          # BE/CI  (인프라 구조)
-│  │  ├─ AI_ARCHITECTURE.md                         # AI  (AI 아키텍처)
-│  │  ├─ ARCHITECTURE.md                            # BE/CI  (시스템 아키텍처)
-│  │  ├─ DEPLOYMENT-ORACLE.md                       # BE/CI  (OCI 배포 가이드)
-│  │  ├─ INFRASTRUCTURE.md                          # BE/CI  (인프라 구조)
 │  │  ├─ AI_SERVER_GUIDE.md                         # AI/CI  (AI 서버 운영/배포 점검 가이드)
 │  │  └─ Redis_RMQ_SSE.md                           # BE     (Redis & RabbitMQ 상세 아키텍처 가이드)
 │  │
@@ -452,6 +448,7 @@ withbuddy/
 
 ## 변경 이력
 
+- 2026-05-11:5/8 SSH 보안 강화, 5/9 Cloudflare Tunnel 배포 전환, 5/10 보안 체크리스트 완비
 - 2026-05-06: PRD v4.0 기반으로 README 전면 개편. 데모 접속 링크, 테스트 계정, 핵심 가치 제안, 서비스 성공 지표, 기획 문서 섹션 추가.
 - 2026-04-20: `docs/architecture/Redis_RMQ_SSE.md` 추가에 따라 디렉토리 구조 및 문서 링크 반영. Redis 캐싱·RabbitMQ 메시징 상세 아키텍처 가이드 (v2.5).
 - 2026-04-14: 백엔드 배포 기준을 Flyway 중심으로 업데이트. baseline 설정(`SPRING_FLYWAY_BASELINE_*`)과 V10 시드 보정 마이그레이션 반영 내용을 문서 링크와 함께 정리.
