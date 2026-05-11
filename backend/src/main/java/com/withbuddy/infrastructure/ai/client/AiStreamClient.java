@@ -2,7 +2,7 @@ package com.withbuddy.infrastructure.ai.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.withbuddy.chat.dto.ChatStreamAnswerDeltaResponse;
+import com.withbuddy.buddy.chat.dto.response.ChatStreamAnswerDeltaResponse;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import lombok.extern.slf4j.Slf4j;
