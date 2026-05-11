@@ -243,14 +243,17 @@ class InternalAIAnswerResponse(BaseModel):
     recommendedContacts: list = Field(default_factory=list, description="no_result 시 추천 담당자 목록")
 
 
-def _build_documents(doc_ids: list[int]) -> list[dict]:
-    """doc_ids → presigned URL 포함 documents 배열. URL 조회 실패 시 documentId만 반환."""
+def _build_documents(doc_ids: list[int], company_code: str = "") -> list[dict]:
+    """doc_ids → presigned URL로 회사 소유권 검증 후 documents 배열 반환.
+    presigned URL 경로(companies/{code}/)로 실제 소속 회사를 확인해 타사 문서 제거."""
     from core.be_client import get_presigned_url
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=len(doc_ids) or 1) as pool:
         urls = list(pool.map(get_presigned_url, doc_ids))
     result = []
     for did, url in zip(doc_ids, urls):
+        if url and company_code and f"companies/{company_code}/" not in url:
+            continue  # 타사 문서 제외
         entry = {"documentId": did}
         if url:
             entry["downloadUrl"] = url
@@ -386,7 +389,9 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
     docs_list = (
         []
         if message_type in ("no_result", "out_of_scope")
-        else await asyncio.get_event_loop().run_in_executor(None, _build_documents, doc_ids)
+        else await asyncio.get_event_loop().run_in_executor(
+            None, _build_documents, doc_ids, company_code
+        )
     )
     return InternalAIAnswerResponse(
         questionId=request.questionId,
@@ -615,7 +620,9 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         documents=(
             []
             if message_type in ("no_result", "out_of_scope")
-            else await asyncio.get_event_loop().run_in_executor(None, _build_documents, doc_ids)
+            else await asyncio.get_event_loop().run_in_executor(
+                None, _build_documents, doc_ids, request.user.companyCode
+            )
         ),
         recommendedContacts=recommended_contacts,
     )
