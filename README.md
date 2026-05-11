@@ -280,7 +280,7 @@ withbuddy/
 ## 문서 바로가기
 
 ### 기획
-- **PRD v4.0** - 서비스 기획 전체 명세
+- **[PRD v4.0](./docs/planning/PRD_v4.0)** - 서비스 기획 전체 명세
 
 ### 시작하기
 - **[개발 환경 설정](./docs/guides/SETUP.md)** - MySQL, 환경변수, 실행 방법
