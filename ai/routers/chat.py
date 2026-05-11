@@ -20,7 +20,6 @@ from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
 from utils.sensitive_filter import check_sensitive, check_global_block
-from utils.circuit_breaker import check_circuit_breaker
 
 router = APIRouter(tags=["chat"])
 
@@ -94,8 +93,6 @@ async def chat_stream(request: ChatRequest):
     오케스트레이터 기반 멀티에이전트 질의응답 (SSE 스트리밍)
     토큰 단위로 실시간 응답을 전송합니다.
     """
-    check_circuit_breaker()
-
     async def event_generator():
         try:
             from chains.rag_chain import _resolve_selection, _fix_names
@@ -246,6 +243,24 @@ class InternalAIAnswerResponse(BaseModel):
     recommendedContacts: list = Field(default_factory=list, description="no_result 시 추천 담당자 목록")
 
 
+def _build_documents(doc_ids: list[int], company_code: str = "") -> list[dict]:
+    """doc_ids → presigned URL로 회사 소유권 검증 후 documents 배열 반환.
+    presigned URL 경로(companies/{code}/)로 실제 소속 회사를 확인해 타사 문서 제거."""
+    from core.be_client import get_presigned_url
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=len(doc_ids) or 1) as pool:
+        urls = list(pool.map(get_presigned_url, doc_ids))
+    result = []
+    for did, url in zip(doc_ids, urls):
+        if url and company_code and f"companies/{company_code}/" not in url:
+            continue  # 타사 문서 제외
+        entry = {"documentId": did}
+        if url:
+            entry["downloadUrl"] = url
+        result.append(entry)
+    return result
+
+
 _NO_RESULT_KW = [
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
@@ -371,11 +386,18 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
         contact = await get_contact_for_question(company_code, request.content)
         recommended_contacts = [contact]
 
+    docs_list = (
+        []
+        if message_type in ("no_result", "out_of_scope")
+        else await asyncio.get_event_loop().run_in_executor(
+            None, _build_documents, doc_ids, company_code
+        )
+    )
     return InternalAIAnswerResponse(
         questionId=request.questionId,
         messageType=message_type,
         content=final_content,
-        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
+        documents=docs_list,
         recommendedContacts=recommended_contacts,
     )
 
@@ -383,7 +405,6 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
-    check_circuit_breaker()
     # 욕설·극단적 위기 → 전체 차단 (복합 질문 여부 무관)
     action, answer = check_global_block(request.content, request.user.name)
     if action == "block":
@@ -596,7 +617,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
-        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
+        documents=(
+            []
+            if message_type in ("no_result", "out_of_scope")
+            else await asyncio.get_event_loop().run_in_executor(
+                None, _build_documents, doc_ids, request.user.companyCode
+            )
+        ),
         recommendedContacts=recommended_contacts,
     )
 
