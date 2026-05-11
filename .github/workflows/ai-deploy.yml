@@ -1,4 +1,6 @@
 name: Deploy AI Server
+run-name: >-
+  Deploy AI Server | ref:${{ github.ref_name }} | sha:${{ github.sha }} | by:@${{ github.actor }}
 
 on:
   push:
@@ -33,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deploy_branch: ${{ steps.resolve.outputs.deploy_branch }}
+      deploy_sha: ${{ steps.deploy_sha.outputs.deploy_sha }}
     steps:
       - name: Resolve deploy branch
         id: resolve
@@ -68,12 +71,16 @@ jobs:
           echo "Synced ${DEPLOY_BRANCH} to origin/main"
 
       - name: Verify remote deploy branch exists
+        id: deploy_sha
         env:
           DEPLOY_BRANCH: ${{ steps.resolve.outputs.deploy_branch }}
         run: |
           set -euo pipefail
           git ls-remote --exit-code --heads origin "${DEPLOY_BRANCH}" >/dev/null
           echo "Verified remote branch origin/${DEPLOY_BRANCH}"
+          DEPLOY_SHA="$(git rev-parse --verify "origin/${DEPLOY_BRANCH}")"
+          echo "Deploy branch commit: ${DEPLOY_SHA}"
+          echo "deploy_sha=${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy to WithBuddy AI Server
@@ -82,6 +89,24 @@ jobs:
     environment: production
     timeout-minutes: 25
     steps:
+      - name: Print commit context
+        env:
+          DEPLOY_BRANCH: ${{ needs.sync-deploy-branch.outputs.deploy_branch }}
+          DEPLOY_SHA: ${{ needs.sync-deploy-branch.outputs.deploy_sha }}
+        run: |
+          set -euo pipefail
+          echo "Workflow ref       : ${GITHUB_REF_NAME}"
+          echo "Workflow commit SHA: ${GITHUB_SHA}"
+          echo "Deploy branch      : ${DEPLOY_BRANCH}"
+          echo "Deploy branch SHA  : ${DEPLOY_SHA}"
+          {
+            echo "## Deploy Commit Context"
+            echo "- Workflow ref: \`${GITHUB_REF_NAME}\`"
+            echo "- Workflow SHA: \`${GITHUB_SHA}\`"
+            echo "- Deploy branch: \`${DEPLOY_BRANCH}\`"
+            echo "- Deploy branch SHA: \`${DEPLOY_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Validate required environment secrets
         env:
           AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}
