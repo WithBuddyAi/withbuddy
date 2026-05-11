@@ -5,7 +5,7 @@ import bar from "../../assets/side_bar.svg";
 
 function AdminSidebar({ isSidebarOpen, setIsSidebarOpen, setIsLogoutModal }) {
   return (
-    <div>
+    <div className="contents">
       {isSidebarOpen ? (
         <div
           className="flex flex-col w-[232px] lg:w-[255px] fixed top-0 left-0 h-full z-40 md:relative md:z-10 md:top-auto md:left-auto md:h-auto md:mt-[32px]"
@@ -42,7 +42,7 @@ function AdminSidebar({ isSidebarOpen, setIsSidebarOpen, setIsLogoutModal }) {
           </div>
 
           {/* 메뉴 */}
-          <div className="py-[24px] px-[16px]">
+          <div className="flex-1 py-[24px] px-[16px]">
             <NavLink
               to="/admin"
               className={({ isActive }) =>
@@ -80,7 +80,7 @@ function AdminSidebar({ isSidebarOpen, setIsSidebarOpen, setIsLogoutModal }) {
           </div>
 
           {/* 메뉴 */}
-          <div className="py-[24px] px-[16px]">
+          <div className="flex-1 py-[24px] px-[16px]">
             <NavLink
               to="/admin"
               className={({ isActive }) =>
