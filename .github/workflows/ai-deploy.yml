@@ -138,17 +138,17 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          cat > ~/.ssh/ai_key <<'KEY_EOF'
+          cat > ~/.ssh/ssh-withbuddy.key <<'KEY_EOF'
           ${{ secrets.AI_SERVER_SSH_KEY }}
           KEY_EOF
-          chmod 600 ~/.ssh/ai_key
+          chmod 600 ~/.ssh/ssh-withbuddy.key
 
           cat > ~/.ssh/config <<EOF
           Host ${ACCESS_HOST}
             HostName ${ACCESS_HOST}
             User ${AI_SERVER_USER}
             Port 22
-            IdentityFile ~/.ssh/ai_key
+            IdentityFile ~/.ssh/ssh-withbuddy.key
             StrictHostKeyChecking no
             UserKnownHostsFile /dev/null
             ServerAliveInterval 30
