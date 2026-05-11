@@ -239,19 +239,9 @@ def get_template_docs(company_code: str) -> list[dict]:
             if _infer_cc(d) == company_code
         ]
 
-        # presigned URL 경로로 실제 소속 회사 검증 (1시간 캐시이므로 비용 낮음)
-        from concurrent.futures import ThreadPoolExecutor
-        doc_ids = [c["documentId"] for c in candidates]
-        with ThreadPoolExecutor(max_workers=max(len(doc_ids), 1)) as pool:
-            urls = list(pool.map(get_presigned_url, doc_ids))
-        result = [
-            c for c, url in zip(candidates, urls)
-            if url and f"companies/{company_code}/" in url
-        ]
-
-        _template_cache[company_code] = (now, result)
-        logger.info("get_template_docs (company=%s): %d개 반환", company_code, len(result))
-        return result
+        _template_cache[company_code] = (now, candidates)
+        logger.info("get_template_docs (company=%s): %d개 반환", company_code, len(candidates))
+        return candidates
     except Exception as e:
         logger.warning("get_template_docs 실패 (company=%s): %s", company_code, e)
         return []
