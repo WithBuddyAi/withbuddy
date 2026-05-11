@@ -487,7 +487,8 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         retrieved_docs = retrieved_docs[:top_k]
 
     source_names = _extract_sources(retrieved_docs)
-    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")} | set(_match_template_docs(company_code, question)))
+    # 공통 법령 문서(company_code="")는 BE 다운로드 권한 없으므로 회사 문서 ID만 반환
+    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id") and d.metadata.get("company_code", "") == company_code} | set(_match_template_docs(company_code, question)))
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
@@ -615,7 +616,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         top_k = min(3 * len(sub_questions), 6)
         retrieved_docs = retrieved_docs[:top_k]
     source_names = _extract_sources(retrieved_docs)
-    rag_doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")} | set(_match_template_docs(company_code, question)))
+    # 공통 법령 문서(company_code="")는 BE 다운로드 권한 없으므로 회사 문서 ID만 반환
+    rag_doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id") and d.metadata.get("company_code", "") == company_code} | set(_match_template_docs(company_code, question)))
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
