@@ -74,6 +74,7 @@ _ADMIN_INTENT_WORDS = [
     "어떻게", "방법", "절차", "기준", "신청", "정산", "받을 수 있어",
     "알려줘", "확인", "얼마", "언제", "어디서", "가능해", "신청하려고",
     "규정", "조항", "가이드라인", "기한", "서류", "증빙", "절차서", "매뉴얼",
+    "있나요", "있어요", "있을까요",
 ]
 
 
@@ -168,9 +169,11 @@ def check_sensitive(message: str, user_name: str = "") -> tuple[str, str | None]
             return ("block", _make_sensitive_answer(user_name))
         return ("pass", None)
 
-    # 5. 감정적 위기 — 행정 의도 무관하게 항상 민감 응대
+    # 5. 감정적 위기 — 행정 의도 없을 때만 민감 응대
     if any(kw in message for kw in _EMOTIONAL_CRISIS_KEYWORDS):
-        return ("sensitive", _make_sensitive_answer(user_name))
+        if not has_admin_intent:
+            return ("sensitive", _make_sensitive_answer(user_name))
+        return ("pass", None)
 
     # 6. 회사·사람 비방 → 소프트 리다이렉트
     if any(kw in message for kw in _SLANDER_KEYWORDS):
