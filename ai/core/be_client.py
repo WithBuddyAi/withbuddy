@@ -209,6 +209,38 @@ def retry_task(task_id: str, reason: str = "manual-retry") -> dict | None:
 
 # ── Callback 검증 ────────────────────────────────────────────
 
+_template_cache: dict[str, tuple[float, list]] = {}  # {company_code: (timestamp, docs)}
+_TEMPLATE_CACHE_TTL = 3600  # 1시간
+
+
+def get_template_docs(company_code: str) -> list[dict]:
+    """BE에서 TEMPLATE 타입 문서 목록 조회 (1시간 캐시). [{documentId, title, fileName}]"""
+    now = time.time()
+    cached = _template_cache.get(company_code)
+    if cached and now - cached[0] < _TEMPLATE_CACHE_TTL:
+        return cached[1]
+    try:
+        r = _call("GET", "/api/v1/documents?size=100&page=0")
+        docs = r.json().get("content", [])
+        def _infer_cc(d: dict) -> str:
+            fn = d.get("fileName", "").lower()
+            title = d.get("title", "")
+            if fn.startswith("prism_") or "프리즘" in title or "prism" in title.lower():
+                return "WB0002"
+            return "WB0001"  # 기본값
+
+        result = [
+            {"documentId": d["documentId"], "title": d.get("title", ""), "fileName": d.get("fileName", "")}
+            for d in docs
+            if d.get("documentType") == "TEMPLATE" and _infer_cc(d) == company_code
+        ]
+        _template_cache[company_code] = (now, result)
+        return result
+    except Exception as e:
+        logger.warning("get_template_docs 실패 (company=%s): %s", company_code, e)
+        return []
+
+
 def verify_callback_signature(body: bytes, signature: str, timestamp: str, request_id: str) -> bool:
     """BE 콜백 HMAC-SHA256 서명 검증.
     1. X-Callback-Timestamp ±300초 확인
