@@ -1,7 +1,7 @@
 package com.withbuddy.infrastructure.mq.consumer;
 
 import com.rabbitmq.client.Channel;
-import com.withbuddy.chat.service.ChatMessageService;
+import com.withbuddy.buddy.chat.service.ChatMessageService;
 import com.withbuddy.infrastructure.mq.MessagingMetricsService;
 import com.withbuddy.infrastructure.mq.entity.MessagingEventLog;
 import com.withbuddy.infrastructure.mq.entity.MessagingEventType;

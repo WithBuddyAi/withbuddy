@@ -1,6 +1,6 @@
 package com.withbuddy.admin.metrics.repository;
 
-import com.withbuddy.user.entity.User;
+import com.withbuddy.account.user.entity.User;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
