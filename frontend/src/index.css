@@ -181,19 +181,6 @@ body {
   }
 }
 
-@media (hover: none) {
-  /* 선택된 날짜 터치 효과 */
-  .react-calendar__tile--active:active {
-    background: #336b97 !important;
-    color: white !important;
-  }
-
-  /* 선택 안 된 날짜 터치 효과 */
-  .react-calendar__tile:not(.react-calendar__tile--active):active {
-    background: #d0ebff !important;
-  }
-}
-
 /* DatePicker */
 /* 전체 달력 */
 .react-datepicker {
