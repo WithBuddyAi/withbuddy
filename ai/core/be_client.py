@@ -246,6 +246,19 @@ def get_template_docs(company_code: str) -> list[dict]:
         return []
 
 
+def get_presigned_url(doc_id: int) -> str | None:
+    """문서 presigned URL 조회. AI 서버 API key(globalAccess)로 회사 체크 없이 호출."""
+    try:
+        r = _call("GET", f"/api/v1/documents/{doc_id}/download", timeout=3.0)
+        data = r.json()
+        if isinstance(data, list):
+            return data[0].get("downloadUrl")
+        return data.get("downloadUrl")
+    except Exception as e:
+        logger.warning("get_presigned_url 실패 (doc_id=%s): %s", doc_id, e)
+        return None
+
+
 def verify_callback_signature(body: bytes, signature: str, timestamp: str, request_id: str) -> bool:
     """BE 콜백 HMAC-SHA256 서명 검증.
     1. X-Callback-Timestamp ±300초 확인

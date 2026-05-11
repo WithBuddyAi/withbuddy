@@ -243,6 +243,19 @@ class InternalAIAnswerResponse(BaseModel):
     recommendedContacts: list = Field(default_factory=list, description="no_result 시 추천 담당자 목록")
 
 
+def _build_documents(doc_ids: list[int]) -> list[dict]:
+    """doc_ids → presigned URL 포함 documents 배열. URL 조회 실패 시 documentId만 반환."""
+    from core.be_client import get_presigned_url
+    result = []
+    for did in doc_ids:
+        url = get_presigned_url(did)
+        entry = {"documentId": did}
+        if url:
+            entry["downloadUrl"] = url
+        result.append(entry)
+    return result
+
+
 _NO_RESULT_KW = [
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
@@ -372,7 +385,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
         questionId=request.questionId,
         messageType=message_type,
         content=final_content,
-        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
+        documents=[] if message_type in ("no_result", "out_of_scope") else _build_documents(doc_ids),
         recommendedContacts=recommended_contacts,
     )
 
@@ -592,7 +605,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
-        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
+        documents=[] if message_type in ("no_result", "out_of_scope") else _build_documents(doc_ids),
         recommendedContacts=recommended_contacts,
     )
 
