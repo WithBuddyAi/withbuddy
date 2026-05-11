@@ -84,17 +84,21 @@ jobs:
     steps:
       - name: Validate required environment secrets
         env:
+          AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}
           AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
           AI_SERVER_USER: ${{ secrets.AI_SERVER_USER }}
           AI_SERVER_SSH_KEY: ${{ secrets.AI_SERVER_SSH_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           AI_APP_DIR: ${{ secrets.AI_APP_DIR }}
           AI_SERVICE_NAME: ${{ secrets.AI_SERVICE_NAME }}
         run: |
           set -euo pipefail
           required_vars=(
-            AI_SERVER_HOST
             AI_SERVER_USER
             AI_SERVER_SSH_KEY
+            CF_ACCESS_CLIENT_ID
+            CF_ACCESS_CLIENT_SECRET
             AI_APP_DIR
             AI_SERVICE_NAME
           )
@@ -104,23 +108,83 @@ jobs:
               exit 1
             fi
           done
+          if [ -z "${AI_ACCESS_HOST// }" ] && [ -z "${AI_SERVER_HOST// }" ]; then
+            echo "Missing required secret: set AI_ACCESS_HOST (preferred) or AI_SERVER_HOST"
+            exit 1
+          fi
 
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.AI_SERVER_HOST }}
-          username: ${{ secrets.AI_SERVER_USER }}
-          key: ${{ secrets.AI_SERVER_SSH_KEY }}
-          command_timeout: 25m
-          script: |
+      - name: Install cloudflared client on runner
+        run: |
+          set -euo pipefail
+          sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Configure SSH over Cloudflare Access
+        env:
+          AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}
+          AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+          AI_SERVER_USER: ${{ secrets.AI_SERVER_USER }}
+          AI_SERVER_SSH_KEY: ${{ secrets.AI_SERVER_SSH_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          ACCESS_HOST="${AI_ACCESS_HOST:-}"
+          if [ -z "${ACCESS_HOST// }" ]; then
+            ACCESS_HOST="${AI_SERVER_HOST:-}"
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          cat > ~/.ssh/ai_key <<'KEY_EOF'
+          ${{ secrets.AI_SERVER_SSH_KEY }}
+          KEY_EOF
+          chmod 600 ~/.ssh/ai_key
+
+          cat > ~/.ssh/config <<EOF
+          Host ${ACCESS_HOST}
+            HostName ${ACCESS_HOST}
+            User ${AI_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/ai_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand /usr/bin/env TUNNEL_SERVICE_TOKEN_ID='${CF_ACCESS_CLIENT_ID}' TUNNEL_SERVICE_TOKEN_SECRET='${CF_ACCESS_CLIENT_SECRET}' cloudflared access ssh --hostname %h
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Deploy over Cloudflare Access SSH
+        env:
+          AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}
+          AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+          AI_APP_DIR: ${{ secrets.AI_APP_DIR }}
+          AI_SERVICE_NAME: ${{ secrets.AI_SERVICE_NAME }}
+          AI_HEALTH_URL: ${{ secrets.AI_HEALTH_URL }}
+          DEPLOY_BRANCH: ${{ needs.sync-deploy-branch.outputs.deploy_branch }}
+        run: |
+          set -Eeuo pipefail
+          ACCESS_HOST="${AI_ACCESS_HOST:-}"
+          if [ -z "${ACCESS_HOST// }" ]; then
+            ACCESS_HOST="${AI_SERVER_HOST:-}"
+          fi
+
+          HEALTH_URL="${AI_HEALTH_URL:-}"
+          if [ -z "${HEALTH_URL// }" ]; then
+            HEALTH_URL="http://127.0.0.1:8000/health"
+          fi
+
+          printf -v DEPLOY_BRANCH_Q '%q' "${DEPLOY_BRANCH}"
+          printf -v HEALTH_URL_Q '%q' "${HEALTH_URL}"
+          printf -v AI_APP_DIR_Q '%q' "${AI_APP_DIR}"
+          printf -v AI_SERVICE_NAME_Q '%q' "${AI_SERVICE_NAME}"
+
+          ssh "${ACCESS_HOST}" "DEPLOY_BRANCH=${DEPLOY_BRANCH_Q} HEALTH_URL=${HEALTH_URL_Q} AI_APP_DIR=${AI_APP_DIR_Q} AI_SERVICE_NAME=${AI_SERVICE_NAME_Q} bash -s" <<'REMOTE_EOF'
             set -Eeuo pipefail
-            DEPLOY_BRANCH="${{ needs.sync-deploy-branch.outputs.deploy_branch }}"
-            HEALTH_URL="${{ secrets.AI_HEALTH_URL }}"
-            if [ -z "${HEALTH_URL// }" ]; then
-              HEALTH_URL="http://127.0.0.1:8000/health"
-            fi
 
-            cd "${{ secrets.AI_APP_DIR }}"
+            cd "${AI_APP_DIR}"
             if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
               echo "AI_APP_DIR is not inside a git work tree: $(pwd)"
               exit 1
@@ -154,9 +218,9 @@ jobs:
             python -m pip install --upgrade pip
             pip install -r requirements.txt
 
-            sudo systemctl restart "${{ secrets.AI_SERVICE_NAME }}"
-            sudo systemctl is-active --quiet "${{ secrets.AI_SERVICE_NAME }}"
-            sudo systemctl status --no-pager "${{ secrets.AI_SERVICE_NAME }}"
+            sudo systemctl restart "${AI_SERVICE_NAME}"
+            sudo systemctl is-active --quiet "${AI_SERVICE_NAME}"
+            sudo systemctl status --no-pager "${AI_SERVICE_NAME}"
 
             sleep 3
             for i in {1..30}; do
@@ -165,19 +229,20 @@ jobs:
                 exit 0
               fi
 
-              if ! sudo systemctl is-active --quiet "${{ secrets.AI_SERVICE_NAME }}"; then
+              if ! sudo systemctl is-active --quiet "${AI_SERVICE_NAME}"; then
                 echo "Service is not active while waiting for health endpoint."
-                sudo systemctl status --no-pager "${{ secrets.AI_SERVICE_NAME }}" || true
-                sudo journalctl -u "${{ secrets.AI_SERVICE_NAME }}" -n 200 --no-pager || true
+                sudo systemctl status --no-pager "${AI_SERVICE_NAME}" || true
+                sudo journalctl -u "${AI_SERVICE_NAME}" -n 200 --no-pager || true
                 exit 1
               fi
 
               if [ "${i}" -eq 30 ]; then
                 echo "Health check failed after retries: ${HEALTH_URL}"
-                sudo systemctl status --no-pager "${{ secrets.AI_SERVICE_NAME }}" || true
-                sudo journalctl -u "${{ secrets.AI_SERVICE_NAME }}" -n 200 --no-pager || true
+                sudo systemctl status --no-pager "${AI_SERVICE_NAME}" || true
+                sudo journalctl -u "${AI_SERVICE_NAME}" -n 200 --no-pager || true
                 exit 1
               fi
 
               sleep 5
             done
+          REMOTE_EOF
