@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserRoundCog, Menu } from "lucide-react";
 import LogoutModal from "../components/LogoutModal";
 import AdminSidebar from "../components/admin/AdminSidebar";
@@ -14,7 +14,8 @@ function Admin({ setIsLoggedIn }) {
   // view 상태: 'main' | 'new'
   const [view, setView] = useState("main");
 
-  // const [successMessage, setSuccessMessage] = useState("");
+  // 계정 생성 완료 메시지
+  const [successMessage, setSuccessMessage] = useState("");
 
   // 로그아웃
   const handleLogout = () => {
@@ -31,6 +32,16 @@ function Admin({ setIsLoggedIn }) {
   const handleViewChange = (newView) => {
     setView(newView);
   };
+
+  // 계정 생성 완료 토스트
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   return (
     <div className="h-screen flex relative overflow-hidden">
@@ -88,10 +99,19 @@ function Admin({ setIsLoggedIn }) {
           <div className="flex-1 overflow-y-auto px-[24px] pb-[16px] md:px-0 md:pb-0">
             {view === "main" ? (
               // 메인 화면
-              <AdminMainView handleViewChange={handleViewChange} />
+              <AdminMainView
+                handleViewChange={handleViewChange}
+                successMessage={successMessage}
+              />
             ) : (
               // 계정 생성 화면
-              <AdminCreateView handleViewChange={handleViewChange} />
+              <AdminCreateView
+                handleViewChange={handleViewChange}
+                onSuccess={(message) => {
+                  setSuccessMessage(message);
+                  handleViewChange("main");
+                }}
+              />
             )}
           </div>
         </div>
