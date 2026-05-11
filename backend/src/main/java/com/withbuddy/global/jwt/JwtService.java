@@ -4,7 +4,7 @@ import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
-import com.withbuddy.user.entity.User;
+import com.withbuddy.account.user.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
