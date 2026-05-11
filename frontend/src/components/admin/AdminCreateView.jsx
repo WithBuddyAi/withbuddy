@@ -4,10 +4,7 @@ import { useState, useRef } from "react";
 import { format } from "date-fns";
 import axiosInstance from "../../api/axiosInstance";
 
-function AdminCreateView({
-  handleViewChange
-}) {
-  
+function AdminCreateView({ handleViewChange, onSuccess }) {
   // 계정 생성 시 필요한 정보에 대한 State
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
@@ -16,14 +13,13 @@ function AdminCreateView({
   const [hireDate, setHireDate] = useState(null);
   const [hireDateError, setHireDateError] = useState("");
   const [hireDateInput, setHireDateInput] = useState("");
-  
+
   // 로딩 스피너
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   // DatePicker ref (아이콘 클릭 시 달력 열기)
   const datePickerRef = useRef(null);
-  
 
   // 이름 정규식
   const handleNameChange = (e) => {
@@ -102,7 +98,7 @@ function AdminCreateView({
         employeeNumber,
         hireDate: format(hireDate, "yyyy-MM-dd"),
       });
-      handleViewChange("main");
+      onSuccess(`${name} 계정이 생성되었어요.`);
     } catch (error) {
       // 400 에러인 경우
       if (error.response?.status === 400) {
