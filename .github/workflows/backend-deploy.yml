@@ -1,4 +1,6 @@
 name: Deploy Backend
+run-name: >-
+  Deploy Backend | ref:${{ github.ref_name }} | note:${{ github.event.inputs.deploy_note || github.event.head_commit.message || github.sha }} | by:@${{ github.actor }}
 # Flyway repair step runs on DB server via DB_SERVER_* production secrets. (secret-refresh trigger)
 
 on:
@@ -9,6 +11,11 @@ on:
       - "backend/**"
       - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
+    inputs:
+      deploy_note:
+        description: "런 표시용 메모/커밋메시지"
+        required: false
+        default: ""
 
 concurrency:
   group: backend-deploy-${{ github.ref }}
@@ -21,6 +28,21 @@ jobs:
     timeout-minutes: 25
 
     steps:
+      - name: Print commit context
+        env:
+          DEPLOY_NOTE: ${{ github.event.inputs.deploy_note }}
+        run: |
+          set -euo pipefail
+          echo "Workflow ref       : ${GITHUB_REF_NAME}"
+          echo "Workflow commit SHA: ${GITHUB_SHA}"
+          echo "Deploy note        : ${DEPLOY_NOTE:-}"
+          {
+            echo "## Deploy Commit Context"
+            echo "- Workflow ref: \`${GITHUB_REF_NAME}\`"
+            echo "- Workflow SHA: \`${GITHUB_SHA}\`"
+            echo "- Deploy note: \`${DEPLOY_NOTE:-}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Checkout
         uses: actions/checkout@v4
 
