@@ -10,7 +10,6 @@ import char from "../assets/Favicon_web.svg";
 import bar from "../assets/side_bar.svg";
 import { format } from "date-fns";
 import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css";
 import { useState } from "react";
 
 function Sidebar({

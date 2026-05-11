@@ -128,7 +128,7 @@ function Admin({ setIsLoggedIn }) {
   const handleSubmit = async () => {
     // 빈 값일때 에러 문구 표시
     if (!name) setNameError("이름은 필수입니다.");
-    if (!employeeNumber) setEmployeeNumberError("사번은 필수입니다.");
+    if (!employeeNumber) setEmployeeNumberError("사원번호는 필수입니다.");
     if (!hireDate) setHireDateError("입사일은 필수입니다.");
     if (!name || !employeeNumber || !hireDate) return;
     if (nameError || employeeNumberError || hireDateError) return;
@@ -338,10 +338,10 @@ function Admin({ setIsLoggedIn }) {
               <div>
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between my-[16px]">
                   <div className="mb-[16px]">
-                    <h1 className="text-[22px] font-medium text-[#000000]">
+                    <h1 className="text-[18px] md:text-[22px] font-medium text-[#000000]">
                       계정 관리
                     </h1>
-                    <p className="text-[16px] text-[#495057] mt-[8px]">
+                    <p className="text-[14px] md:text-[16px] text-[#495057] mt-[8px]">
                       신입 사원의 계정을 생성하고 등록 현황을 확인해요.
                     </p>
                   </div>
@@ -371,15 +371,15 @@ function Admin({ setIsLoggedIn }) {
                 </div>
 
                 {/* 제목 + 설명 */}
-                <h1 className="text-[22px] font-medium text-[#000000] mb-[8px]">
+                <h1 className="text-[18px] md:text-[22px] font-medium text-[#000000] mb-[4px] md:mb-[8px]">
                   계정 생성하기
                 </h1>
-                <p className="text-[16px] text-[#495057] mb-[32px]">
+                <p className="text-[14px] md:text-[16px] text-[#495057] mb-[24px] md:mb-[32px]">
                   사원이 로그인할 수 있는 계정을 만들어요.
                 </p>
 
                 {/* 입력 폼 */}
-                <div className="flex flex-col gap-[24px] max-w-[400px] mx-auto">
+                <div className="flex flex-col gap-[12px] md:gap-[24px] max-w-[400px] mx-auto">
                   {/* 사원명 입력칸 */}
                   <div className="flex flex-col gap-[8px]">
                     <label className="font-bold text-[14px] text-[#000000]">
