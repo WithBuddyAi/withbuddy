@@ -9,7 +9,6 @@ import os
 from functools import lru_cache
 
 from langchain_anthropic import ChatAnthropic
-from utils.circuit_breaker import CostTrackerCallback
 
 
 @lru_cache(maxsize=1)
@@ -23,7 +22,6 @@ def get_intent_llm() -> ChatAnthropic:
         anthropic_api_key=api_key,
         temperature=0.0,
         max_tokens=20,
-        callbacks=[CostTrackerCallback()],
     )
 
 
@@ -50,5 +48,4 @@ def get_llm() -> ChatAnthropic:
         anthropic_api_key=api_key,
         temperature=0.3,                   # Q&A는 일관성 우선
         max_tokens=1024,                   # 온보딩 Q&A에 충분한 길이
-        callbacks=[CostTrackerCallback()],
     )
