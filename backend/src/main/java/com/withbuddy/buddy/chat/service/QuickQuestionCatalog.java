@@ -96,7 +96,7 @@ public class QuickQuestionCatalog {
         put(map, EventTarget.QUICK_TAP_HEALTH, "🏥 건강검진 언제부터?", "건강검진 지원은 언제부터 받을 수 있나요?");
         put(map, EventTarget.QUICK_TAP_EDUCATION, "📚 교육·자기계발 지원", "업무 관련 강의나 책 구입 비용을 지원받을 수 있나요?");
         put(map, EventTarget.QUICK_TAP_CONVERT, "📋 정규직 전환 절차", "수습 기간 종료 후 정규직 전환 절차가 어떻게 되나요?");
-        put(map, EventTarget.QUICK_TAP_PROBATION_CHECK, "📊 급여 공제 항목이 뭔가요?", "급여에서 공제되는 항목이 어떻게 되나요?");
+        put(map, EventTarget.QUICK_TAP_SALARY_DEDUCTION, "📊 급여 공제 항목이 뭔가요?", "급여에서 공제되는 항목이 어떻게 되나요?");
         put(map, EventTarget.QUICK_TAP_KPI, "🎯 전환 후 평가 방식", "정규직 전환 후 목표나 평가 방식은 어떻게 되나요?");
 
         return Map.copyOf(map);
@@ -115,7 +115,7 @@ public class QuickQuestionCatalog {
         map.put(9, List.of(EventTarget.QUICK_TAP_WORKING_OUTSIDE, EventTarget.QUICK_TAP_CORP_CARD, EventTarget.QUICK_TAP_BUDDY));
         map.put(13, List.of(EventTarget.QUICK_TAP_WELFARE_APPLY, EventTarget.QUICK_TAP_SALARY, EventTarget.QUICK_TAP_PROBATION));
         map.put(20, List.of(EventTarget.QUICK_TAP_LEAVE_REQ, EventTarget.QUICK_TAP_HEALTH, EventTarget.QUICK_TAP_EDUCATION));
-        map.put(29, List.of(EventTarget.QUICK_TAP_CONVERT, EventTarget.QUICK_TAP_PROBATION_CHECK, EventTarget.QUICK_TAP_KPI));
+        map.put(29, List.of(EventTarget.QUICK_TAP_CONVERT, EventTarget.QUICK_TAP_SALARY_DEDUCTION, EventTarget.QUICK_TAP_KPI));
 
         return Map.copyOf(map);
     }
