@@ -247,7 +247,7 @@ withbuddy/
 - **[스토리지 문서 세트](./docs/storage/README.md)** - Storage API, 운영 Runbook, DDL, ERD
 
 ### API
-- **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
+- **[API 명세서](docs/api/PLANNED_API.md)** - 전체 엔드포인트
 - **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
 
 > 프로젝트 문서는 `docs/` 디렉토리에서 주제별로 확인할 수 있습니다.
