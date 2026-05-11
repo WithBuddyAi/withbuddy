@@ -246,7 +246,7 @@ def get_template_docs(company_code: str) -> list[dict]:
             urls = list(pool.map(get_presigned_url, doc_ids))
         result = [
             c for c, url in zip(candidates, urls)
-            if not url or f"companies/{company_code}/" in url
+            if url and f"companies/{company_code}/" in url
         ]
 
         _template_cache[company_code] = (now, result)
