@@ -5,7 +5,7 @@
 ## 문서 목록
 
 - [ERD.md](./ERD.md): MVP 기준 핵심 ERD 설명
-- [ERD.png](./ERD.png): ERD 이미지
+- [ERD.png](ERD.png): ERD 이미지
 - [MIGRATION.md](./MIGRATION.md): Flyway 마이그레이션 가이드
 - [storage/README.md](./storage/README.md): 스토리지 전용 데이터 문서 인덱스
 - [storage/DB_DDL.sql](./storage/DB_DDL.sql): 스토리지 관련 DDL
