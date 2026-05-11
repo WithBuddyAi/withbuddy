@@ -35,6 +35,7 @@ _EMOTIONAL_CRISIS_KEYWORDS = [
     "퇴사하고 싶어", "그만두고 싶어", "번아웃", "우울",
     "힘들어서 못 하겠", "힘들어 못 하겠", "회사 다니기 싫어",
     "회사 오기가 너무 힘들", "너무 우울",
+    "포기하고 싶",
 ]
 # 극단적 표현 — 항상 차단 (행정 의도 무관)
 _EXTREME_CRISIS_KEYWORDS = [
@@ -167,11 +168,9 @@ def check_sensitive(message: str, user_name: str = "") -> tuple[str, str | None]
             return ("block", _make_sensitive_answer(user_name))
         return ("pass", None)
 
-    # 5. 감정적 위기
+    # 5. 감정적 위기 — 행정 의도 무관하게 항상 민감 응대
     if any(kw in message for kw in _EMOTIONAL_CRISIS_KEYWORDS):
-        if not has_admin_intent:
-            return ("block", _make_sensitive_answer(user_name))
-        return ("pass", None)
+        return ("sensitive", _make_sensitive_answer(user_name))
 
     # 6. 회사·사람 비방 → 소프트 리다이렉트
     if any(kw in message for kw in _SLANDER_KEYWORDS):

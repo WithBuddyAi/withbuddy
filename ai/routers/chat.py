@@ -254,6 +254,13 @@ _NO_RESULT_KW = [
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
+_LEGAL_JUDGMENT_PATTERNS = [
+    "불법이에요", "불법인가요", "불법입니까",
+    "합법이에요", "합법인가요",
+    "거부할 수 있나요", "거부할 수 있어요", "거부가 가능한가요",
+    "인정될 수 있나요", "성립하나요", "위법인가요", "위법이에요",
+]
+
 
 _VAGUE_ENDINGS = re.compile(
     r"(관련해서\s*)?(궁금한\s*게\s*있어[요]?|궁금해[요]?|알고\s*싶어[요]?|여쭤보고\s*싶어[요]?|물어보고\s*싶어[요]?)$"
@@ -281,7 +288,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
     non_sensitive_parts: list[str] = []
     for part in parts:
         action, s_answer = check_sensitive(part, user_name)
-        if action == "block":
+        if action in ("block", "sensitive"):
             sensitive_answers.append(s_answer)
         else:
             non_sensitive_parts.append(part)
@@ -395,6 +402,12 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             messageType="out_of_scope",
             content=answer,
         )
+    if action == "sensitive":
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="sensitive",
+            content=answer,
+        )
 
     # 오케스트레이터 intent 체크 — out_of_scope/chitchat은 RAG 건너뜀
     from agents.orchestrator import (
@@ -453,11 +466,24 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
+            from utils.sensitive_filter import _EMOTIONAL_CRISIS_KEYWORDS as _ECK
+            _chitchat_type = "sensitive" if any(k in request.content for k in _ECK) else "out_of_scope"
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
-                messageType="out_of_scope",
+                messageType=_chitchat_type,
                 content=chitchat_answer,
             )
+
+    # 법률 판단 요청 → 전문가 확인 안내 (RAG 직행 전 차단)
+    if any(p in request.content for p in _LEGAL_JUDGMENT_PATTERNS):
+        from routers.recommend import get_contact_for_question
+        contact = await get_contact_for_question(request.user.companyCode, request.content)
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="out_of_scope",
+            content=_OUT_OF_SCOPE_MESSAGE,
+            recommendedContacts=[contact],
+        )
 
     from langchain_core.messages import HumanMessage, AIMessage
     from utils.clarifying import (
