@@ -52,77 +52,112 @@
 
 ## 📁 프로젝트 구조
 
-### 현재 구조 (As-Is)
+현재 백엔드는 기능 중심 패키지 구조를 사용합니다. 큰 업무 영역은 `account`, `buddy`, `admin`, `storage`로 묶고, 공통 설정과 외부 연동은 `global`, `infrastructure`, `internal`에 분리합니다.
 
 ```
 backend/
 └── src/main/java/com/withbuddy/
-    ├── auth/
-    └── global/
-```
-
-### 목표 구조 (To-Be, 팀 표준)
-
-> 고도화 개발은 아래 구조를 기준으로 작성하고, 기존 코드는 기능 단위로 점진 전환한다.
-
-```
-backend/
-└── src/main/java/com/withbuddy/
-    ├── presentation/                  # API 입출력 계층
-    │   ├── auth/
-    │   │   ├── AuthController.java
-    │   │   ├── request/
-    │   │   └── response/
-    │   └── chat/
-    │       ├── ChatController.java
-    │       ├── request/
-    │       └── response/
-    ├── application/                   # 유스케이스/트랜잭션 계층
-    │   ├── auth/
-    │   │   ├── AuthService.java
-    │   │   └── AuthUseCase.java
-    │   └── chat/
-    │       ├── ChatService.java
-    │       └── ChatUseCase.java
-    ├── domain/                        # 핵심 도메인 계층
-    │   ├── auth/
-    │   │   ├── User.java
-    │   │   ├── Company.java
-    │   │   ├── UserRepository.java        # 도메인 포트(인터페이스)
-    │   │   └── policy/
-    │   └── chat/
-    │       ├── ChatMessage.java
-    │       ├── ChatRepository.java        # 도메인 포트(인터페이스)
-    │       └── policy/
-    ├── infrastructure/                # 외부 시스템 연동/구현체
-    │   ├── persistence/
-    │   │   ├── auth/
-    │   │   │   ├── JpaUserRepository.java
-    │   │   │   └── SpringDataUserRepository.java
-    │   │   └── chat/
+    ├── account/                       # 계정/회사 도메인
+    │   ├── auth/                      # 로그인, 로그아웃, JWT 인증
+    │   │   ├── controller/
+    │   │   ├── docs/
+    │   │   ├── dto/request/
+    │   │   ├── dto/response/
+    │   │   ├── exception/
+    │   │   ├── repository/
+    │   │   └── service/
+    │   ├── company/                   # 회사/테넌트 정보
+    │   │   ├── entity/
+    │   │   └── repository/
+    │   └── user/                      # 사용자 계정 관리
+    │       ├── controller/
+    │       ├── docs/
+    │       ├── dto/request/
+    │       ├── dto/response/
+    │       ├── entity/
+    │       ├── exception/
+    │       └── service/
+    ├── admin/
+    │   ├── activity/                  # 사용자 행동 로그
+    │   │   ├── dto/response/
+    │   │   ├── entity/
+    │   │   ├── log/
+    │   │   ├── repository/
+    │   │   └── service/
+    │   └── metrics/                   # 관리자 지표 조회
+    │       ├── controller/
+    │       ├── docs/
+    │       ├── dto/response/
+    │       ├── repository/
+    │       └── service/
+    ├── buddy/                         # WithBuddy 사용자 경험 도메인
+    │   ├── chat/                      # 채팅, AI 응답 스트리밍, 빠른 질문
+    │   │   ├── controller/
+    │   │   ├── docs/
+    │   │   ├── dto/request/
+    │   │   ├── dto/response/
+    │   │   ├── entity/
+    │   │   ├── exception/
+    │   │   ├── repository/
+    │   │   └── service/
+    │   └── onboarding/                # 온보딩 제안
+    │       ├── controller/
+    │       ├── docs/
+    │       ├── dto/response/
+    │       ├── entity/
+    │       ├── repository/
+    │       └── service/
+    ├── storage/                       # 문서 저장소 API
+    │   ├── controller/
+    │   ├── dto/request/
+    │   ├── dto/response/
+    │   ├── entity/
+    │   ├── exception/
+    │   ├── repository/
+    │   └── service/
+    ├── global/                        # 전역 공통 설정/보안/예외
+    │   ├── config/
+    │   ├── dto/
+    │   ├── exception/
+    │   ├── jwt/
+    │   └── security/
+    ├── infrastructure/                # 외부 시스템 연동
     │   ├── ai/
-    │   │   └── AiClient.java
+    │   ├── mq/
     │   ├── redis/
-    │   └── mq/
-    └── global/                        # 횡단 공통
-        ├── config/
-        ├── security/
-        ├── exception/
-        └── response/
+    │   └── storage/
+    └── internal/                      # 내부 API
+        └── api/
 ```
 
-### 폴더별 파일 규칙
+### 패키지 역할
 
-| 폴더 | 포함 파일 | 주의 |
-|------|-----------|-----------|
-| `presentation/*` | `*Controller`, Request/Response DTO, API 어노테이션 | 요청/응답 처리만 담당 |
-| `application/*` | `*Service`, `*UseCase`, 트랜잭션 처리 | 유스케이스 흐름만 담당 |
-| `domain/*` | Entity, Value Object, Domain Service, Repository 인터페이스(Port) | 비즈니스 규칙만 담당 |
-| `infrastructure/persistence/*` | JPA Repository 구현체, Query 구현, Mapper | DB/외부 연동만 담당 |
-| `infrastructure/ai`, `infrastructure/redis`, `infrastructure/mq` | 외부 API/캐시/메시징 클라이언트 | 연동 코드만 담당 |
-| `global/config` | Security, Swagger, Jackson, WebMvc, JPA 설정 | 전역 설정만 담당 |
-| `global/exception` | 예외 클래스, 전역 예외 처리기 | 예외 처리만 담당 |
-| `global/response` | 공통 응답 포맷, 에러 코드 | 공통 포맷만 담당 |
+| 패키지 | 역할 |
+|------|------|
+| `account/auth` | 로그인, 로그아웃, JWT 발급, 인증 관련 예외 처리 |
+| `account/company` | 회사/테넌트 엔티티와 조회 저장소 |
+| `account/user` | 사용자 계정 생성과 사용자 도메인 관리 |
+| `admin/metrics` | 관리자용 서비스 지표 조회 |
+| `admin/activity` | 사용자 행동 로그 저장, Redis/RabbitMQ 로그 연동 |
+| `buddy/chat` | 채팅 메시지, AI 응답 스트리밍, 빠른 질문, 채팅 이력 조회 |
+| `buddy/onboarding` | 사용자별 온보딩 제안 조회와 노출 처리 |
+| `storage` | 문서 업로드, 조회, 다운로드, 삭제, 백업 재시도 |
+| `global` | Spring 설정, 보안 필터, JWT, 공통 예외/응답 |
+| `infrastructure` | AI 서버, RabbitMQ, Redis, Object Storage 연동 |
+| `internal` | 서버 내부 호출용 API와 내부 작업 서비스 |
+
+### 하위 폴더 규칙
+
+| 폴더 | 포함 파일 | 기준 |
+|------|-----------|------|
+| `controller` | `*Controller` | HTTP API 진입점 |
+| `docs` | `*ControllerDocs` | Swagger/OpenAPI 문서 인터페이스 |
+| `dto/request` | `*Request` | 요청 바인딩 DTO |
+| `dto/response` | `*Response` | 응답 DTO |
+| `entity` | JPA Entity, Enum | DB 매핑과 도메인 상태 |
+| `repository` | Spring Data Repository | DB 접근 |
+| `service` | `*Service` | 유스케이스와 비즈니스 흐름 |
+| `exception` | 기능별 예외 | 해당 기능 전용 예외 |
 
 ### 리소스 규칙
 

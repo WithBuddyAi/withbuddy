@@ -1,13 +1,14 @@
 package com.withbuddy.onboarding.service;
 
-import com.withbuddy.auth.repository.UserRepository;
-import com.withbuddy.chat.entity.ChatMessage;
-import com.withbuddy.chat.service.ChatMessageService;
-import com.withbuddy.company.entity.Company;
-import com.withbuddy.onboarding.dto.OnboardingSuggestionExposureResponse;
-import com.withbuddy.onboarding.entity.OnboardingSuggestion;
-import com.withbuddy.onboarding.repository.OnboardingSuggestionRepository;
-import com.withbuddy.user.entity.User;
+import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.buddy.chat.entity.ChatMessage;
+import com.withbuddy.buddy.chat.service.ChatMessageService;
+import com.withbuddy.account.company.entity.Company;
+import com.withbuddy.buddy.onboarding.dto.response.OnboardingSuggestionExposureResponse;
+import com.withbuddy.buddy.onboarding.entity.OnboardingSuggestion;
+import com.withbuddy.buddy.onboarding.repository.OnboardingSuggestionRepository;
+import com.withbuddy.account.user.entity.User;
+import com.withbuddy.buddy.onboarding.service.OnboardingSuggestionService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
