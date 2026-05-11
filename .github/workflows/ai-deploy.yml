@@ -152,7 +152,7 @@ jobs:
             StrictHostKeyChecking no
             UserKnownHostsFile /dev/null
             ServerAliveInterval 30
-            ProxyCommand /usr/bin/env TUNNEL_SERVICE_TOKEN_ID='${AI_CF_ACCESS_CLIENT_ID}' TUNNEL_SERVICE_TOKEN_SECRET='${AI_CF_ACCESS_CLIENT_SECRET}' cloudflared access ssh --hostname %h
+            ProxyCommand cloudflared access ssh --hostname %h --service-token-id '${AI_CF_ACCESS_CLIENT_ID}' --service-token-secret '${AI_CF_ACCESS_CLIENT_SECRET}'
           EOF
           chmod 600 ~/.ssh/config
 
