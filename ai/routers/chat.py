@@ -246,9 +246,11 @@ class InternalAIAnswerResponse(BaseModel):
 def _build_documents(doc_ids: list[int]) -> list[dict]:
     """doc_ids → presigned URL 포함 documents 배열. URL 조회 실패 시 documentId만 반환."""
     from core.be_client import get_presigned_url
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=len(doc_ids) or 1) as pool:
+        urls = list(pool.map(get_presigned_url, doc_ids))
     result = []
-    for did in doc_ids:
-        url = get_presigned_url(did)
+    for did, url in zip(doc_ids, urls):
         entry = {"documentId": did}
         if url:
             entry["downloadUrl"] = url
@@ -381,11 +383,16 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
         contact = await get_contact_for_question(company_code, request.content)
         recommended_contacts = [contact]
 
+    docs_list = (
+        []
+        if message_type in ("no_result", "out_of_scope")
+        else await asyncio.get_event_loop().run_in_executor(None, _build_documents, doc_ids)
+    )
     return InternalAIAnswerResponse(
         questionId=request.questionId,
         messageType=message_type,
         content=final_content,
-        documents=[] if message_type in ("no_result", "out_of_scope") else _build_documents(doc_ids),
+        documents=docs_list,
         recommendedContacts=recommended_contacts,
     )
 
@@ -605,7 +612,11 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
-        documents=[] if message_type in ("no_result", "out_of_scope") else _build_documents(doc_ids),
+        documents=(
+            []
+            if message_type in ("no_result", "out_of_scope")
+            else await asyncio.get_event_loop().run_in_executor(None, _build_documents, doc_ids)
+        ),
         recommendedContacts=recommended_contacts,
     )
 
