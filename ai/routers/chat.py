@@ -116,14 +116,12 @@ async def chat_stream(request: ChatRequest):
                 return
 
             accumulated_text: list[str] = []
-            final_docs: list = []
-            async for chunk, source, related_docs in stream_rag_chain(
+            async for chunk, source, related_docs, rag_doc_ids in stream_rag_chain(
                 uid, message, request.user.name, request.user.companyCode,
                 company_name=request.user.companyName,
                 hire_date=request.user.hireDate,
             ):
                 if source is not None:
-                    final_docs = related_docs or []
                     full_answer = "".join(accumulated_text)
                     if any(kw in full_answer for kw in _NO_RESULT_KW):
                         msg_type = "no_result"
@@ -134,7 +132,7 @@ async def chat_stream(request: ChatRequest):
                         from routers.recommend import get_contact_for_question
                         contact = await get_contact_for_question(request.user.companyCode, request.content)
                         contacts = [contact]
-                    doc_ids = [{"documentId": d.get("doc_id") or d.get("documentId")} for d in final_docs if d.get("doc_id") or d.get("documentId")]
+                    doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])]
                     yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                     pass  # 내부 스테이지 마커는 클라이언트에 전달하지 않음
@@ -259,6 +257,13 @@ _NO_RESULT_KW = [
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
+_LEGAL_JUDGMENT_PATTERNS = [
+    "불법이에요", "불법인가요", "불법입니까",
+    "합법이에요", "합법인가요",
+    "거부할 수 있나요", "거부할 수 있어요", "거부가 가능한가요",
+    "인정될 수 있나요", "성립하나요", "위법인가요", "위법이에요",
+]
+
 
 _VAGUE_ENDINGS = re.compile(
     r"(관련해서\s*)?(궁금한\s*게\s*있어[요]?|궁금해[요]?|알고\s*싶어[요]?|여쭤보고\s*싶어[요]?|물어보고\s*싶어[요]?)$"
@@ -286,7 +291,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
     non_sensitive_parts: list[str] = []
     for part in parts:
         action, s_answer = check_sensitive(part, user_name)
-        if action == "block":
+        if action in ("block", "sensitive"):
             sensitive_answers.append(s_answer)
         else:
             non_sensitive_parts.append(part)
@@ -401,12 +406,19 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             messageType="out_of_scope",
             content=answer,
         )
+    if action == "sensitive":
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="sensitive",
+            content=answer,
+        )
 
     # 오케스트레이터 intent 체크 — out_of_scope/chitchat은 RAG 건너뜀
     from agents.orchestrator import (
         _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
     )
-    if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
+    _labor_law_matched = any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or bool(_ARTICLE_PATTERN.search(request.content))
+    if not _labor_law_matched:
         try:
             async with asyncio.timeout(3):
                 raw_intent = await asyncio.get_event_loop().run_in_executor(
@@ -459,11 +471,24 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
+            from utils.sensitive_filter import _EMOTIONAL_CRISIS_KEYWORDS as _ECK
+            _chitchat_type = "sensitive" if any(k in request.content for k in _ECK) else "out_of_scope"
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
-                messageType="out_of_scope",
+                messageType=_chitchat_type,
                 content=chitchat_answer,
             )
+
+    # 법률 판단 요청 → 전문가 확인 안내 (LABOR_LAW 키워드 매칭 시만)
+    if _labor_law_matched and any(p in request.content for p in _LEGAL_JUDGMENT_PATTERNS):
+        from routers.recommend import get_contact_for_question
+        contact = await get_contact_for_question(request.user.companyCode, request.content)
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="out_of_scope",
+            content=_OUT_OF_SCOPE_MESSAGE,
+            recommendedContacts=[contact],
+        )
 
     from langchain_core.messages import HumanMessage, AIMessage
     from utils.clarifying import (

@@ -185,6 +185,30 @@ async def _fire_unanswered_alert(user_id: str, question: str, company_code: str 
     except Exception:
         pass
 
+_TEMPLATE_STOPWORDS = {"신청", "신청서", "방법", "처리", "서류", "안내", "가이드", "작성", "주세요", "알려줘"}
+
+def _match_template_docs(company_code: str, question: str) -> list[int]:
+    """질문 키워드와 BE TEMPLATE 문서 title/fileName 매칭 → documentId 리스트 반환."""
+    if not company_code:
+        return []
+    try:
+        from core.be_client import get_template_docs
+        import re
+        templates = get_template_docs(company_code)
+        if not templates:
+            return []
+        q_words = {w for w in re.split(r"[\s_\-?？]+", question) if len(w) >= 2} - _TEMPLATE_STOPWORDS
+        result = []
+        for doc in templates:
+            target = f"{doc.get('title', '')} {doc.get('fileName', '')}"
+            t_words = {w for w in re.split(r"[\s_\-\.]+", target) if len(w) >= 2} - _TEMPLATE_STOPWORDS
+            if any(qw in tw or tw in qw for qw in q_words for tw in t_words):
+                result.append(doc["documentId"])
+        return result
+    except Exception:
+        return []
+
+
 _COMPANY_NAMES: dict[str, str] = {
     "WB0001": "테크 주식회사",
     "WB0002": "스튜디오 프리즘",
@@ -463,7 +487,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         retrieved_docs = retrieved_docs[:top_k]
 
     source_names = _extract_sources(retrieved_docs)
-    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
+    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")} | set(_match_template_docs(company_code, question)))
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
@@ -540,10 +564,10 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     return answer, source_names, related_docs, doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> AsyncGenerator[Tuple[str, str | None, List[dict] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> AsyncGenerator[Tuple[str, str | None, List[dict] | None, List[int] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
-    토큰 단위로 (chunk, None, None)을 yield하고, 마지막에 ("", source_names, related_docs)를 yield합니다.
+    토큰 단위로 (chunk, None, None, None)을 yield하고, 마지막에 ("", source_names, related_docs, rag_doc_ids)를 yield합니다.
     """
     from routers.docs import find_related_docs
 
@@ -558,11 +582,11 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     ambiguous = _check_ambiguous(question)
     if ambiguous:
         save_interaction(user_id, question, ambiguous)
-        yield ambiguous, None, None   # 텍스트로 전송
-        yield "", "", []              # done 시그널
+        yield ambiguous, None, None, None
+        yield "", "", [], []
         return
 
-    yield "__STAGE__searching", None, None
+    yield "__STAGE__searching", None, None, None
 
     sub_questions = [q.strip() for q in re.split(
         r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*', question
@@ -591,14 +615,15 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         top_k = min(3 * len(sub_questions), 6)
         retrieved_docs = retrieved_docs[:top_k]
     source_names = _extract_sources(retrieved_docs)
+    rag_doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")} | set(_match_template_docs(company_code, question)))
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
         answer = _format_legal_answer(retrieved_docs, question, company_code)
         save_interaction(user_id, question, answer)
         related_docs = find_related_docs(question)
-        yield answer, None, None
-        yield "", source_names, related_docs
+        yield answer, None, None, None
+        yield "", source_names, related_docs, rag_doc_ids
         return
 
     formatted_context = _format_docs(retrieved_docs)
@@ -628,7 +653,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         if profile_ctx:
             formatted_context = f"[사용자 프로필]\n{profile_ctx}\n\n{formatted_context}"
 
-    yield "__STAGE__generating", None, None
+    yield "__STAGE__generating", None, None, None
 
     full_answer = ""
     async for chunk in _get_chain().astream({
@@ -645,19 +670,19 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         "hire_info": hire_info,
     }):
         full_answer += chunk
-        yield chunk, None, None
+        yield chunk, None, None, None
 
     # 2-6: 근로기준법 fallback
     if _needs_labor_law_fallback(question, full_answer):
         labor_fallback = _get_labor_law_fallback(company_code)
-        yield labor_fallback, None, None
+        yield labor_fallback, None, None, None
         full_answer += labor_fallback
 
     # 이름 교정 + 중복 제거: 스트리밍 완료 후 교정본 전송
     fixed = _fix_names(full_answer)
     fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     if fixed != full_answer:
-        yield "\x00" + fixed, None, None  # \x00 prefix → 프론트에서 전체 교체 신호
+        yield "\x00" + fixed, None, None, None  # \x00 prefix → 프론트에서 전체 교체 신호
 
     save_interaction(user_id, question, fixed)
 
@@ -665,7 +690,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     if (company_code and retrieved_docs and not _is_unanswered(fixed, retrieved_docs)
             and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
         case_a_msg = f"\n\n참고로 이 답변은 공통 법령 문서를 기준으로 안내드렸어요. 회사별 세부 운영 방식은 다를 수 있으니, 실제 적용 전에는 {hr_team}에 한 번 확인해 주세요."
-        yield case_a_msg, None, None
+        yield case_a_msg, None, None, None
         fixed += case_a_msg
 
     # 미답변 감지 → 문서 헤더에서 담당자 정보 추출하여 삽입 + 백그라운드 Slack 알림 (LLM이 이미 언급한 경우 중복 방지)
@@ -679,11 +704,11 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             if hr_team not in fixed:
                 contact_msg = f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
         if contact_msg:
-            yield contact_msg, None, None
+            yield contact_msg, None, None, None
             fixed += contact_msg
         asyncio.create_task(_fire_unanswered_alert(user_id, question, company_code))
 
     save_interaction(user_id, question, fixed)
     related_docs = find_related_docs(question)
 
-    yield "", source_names, related_docs
+    yield "", source_names, related_docs, rag_doc_ids

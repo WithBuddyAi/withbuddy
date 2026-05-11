@@ -1,7 +1,7 @@
 package com.withbuddy.global.exception;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.withbuddy.auth.exception.LoginFailedException;
+import com.withbuddy.account.auth.exception.LoginFailedException;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.global.jwt.SessionExpiredException;
@@ -10,7 +10,7 @@ import com.withbuddy.global.jwt.SessionRevokedException;
 import com.withbuddy.global.jwt.TokenMissingException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
-import com.withbuddy.user.exception.DuplicateEmployeeNumberException;
+import com.withbuddy.account.user.exception.DuplicateEmployeeNumberException;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;

@@ -37,31 +37,31 @@
 ### 리소스 구성
 ```yaml
 Frontend:
-  - Platform: Vercel
-  - Domain: withbuddy-rust.vercel.app (기본), withbuddy.itsdev.kr (Cloudflare DNS 연결 커스텀 도메인)
-  - CDN: Vercel Edge Network
-  - HTTPS: 자동 제공
+   - Platform: Vercel
+   - Domain: withbuddy-rust.vercel.app (기본), withbuddy.itsdev.kr (Cloudflare DNS 연결 커스텀 도메인)
+   - CDN: Vercel Edge Network
+   - HTTPS: 자동 제공
 
 Backend Server (Tenancy B):
-  - Provider: Oracle Cloud Compute
-  - OS: Canonical Ubuntu 24.04
-  - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
-  - IP: 공인 IP 할당
-  - Port: 8080 (Spring Boot)
+   - Provider: Oracle Cloud Compute
+   - OS: Canonical Ubuntu 24.04
+   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
+   - IP: 공인 IP 할당
+   - Port: 8080 (Spring Boot)
 
 AI Server (Tenancy A):
-  - Provider: Oracle Cloud Compute
-  - OS: Canonical Ubuntu 24.04
-  - Shape: VM.Standard.A1.Flex (4 OCPU / 24GB RAM)
-  - IP: Private IP 권장
-  - Port: 8000 (FastAPI)
+   - Provider: Oracle Cloud Compute
+   - OS: Canonical Ubuntu 24.04
+   - Shape: VM.Standard.A1.Flex (4 OCPU / 24GB RAM)
+   - IP: Private IP 권장
+   - Port: 8000 (FastAPI)
 
 MySQL/Redis/RMQ Server (Tenancy B):
-  - Provider: Oracle Cloud Compute
-  - OS: Canonical Ubuntu 24.04
-  - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
-  - IP: Private IP만 사용 (VCN 내부)
-  - Port: 3306
+   - Provider: Oracle Cloud Compute
+   - OS: Canonical Ubuntu 24.04
+   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
+   - IP: Private IP만 사용 (VCN 내부)
+   - Port: 3306
 
 ```
 
@@ -151,9 +151,9 @@ VCN-A Private AI Subnet:
 
 ### 3. Local VCN Peering (LPG) 설정
 
-1. 각 테넌시에서 LPG 생성  
-2. 서로 LPG OCID 교환  
-3. Requestor가 `peer-id`로 연결  
+1. 각 테넌시에서 LPG 생성
+2. 서로 LPG OCID 교환
+3. Requestor가 `peer-id`로 연결
 4. 라우트 테이블에 상대 VCN CIDR → LPG 추가
 
 ### 4. 보안 목록 (Security List) 설정
@@ -710,86 +710,86 @@ SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
 name: Deploy AI Server to Oracle Cloud
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'ai/**'
-  workflow_dispatch:
+   push:
+      branches: [ main ]
+      paths:
+         - 'ai/**'
+   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+   group: ${{ github.workflow }}-${{ github.ref }}
+   cancel-in-progress: true
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Deploy to Oracle Cloud
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SERVER_IP: ${{ secrets.AI_SERVER_IP }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null
-          
-          echo "=== Deploying AI Application ==="
-          scp -i ~/.ssh/id_rsa -r -o StrictHostKeyChecking=no \
-            ai/* \
-            $SERVER_USER@$SERVER_IP:/home/ubuntu/withbuddy/ai/
-          
-          echo "=== Starting AI Server ==="
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
-            "ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY' bash -s" << 'ENDSSH'
-          
-          cd /home/ubuntu/withbuddy/ai
-          
-          # 가상환경 확인 및 생성
-          if [ ! -d "venv" ]; then
-            python3.11 -m venv venv
-          fi
-          
-          source venv/bin/activate
-          pip install -r requirements.txt
-          
-          # 기존 프로세스 종료
-          pkill -9 -f "uvicorn" || true
-          sleep 2
-          
-          # .env 파일 생성
-          cat > .env << EOF
-ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-CHROMA_PERSIST_DIR=/home/ubuntu/withbuddy/ai/chroma_db
-EOF
-          
-          # 애플리케이션 시작
-          nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 \
-            > /home/ubuntu/withbuddy/ai/app.log 2>&1 &
-          
-          APP_PID=$!
-          echo "Started with PID: $APP_PID"
-          sleep 5
-          
-          if ps -p $APP_PID > /dev/null 2>&1; then
-            echo "✅ AI Server is running (PID: $APP_PID)"
-            tail -20 /home/ubuntu/withbuddy/ai/app.log
-          else
-            echo "❌ AI Server failed to start"
-            tail -50 /home/ubuntu/withbuddy/ai/app.log
-            exit 1
-          fi
-          ENDSSH
-      
-      - name: Deployment completed
-        run: echo "✅ AI Server deployment completed!"
+   deploy:
+      runs-on: ubuntu-latest
+
+      steps:
+         - name: Checkout code
+           uses: actions/checkout@v3
+
+         - name: Deploy to Oracle Cloud
+           env:
+              SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+              SERVER_IP: ${{ secrets.AI_SERVER_IP }}
+              SERVER_USER: ${{ secrets.SERVER_USER }}
+              ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+           run: |
+              mkdir -p ~/.ssh
+              chmod 700 ~/.ssh
+              echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+              chmod 600 ~/.ssh/id_rsa
+              ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null
+
+              echo "=== Deploying AI Application ==="
+              scp -i ~/.ssh/id_rsa -r -o StrictHostKeyChecking=no \
+                ai/* \
+                $SERVER_USER@$SERVER_IP:/home/ubuntu/withbuddy/ai/
+
+              echo "=== Starting AI Server ==="
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP \
+                "ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY' bash -s" << 'ENDSSH'
+
+              cd /home/ubuntu/withbuddy/ai
+
+              # 가상환경 확인 및 생성
+              if [ ! -d "venv" ]; then
+                python3.11 -m venv venv
+              fi
+
+              source venv/bin/activate
+              pip install -r requirements.txt
+
+              # 기존 프로세스 종료
+              pkill -9 -f "uvicorn" || true
+              sleep 2
+
+              # .env 파일 생성
+              cat > .env << EOF
+   ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+   CHROMA_PERSIST_DIR=/home/ubuntu/withbuddy/ai/chroma_db
+   EOF
+
+        # 애플리케이션 시작
+   nohup venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 \
+   > /home/ubuntu/withbuddy/ai/app.log 2>&1 &
+
+   APP_PID=$!
+echo "Started with PID: $APP_PID"
+   sleep 5
+
+   if ps -p $APP_PID > /dev/null 2>&1; then
+echo "✅ AI Server is running (PID: $APP_PID)"
+   tail -20 /home/ubuntu/withbuddy/ai/app.log
+   else
+   echo "❌ AI Server failed to start"
+   tail -50 /home/ubuntu/withbuddy/ai/app.log
+   exit 1
+   fi
+   ENDSSH
+
+- name: Deployment completed
+  run: echo "✅ AI Server deployment completed!"
 ```
 
 ---
@@ -842,7 +842,7 @@ Vercel (Hobby):
 ## 다음 단계
 
 - [개발 환경 설정](../guides/SETUP.md) - 로컬 개발 환경 구축
-- [API 문서](../PLANNED_API.md) - API 엔드포인트
+- [API 문서](../api/PLANNED_API.md) - API 엔드포인트
 
 ---
 
