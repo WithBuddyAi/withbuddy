@@ -413,7 +413,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     from agents.orchestrator import (
         _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
     )
-    if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
+    _labor_law_matched = any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or bool(_ARTICLE_PATTERN.search(request.content))
+    if not _labor_law_matched:
         try:
             async with asyncio.timeout(3):
                 raw_intent = await asyncio.get_event_loop().run_in_executor(
@@ -474,8 +475,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 content=chitchat_answer,
             )
 
-    # 법률 판단 요청 → 전문가 확인 안내 (RAG 직행 전 차단)
-    if any(p in request.content for p in _LEGAL_JUDGMENT_PATTERNS):
+    # 법률 판단 요청 → 전문가 확인 안내 (LABOR_LAW 키워드 매칭 시만)
+    if _labor_law_matched and any(p in request.content for p in _LEGAL_JUDGMENT_PATTERNS):
         from routers.recommend import get_contact_for_question
         contact = await get_contact_for_question(request.user.companyCode, request.content)
         return InternalAIAnswerResponse(
