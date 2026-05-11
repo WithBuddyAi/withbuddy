@@ -1,4 +1,4 @@
-package com.withbuddy.admin.activity.entity;
+package com.withbuddy.buddy.activity.entity;
 
 public enum EventTarget {
     LOGIN,
@@ -16,7 +16,7 @@ public enum EventTarget {
     QUICK_TAP_MEETING_ROOM,
     QUICK_TAP_MEAL,
     QUICK_TAP_WELFARE,
-    QUICK_TAP_EXPENSE,
+    QUICK_TAP_SLACK_GUIDE,
     QUICK_TAP_SECURITY,
     QUICK_TAP_LATE,
     QUICK_TAP_HALF_DAY,
@@ -24,9 +24,9 @@ public enum EventTarget {
     QUICK_TAP_APPROVAL,
     QUICK_TAP_SYSTEM_AUTH,
     QUICK_TAP_REMOTE,
-    QUICK_TAP_WELFARE_WHEN,
-    QUICK_TAP_RECEIPT,
-    QUICK_TAP_REPORT,
+    QUICK_TAP_WORKING_OUTSIDE,
+    QUICK_TAP_CORP_CARD,
+    QUICK_TAP_BUDDY,
     QUICK_TAP_WELFARE_APPLY,
     QUICK_TAP_SALARY,
     QUICK_TAP_PROBATION,
@@ -34,6 +34,6 @@ public enum EventTarget {
     QUICK_TAP_HEALTH,
     QUICK_TAP_EDUCATION,
     QUICK_TAP_CONVERT,
-    QUICK_TAP_PROBATION_CHECK,
+    QUICK_TAP_SALARY_DEDUCTION,
     QUICK_TAP_KPI
 }
