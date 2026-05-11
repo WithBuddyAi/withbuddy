@@ -88,7 +88,7 @@ function MyBuddy({ setIsLoggedIn }) {
         ];
       }
     });
-    setTimeout(processQueue, 120);
+    setTimeout(processQueue, 110);
   }, [today]);
 
   // 대화 기록 달력
@@ -362,7 +362,7 @@ function MyBuddy({ setIsLoggedIn }) {
                 });
                 if (!isTypingRef.current) {
                   isTypingRef.current = true;
-                  setTimeout(processQueue, 120);
+                  setTimeout(processQueue, 110);
                 }
               } else if (eventName === "answer_completed") {
                 if (!isTypingRef.current && charQueueRef.current.length === 0) {
