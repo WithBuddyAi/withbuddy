@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Login from "./pages/Login";
 import MyBuddy from "./pages/MyBuddy";
 import Admin from "./pages/Admin";
+import "react-calendar/dist/Calendar.css";
 import "./App.css";
 import { setLogoutHandler } from "./api/axiosInstance";
 

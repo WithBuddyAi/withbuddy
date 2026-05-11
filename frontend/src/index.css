@@ -233,6 +233,12 @@ body {
   border-radius: 5px !important;
 }
 
+/* 선택된 날짜 */
+.react-datepicker .react-datepicker__day--selected {
+  background-color: #336b97 !important;
+  color: white !important;
+}
+
 /* 오늘 날짜 */
 .react-datepicker__day--today {
   color: #204867 !important;
