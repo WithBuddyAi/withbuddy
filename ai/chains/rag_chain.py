@@ -186,6 +186,8 @@ async def _fire_unanswered_alert(user_id: str, question: str, company_code: str 
         pass
 
 _TEMPLATE_STOPWORDS = {"신청", "신청서", "방법", "처리", "서류", "안내", "가이드", "작성", "주세요", "알려줘"}
+_KO_PARTICLE_RE = re.compile(r"(은|는|이|가|을|를|의|에서|에게|에|으로|로|과|와|도|만|부터|까지)$")
+
 
 def _match_template_docs(company_code: str, question: str) -> list[int]:
     """질문 키워드와 BE TEMPLATE 문서 title/fileName 매칭 → documentId 리스트 반환."""
@@ -193,11 +195,13 @@ def _match_template_docs(company_code: str, question: str) -> list[int]:
         return []
     try:
         from core.be_client import get_template_docs
-        import re
         templates = get_template_docs(company_code)
         if not templates:
             return []
-        q_words = {w for w in re.split(r"[\s_\-?？]+", question) if len(w) >= 2} - _TEMPLATE_STOPWORDS
+        raw_words = {w for w in re.split(r"[\s_\-?？]+", question) if len(w) >= 2}
+        # 조사 제거: "비품은" → "비품", "연차를" → "연차"
+        q_words = {_KO_PARTICLE_RE.sub("", w) for w in raw_words} - _TEMPLATE_STOPWORDS
+        q_words.discard("")
         result = []
         for doc in templates:
             target = f"{doc.get('title', '')} {doc.get('fileName', '')}"
