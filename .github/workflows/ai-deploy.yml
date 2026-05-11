@@ -1,6 +1,6 @@
 name: Deploy AI Server
 run-name: >-
-  Deploy AI Server | ref:${{ github.ref_name }} | sha:${{ github.sha }} | by:@${{ github.actor }}
+  Deploy AI Server | ref:${{ github.ref_name }} | note:${{ inputs.deploy_note || github.event.head_commit.message || github.sha }} | by:@${{ github.actor }}
 
 on:
   push:
@@ -12,6 +12,10 @@ on:
     inputs:
       deploy_branch:
         description: "배포 브랜치 (기본: deploy/ai)"
+        required: false
+        default: ""
+      deploy_note:
+        description: "런 표시용 메모/커밋메시지"
         required: false
         default: ""
       skip_branch_sync:
@@ -93,18 +97,21 @@ jobs:
         env:
           DEPLOY_BRANCH: ${{ needs.sync-deploy-branch.outputs.deploy_branch }}
           DEPLOY_SHA: ${{ needs.sync-deploy-branch.outputs.deploy_sha }}
+          DEPLOY_NOTE: ${{ inputs.deploy_note }}
         run: |
           set -euo pipefail
           echo "Workflow ref       : ${GITHUB_REF_NAME}"
           echo "Workflow commit SHA: ${GITHUB_SHA}"
           echo "Deploy branch      : ${DEPLOY_BRANCH}"
           echo "Deploy branch SHA  : ${DEPLOY_SHA}"
+          echo "Deploy note        : ${DEPLOY_NOTE:-}"
           {
             echo "## Deploy Commit Context"
             echo "- Workflow ref: \`${GITHUB_REF_NAME}\`"
             echo "- Workflow SHA: \`${GITHUB_SHA}\`"
             echo "- Deploy branch: \`${DEPLOY_BRANCH}\`"
             echo "- Deploy branch SHA: \`${DEPLOY_SHA}\`"
+            echo "- Deploy note: \`${DEPLOY_NOTE:-}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate required environment secrets
