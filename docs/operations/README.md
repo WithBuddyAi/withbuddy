@@ -1,12 +1,15 @@
 # Operations 문서
 
-배포와 운영 대응 절차를 모은 문서 영역입니다.
+`docs/operations` 폴더에 포함된 배포 및 운영 문서 목록입니다.
+
+## 문서 목록
 
 - [DEPLOYMENT-ORACLE.md](./DEPLOYMENT-ORACLE.md): Oracle Cloud 배포 가이드
-- [storage/RUNBOOK.md](./storage/RUNBOOK.md): Storage 운영 런북
-- [storage/OPS_LOG_2026-04-11_OBJECT_STORAGE.md](./storage/OPS_LOG_2026-04-11_OBJECT_STORAGE.md): 점검 로그
+- [storage/README.md](./storage/README.md): 스토리지 운영 문서 인덱스
+- [storage/RUNBOOK.md](./storage/RUNBOOK.md): Storage API 운영 런북
+- [storage/OPS_LOG_2026-04-11_OBJECT_STORAGE.md](./storage/OPS_LOG_2026-04-11_OBJECT_STORAGE.md): Object Storage 작업 로그
 
-## 운영 규칙
+## 관리 원칙
 
-1. 장애 대응 절차는 `operations`에만 관리합니다.
-2. 실제 장애 이력은 날짜 기반 파일명으로 누적합니다.
+1. 운영 절차와 실제 실행 로그는 `operations/` 아래에서만 관리합니다.
+2. 날짜 기반 운영 로그가 추가되면 상위 README와 하위 README 목록을 함께 갱신합니다.
