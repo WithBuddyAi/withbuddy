@@ -78,6 +78,12 @@ backend/
     │       ├── exception/
     │       └── service/
     ├── admin/
+    │   ├── activity/                  # 사용자 행동 로그
+    │   │   ├── dto/response/
+    │   │   ├── entity/
+    │   │   ├── log/
+    │   │   ├── repository/
+    │   │   └── service/
     │   └── metrics/                   # 관리자 지표 조회
     │       ├── controller/
     │       ├── docs/
@@ -85,12 +91,6 @@ backend/
     │       ├── repository/
     │       └── service/
     ├── buddy/                         # WithBuddy 사용자 경험 도메인
-    │   ├── activity/                  # 사용자 행동 로그
-    │   │   ├── dto/response/
-    │   │   ├── entity/
-    │   │   ├── log/
-    │   │   ├── repository/
-    │   │   └── service/
     │   ├── chat/                      # 채팅, AI 응답 스트리밍, 빠른 질문
     │   │   ├── controller/
     │   │   ├── docs/
@@ -138,7 +138,7 @@ backend/
 | `account/company` | 회사/테넌트 엔티티와 조회 저장소 |
 | `account/user` | 사용자 계정 생성과 사용자 도메인 관리 |
 | `admin/metrics` | 관리자용 서비스 지표 조회 |
-| `buddy/activity` | 사용자 행동 로그 저장, Redis/RabbitMQ 로그 연동 |
+| `admin/activity` | 사용자 행동 로그 저장, Redis/RabbitMQ 로그 연동 |
 | `buddy/chat` | 채팅 메시지, AI 응답 스트리밍, 빠른 질문, 채팅 이력 조회 |
 | `buddy/onboarding` | 사용자별 온보딩 제안 조회와 노출 처리 |
 | `storage` | 문서 업로드, 조회, 다운로드, 삭제, 백업 재시도 |
