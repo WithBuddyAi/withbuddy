@@ -1,4 +1,4 @@
-package com.withbuddy.buddy.activity.entity;
+package com.withbuddy.admin.activity.entity;
 
 public enum EventType {
     SESSION_START,

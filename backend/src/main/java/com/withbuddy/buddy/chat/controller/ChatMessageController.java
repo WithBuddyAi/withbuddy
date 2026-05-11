@@ -1,7 +1,7 @@
 package com.withbuddy.buddy.chat.controller;
 
-import com.withbuddy.buddy.activity.dto.response.LogResponse;
-import com.withbuddy.buddy.activity.service.UserActivityLogService;
+import com.withbuddy.admin.activity.dto.response.LogResponse;
+import com.withbuddy.admin.activity.service.UserActivityLogService;
 import com.withbuddy.buddy.chat.docs.ChatMessageControllerDocs;
 import com.withbuddy.buddy.chat.dto.request.ChatMessageRequest;
 import com.withbuddy.buddy.chat.dto.request.QuickQuestionClickRequest;

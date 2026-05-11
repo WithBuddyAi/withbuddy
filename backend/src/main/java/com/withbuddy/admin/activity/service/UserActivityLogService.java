@@ -1,10 +1,10 @@
-package com.withbuddy.buddy.activity.service;
+package com.withbuddy.admin.activity.service;
 
-import com.withbuddy.buddy.activity.dto.response.LogResponse;
-import com.withbuddy.buddy.activity.entity.EventTarget;
-import com.withbuddy.buddy.activity.entity.EventType;
-import com.withbuddy.buddy.activity.entity.UserActivityLog;
-import com.withbuddy.buddy.activity.repository.UserActivityLogRepository;
+import com.withbuddy.admin.activity.dto.response.LogResponse;
+import com.withbuddy.admin.activity.entity.EventTarget;
+import com.withbuddy.admin.activity.entity.EventType;
+import com.withbuddy.admin.activity.entity.UserActivityLog;
+import com.withbuddy.admin.activity.repository.UserActivityLogRepository;
 import com.withbuddy.buddy.chat.service.QuickQuestionCatalog;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;

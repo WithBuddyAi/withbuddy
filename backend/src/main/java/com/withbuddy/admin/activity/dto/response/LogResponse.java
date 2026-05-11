@@ -1,4 +1,4 @@
-package com.withbuddy.buddy.activity.dto.response;
+package com.withbuddy.admin.activity.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -1,7 +1,7 @@
-package com.withbuddy.buddy.activity.log;
+package com.withbuddy.admin.activity.log;
 
-import com.withbuddy.buddy.activity.entity.EventTarget;
-import com.withbuddy.buddy.activity.entity.EventType;
+import com.withbuddy.admin.activity.entity.EventTarget;
+import com.withbuddy.admin.activity.entity.EventType;
 import com.withbuddy.infrastructure.mq.AnalyticsEventPublisher;
 import com.withbuddy.infrastructure.mq.event.AnalyticsEvent;
 import lombok.RequiredArgsConstructor;

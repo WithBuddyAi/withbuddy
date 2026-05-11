@@ -1,6 +1,6 @@
 package com.withbuddy.buddy.chat.docs;
 
-import com.withbuddy.buddy.activity.dto.response.LogResponse;
+import com.withbuddy.admin.activity.dto.response.LogResponse;
 import com.withbuddy.buddy.chat.dto.request.ChatMessageRequest;
 import com.withbuddy.buddy.chat.dto.request.QuickQuestionClickRequest;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageListResponse;

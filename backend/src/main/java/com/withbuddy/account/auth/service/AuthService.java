@@ -2,11 +2,11 @@ package com.withbuddy.account.auth.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.withbuddy.buddy.activity.service.UserActivityLogService;
-import com.withbuddy.buddy.activity.log.RedisActivityLogService;
-import com.withbuddy.buddy.activity.log.RmqActivityLogService;
-import com.withbuddy.buddy.activity.entity.EventTarget;
-import com.withbuddy.buddy.activity.entity.EventType;
+import com.withbuddy.admin.activity.service.UserActivityLogService;
+import com.withbuddy.admin.activity.log.RedisActivityLogService;
+import com.withbuddy.admin.activity.log.RmqActivityLogService;
+import com.withbuddy.admin.activity.entity.EventTarget;
+import com.withbuddy.admin.activity.entity.EventType;
 import com.withbuddy.account.auth.dto.request.LoginRequest;
 import com.withbuddy.account.auth.dto.response.LoginResponse;
 import com.withbuddy.account.auth.dto.response.LoginUserResponse;
