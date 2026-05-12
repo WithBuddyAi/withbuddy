@@ -244,16 +244,15 @@ class InternalAIAnswerResponse(BaseModel):
 
 
 def _build_documents(doc_ids: list[int], company_code: str = "") -> list[dict]:
-    """doc_ids → presigned URL로 회사 소유권 검증 후 documents 배열 반환.
-    presigned URL 경로(companies/{code}/)로 실제 소속 회사를 확인해 타사 문서 제거."""
+    """doc_ids → presigned URL 조회 후 documents 배열 반환."""
     from core.be_client import get_presigned_url
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=len(doc_ids) or 1) as pool:
         urls = list(pool.map(get_presigned_url, doc_ids))
     result = []
     for did, url in zip(doc_ids, urls):
-        if url and company_code and f"companies/{company_code}/" not in url:
-            continue  # 타사 문서 제외
+        if url and company_code and "companies/" in url and f"companies/{company_code}/" not in url:
+            continue  # 타사 문서 경로가 URL에 명시된 경우 제외
         entry = {"documentId": did}
         if url:
             entry["downloadUrl"] = url
