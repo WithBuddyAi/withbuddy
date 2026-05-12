@@ -280,34 +280,30 @@ body {
 /* 모바일 DatePicker 크기 축소 */
 @media (max-width: 767px) {
   .react-datepicker {
-    font-size: 9px !important;
+    font-size: 11px !important;
     padding: 8px 4px !important;
   }
 
   .react-datepicker__day {
-    font-size: 9px !important;
-    width: 18px !important;
-    height: 16px !important;
-    line-height: 22px !important;
+    font-size: 11px !important;
+    width: 22px !important;
+    height: 20px !important;
+    line-height: 20px !important;
     margin: 1px !important;
   }
 
   .react-datepicker__day-name {
-    font-size: 9px !important;
-    width: 18px !important;
+    font-size: 11px !important;
+    width: 22px !important;
     margin: 1px !important;
   }
 
   .react-datepicker__current-month {
-    font-size: 10px !important;
-  }
-
-  .react-datepicker-popper {
-    z-index: 50 !important;
+    font-size: 12px !important;
   }
 
   /* 이전/다음 달 이동 버튼 */
   .react-datepicker__navigation {
-    top: 2px !important;
+    top: 3px !important;
   }
 }
