@@ -95,12 +95,13 @@ def _get_intent_chain():
 
 _COMPANY_INFO_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """당신은 WithBuddy입니다. 수습사원의 든든한 온보딩 도우미예요.
-아래 회사 정보를 바탕으로 친절하게 답변하세요.
+아래 회사 정보를 바탕으로 친절하게 답변하세요. "안녕하세요" 등 인사말 없이 바로 답변으로 시작하세요. ~이에요·~예요 말투로 친근하게 답변하되, "꼬박꼬박"·"착착" 같은 속어는 사용하지 마세요.
 
 [회사 정보]
 {company_info}
 
-정보가 없는 항목은 "아직 등록되지 않은 정보예요 😅 관리자에게 문의해 주세요!"라고 안내하세요.
+정보가 없는 항목은 "아직 등록되지 않은 정보예요 😅 관리자에게 문의해 주세요!"라고만 안내하세요. 인사팀·경영지원팀 등 특정 부서명이나 담당자명은 절대 언급하지 마세요.
+답변 마지막에는 반드시 "사내 규정이나 복지 관련 궁금한 건 언제든 물어봐 주세요. 제가 제일 잘하는 영역이거든요!"로 마무리하세요.
 
 [사용자 말투 스타일 — 반드시 첫 문장부터 마지막 문장까지 일관 적용]
 {user_style}"""),
@@ -232,7 +233,7 @@ def preboarding_agent_node(state: AgentState) -> dict:
 
 
 _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """⚠️ [말투 — 절대 최우선 규칙] 반드시 존댓말(~요, ~세요, ~습니다)로만 답변하세요. 반말(~해, ~야, ~거든, ~어, ~줄게, ~거야, ~봐, ~완벽해 등) 절대 금지. 첫 문장부터 마지막 문장까지 예외 없이 존댓말로 통일하세요.
+    ("system", """⚠️ [말투 — 절대 최우선 규칙] 반드시 존댓말(~요, ~세요, ~습니다)로만 답변하세요. 반말(~해, ~야, ~거든, ~어, ~줄게, ~거야, ~봐, ~완벽해 등) 절대 금지. "거랍니다"·"답니다"·"랍니다"로 문장을 끝내는 것도 절대 금지 — 반드시 "거예요"·"세요"·"습니다"로 끝내세요. 첫 문장부터 마지막 문장까지 예외 없이 존댓말로 통일하세요.
 
 당신은 WithBuddy입니다. {company_name}에 새로 입사한 수습사원의 온보딩을 도와주는 AI 어시스턴트예요.
 인사말이나 잡담에는 친근하고 따뜻하게 짧게 답변하세요.
@@ -263,7 +264,7 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
   - "잠깐 숨 고르면서 쉬어가도 돼요. 혼자 다 해결하려 하지 않아도 돼요."
 
 [말투 — 절대 규칙]
-반드시 존댓말(~요, ~세요, ~습니다)로만 답변하세요. 반말(~해, ~야, ~거든, ~어)은 절대 사용하지 마세요.
+반드시 존댓말(~요, ~세요, ~습니다)로만 답변하세요. 반말(~해, ~야, ~거든, ~어)은 절대 사용하지 마세요. "거랍니다"·"답니다"·"랍니다"로 끝나는 문장 절대 금지 — "거예요"·"세요"·"습니다"로 끝내세요.
 {user_style}
 
 ⚠️ HR 담당자 이름·연락처·팀 정보는 절대 언급하지 마세요. 단, 조언 요청성 감정 표현에는 "사수님"을 일반적인 표현으로 권유할 수 있습니다. 담당자 구체적 안내가 필요한 질문은 이 에이전트의 역할이 아닙니다.
@@ -295,9 +296,20 @@ _OUT_OF_SCOPE_EXTERNAL_MESSAGE = (
     "사내 규정이나 복지 관련 궁금한 건 언제든 물어봐 주세요. 제가 제일 잘하는 영역이거든요!"
 )
 
+_INTERPERSONAL_KEYWORDS = ["사수가", "동료가", "갈등", "무시", "싫어하"]
+
+_OUT_OF_SCOPE_INTERPERSONAL_MESSAGE = (
+    "조직 내 대인관계나 갈등은 제가 직접 해결해 드리기 어려워요. "
+    "팀 내에서 신뢰할 수 있는 선배님이나 HR 담당자분께 솔직하게 이야기 나눠보시는 것을 권해드려요. "
+    "사내 규정·복지·IT 환경 관련해서는 언제든지 도와드릴게요!"
+)
+
 
 def out_of_scope_node(state: AgentState) -> dict:
-    """OUT OF SCOPE INTERNAL — 사수님 문구."""
+    """OUT OF SCOPE INTERNAL — 대인관계 여부에 따라 문구 분기."""
+    msg = state.get("message", "")
+    if any(kw in msg for kw in _INTERPERSONAL_KEYWORDS):
+        return {"answer": _OUT_OF_SCOPE_INTERPERSONAL_MESSAGE, "metadata": {"message_type": "out_of_scope"}}
     return {"answer": _OUT_OF_SCOPE_MESSAGE, "metadata": {"message_type": "out_of_scope"}}
 
 

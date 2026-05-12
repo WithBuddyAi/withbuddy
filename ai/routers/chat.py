@@ -435,7 +435,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
 
     # 오케스트레이터 intent 체크 — out_of_scope/chitchat은 RAG 건너뜀
     from agents.orchestrator import (
-        _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
+        _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE, _INTERPERSONAL_KEYWORDS, _OUT_OF_SCOPE_INTERPERSONAL_MESSAGE,
     )
     _labor_law_matched = any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or bool(_ARTICLE_PATTERN.search(request.content))
     if not _labor_law_matched:
@@ -454,10 +454,15 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         if "out_of_scope_internal" in raw_intent:
             from routers.recommend import get_contact_for_question
             contact = await get_contact_for_question(request.user.companyCode, request.content)
+            _oos_msg = (
+                _OUT_OF_SCOPE_INTERPERSONAL_MESSAGE
+                if any(kw in request.content for kw in _INTERPERSONAL_KEYWORDS)
+                else _OUT_OF_SCOPE_MESSAGE
+            )
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
-                content=_OUT_OF_SCOPE_MESSAGE,
+                content=_oos_msg,
                 recommendedContacts=[contact],
             )
         if "out_of_scope_external" in raw_intent:
