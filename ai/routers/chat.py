@@ -439,13 +439,18 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     )
     _labor_law_matched = any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or bool(_ARTICLE_PATTERN.search(request.content))
     if not _labor_law_matched:
-        try:
-            async with asyncio.timeout(3):
-                raw_intent = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
-                )
-        except asyncio.TimeoutError:
-            raw_intent = "rag"  # intent 체크 지연 시 RAG로 폴백
+        from core.be_client import cache_get, cache_set
+        _intent_cache_key = f"{request.user.companyCode}:{request.content}"
+        raw_intent = cache_get("intent_v1", _intent_cache_key) or ""
+        if not raw_intent:
+            try:
+                async with asyncio.timeout(3):
+                    raw_intent = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+                    )
+            except asyncio.TimeoutError:
+                raw_intent = "rag"  # intent 체크 지연 시 RAG로 폴백
+            cache_set("intent_v1", _intent_cache_key, raw_intent, ttl_seconds=3600)
         if "out_of_scope_internal" in raw_intent:
             from routers.recommend import get_contact_for_question
             contact = await get_contact_for_question(request.user.companyCode, request.content)
