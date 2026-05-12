@@ -92,3 +92,6 @@ frontend/node_modules
 # OCI 스크립트 실행 결과물 (로컬 전용)
 compartment_default.json
 compartment_default.err
+
+# Disabled workflows (local draft)
+.github/workflows/notion-sync.yml
