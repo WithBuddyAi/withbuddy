@@ -505,7 +505,9 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     formatted_context = _format_docs(retrieved_docs)
     if template_titles:
-        formatted_context = f"📎 아래 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n\n" + formatted_context
+        formatted_context = f"📎 이 답변 하단 카드에 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n\n" + formatted_context
+    else:
+        formatted_context = "⛔ 이 답변에는 첨부 파일이 없습니다. '파일이 첨부됐다', '카드에서 다운로드', '파일을 직접 제공할 수 없다' 같은 파일 관련 언급은 일절 하지 마세요.\n\n" + formatted_context
     if _is_legal_question(question):
         formatted_context = (
             "⚠️ 아래는 법령 원문입니다. 각 항목(1., 2., 3., 4. ...)의 문장을 절대 바꾸거나 해석하지 말고 원문 그대로 전달하세요.\n\n"
@@ -639,7 +641,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     formatted_context = _format_docs(retrieved_docs)
     if template_titles:
-        formatted_context = f"📎 아래 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n\n" + formatted_context
+        formatted_context = f"📎 이 답변 하단 카드에 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n\n" + formatted_context
+    else:
+        formatted_context = "⛔ 이 답변에는 첨부 파일이 없습니다. '파일이 첨부됐다', '카드에서 다운로드', '파일을 직접 제공할 수 없다' 같은 파일 관련 언급은 일절 하지 마세요.\n\n" + formatted_context
     if _is_legal_question(question):
         formatted_context = (
             "⚠️ 아래는 법령 원문입니다. 각 항목(1., 2., 3., 4. ...)의 문장을 절대 바꾸거나 해석하지 말고 원문 그대로 전달하세요.\n\n"
