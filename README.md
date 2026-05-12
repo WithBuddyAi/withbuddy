@@ -32,7 +32,7 @@
 | ADMIN | WB0001 | 20250001 |김하늘|2025-01-01|USER 계정 생성|
 | TEST-1 | WB0001 | 20260008 |김혜린|2026-05-08(D+5|Welcome 카드 + Buddy Nudge + Quick Tap|
 | TEST-2 | WB0001 | 20260009 |이채윤|2026-05-13(D+0)|Welcome 카드 + Buddy Nudge + Quick Tap|
-| TEST-3 | WB0001 | 20260010 |정재혁|2026-05-28(D-5)|Welcome 카드 + Buddy Nudge + Quick Tap|
+| TEST-3 | WB0001 | 20260010 |정재혁|2026-05-18(D-5)|Welcome 카드 + Buddy Nudge + Quick Tap|
 
 ---
 
