@@ -220,25 +220,66 @@ def get_template_docs(company_code: str) -> list[dict]:
     if cached and now - cached[0] < _TEMPLATE_CACHE_TTL:
         return cached[1]
     try:
-        r = _call("GET", "/api/v1/documents?size=100&page=0")
+        r = _call("GET", "/api/v1/documents?size=100&page=0&documentType=TEMPLATE")
         docs = r.json().get("content", [])
+
         def _infer_cc(d: dict) -> str:
+            # BE 응답에 companyCode 필드가 있으면 우선 사용 (BE 패치 후 자동 적용)
+            if "companyCode" in d:
+                return d["companyCode"] or ""
             fn = d.get("fileName", "").lower()
             title = d.get("title", "")
-            if fn.startswith("prism_") or "프리즘" in title or "prism" in title.lower():
+            if (fn.startswith("prism_") or fn.startswith("sp-")
+                    or "프리즘" in title or "prism" in title.lower()):
                 return "WB0002"
-            return "WB0001"  # 기본값
+            return "WB0001"
 
-        result = [
+        candidates = [
             {"documentId": d["documentId"], "title": d.get("title", ""), "fileName": d.get("fileName", "")}
             for d in docs
-            if d.get("documentType") == "TEMPLATE" and _infer_cc(d) == company_code
+            if _infer_cc(d) == company_code
         ]
+
+        from concurrent.futures import ThreadPoolExecutor
+        doc_ids = [c["documentId"] for c in candidates]
+        with ThreadPoolExecutor(max_workers=max(len(doc_ids), 1)) as pool:
+            urls = list(pool.map(get_presigned_url, doc_ids))
+
+        if doc_ids and all(url is None for url in urls):
+            logger.warning("get_template_docs: presigned URL 전부 실패 (company=%s), 빈 배열 반환", company_code)
+            return []
+
+        def _url_belongs(url: str | None) -> bool:
+            if url is None:
+                return False
+            if "companies/" not in url:
+                return True  # 경로 정보 없음 — 검증 불가, 통과
+            return f"companies/{company_code}/" in url
+
+        result = [
+            c for c, url in zip(candidates, urls)
+            if _url_belongs(url)
+        ]
+
         _template_cache[company_code] = (now, result)
+        logger.info("get_template_docs (company=%s): %d개 반환", company_code, len(result))
         return result
     except Exception as e:
         logger.warning("get_template_docs 실패 (company=%s): %s", company_code, e)
         return []
+
+
+def get_presigned_url(doc_id: int) -> str | None:
+    """문서 presigned URL 조회. AI 서버 API key(globalAccess)로 회사 체크 없이 호출."""
+    try:
+        r = _call("GET", f"/api/v1/documents/{doc_id}/download", timeout=3.0)
+        data = r.json()
+        if isinstance(data, list):
+            return data[0].get("downloadUrl")
+        return data.get("downloadUrl")
+    except Exception as e:
+        logger.warning("get_presigned_url 실패 (doc_id=%s): %s", doc_id, e)
+        return None
 
 
 def verify_callback_signature(body: bytes, signature: str, timestamp: str, request_id: str) -> bool:

@@ -1,6 +1,14 @@
-function AdminMainView({ handleViewChange }) {
+import { CircleCheckBig } from "lucide-react";
+
+function AdminMainView({ handleViewChange, successMessage }) {
   return (
     <div>
+      {/* 토스트 메시지 */}
+      {successMessage && (
+        <div className="fixed bottom-[40px] right-[40px] flex items-center gap-[8px] bg-white border border-[#DEE2E6] rounded-[12px] px-[20px] py-[16px] shadow-md text-[14px] text-[#343A40]">
+          <CircleCheckBig /> {successMessage}
+        </div>
+      )}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between my-[16px]">
         <div className="mb-[16px]">
           <h1 className="text-[18px] md:text-[22px] font-medium text-[#000000]">

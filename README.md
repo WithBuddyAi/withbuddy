@@ -16,19 +16,23 @@
 
 | 구분 | 링크 | 
 |------|------|
-|서비스 접속 | withbuddy.itsdev.kr |
-|API 명세 (Swagger) |api.withbuddy.itsdev.kr/swagger-ui/index.html|
+|서비스 접속 | https://withbuddy.itsdev.kr |
+|API 명세 (Swagger) | https://api-wb.itsdev.kr/swagger-ui/index.html |
 
 ---
 **🧪 테스트 계정**
 
 아래 계정 정보로 로그인하면 각 온보딩 단계를 직접 체험할 수 있습니다.
+테스트 기준일은 **2026-05-13**이며, 입사 전(D-5), 입사 당일(D+0), 입사 이후(D+5) 상태의 계정을 제공합니다.  
 회사 코드, 사번, 이름을 입력하면 로그인됩니다.
 
 **로그인 방법**: 서비스 접속 → 회사코드 / 사번 / 이름 입력 → 로그인
 | 계정 | 회사코드 | 사번 | 이름 | 입사시점 | 체험 포인트 |
 |------|------|--------|--------|--------|--------|
-| 테스트 계정 1 | WB0001 | 20260001 |김민준|D+0 (입사 당일)|Welcome 카드 + Buddy Nudge + Quick Tap|
+| ADMIN | WB0001 | 20250001 |김하늘|2025-01-01|USER 계정 생성|
+| TEST-1 | WB0001 | 20260008 |김혜린|2026-05-08 (D+5)|Welcome 카드 + Buddy Nudge + Quick Tap|
+| TEST-2 | WB0001 | 20260009 |이채윤|2026-05-13 (D+0)|Welcome 카드 + Buddy Nudge + Quick Tap|
+| TEST-3 | WB0001 | 20260010 |정재혁|2026-05-18 (D-5)|Welcome 카드 + Buddy Nudge + Quick Tap|
 
 ---
 
@@ -202,6 +206,8 @@ uvicorn app.main:app --reload
 ```
 withbuddy/
 ├─ .github/
+│  ├─ CODEOWNERS                                  # PR 리뷰 소유자 설정
+│  ├─ pull_request_template.md                    # PR 템플릿
 │  ├─ ISSUE_TEMPLATE/                               # BE/CI  (Issue 템플릿 관리)
 │  │  ├─ bug_report.md                              # BE/CI  (New Issue 생성시 제공되는 버그 리포트 관리 템플릿)
 │  │  └─ config.yml                                 # BE/CI  (New Issue 생성시 안내되는 기여 가이드 링크) 
@@ -209,11 +215,25 @@ withbuddy/
 │     ├─ ci.yml                                     # BE/CI  (변경 영역 빌드/테스트 자동 검증)
 │     ├─ ai-deploy.yml                              # AI/CI  (AI 서버 자동 배포 워크플로우)
 │     ├─ backend-deploy.yml                         # BE/CI  (Backend 자동 배포 워크플로우)
-│     └─ pr-autofill.yml                            # BE/CI  (PR 본문 자동 생성 워크플로우)
+│     ├─ notion-sync.yml                            # PM/CI  (Notion 동기화 워크플로우)
+│     ├─ pr-autofill.yml                            # BE/CI  (PR 본문 자동 생성 워크플로우)
+│     └─ release-tag.yml                            # CI     (릴리즈 태그 워크플로우)
 │ 
-├─ ai/                                              # AI (기능 구현 시작 후 이 폴더에서 관리)
+├─ ai/                                              # AI
+│  ├─ app/                                          # FastAPI 앱 구성
+│  ├─ agents/                                       # AI 에이전트
+│  ├─ chains/                                       # LangChain 체인
+│  ├─ core/                                         # 핵심 설정/공통 로직
+│  ├─ memory/                                       # 대화 메모리
+│  ├─ routers/                                      # API 라우터
+│  ├─ tasks/                                        # 백그라운드 작업
+│  ├─ utils/                                        # 유틸리티
+│  ├─ main.py                                       # AI 서버 진입점
+│  ├─ requirements.txt                              # Python 의존성
+│  └─ README.md                                     # AI 서버 가이드
 │ 
 ├─ backend/                                         # BE
+│  ├─ src/main/java/com/withbuddy/                  # Spring Boot 애플리케이션 코드
 │  ├─ src/main/resources/
 │  │  ├─ application.yaml                           # 공통 설정
 │  │  ├─ application-prod.yml                       # 운영 설정
@@ -221,28 +241,45 @@ withbuddy/
 │  │  └─ db/migration/                              # Flyway 마이그레이션
 │  │     ├─ V1__create_companies.sql
 │  │     ├─ ...
-│  │     └─ V10__backfill_seed_rows_idempotent.sql
+│  │     └─ V15__add_recommended_contacts_json_to_chat_messages.sql
+│  ├─ src/test/java/com/withbuddy/                  # 테스트 코드
+│  ├─ gradle/wrapper/                               # Gradle Wrapper 설정
 │  ├─ build.gradle                                  # 백엔드 빌드 설정
+│  ├─ settings.gradle                               # Gradle 프로젝트 설정
 │  └─ README.md                                     # 백엔드 개발/배포 가이드
 │ 
 ├─ docs/
+│  ├─ README.md                                     # 문서 인덱스
+│  ├─ api/
+│  │  ├─ API_CURRENT.md                             # BE  (현재 API 명세서)
+│  │  ├─ API_PLANNED.md                             # BE  (Planned API)
+│  │  ├─ Redis_RMQ_AI_API.md                        # BE/AI (Redis/RMQ/AI 연동 API)
+│  │  ├─ STORAGE_API_SPEC.md                        # BE/CI (스토리지 API 명세)
+│  │  └─ README.md                                  # API 문서 인덱스
 │  ├─ architecture/
 │  │  ├─ AI_ARCHITECTURE.md                         # AI  (AI 아키텍처)
 │  │  ├─ ARCHITECTURE.md                            # BE/CI  (시스템 아키텍처)
-│  │  ├─ DEPLOYMENT-ORACLE.md                       # BE/CI  (OCI 배포 가이드)
-│  │  ├─ DEPLOYMENT.md                              # BE/CI  (배포 가이드)
-│  │  └─ INFRASTRUCTURE.md                          # BE/CI  (인프라 구조)
+│  │  ├─ INFRASTRUCTURE.md                          # BE/CI  (인프라 구조)
+│  │  ├─ MULTI_TENANCY.md                           # BE     (멀티 테넌시 아키텍처)
+│  │  ├─ OCI_OBJECT_STORAGE_STRATEGY.md             # BE/CI  (OCI Object Storage 전략)
+│  │  ├─ STORAGE_STRATEGY.md                        # BE/CI  (스토리지 전략)
+│  │  ├─ SECURITY.md                                # BE/CI  (보안 설계)
 │  │  ├─ AI_SERVER_GUIDE.md                         # AI/CI  (AI 서버 운영/배포 점검 가이드)
-│  │  └─ Redis_RMQ_SSE.md                           # BE     (Redis & RabbitMQ 상세 아키텍처 가이드)
+│  │  ├─ Redis_RMQ_SSE.md                           # BE     (Redis & RabbitMQ 상세 아키텍처 가이드)
+│  │  ├─ README.md                                  # 아키텍처 문서 인덱스
+│  │  └─ images/                                    # 아키텍처 이미지
 │  │
-│  ├─ erd/                                          # BE (MVP 단계에서 진행)
-│  ├─ migration/
-│  │  └─ MIGRATION.md                               # BE/CI  (Flyway 마이그레이션 가이드)
-│  ├─ storage/                                      # BE/CI  (스토리지 API/운영/DDL 문서)
-│  │
-│  ├─ guides/ 
-│  │  ├─ COLLABORATION.md                           # BE/CI  (협업 규칙 📚 필독)
-│  │  ├─ CONTRIBUTING.md                            # BE/CI  (기여 가이드 📚 필독)
+│  ├─ data/                                         # BE (DB/ERD/마이그레이션 문서)
+│  │  ├─ ERD.md                                     # BE     (ERD, 테이블 설계)
+│  │  ├─ ERD.png                                    # BE     (ERD 이미지)
+│  │  ├─ MIGRATION.md                               # BE/CI  (Flyway 마이그레이션 가이드)
+│  │  ├─ README.md                                  # 데이터 문서 인덱스
+│  │  └─ storage/                                   # 스토리지 DDL/ERD 백업 문서
+│  ├─ operations/
+│  │  ├─ DEPLOYMENT-ORACLE.md                       # BE/CI  (OCI 배포 가이드)
+│  │  ├─ README.md                                  # BE/CI  (운영 문서 인덱스)
+│  │  └─ storage/                                   # 스토리지 운영 기록/런북
+│  ├─ guides/
 │  │  ├─ COLLABORATION.md                           # BE/CI  (협업 규칙 📚 필독)
 │  │  ├─ CONTRIBUTING.md                            # BE/CI  (기여 가이드 📚 필독)
 │  │  ├─ AI-DEPENDENCIES.md                         # BE/AI  (AI 의존성 파일 관리 가이드)
@@ -251,22 +288,35 @@ withbuddy/
 │  │  ├─ ENV.md                                     # BE/CI  (환경변수 및 GitHub Secrets 가이드)
 │  │  ├─ GITHUB-FLOW-SETUP.md                       # BE/CI  (GitHub flow 설정 체크리스트)
 │  │  ├─ GITHUB-SSH.md                              # BE/CI  (GitHub SSH 키 설정 가이드 📚 필독)
-│  │  └─ SETUP.md                                   # BE/CI  (개발 환경 설정 가이드 📚 필독)
-│  │ 
+│  │  ├─ SETUP.md                                   # BE/CI  (개발 환경 설정 가이드 📚 필독)
+│  │  ├─ WORKFLOW.md                                # BE/CI  (작업 흐름 가이드)
+│  │  ├─ README.md                                  # 가이드 문서 인덱스
+│  │  └─ images/                                    # 가이드 이미지
+│  │
+│  ├─ planning/
+│  │  └─ PRD_v4.0.md                                # PM     (서비스 기획 문서)
+│  │
 │  ├─ storage/
-│  │  ├─ API_SPEC.md                                # BE/CI  (객체 스토리지 API 명세서)
 │  │  ├─ DB_DDL.sql                                 # BE/CI  (DDL)
 │  │  ├─ ERD.md                                     # BE/CI  (ERD)
 │  │  ├─ OPERATIONS_RUNBOOK.md                      # BE/CI  (객체 스토리지 운영 및 기록일지)
+│  │  ├─ OPS_LOG_2026-04-11_OBJECT_STORAGE.md       # BE/CI  (객체 스토리지 작업 로그)
 │  │  └─ README.md                                  # BE/CI  (객체 스토리지 리드미)
-│  │
-│  ├─ API.md                                        # BE  (API 명세서)
-│  ├─ MULTI_TENANCY.md                              # BE  (멀티 테넌시 아키텍처)
-│  ├─ PLANNED_API.md                                # BE  (Planned API)
-│  └─ SECURITY.md                                   # BE/CI  (보안 설계)
-│                               
-├─ frontend/                                        # FE  (기능 구현 시작 후 이 폴더에서 관리)
+│
+├─ frontend/                                        # FE
+│  ├─ public/                                       # 정적 리소스
+│  ├─ src/                                          # React 애플리케이션 코드
+│  ├─ package.json                                  # 프론트엔드 의존성/스크립트
+│  ├─ vite.config.js                                # Vite 설정
+│  ├─ tailwind.config.js                            # Tailwind 설정
+│  ├─ vercel.json                                   # Vercel 배포 설정
+│  └─ README.md                                     # 프론트엔드 가이드
+│
+├─ .postman/                                        # Postman 컬렉션/환경 파일
 ├─ .gitignore                                       # BE/FE/AI/CI  (지속 관리)
+├─ devnote.md                                       # 개발 노트
+├─ docker-compose.yml                               # 로컬 AI 서버 실행용 Compose 설정
+├─ sync_notion.py                                   # Notion 동기화 스크립트
 └─ README.md                                        # PM/BE/CI (MVP 설계 단계 이후 관리)
 
 *** BE - Backend | FE - Frontend | PM - Project Manager | CI - Cloud Infrastructure
@@ -286,22 +336,22 @@ withbuddy/
 
 ### 협업
 - **[협업 규칙](./docs/guides/COLLABORATION.md)** - 브랜치 및 PR 가이드
-- **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR
 - **[GitHub flow 설정 체크리스트](./docs/guides/GITHUB-FLOW-SETUP.md)** - Branch Protection, CI, CODEOWNERS, PR 자동 본문 설정
 - **[기여 가이드](./docs/guides/CONTRIBUTING.md)** - 브랜치, 커밋, PR, 코드 작성 기준
 
 ### 아키텍처
 - **[시스템 구조](./docs/architecture/ARCHITECTURE.md)** - 인프라, 서버 구성
-- **[AI 서버 운영 가이드](docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
-- **[Redis & RabbitMQ 아키텍처](docs/architecture/Redis_RMQ_SSE.md)** - Redis 캐싱, RabbitMQ 메시징 상세 설계 (v2.5)
-- **[OCI 배포 가이드](./docs/architecture/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
-- **[DB 마이그레이션 가이드](./docs/migration/MIGRATION.md)** - Flyway 버전 관리, 검증 쿼리, 운영 규칙
-- **[데이터베이스](./docs/erd/erd.md)** - ERD, 테이블 설계
+- **[AI 서버 운영 가이드](./docs/architecture/AI_SERVER_GUIDE.md)** - AI 서버 점검 기준, CI/CD 선행조건
+- **[Redis & RabbitMQ 아키텍처](./docs/architecture/Redis_RMQ_SSE.md)** - Redis 캐싱, RabbitMQ 메시징 상세 설계 (v2.5)
+- **[OCI 배포 가이드](./docs/operations/DEPLOYMENT-ORACLE.md)** - 서버 배포/Secrets/운영 체크리스트
+- **[DB 마이그레이션 가이드](./docs/data/MIGRATION.md)** - Flyway 버전 관리, 검증 쿼리, 운영 규칙
+- **[데이터베이스](./docs/data/ERD.md)** - ERD, 테이블 설계
 - **[스토리지 문서 세트](./docs/storage/README.md)** - Storage API, 운영 Runbook, DDL, ERD
 
 ### API
-- **[API 명세서](docs/PLANNED_API.md)** - 전체 엔드포인트
-- **[Swagger UI](http://localhost:8080/swagger-ui.html)** - 로컬 API 문서
+- **[API 명세서](./docs/api/API_CURRENT.md)** - 현재 구현된 전체 엔드포인트
+- **[Planned API](./docs/api/API_PLANNED.md)** - 계획 중인 API
+- **[Swagger UI](http://localhost:8080/swagger-ui/index.html)** - 로컬 API 문서
 
 > 프로젝트 문서는 `docs/` 디렉토리에서 주제별로 확인할 수 있습니다.
 
@@ -338,7 +388,7 @@ withbuddy/
 5. **코드 리뷰** → 최소 1 approve
 6. **Merge** → Squash and Merge
 
-> [기여 가이드 자세히 보기](docs/guides/CONTRIBUTING.md)
+> [기여 가이드 자세히 보기](./docs/guides/CONTRIBUTING.md)
 
 ---
 
@@ -449,7 +499,7 @@ withbuddy/
 
 ## 변경 이력
 
-- 2026-05-11:5/8 SSH 보안 강화, 5/9 Cloudflare Tunnel 배포 전환, 5/10 보안 체크리스트 완비
+- 2026-05-11: 5/8 SSH 보안 강화, 5/9 Cloudflare Tunnel 배포 전환, 5/10 보안 체크리스트 완비
 - 2026-05-06: PRD v4.0 기반으로 README 전면 개편. 데모 접속 링크, 테스트 계정, 핵심 가치 제안, 서비스 성공 지표, 기획 문서 섹션 추가.
 - 2026-04-20: `docs/architecture/Redis_RMQ_SSE.md` 추가에 따라 디렉토리 구조 및 문서 링크 반영. Redis 캐싱·RabbitMQ 메시징 상세 아키텍처 가이드 (v2.5).
 - 2026-04-14: 백엔드 배포 기준을 Flyway 중심으로 업데이트. baseline 설정(`SPRING_FLYWAY_BASELINE_*`)과 V10 시드 보정 마이그레이션 반영 내용을 문서 링크와 함께 정리.
