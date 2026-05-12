@@ -112,14 +112,18 @@ function MyBuddy({ setIsLoggedIn }) {
   };
 
   // 로그아웃
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("dayCount");
-    localStorage.removeItem("hireDate");
-    localStorage.removeItem("name");
-    localStorage.removeItem("role");
-    setIsLoggedIn(false);
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await axiosInstance.post("/api/v1/auth/logout");
+    } finally {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("dayCount");
+      localStorage.removeItem("hireDate");
+      localStorage.removeItem("name");
+      localStorage.removeItem("role");
+      setIsLoggedIn(false);
+      navigate("/login");
+    }
   };
 
   // setModalHandler 연결

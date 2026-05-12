@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { UserRoundCog, Menu } from "lucide-react";
+import axiosInstance from "../api/axiosInstance";
 import LogoutModal from "../components/LogoutModal";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminMainView from "../components/admin/AdminMainView";
@@ -18,7 +19,10 @@ function Admin({ setIsLoggedIn }) {
   const [successMessage, setSuccessMessage] = useState("");
 
   // 로그아웃
-  const handleLogout = () => {
+  const handleLogout = async () => {
+try {
+    await axiosInstance.post("/api/v1/auth/logout");
+  } finally {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("dayCount");
     localStorage.removeItem("hireDate");
@@ -26,7 +30,8 @@ function Admin({ setIsLoggedIn }) {
     localStorage.removeItem("role");
     setIsLoggedIn(false);
     navigate("/login");
-  };
+  }
+};
 
   // 뷰 전환 시 입력값 초기화
   const handleViewChange = (newView) => {
