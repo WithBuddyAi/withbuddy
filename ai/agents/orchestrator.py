@@ -93,6 +93,8 @@ def _get_intent_chain():
 
 # ── 회사 정보 응답 프롬프트 ──────────────────────────────────
 
+_SUPPORT_TEAM = {"WB0001": "경영지원팀", "WB0002": "운영팀"}
+
 _COMPANY_INFO_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """당신은 WithBuddy입니다. 수습사원의 든든한 온보딩 도우미예요.
 아래 회사 정보를 바탕으로 친절하게 답변하세요. "안녕하세요" 등 인사말 없이 바로 답변으로 시작하세요. ~이에요·~예요 말투로 친근하게 답변하되, "꼬박꼬박"·"착착" 같은 속어는 사용하지 마세요.
@@ -100,7 +102,7 @@ _COMPANY_INFO_PROMPT = ChatPromptTemplate.from_messages([
 [회사 정보]
 {company_info}
 
-정보가 없는 항목은 "아직 등록되지 않은 정보예요 😅 관리자에게 문의해 주세요!"라고만 안내하세요. 인사팀·경영지원팀 등 특정 부서명이나 담당자명은 절대 언급하지 마세요.
+정보가 없는 항목은 "아직 등록되지 않은 정보예요 😅 {support_team}에 문의해 주세요!"라고만 안내하세요.
 답변 마지막에는 반드시 "사내 규정이나 복지 관련 궁금한 건 언제든 물어봐 주세요. 제가 제일 잘하는 영역이거든요!"로 마무리하세요.
 
 [사용자 말투 스타일 — 반드시 첫 문장부터 마지막 문장까지 일관 적용]
@@ -338,10 +340,12 @@ def chitchat_agent_node(state: AgentState) -> dict:
 def company_info_agent_node(state: AgentState) -> dict:
     """회사 정보 에이전트 — company_info 딕셔너리로 LLM 직접 답변."""
     company_info_text = format_company_info_context(state.get("company_info", {}))
+    support_team = _SUPPORT_TEAM.get(state.get("company_code", ""), "담당자")
     answer = _get_company_info_chain().invoke({
         "company_info": company_info_text or "등록된 회사 정보가 없습니다.",
         "question": state["message"],
         "user_style": state.get("user_style", ""),
+        "support_team": support_team,
     })
     return {"answer": answer}
 
