@@ -482,11 +482,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             from chains.rag_chain import _get_company_name
             from datetime import date as _date
             _today_str = _date.today().strftime("%Y년 %m월 %d일")
-            _hire_info = ""
+            from agents.orchestrator import _SUPPORT_TEAM as _ST
+            _dept = _ST.get(request.user.companyCode, "담당자")
+            _hire_info = f"\n입사일 미확인 시 문의 부서: {_dept}"
             if request.user.hireDate:
                 try:
                     _days = (_date.today() - _date.fromisoformat(request.user.hireDate)).days + 1
-                    _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})"
+                    _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})\n입사일 문의 부서: {_dept}"
                 except Exception:
                     pass
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
