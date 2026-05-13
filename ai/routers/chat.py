@@ -484,11 +484,14 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             _today_str = _date.today().strftime("%Y년 %m월 %d일")
             from agents.orchestrator import _SUPPORT_TEAM as _ST
             _dept = _ST.get(request.user.companyCode, "담당자")
-            _hire_info = f"\n입사일 미확인 시 문의 부서: {_dept}"
+            _hire_info = f"오늘은 {_today_str}이에요.\n입사일 미확인 시 문의 부서: {_dept}"
             if request.user.hireDate:
                 try:
-                    _days = (_date.today() - _date.fromisoformat(request.user.hireDate)).days + 1
-                    _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})\n입사일 문의 부서: {_dept}"
+                    _diff = (_date.today() - _date.fromisoformat(request.user.hireDate)).days
+                    _days = _diff + 1
+                    _hd = _date.fromisoformat(request.user.hireDate)
+                    _hire_date_str = f"{_hd.year}년 {_hd.month}월 {_hd.day}일"
+                    _hire_info = f"오늘은 {_today_str}이에요. 이 사용자는 입사 {_days}일차이에요. 입사일은 {_hire_date_str}이에요.\n입사일 문의 부서: {_dept}"
                 except Exception:
                     pass
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
@@ -498,7 +501,6 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "user_style": "",
                     "chat_history": history_text,
                     "company_name": request.user.companyName or _get_company_name(request.user.companyCode),
-                    "today_date": _today_str,
                     "hire_info": _hire_info,
                 }),
             )
