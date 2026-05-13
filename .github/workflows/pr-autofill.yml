@@ -76,8 +76,8 @@ jobs:
               const autoBlockRegex = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}`);
               body = currentBody.replace(autoBlockRegex, generatedBlock);
             } else if (isTemplateBody) {
-              // 2) 템플릿 바디면 상단에 자동 블록을 삽입하고 기존 템플릿(추가 요약/리뷰 포인트)은 유지
-              body = [generatedBlock, "", currentBody.trim()].join("\n");
+              // 2) 기본 템플릿 상태(선택 섹션 미입력)라면 선택 섹션은 제거하고 자동 블록만 유지
+              body = generatedBlock;
             } else {
               // 3) 빈 바디인 경우 자동 블록만 생성
               body = generatedBlock;
