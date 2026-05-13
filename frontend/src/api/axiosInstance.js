@@ -51,6 +51,7 @@ axiosInstance.interceptors.response.use(
         localStorage.removeItem("dayCount");
         localStorage.removeItem("hireDate");
         localStorage.removeItem("name");
+        localStorage.removeItem("role");
         if (logoutHandler) logoutHandler();
         return Promise.reject(error);
       }

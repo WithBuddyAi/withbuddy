@@ -31,6 +31,7 @@ function SessionModal({ modalType, setModalType, handleRetry, setIsLoggedIn }) {
       localStorage.removeItem("dayCount");
       localStorage.removeItem("hireDate");
       localStorage.removeItem("name");
+      localStorage.removeItem("role");
       if (setIsLoggedIn) {
         setIsLoggedIn(false);
       }
