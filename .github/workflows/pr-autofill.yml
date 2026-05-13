@@ -128,7 +128,10 @@ jobs:
             const res = await fetch(process.env.DISCORD_PR_WEBHOOK_URL, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ content })
+              body: JSON.stringify({
+                content,
+                allowed_mentions: { parse: [] }
+              })
             });
 
             if (!res.ok) {
