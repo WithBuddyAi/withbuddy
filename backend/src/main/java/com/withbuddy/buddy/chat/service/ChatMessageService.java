@@ -61,16 +61,12 @@ import java.util.stream.Collectors;
 public class ChatMessageService {
 
     private static final int MAX_HISTORY_MESSAGES = 10;
-<<<<<<< Updated upstream
-=======
     private static final int RETRY_REUSE_WINDOW_MINUTES = 10;
     private static final AtomicLong AI_TIMEOUT_ERROR_COUNT = new AtomicLong(0);
     private static final AtomicLong AI_HTTP_500_ERROR_COUNT = new AtomicLong(0);
     private static final AtomicLong AI_NETWORK_ERROR_COUNT = new AtomicLong(0);
     private static final AtomicLong AI_OTHER_ERROR_COUNT = new AtomicLong(0);
->>>>>>> Stashed changes
-    private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
-            new TypeReference<>() {};
+    private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE = new TypeReference<>() {};
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
