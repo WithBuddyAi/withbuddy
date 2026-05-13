@@ -20,18 +20,18 @@ function Admin({ setIsLoggedIn }) {
 
   // 로그아웃
   const handleLogout = async () => {
-try {
-    await axiosInstance.post("/api/v1/auth/logout");
-  } finally {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("dayCount");
-    localStorage.removeItem("hireDate");
-    localStorage.removeItem("name");
-    localStorage.removeItem("role");
-    setIsLoggedIn(false);
-    navigate("/login");
-  }
-};
+    try {
+      await axiosInstance.post("/api/v1/auth/logout");
+    } finally {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("dayCount");
+      localStorage.removeItem("hireDate");
+      localStorage.removeItem("name");
+      localStorage.removeItem("role");
+      setIsLoggedIn(false);
+      navigate("/login");
+    }
+  };
 
   // 뷰 전환 시 입력값 초기화
   const handleViewChange = (newView) => {
