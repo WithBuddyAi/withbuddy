@@ -218,7 +218,7 @@ public class ChatMessageService {
             return false;
         }
 
-        return !chatMessageRepository.existsByUserIdAndSenderTypeAndCreatedAtGreaterThan(
+        return !chatMessageRepository.existsByUserIdAndSenderTypeAndCreatedAtGreaterThanEqual(
                 userId,
                 SenderType.BOT,
                 latestQuestion.getCreatedAt()
@@ -374,7 +374,7 @@ public class ChatMessageService {
 
     private void ensureConversationQuestionOnRetry(Long userId, String userQuestion) {
         String key = RedisCacheKeys.conversation(String.valueOf(userId));
-        List<String> cachedTurns = redisCacheService.listRange(key, -MAX_HISTORY_MESSAGES, -1);
+        List<String> cachedTurns = readConversationTurnsWithRecovery(key);
 
         boolean hasSameQuestionTurn = cachedTurns.stream()
                 .map(this::deserializeConversationTurnQuietly)
@@ -390,6 +390,19 @@ public class ChatMessageService {
         // Edge-case recovery: DB에는 질문이 있으나 Redis 이력이 누락된 경우 보강한다.
         writeConversationTurnsWithRecovery(key, List.of(new ConversationTurn("user", userQuestion)));
         log.info("재시도 경로 Redis 질문 이력 보강: userId={}", userId);
+    }
+
+    private List<String> readConversationTurnsWithRecovery(String key) {
+        try {
+            return redisCacheService.listRange(key, -MAX_HISTORY_MESSAGES, -1);
+        } catch (RuntimeException ex) {
+            if (isRedisWrongType(ex)) {
+                redisCacheService.delete(key);
+                log.warn("Redis conversation key WRONGTYPE 복구: key={}", key);
+                return List.of();
+            }
+            throw ex;
+        }
     }
 
     private void saveConversationAnswer(Long userId, String assistantAnswer) {
