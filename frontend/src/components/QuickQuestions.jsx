@@ -16,10 +16,10 @@ function QuickQuestions({ quickQuestion, handleSubmit, isLoading }) {
               await axiosInstance.post("/api/v1/chat/quick-questions/click", {
                 eventTarget: q.eventTarget,
               });
-              handleSubmit(null, q.content);
             } catch (error) {
               console.error("클릭 로그 기록 실패:", error);
             }
+            handleSubmit(null, q.content);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.preventDefault();
