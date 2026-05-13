@@ -3,6 +3,7 @@ package com.withbuddy.buddy.chat.repository;
 
 import com.withbuddy.buddy.chat.entity.ChatMessage;
 import com.withbuddy.buddy.chat.entity.MessageType;
+import com.withbuddy.buddy.chat.entity.SenderType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -43,5 +44,17 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             Long userId,
             Long suggestionId,
             MessageType messageType
+    );
+
+    Optional<ChatMessage> findTopByUserIdAndSenderTypeAndMessageTypeOrderByCreatedAtDesc(
+            Long userId,
+            SenderType senderType,
+            MessageType messageType
+    );
+
+    boolean existsByUserIdAndSenderTypeAndCreatedAtGreaterThan(
+            Long userId,
+            SenderType senderType,
+            LocalDateTime createdAt
     );
 }
