@@ -39,6 +39,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -49,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -59,8 +62,11 @@ public class ChatMessageService {
 
     private static final int MAX_HISTORY_MESSAGES = 10;
     private static final int RETRY_REUSE_WINDOW_MINUTES = 10;
-    private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
-            new TypeReference<>() {};
+    private static final AtomicLong AI_TIMEOUT_ERROR_COUNT = new AtomicLong(0);
+    private static final AtomicLong AI_HTTP_500_ERROR_COUNT = new AtomicLong(0);
+    private static final AtomicLong AI_NETWORK_ERROR_COUNT = new AtomicLong(0);
+    private static final AtomicLong AI_OTHER_ERROR_COUNT = new AtomicLong(0);
+    private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE = new TypeReference<>() {};
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
@@ -155,8 +161,10 @@ public class ChatMessageService {
                 );
                 emitter.complete();
             } catch (AiTimeoutException exception) {
+                logAiErrorMetric("TIMEOUT", questionId, exception);
                 sendStreamError(emitter, "AI_TIMEOUT", "AI 답변 생성 시간이 초과되었습니다.", questionId);
             } catch (Exception exception) {
+                logAiErrorMetric(classifyAiErrorType(exception), questionId, exception);
                 log.error("SSE chat stream failed. questionId={}", questionId, exception);
                 sendStreamError(emitter, "AI_STREAM_FAILED", "AI 답변 생성 중 오류가 발생했습니다.", questionId);
             }
@@ -464,6 +472,58 @@ public class ChatMessageService {
             current = current.getCause();
         }
         return false;
+    }
+
+    private String classifyAiErrorType(Throwable throwable) {
+        if (containsStatusCode(throwable, 500)) {
+            return "HTTP_500";
+        }
+        if (hasCause(throwable, ConnectException.class) || hasCause(throwable, UnknownHostException.class)) {
+            return "NETWORK";
+        }
+        return "OTHER";
+    }
+
+    private boolean containsStatusCode(Throwable throwable, int statusCode) {
+        Throwable current = throwable;
+        String token = "status=" + statusCode;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains(token)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean hasCause(Throwable throwable, Class<? extends Throwable> targetType) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (targetType.isInstance(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void logAiErrorMetric(String errorType, Long questionId, Throwable throwable) {
+        long count = switch (errorType) {
+            case "TIMEOUT" -> AI_TIMEOUT_ERROR_COUNT.incrementAndGet();
+            case "HTTP_500" -> AI_HTTP_500_ERROR_COUNT.incrementAndGet();
+            case "NETWORK" -> AI_NETWORK_ERROR_COUNT.incrementAndGet();
+            default -> AI_OTHER_ERROR_COUNT.incrementAndGet();
+        };
+
+        log.warn(
+                "[AI_ERROR_METRIC] type={}, count={}, questionId={}, errorClass={}, message={}",
+                errorType,
+                count,
+                questionId,
+                throwable.getClass().getSimpleName(),
+                throwable.getMessage()
+        );
     }
 
     private void sendStreamEvent(SseEmitter emitter, String eventName, Object payload) throws IOException {
