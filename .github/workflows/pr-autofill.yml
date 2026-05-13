@@ -26,6 +26,18 @@ jobs:
             const templateMarker = "<!-- AUTO_FILL_TEMPLATE -->";
             const autoStart = "<!-- AUTO_FILL_COMMITS_START -->";
             const autoEnd = "<!-- AUTO_FILL_COMMITS_END -->";
+            const defaultTemplateBody = [
+              "<!-- AUTO_FILL_TEMPLATE -->",
+              "PR 요약은 자동으로 생성됩니다. 제목만 적어주세요.",
+              "",
+              "## 추가 요약(선택)",
+              "- 자동 생성만으로 부족할 때만 작성해주세요.",
+              "- 배경/의사결정/리스크를 1~3줄로 적어주세요.",
+              "",
+              "## 리뷰 포인트(선택)",
+              "- 리뷰어가 특히 봐야 할 부분이 있으면 작성해주세요."
+            ].join("\n");
+            const normalize = (text) => (text || "").replace(/\r\n/g, "\n").trim();
 
             // Keep manual edits when lock marker is present.
             if (currentBody.includes("<!-- AUTO_FILL_LOCK -->")) {
@@ -37,6 +49,7 @@ jobs:
             const hasContent = currentBody.trim().length > 0;
             const isTemplateBody = currentBody.includes(templateMarker);
             const hasAutoBlock = currentBody.includes(autoStart) && currentBody.includes(autoEnd);
+            const isUntouchedTemplate = normalize(currentBody) === normalize(defaultTemplateBody);
             if (hasContent && !isTemplateBody && !hasAutoBlock) {
               core.info("Custom PR body detected (no template/auto markers). Skip autofill.");
               return currentBody.trim();
@@ -76,8 +89,11 @@ jobs:
               const autoBlockRegex = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}`);
               body = currentBody.replace(autoBlockRegex, generatedBlock);
             } else if (isTemplateBody) {
-              // 2) 기본 템플릿 상태(선택 섹션 미입력)라면 선택 섹션은 제거하고 자동 블록만 유지
-              body = generatedBlock;
+              // 2) 기본 템플릿 그대로일 때만 선택 섹션을 제거한다.
+              //    템플릿 마커가 남아 있어도 사용자가 작성한 내용이 있으면 보존한다.
+              body = isUntouchedTemplate
+                ? generatedBlock
+                : [generatedBlock, "", currentBody.trim()].join("\n");
             } else {
               // 3) 빈 바디인 경우 자동 블록만 생성
               body = generatedBlock;
