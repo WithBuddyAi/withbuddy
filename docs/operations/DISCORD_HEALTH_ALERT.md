@@ -18,7 +18,7 @@
 필수 환경변수:
 
 - `HEALTHCHECK_URL` (예: `http://127.0.0.1:8080/actuator/health`)
-- `DISCORD_WEBHOOK_URL`
+- `DISCORD_WEBHOOK_URL` 또는 `DISCORD_PR_WEBHOOK_URL`
 
 선택 환경변수:
 
@@ -48,6 +48,8 @@ ALERT_COOLDOWN_SECONDS=600
 OOM_CHECK_ENABLED=1
 OOM_LOOKBACK=5 minutes ago
 ```
+
+`DISCORD_WEBHOOK_URL`가 비어 있으면 `DISCORD_PR_WEBHOOK_URL`을 fallback으로 사용한다.
 
 ## 4) 수동 검증
 
