@@ -52,7 +52,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             MessageType messageType
     );
 
-    boolean existsByUserIdAndSenderTypeAndCreatedAtGreaterThan(
+    boolean existsByUserIdAndSenderTypeAndCreatedAtGreaterThanEqual(
             Long userId,
             SenderType senderType,
             LocalDateTime createdAt
