@@ -122,8 +122,9 @@ check_health() {
 
   local elapsed=$((now_epoch - last_alert_epoch))
   if [[ "$prev_state" != "DOWN" || "$elapsed" -ge "$ALERT_COOLDOWN_SECONDS" ]]; then
-    echo "$now_epoch" >"$down_alert_ts_file"
-    send_discord "DOWN" "http_code=${http_code}, curl_rc=${curl_rc}, err=${curl_err:-none}"
+    if send_discord "DOWN" "http_code=${http_code}, curl_rc=${curl_rc}, err=${curl_err:-none}"; then
+      echo "$now_epoch" >"$down_alert_ts_file"
+    fi
   fi
 }
 
@@ -155,10 +156,11 @@ check_oom() {
   fi
 
   if [[ "$signature" != "$prev_sig" ]]; then
-    echo "$signature" >"$oom_sig_file"
     local first_line
     first_line="$(printf '%s\n' "$oom_lines" | head -n 1)"
-    send_discord "OOM_DETECTED" "${first_line}"
+    if send_discord "OOM_DETECTED" "${first_line}"; then
+      echo "$signature" >"$oom_sig_file"
+    fi
   fi
 }
 
