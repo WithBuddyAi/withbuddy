@@ -77,7 +77,7 @@ def cache_get(namespace: str, key: str):
     """캐시 단일 조회. 없으면 None 반환."""
     try:
         r = _call("POST", "/internal/v1/cache/get",
-                  json_body={"namespace": namespace, "key": key, "defaultValue": None})
+                  json_body={"key": f"{namespace}:{key}"})
         data = r.json()
         return data.get("value") if data.get("found") else None
     except Exception as e:
@@ -88,10 +88,12 @@ def cache_get(namespace: str, key: str):
 def cache_get_multi(namespace: str, keys: list) -> dict:
     """캐시 다중 조회. {key: value} 형태로 반환 (found인 것만 포함)."""
     try:
+        prefixed = [f"{namespace}:{k}" for k in keys]
         r = _call("POST", "/internal/v1/cache/get-multi",
-                  json_body={"namespace": namespace, "keys": keys})
+                  json_body={"keys": prefixed})
         items = r.json().get("items", [])
-        return {item["key"]: item["value"] for item in items if item.get("found")}
+        prefix = f"{namespace}:"
+        return {item["key"].removeprefix(prefix): item["value"] for item in items if item.get("found")}
     except Exception as e:
         logger.warning("cache_get_multi 실패 (%s): %s", namespace, e)
         return {}
@@ -101,7 +103,7 @@ def cache_set(namespace: str, key: str, value, ttl_seconds: int = 300) -> bool:
     """캐시 단일 저장. 실패 시 False 반환."""
     try:
         _call("POST", "/internal/v1/cache/set",
-              json_body={"namespace": namespace, "key": key, "value": value, "ttlSeconds": ttl_seconds})
+              json_body={"key": f"{namespace}:{key}", "value": value, "ttlSeconds": ttl_seconds})
         return True
     except Exception as e:
         logger.warning("cache_set 실패 (%s:%s): %s", namespace, key, e)
@@ -114,9 +116,9 @@ def cache_set_multi(namespace: str, items: list[dict], ttl_seconds: int = 300) -
     반환: {"ok": bool, "written": int, "errors": [...]}
     """
     try:
-        payload = [{"key": i["key"], "value": i["value"], "ttlSeconds": ttl_seconds} for i in items]
+        payload = [{"key": f"{namespace}:{i['key']}", "value": i["value"], "ttlSeconds": ttl_seconds} for i in items]
         r = _call("POST", "/internal/v1/cache/set-multi",
-                  json_body={"namespace": namespace, "items": payload})
+                  json_body={"items": payload})
         data = r.json()
         if not data.get("ok") and data.get("errors"):
             for err in data["errors"]:
@@ -131,7 +133,7 @@ def cache_del(namespace: str, key: str) -> bool:
     """캐시 삭제."""
     try:
         _call("POST", "/internal/v1/cache/del",
-              json_body={"namespace": namespace, "key": key})
+              json_body={"key": f"{namespace}:{key}"})
         return True
     except Exception as e:
         logger.warning("cache_del 실패 (%s:%s): %s", namespace, key, e)

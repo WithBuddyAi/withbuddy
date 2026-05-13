@@ -93,6 +93,7 @@ function MyBuddy({ setIsLoggedIn }) {
 
   // 대화 기록 달력
   const handleDateChange = async (date) => {
+    if (isLoading) return;
     setSelectedDate(date);
     const formattedDate = format(date, "yyyy-MM-dd");
     try {
@@ -351,13 +352,30 @@ function MyBuddy({ setIsLoggedIn }) {
               const parsed = JSON.parse(line.replace("data:", "").trim());
 
               if (eventName === "question_saved") {
-                setMessageList((prev) =>
-                  prev.map((msg) =>
-                    msg.id.toString().startsWith("temp-")
-                      ? parsed.question
-                      : msg,
-                  ),
-                );
+                setMessageList((prev) => {
+                  // 이미 같은 ID가 있으면 교체
+                  const exists = prev.some(
+                    (msg) => msg.id === parsed.question.id,
+                  );
+                  if (exists) {
+                    return prev.map((msg) =>
+                      msg.id === parsed.question.id ? parsed.question : msg,
+                    );
+                  }
+                  // 가장 마지막 temp- 메시지만 교체
+                  const lastTempIndex = [...prev]
+                    .map((msg, i) => ({ msg, i }))
+                    .reverse()
+                    .find(({ msg }) =>
+                      msg.id.toString().startsWith("temp-"),
+                    )?.i;
+
+                  if (lastTempIndex === undefined) return prev;
+
+                  return prev.map((msg, i) =>
+                    i === lastTempIndex ? parsed.question : msg,
+                  );
+                });
               } else if (eventName === "answer_delta") {
                 const words = parsed.content.split(" ");
                 words.forEach((word, i) => {
@@ -422,20 +440,40 @@ function MyBuddy({ setIsLoggedIn }) {
   };
 
   // 응답 지연 시 재시도
-  const handleRetry = () => {
-    const lastUserMessage = [...messageList]
+  const handleRetry = (errorMessage) => {
+    // errorMessage가 없으면 (redis 모달에서 호출) 기존 방식으로
+    if (!errorMessage) {
+      const lastUserMessage = [...messageList]
+        .reverse()
+        .find((msg) => msg.senderType === "USER");
+      if (lastUserMessage) {
+        setMessageList((prev) =>
+          prev.filter(
+            (msg) =>
+              msg.messageType !== "ai_timeout" &&
+              msg.messageType !== "send_error" &&
+              msg.id !== lastUserMessage.id,
+          ),
+        );
+        handleSubmit(null, lastUserMessage.content);
+      }
+      return;
+    }
+    const errorIndex = messageList.findIndex(
+      (msg) => msg.id === errorMessage.id,
+    );
+    const userMessage = [...messageList]
+      .slice(0, errorIndex)
       .reverse()
       .find((msg) => msg.senderType === "USER");
-    if (lastUserMessage) {
+
+    if (userMessage) {
       setMessageList((prev) =>
         prev.filter(
-          (msg) =>
-            msg.messageType !== "ai_timeout" &&
-            msg.messageType !== "send_error" &&
-            msg.id !== lastUserMessage.id,
+          (msg) => msg.id !== errorMessage.id && msg.id !== userMessage.id,
         ),
       );
-      handleSubmit(null, lastUserMessage.content);
+      handleSubmit(null, userMessage.content);
     }
   };
 

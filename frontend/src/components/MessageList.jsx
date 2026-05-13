@@ -119,7 +119,7 @@ function MessageList({
                         {message.content}
                       </p>
                       <button
-                        onClick={handleRetry}
+                        onClick={() => handleRetry(message)}
                         disabled={isLoading}
                         className={`flex items-center justify-cnter gap-[5px] text-[11px] rounded-[9999px] py-[6px] px-[12px]  ${message.messageType === "ai_timeout" ? "bg-[#EAF6FF] text-[#204867] hover:bg-[#D2E2F6]" : "bg-[#336B974D] text-[#FFFFFF] hover:bg-[#336B97B2]"}`}
                       >

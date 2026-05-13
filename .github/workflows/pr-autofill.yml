@@ -2,7 +2,7 @@ name: Autofill PR Body
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
 
 permissions:
   contents: read
@@ -13,27 +13,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Generate PR body from commit messages
+        id: autofill_body
         uses: actions/github-script@v7
         with:
+          result-encoding: string
           script: |
             const pr = context.payload.pull_request;
             const { owner, repo } = context.repo;
             const currentBody = pr.body || "";
             const templateMarker = "<!-- AUTO_FILL_TEMPLATE -->";
+            const autoStart = "<!-- AUTO_FILL_COMMITS_START -->";
+            const autoEnd = "<!-- AUTO_FILL_COMMITS_END -->";
 
             // Keep manual edits when lock marker is present.
             if (currentBody.includes("<!-- AUTO_FILL_LOCK -->")) {
               core.info("AUTO_FILL_LOCK marker found. Skip PR body autofill.");
-              return;
+              return currentBody.trim();
             }
 
-            // Keep user-entered body as-is.
-            // Autofill runs when body is empty or template-only body.
-            const hasContent = (currentBody || "").trim().length > 0;
+            // Skip only when user fully replaced template/auto block with custom body.
+            const hasContent = currentBody.trim().length > 0;
             const isTemplateBody = currentBody.includes(templateMarker);
-            if (hasContent && !isTemplateBody) {
-              core.info("PR body already has content. Skip autofill.");
-              return;
+            const hasAutoBlock = currentBody.includes(autoStart) && currentBody.includes(autoEnd);
+            if (hasContent && !isTemplateBody && !hasAutoBlock) {
+              core.info("Custom PR body detected (no template/auto markers). Skip autofill.");
+              return currentBody.trim();
             }
 
             const commits = await github.paginate(
@@ -51,20 +55,83 @@ jobs:
 
             const uniqueTitles = [...new Set(cleanedTitles)];
             const commitLines = uniqueTitles.map((title) => `- ${title}`);
-
-            const body = [
-              "## 변경 사항",
-              ...commitLines,
-            ].join("\n").trim();
-
-            if (!body) {
-              core.info("No meaningful content to autofill. Skip update.");
-              return;
+            if (commitLines.length === 0) {
+              commitLines.push("- (커밋 메시지 없음)");
             }
 
+            const generatedBlock = [
+              autoStart,
+              "## 변경 사항",
+              ...commitLines,
+              autoEnd
+            ].join("\n");
+
+            // 1) 기존 자동 블록이 있으면 해당 블록만 교체해서 수동 섹션을 보존
+            let body = currentBody;
+            if (hasAutoBlock) {
+              const escapedStart = autoStart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const escapedEnd = autoEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const autoBlockRegex = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}`);
+              body = currentBody.replace(autoBlockRegex, generatedBlock);
+            } else if (isTemplateBody) {
+              // 2) 템플릿 바디면 상단에 자동 블록을 삽입하고 기존 템플릿(추가 요약/리뷰 포인트)은 유지
+              body = [generatedBlock, "", currentBody.trim()].join("\n");
+            } else {
+              // 3) 빈 바디인 경우 자동 블록만 생성
+              body = generatedBlock;
+            }
+
+            body = body.trim();
             await github.rest.pulls.update({
               owner,
               repo,
               pull_number: pr.number,
               body
             });
+
+            return body;
+
+      - name: Notify Discord with current PR body
+        if: ${{ secrets.DISCORD_PR_WEBHOOK_URL != '' }}
+        uses: actions/github-script@v7
+        env:
+          DISCORD_PR_WEBHOOK_URL: ${{ secrets.DISCORD_PR_WEBHOOK_URL }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+            const { data: latestPr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pr.number
+            });
+
+            const rawBody = latestPr.body || "";
+            const cleanedBody = rawBody
+              .replace(/<!-- AUTO_FILL_TEMPLATE -->/g, "")
+              .replace(/<!-- AUTO_FILL_COMMITS_START -->/g, "")
+              .replace(/<!-- AUTO_FILL_COMMITS_END -->/g, "")
+              .trim();
+
+            const bodyPreview = cleanedBody.length > 1500
+              ? `${cleanedBody.slice(0, 1500)}\n...`
+              : cleanedBody;
+
+            const content = [
+              `📌 PR 업데이트: #${pr.number} ${pr.title}`,
+              `Base: \`${pr.base.ref}\` ← Head: \`${pr.head.ref}\``,
+              pr.html_url,
+              "",
+              bodyPreview || "(본문 없음)"
+            ].join("\n");
+
+            const res = await fetch(process.env.DISCORD_PR_WEBHOOK_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content })
+            });
+
+            if (!res.ok) {
+              const text = await res.text();
+              core.setFailed(`Discord webhook failed: ${res.status} ${text}`);
+            }
