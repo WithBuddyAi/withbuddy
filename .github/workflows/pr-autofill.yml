@@ -113,17 +113,35 @@ jobs:
               .replace(/<!-- AUTO_FILL_COMMITS_END -->/g, "")
               .trim();
 
-            const bodyPreview = cleanedBody.length > 1500
-              ? `${cleanedBody.slice(0, 1500)}\n...`
-              : cleanedBody;
-
-            const content = [
+            const prefix = [
               `📌 PR 업데이트: #${pr.number} ${pr.title}`,
               `Base: \`${pr.base.ref}\` ← Head: \`${pr.head.ref}\``,
               pr.html_url,
-              "",
-              bodyPreview || "(본문 없음)"
+              ""
             ].join("\n");
+
+            const maxDiscordContentLength = 2000;
+            const fallbackBody = cleanedBody || "(본문 없음)";
+            const buildContent = (bodyText) => `${prefix}\n${bodyText}`;
+
+            let bodyForContent = fallbackBody;
+            let content = buildContent(bodyForContent);
+            if (content.length > maxDiscordContentLength) {
+              const budget = Math.max(0, maxDiscordContentLength - prefix.length - 1);
+
+              if (budget === 0) {
+                content = prefix.slice(0, maxDiscordContentLength);
+              } else if (bodyForContent.length > budget) {
+                const ellipsis = "...";
+                const take = Math.max(0, budget - ellipsis.length);
+                bodyForContent = `${bodyForContent.slice(0, take)}${ellipsis}`;
+                content = buildContent(bodyForContent);
+              }
+
+              if (content.length > maxDiscordContentLength) {
+                content = content.slice(0, maxDiscordContentLength);
+              }
+            }
 
             const res = await fetch(process.env.DISCORD_PR_WEBHOOK_URL, {
               method: "POST",
