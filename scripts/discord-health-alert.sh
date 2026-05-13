@@ -5,7 +5,7 @@ set -uo pipefail
 # 서버 헬스체크 + OOM 이벤트 감지 후 Discord Webhook 알림 스크립트
 
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-}"
-DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
+DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-${DISCORD_PR_WEBHOOK_URL:-}}"
 CHECK_NAME="${CHECK_NAME:-withbuddy-server}"
 
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-5}"
@@ -17,7 +17,7 @@ OOM_CHECK_ENABLED="${OOM_CHECK_ENABLED:-1}"
 OOM_LOOKBACK="${OOM_LOOKBACK:-5 minutes ago}"
 
 if [[ -z "$HEALTHCHECK_URL" || -z "$DISCORD_WEBHOOK_URL" ]]; then
-  echo "[error] HEALTHCHECK_URL and DISCORD_WEBHOOK_URL are required." >&2
+  echo "[error] HEALTHCHECK_URL and (DISCORD_WEBHOOK_URL or DISCORD_PR_WEBHOOK_URL) are required." >&2
   exit 2
 fi
 
