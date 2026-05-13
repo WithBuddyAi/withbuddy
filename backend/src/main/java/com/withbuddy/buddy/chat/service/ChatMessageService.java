@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 public class ChatMessageService {
 
     private static final int MAX_HISTORY_MESSAGES = 10;
+    private static final int RETRY_REUSE_WINDOW_MINUTES = 10;
     private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
             new TypeReference<>() {};
 
@@ -85,15 +86,20 @@ public class ChatMessageService {
                 String companyCode = principal.companyCode();
                 String hireDate = principal.hireDate();
 
-                ChatMessage savedQuestionMessage = transactionTemplate.execute(
-                        status -> saveQuestionMessage(loginUserId, request.getContent())
+                SavedQuestionContext questionContext = transactionTemplate.execute(
+                        status -> resolveQuestionMessage(loginUserId, request.getContent())
                 );
-                if (savedQuestionMessage == null) {
+                if (questionContext == null || questionContext.message() == null) {
                     throw new IllegalStateException("질문 메시지 저장에 실패했습니다.");
                 }
 
+                ChatMessage savedQuestionMessage = questionContext.message();
                 questionId = savedQuestionMessage.getId();
-                saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
+                if (questionContext.newlyCreated()) {
+                    saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
+                } else {
+                    ensureConversationQuestionOnRetry(loginUserId, savedQuestionMessage.getContent());
+                }
 
                 ChatMessageResponse questionResponse = toResponse(
                         savedQuestionMessage,
@@ -177,6 +183,46 @@ public class ChatMessageService {
                 null
         );
         return chatMessageRepository.save(questionMessage);
+    }
+
+    private SavedQuestionContext resolveQuestionMessage(Long userId, String content) {
+        String normalizedContent = content == null ? "" : content.trim();
+
+        ChatMessage latestQuestion = chatMessageRepository
+                .findTopByUserIdAndSenderTypeAndMessageTypeOrderByCreatedAtDesc(
+                        userId,
+                        SenderType.USER,
+                        MessageType.user_question
+                )
+                .orElse(null);
+
+        if (isReusableRetriedQuestion(userId, normalizedContent, latestQuestion)) {
+            log.info("타임아웃 재시도 질문 재사용: userId={}, questionId={}", userId, latestQuestion.getId());
+            return new SavedQuestionContext(latestQuestion, false);
+        }
+
+        ChatMessage saved = saveQuestionMessage(userId, normalizedContent);
+        return new SavedQuestionContext(saved, true);
+    }
+
+    private boolean isReusableRetriedQuestion(Long userId, String normalizedContent, ChatMessage latestQuestion) {
+        if (latestQuestion == null) {
+            return false;
+        }
+        if (!Objects.equals(normalizedContent, latestQuestion.getContent())) {
+            return false;
+        }
+
+        LocalDateTime reusableThreshold = LocalDateTime.now().minusMinutes(RETRY_REUSE_WINDOW_MINUTES);
+        if (latestQuestion.getCreatedAt().isBefore(reusableThreshold)) {
+            return false;
+        }
+
+        return !chatMessageRepository.existsByUserIdAndSenderTypeAndCreatedAtGreaterThanEqual(
+                userId,
+                SenderType.BOT,
+                latestQuestion.getCreatedAt()
+        );
     }
 
     private ChatMessage saveAnswerMessage(
@@ -326,6 +372,39 @@ public class ChatMessageService {
         saveConversationTurn(userId, new ConversationTurn("user", userQuestion));
     }
 
+    private void ensureConversationQuestionOnRetry(Long userId, String userQuestion) {
+        String key = RedisCacheKeys.conversation(String.valueOf(userId));
+        List<String> cachedTurns = readConversationTurnsWithRecovery(key);
+
+        boolean hasSameQuestionTurn = cachedTurns.stream()
+                .map(this::deserializeConversationTurnQuietly)
+                .filter(Objects::nonNull)
+                .anyMatch(turn ->
+                        "user".equals(turn.role()) && Objects.equals(userQuestion, turn.content())
+                );
+
+        if (hasSameQuestionTurn) {
+            return;
+        }
+
+        // Edge-case recovery: DB에는 질문이 있으나 Redis 이력이 누락된 경우 보강한다.
+        writeConversationTurnsWithRecovery(key, List.of(new ConversationTurn("user", userQuestion)));
+        log.info("재시도 경로 Redis 질문 이력 보강: userId={}", userId);
+    }
+
+    private List<String> readConversationTurnsWithRecovery(String key) {
+        try {
+            return redisCacheService.listRange(key, -MAX_HISTORY_MESSAGES, -1);
+        } catch (RuntimeException ex) {
+            if (isRedisWrongType(ex)) {
+                redisCacheService.delete(key);
+                log.warn("Redis conversation key WRONGTYPE 복구: key={}", key);
+                return List.of();
+            }
+            throw ex;
+        }
+    }
+
     private void saveConversationAnswer(Long userId, String assistantAnswer) {
         saveConversationTurn(userId, new ConversationTurn("assistant", assistantAnswer));
     }
@@ -361,6 +440,17 @@ public class ChatMessageService {
             redisCacheService.listRightPush(key, objectMapper.writeValueAsString(turn));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("대화 이력 직렬화에 실패했습니다.", e);
+        }
+    }
+
+    private ConversationTurn deserializeConversationTurnQuietly(String rawTurn) {
+        if (rawTurn == null || rawTurn.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(rawTurn, ConversationTurn.class);
+        } catch (JsonProcessingException e) {
+            return null;
         }
     }
 
@@ -516,5 +606,8 @@ public class ChatMessageService {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to deserialize recommended contacts.", e);
         }
+    }
+
+    private record SavedQuestionContext(ChatMessage message, boolean newlyCreated) {
     }
 }
