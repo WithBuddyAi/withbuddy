@@ -522,8 +522,14 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     hire_info = ""
     if hire_date:
         try:
-            days = (_date.today() - _date.fromisoformat(hire_date)).days + 1
-            hire_info = f"\n사용자 입사 {days}일차입니다. (입사일: {hire_date})"
+            diff = (_date.today() - _date.fromisoformat(hire_date)).days
+            days = diff + 1
+            hire_info = (
+                f"\n[입사 일차 계산]\n"
+                f"입사일: {hire_date} / 오늘: {_date.today().isoformat()}\n"
+                f"날짜 차이: {diff}일 → 입사 당일을 1일차로 계산하므로 {diff}+1 = {days}일차\n"
+                f"※ 반드시 입사 {days}일차로 답하세요."
+            )
         except Exception:
             pass
 
@@ -658,8 +664,14 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     hire_info = ""
     if hire_date:
         try:
-            days = (_date.today() - _date.fromisoformat(hire_date)).days + 1
-            hire_info = f"\n사용자 입사 {days}일차입니다. (입사일: {hire_date})"
+            diff = (_date.today() - _date.fromisoformat(hire_date)).days
+            days = diff + 1
+            hire_info = (
+                f"\n[입사 일차 계산]\n"
+                f"입사일: {hire_date} / 오늘: {_date.today().isoformat()}\n"
+                f"날짜 차이: {diff}일 → 입사 당일을 1일차로 계산하므로 {diff}+1 = {days}일차\n"
+                f"※ 반드시 입사 {days}일차로 답하세요."
+            )
         except Exception:
             pass
 
