@@ -345,8 +345,10 @@ function Login({ setIsLoggedIn }) {
               <div className="flex items-center justify-center gap-3">
                 <span>시작하기</span>
                 {isLoading && (
-                  <div className="border-gray-300 border-t-blue-700 rounded-full animate-spin
-                  w-4 h-4 border-2 md:w-6 md:h-6 md:border-4" />
+                  <div
+                    className="border-gray-300 border-t-blue-700 rounded-full animate-spin
+                  w-4 h-4 border-2 md:w-6 md:h-6 md:border-4"
+                  />
                 )}
               </div>
             </button>
