@@ -11,6 +11,8 @@ permissions:
 jobs:
   autofill:
     runs-on: ubuntu-latest
+    env:
+      DISCORD_PR_WEBHOOK_URL: ${{ secrets.DISCORD_PR_WEBHOOK_URL }}
     steps:
       - name: Generate PR body from commit messages
         id: autofill_body
@@ -92,10 +94,8 @@ jobs:
             return body;
 
       - name: Notify Discord with current PR body
-        if: ${{ secrets.DISCORD_PR_WEBHOOK_URL != '' }}
+        if: ${{ env.DISCORD_PR_WEBHOOK_URL != '' }}
         uses: actions/github-script@v7
-        env:
-          DISCORD_PR_WEBHOOK_URL: ${{ secrets.DISCORD_PR_WEBHOOK_URL }}
         with:
           script: |
             const pr = context.payload.pull_request;
