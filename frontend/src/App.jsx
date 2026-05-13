@@ -20,7 +20,7 @@ function App() {
   return (
     <div>
       <Routes>
-        {/* 로그인 여부에 따른 페이지 이동 / 로그인 -> My Buddy 페이지, 미로그인 -> Login 페이지 */}
+        {/* 로그인 여부에 따른 페이지 이동 | 로그인(USER) -> My Buddy 페이지, 로그인(ADMIN) -> Admin 페이지, 미로그인 -> Login 페이지 */}
         <Route
           path="/"
           element={
