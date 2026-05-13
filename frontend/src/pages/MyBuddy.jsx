@@ -403,14 +403,18 @@ function MyBuddy({ setIsLoggedIn }) {
         }
       }
     } catch (error) {
-      setErrorMessage("메시지 전송에 실패했어요.");
+      setIsLoading(false);
+      const isNetworkError =
+        error.message === "Failed to fetch" || !navigator.onLine;
       setMessageList((prev) => [
         ...prev,
         {
           id: `error-${Date.now()}`,
           senderType: "BOT",
           messageType: "send_error",
-          content: "메시지 전송에 실패했어요. 다시 시도해 주세요.",
+          content: isNetworkError
+            ? "인터넷 연결을 확인하고 다시 시도해 주세요."
+            : "메시지 전송에 실패했어요. 다시 시도해 주세요.",
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -497,7 +501,7 @@ function MyBuddy({ setIsLoggedIn }) {
       />
 
       {/* 전송 실패 에러 메시지 - 컴포넌트 분리 완료 */}
-      <ErrorToast errorMessage={errorMessage && !modalType} />
+      <ErrorToast errorMessage={!modalType ? errorMessage : false} />
 
       {/* 로그아웃 모달 - 컴포넌트 분리 완료 */}
       <LogoutModal
