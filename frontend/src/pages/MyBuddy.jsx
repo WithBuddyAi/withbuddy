@@ -291,6 +291,7 @@ function MyBuddy({ setIsLoggedIn }) {
             localStorage.removeItem("dayCount");
             localStorage.removeItem("hireDate");
             localStorage.removeItem("name");
+            localStorage.removeItem("role");
             navigate("/login");
             return;
           }
