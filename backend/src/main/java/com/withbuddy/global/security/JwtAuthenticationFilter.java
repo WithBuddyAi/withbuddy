@@ -8,6 +8,7 @@ import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.global.jwt.SessionExpiredException;
 import com.withbuddy.global.jwt.SessionRevokedException;
 import com.withbuddy.global.jwt.TokenMissingException;
+import com.withbuddy.global.logging.RedisFailureLogSupport;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -87,7 +88,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (RedisConnectionFailureException | QueryTimeoutException e) {
-            log.error("[REDIS_ERROR] path={}, message={}", request.getRequestURI(), e.getMessage(), e);
+            RedisFailureLogSupport.logRedisFailure(log, request, e);
             writeServiceUnavailable(response, request.getRequestURI());
             return;
         } catch (TokenMissingException e) {

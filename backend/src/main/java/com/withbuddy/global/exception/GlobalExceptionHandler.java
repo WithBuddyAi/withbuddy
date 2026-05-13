@@ -8,6 +8,7 @@ import com.withbuddy.global.jwt.SessionExpiredException;
 import com.withbuddy.global.jwt.SessionNotActiveException;
 import com.withbuddy.global.jwt.SessionRevokedException;
 import com.withbuddy.global.jwt.TokenMissingException;
+import com.withbuddy.global.logging.RedisFailureLogSupport;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.account.user.exception.DuplicateEmployeeNumberException;
@@ -353,7 +354,7 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
 
-        log.error("[REDIS_ERROR] path={}, message={}", request.getRequestURI(), e.getMessage(), e);
+        RedisFailureLogSupport.logRedisFailure(log, request, e);
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
     }
