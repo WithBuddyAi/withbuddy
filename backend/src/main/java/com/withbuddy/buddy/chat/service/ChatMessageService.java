@@ -39,6 +39,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -49,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,6 +61,11 @@ import java.util.stream.Collectors;
 public class ChatMessageService {
 
     private static final int MAX_HISTORY_MESSAGES = 10;
+    private static final int RETRY_REUSE_WINDOW_MINUTES = 10;
+    private static final AtomicLong AI_TIMEOUT_ERROR_COUNT = new AtomicLong(0);
+    private static final AtomicLong AI_HTTP_500_ERROR_COUNT = new AtomicLong(0);
+    private static final AtomicLong AI_NETWORK_ERROR_COUNT = new AtomicLong(0);
+    private static final AtomicLong AI_OTHER_ERROR_COUNT = new AtomicLong(0);
     private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
             new TypeReference<>() {};
 
@@ -85,15 +93,20 @@ public class ChatMessageService {
                 String companyCode = principal.companyCode();
                 String hireDate = principal.hireDate();
 
-                ChatMessage savedQuestionMessage = transactionTemplate.execute(
-                        status -> saveQuestionMessage(loginUserId, request.getContent())
+                SavedQuestionContext questionContext = transactionTemplate.execute(
+                        status -> resolveQuestionMessage(loginUserId, request.getContent())
                 );
-                if (savedQuestionMessage == null) {
+                if (questionContext == null || questionContext.message() == null) {
                     throw new IllegalStateException("질문 메시지 저장에 실패했습니다.");
                 }
 
+                ChatMessage savedQuestionMessage = questionContext.message();
                 questionId = savedQuestionMessage.getId();
-                saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
+                if (questionContext.newlyCreated()) {
+                    saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
+                } else {
+                    ensureConversationQuestionOnRetry(loginUserId, savedQuestionMessage.getContent());
+                }
 
                 ChatMessageResponse questionResponse = toResponse(
                         savedQuestionMessage,
@@ -149,8 +162,10 @@ public class ChatMessageService {
                 );
                 emitter.complete();
             } catch (AiTimeoutException exception) {
+                logAiErrorMetric("TIMEOUT", questionId, exception);
                 sendStreamError(emitter, "AI_TIMEOUT", "AI 답변 생성 시간이 초과되었습니다.", questionId);
             } catch (Exception exception) {
+                logAiErrorMetric(classifyAiErrorType(exception), questionId, exception);
                 log.error("SSE chat stream failed. questionId={}", questionId, exception);
                 sendStreamError(emitter, "AI_STREAM_FAILED", "AI 답변 생성 중 오류가 발생했습니다.", questionId);
             }
@@ -177,6 +192,46 @@ public class ChatMessageService {
                 null
         );
         return chatMessageRepository.save(questionMessage);
+    }
+
+    private SavedQuestionContext resolveQuestionMessage(Long userId, String content) {
+        String normalizedContent = content == null ? "" : content.trim();
+
+        ChatMessage latestQuestion = chatMessageRepository
+                .findTopByUserIdAndSenderTypeAndMessageTypeOrderByCreatedAtDesc(
+                        userId,
+                        SenderType.USER,
+                        MessageType.user_question
+                )
+                .orElse(null);
+
+        if (isReusableRetriedQuestion(userId, normalizedContent, latestQuestion)) {
+            log.info("타임아웃 재시도 질문 재사용: userId={}, questionId={}", userId, latestQuestion.getId());
+            return new SavedQuestionContext(latestQuestion, false);
+        }
+
+        ChatMessage saved = saveQuestionMessage(userId, normalizedContent);
+        return new SavedQuestionContext(saved, true);
+    }
+
+    private boolean isReusableRetriedQuestion(Long userId, String normalizedContent, ChatMessage latestQuestion) {
+        if (latestQuestion == null) {
+            return false;
+        }
+        if (!Objects.equals(normalizedContent, latestQuestion.getContent())) {
+            return false;
+        }
+
+        LocalDateTime reusableThreshold = LocalDateTime.now().minusMinutes(RETRY_REUSE_WINDOW_MINUTES);
+        if (latestQuestion.getCreatedAt().isBefore(reusableThreshold)) {
+            return false;
+        }
+
+        return !chatMessageRepository.existsByUserIdAndSenderTypeAndCreatedAtGreaterThanEqual(
+                userId,
+                SenderType.BOT,
+                latestQuestion.getCreatedAt()
+        );
     }
 
     private ChatMessage saveAnswerMessage(
@@ -326,6 +381,39 @@ public class ChatMessageService {
         saveConversationTurn(userId, new ConversationTurn("user", userQuestion));
     }
 
+    private void ensureConversationQuestionOnRetry(Long userId, String userQuestion) {
+        String key = RedisCacheKeys.conversation(String.valueOf(userId));
+        List<String> cachedTurns = readConversationTurnsWithRecovery(key);
+
+        boolean hasSameQuestionTurn = cachedTurns.stream()
+                .map(this::deserializeConversationTurnQuietly)
+                .filter(Objects::nonNull)
+                .anyMatch(turn ->
+                        "user".equals(turn.role()) && Objects.equals(userQuestion, turn.content())
+                );
+
+        if (hasSameQuestionTurn) {
+            return;
+        }
+
+        // Edge-case recovery: DB에는 질문이 있으나 Redis 이력이 누락된 경우 보강한다.
+        writeConversationTurnsWithRecovery(key, List.of(new ConversationTurn("user", userQuestion)));
+        log.info("재시도 경로 Redis 질문 이력 보강: userId={}", userId);
+    }
+
+    private List<String> readConversationTurnsWithRecovery(String key) {
+        try {
+            return redisCacheService.listRange(key, -MAX_HISTORY_MESSAGES, -1);
+        } catch (RuntimeException ex) {
+            if (isRedisWrongType(ex)) {
+                redisCacheService.delete(key);
+                log.warn("Redis conversation key WRONGTYPE 복구: key={}", key);
+                return List.of();
+            }
+            throw ex;
+        }
+    }
+
     private void saveConversationAnswer(Long userId, String assistantAnswer) {
         saveConversationTurn(userId, new ConversationTurn("assistant", assistantAnswer));
     }
@@ -364,6 +452,17 @@ public class ChatMessageService {
         }
     }
 
+    private ConversationTurn deserializeConversationTurnQuietly(String rawTurn) {
+        if (rawTurn == null || rawTurn.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(rawTurn, ConversationTurn.class);
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+    }
+
     private boolean isRedisWrongType(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {
@@ -374,6 +473,58 @@ public class ChatMessageService {
             current = current.getCause();
         }
         return false;
+    }
+
+    private String classifyAiErrorType(Throwable throwable) {
+        if (containsStatusCode(throwable, 500)) {
+            return "HTTP_500";
+        }
+        if (hasCause(throwable, ConnectException.class) || hasCause(throwable, UnknownHostException.class)) {
+            return "NETWORK";
+        }
+        return "OTHER";
+    }
+
+    private boolean containsStatusCode(Throwable throwable, int statusCode) {
+        Throwable current = throwable;
+        String token = "status=" + statusCode;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains(token)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean hasCause(Throwable throwable, Class<? extends Throwable> targetType) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (targetType.isInstance(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void logAiErrorMetric(String errorType, Long questionId, Throwable throwable) {
+        long count = switch (errorType) {
+            case "TIMEOUT" -> AI_TIMEOUT_ERROR_COUNT.incrementAndGet();
+            case "HTTP_500" -> AI_HTTP_500_ERROR_COUNT.incrementAndGet();
+            case "NETWORK" -> AI_NETWORK_ERROR_COUNT.incrementAndGet();
+            default -> AI_OTHER_ERROR_COUNT.incrementAndGet();
+        };
+
+        log.warn(
+                "[AI_ERROR_METRIC] type={}, count={}, questionId={}, errorClass={}, message={}",
+                errorType,
+                count,
+                questionId,
+                throwable.getClass().getSimpleName(),
+                throwable.getMessage()
+        );
     }
 
     private void sendStreamEvent(SseEmitter emitter, String eventName, Object payload) throws IOException {
@@ -516,5 +667,8 @@ public class ChatMessageService {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to deserialize recommended contacts.", e);
         }
+    }
+
+    private record SavedQuestionContext(ChatMessage message, boolean newlyCreated) {
     }
 }
