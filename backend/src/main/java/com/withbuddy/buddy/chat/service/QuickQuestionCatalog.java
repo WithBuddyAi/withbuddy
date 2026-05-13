@@ -1,6 +1,6 @@
 package com.withbuddy.buddy.chat.service;
 
-import com.withbuddy.buddy.activity.entity.EventTarget;
+import com.withbuddy.admin.activity.entity.EventTarget;
 import com.withbuddy.buddy.chat.dto.response.QuickQuestionResponse;
 import org.springframework.stereotype.Component;
 
