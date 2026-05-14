@@ -230,6 +230,7 @@ jobs:
           ssh "${BACKEND_ACCESS_HOST}" "set -euo pipefail; APP_DIR='${BACKEND_APP_DIR}'; mkdir -p \"\${APP_DIR}/scripts\" \"\${APP_DIR}/logs\"; chmod +x \"\${APP_DIR}/scripts/discord-health-alert.sh\""
 
       - name: Repair Flyway failed migrations
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.2.0
         env:
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
