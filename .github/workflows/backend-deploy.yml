@@ -1,6 +1,4 @@
 name: Deploy Backend
-run-name: >-
-  Deploy Backend | ref:${{ github.ref_name }} | note:${{ github.event.inputs.deploy_note || github.event.head_commit.message || github.sha }} | by:@${{ github.actor }}
 # Flyway repair step runs on DB server via DB_SERVER_* production secrets. (secret-refresh trigger)
 
 on:
@@ -9,13 +7,9 @@ on:
       - main
     paths:
       - "backend/**"
+      - "scripts/discord-health-alert.sh"
       - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
-    inputs:
-      deploy_note:
-        description: "런 표시용 메모/커밋메시지"
-        required: false
-        default: ""
 
 concurrency:
   group: backend-deploy-${{ github.ref }}
@@ -28,21 +22,6 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - name: Print commit context
-        env:
-          DEPLOY_NOTE: ${{ github.event.inputs.deploy_note }}
-        run: |
-          set -euo pipefail
-          echo "Workflow ref       : ${GITHUB_REF_NAME}"
-          echo "Workflow commit SHA: ${GITHUB_SHA}"
-          echo "Deploy note        : ${DEPLOY_NOTE:-}"
-          {
-            echo "## Deploy Commit Context"
-            echo "- Workflow ref: \`${GITHUB_REF_NAME}\`"
-            echo "- Workflow SHA: \`${GITHUB_SHA}\`"
-            echo "- Deploy note: \`${DEPLOY_NOTE:-}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -73,10 +52,14 @@ jobs:
       - name: Validate required environment secrets
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          BACKEND_SERVER_HOST: ${{ secrets.BACKEND_SERVER_HOST }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
           BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          DB_SERVER_HOST: ${{ secrets.DB_SERVER_HOST }}
+          DB_SERVER_USER: ${{ secrets.DB_SERVER_USER }}
+          DB_SERVER_SSH_KEY: ${{ secrets.DB_SERVER_SSH_KEY }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
@@ -91,9 +74,6 @@ jobs:
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
-          SPRING_RABBITMQ_USERNAME: ${{ secrets.SPRING_RABBITMQ_USERNAME }}
-          SPRING_RABBITMQ_PASSWORD: ${{ secrets.SPRING_RABBITMQ_PASSWORD }}
-          SPRING_RABBITMQ_VIRTUAL_HOST: ${{ secrets.SPRING_RABBITMQ_VIRTUAL_HOST }}
           RABBITMQ_EXCHANGE: ${{ secrets.RABBITMQ_EXCHANGE }}
           RABBITMQ_QUEUE_REPORT: ${{ secrets.RABBITMQ_QUEUE_REPORT }}
           RABBITMQ_QUEUE_DLQ: ${{ secrets.RABBITMQ_QUEUE_DLQ }}
@@ -117,6 +97,7 @@ jobs:
           STORAGE_OCI_BACKUP_PROFILE: ${{ secrets.STORAGE_OCI_BACKUP_PROFILE }}
           STORAGE_OCI_REGION: ${{ secrets.STORAGE_OCI_REGION }}
           STORAGE_OCI_PUBLIC_ENDPOINT: ${{ secrets.STORAGE_OCI_PUBLIC_ENDPOINT }}
+          STORAGE_OCI_PREAUTH_TTL_SECONDS: ${{ secrets.STORAGE_OCI_PREAUTH_TTL_SECONDS }}
           STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING: ${{ secrets.STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING }}
           STORAGE_PRIMARY_NAMESPACE: ${{ secrets.STORAGE_PRIMARY_NAMESPACE }}
           STORAGE_PRIMARY_BUCKET: ${{ secrets.STORAGE_PRIMARY_BUCKET }}
@@ -125,11 +106,13 @@ jobs:
         run: |
           set -euo pipefail
           required_vars=(
-            BACKEND_ACCESS_HOST
+            BACKEND_SERVER_HOST
             BACKEND_SERVER_USER
             BACKEND_SERVER_SSH_KEY
+            BACKEND_ACCESS_HOST
             CF_ACCESS_CLIENT_ID
             CF_ACCESS_CLIENT_SECRET
+            DB_SERVER_HOST
             BACKEND_APP_DIR
             SPRING_DB_URL
             SPRING_DB_USERNAME
@@ -144,9 +127,6 @@ jobs:
             BACKEND_HEALTH_URL
             REDIS_URL
             RABBITMQ_URL
-            SPRING_RABBITMQ_USERNAME
-            SPRING_RABBITMQ_PASSWORD
-            SPRING_RABBITMQ_VIRTUAL_HOST
             RABBITMQ_EXCHANGE
             RABBITMQ_QUEUE_REPORT
             RABBITMQ_QUEUE_DLQ
@@ -185,28 +165,12 @@ jobs:
             exit 1
           fi
 
-          # Guardrail: production backend must use OCI storage mode.
-          if [ "${STORAGE_PROVIDER}" != "oci-cli" ]; then
-            echo "Invalid STORAGE_PROVIDER for production: '${STORAGE_PROVIDER}'"
-            echo "Set STORAGE_PROVIDER=oci-cli to ensure presigned URL issuance."
-            exit 1
-          fi
-
-          # Guardrail: STORAGE_* 미설정 시 host-level OCI_REGION fallback 사용 가능 여부를
-          # SSH 연결 이후 서버에서 실제로 검증한다.
-          if [ -z "${STORAGE_OCI_REGION:-}" ] && [ -z "${STORAGE_OCI_PUBLIC_ENDPOINT:-}" ]; then
-            echo "WARN: STORAGE_OCI_REGION/STORAGE_OCI_PUBLIC_ENDPOINT not set. Verifying OCI_REGION on backend host."
-            echo "STORAGE_OCI_ENDPOINT_UNRESOLVED=true" >> "$GITHUB_ENV"
-          else
-            echo "STORAGE_OCI_ENDPOINT_UNRESOLVED=false" >> "$GITHUB_ENV"
-          fi
-
-          # Guardrail: RabbitMQ password must be raw text, not URL-encoded.
-          # e.g. use "asdf1234##" (OK), not "asdf1234%23%23" (NOT OK)
-          if [[ "${SPRING_RABBITMQ_PASSWORD}" == *"%23"* ]]; then
-            echo "Invalid SPRING_RABBITMQ_PASSWORD: URL-encoded value detected (%23)."
-            echo "Use raw password text in secret (example: asdf1234##)."
-            exit 1
+          # OCI pre-signed URL 생성 조건 검증
+          # STORAGE_* 값이 없더라도 런타임에서 host-level OCI_REGION을 사용할 수 있으므로 배포 자체는 차단하지 않는다.
+          if [ "${STORAGE_PROVIDER}" = "oci-cli" ] && \
+             [ -z "${STORAGE_OCI_REGION:-}" ] && \
+             [ -z "${STORAGE_OCI_PUBLIC_ENDPOINT:-}" ]; then
+            echo "WARN: STORAGE_OCI_REGION/STORAGE_OCI_PUBLIC_ENDPOINT not set. Runtime will rely on OCI_REGION from backend host environment."
           fi
 
       - name: Install cloudflared client on runner
@@ -245,43 +209,34 @@ jobs:
             ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
           EOF
           chmod 600 ~/.ssh/config
+          ssh -o BatchMode=yes -o ConnectTimeout=10 "${BACKEND_ACCESS_HOST}" "echo ssh_ok"
 
-      - name: Verify OCI endpoint fallback on backend host
-        if: env.STORAGE_OCI_ENDPOINT_UNRESOLVED == 'true'
-        env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
-        run: |
-          set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" '
-            set -euo pipefail
-            if [ -z "${OCI_REGION:-}" ]; then
-              echo "Missing OCI endpoint config: set STORAGE_OCI_REGION or STORAGE_OCI_PUBLIC_ENDPOINT secret, or provide OCI_REGION on backend host."
-              exit 1
-            fi
-            echo "OCI_REGION fallback detected on backend host: ${OCI_REGION}"
-          '
-
-      - name: Upload app.jar to server
+      - name: Upload artifacts to server (Cloudflare SSH)
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         run: |
           set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}'"
+          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}/scripts' '${BACKEND_APP_DIR}/logs'"
           scp app.jar "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/app.jar"
+          scp scripts/discord-health-alert.sh "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/scripts/discord-health-alert.sh"
 
       - name: Repair Flyway failed migrations
+        uses: appleboy/ssh-action@v1.2.0
         env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
-        run: |
-          set -euo pipefail
-          printf -v SPRING_DB_URL_Q '%q' "${SPRING_DB_URL}"
-          printf -v SPRING_DB_USERNAME_Q '%q' "${SPRING_DB_USERNAME}"
-          printf -v SPRING_DB_PASSWORD_Q '%q' "${SPRING_DB_PASSWORD}"
-          ssh "${BACKEND_ACCESS_HOST}" "SPRING_DB_URL=${SPRING_DB_URL_Q} SPRING_DB_USERNAME=${SPRING_DB_USERNAME_Q} SPRING_DB_PASSWORD=${SPRING_DB_PASSWORD_Q} bash -s" <<'REMOTE_EOF'
+        with:
+          host: ${{ secrets.DB_SERVER_HOST }}
+          username: ${{ secrets.DB_SERVER_USER != '' && secrets.DB_SERVER_USER || secrets.BACKEND_SERVER_USER }}
+          key: ${{ contains(secrets.DB_SERVER_SSH_KEY, 'PRIVATE KEY-----') && secrets.DB_SERVER_SSH_KEY || secrets.BACKEND_SERVER_SSH_KEY }}
+          proxy_host: ${{ secrets.DB_SERVER_PROXY_HOST }}
+          proxy_username: ${{ secrets.DB_SERVER_PROXY_USER }}
+          proxy_key: ${{ secrets.DB_SERVER_PROXY_SSH_KEY }}
+          debug: true
+          envs: SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD
+          script: |
             set -euo pipefail
 
             # Parse JDBC URL: jdbc:mysql://host:port/dbname?params
@@ -427,11 +382,12 @@ jobs:
 
             echo "No eligible failed migration versions found for auto-repair."
             exit 0
-          REMOTE_EOF
 
-      - name: Restart backend
+      - name: Restart backend (Cloudflare SSH)
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
+          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_ACCESS_EXPIRATION: ${{ secrets.JWT_ACCESS_EXPIRATION }}
@@ -447,9 +403,6 @@ jobs:
           SPRING_FLYWAY_BASELINE_VERSION: ${{ secrets.SPRING_FLYWAY_BASELINE_VERSION }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
-          SPRING_RABBITMQ_USERNAME: ${{ secrets.SPRING_RABBITMQ_USERNAME }}
-          SPRING_RABBITMQ_PASSWORD: ${{ secrets.SPRING_RABBITMQ_PASSWORD }}
-          SPRING_RABBITMQ_VIRTUAL_HOST: ${{ secrets.SPRING_RABBITMQ_VIRTUAL_HOST }}
           RABBITMQ_EXCHANGE: ${{ secrets.RABBITMQ_EXCHANGE }}
           RABBITMQ_QUEUE_REPORT: ${{ secrets.RABBITMQ_QUEUE_REPORT }}
           RABBITMQ_QUEUE_DLQ: ${{ secrets.RABBITMQ_QUEUE_DLQ }}
@@ -474,78 +427,77 @@ jobs:
           STORAGE_OCI_BACKUP_PROFILE: ${{ secrets.STORAGE_OCI_BACKUP_PROFILE }}
           STORAGE_OCI_REGION: ${{ secrets.STORAGE_OCI_REGION }}
           STORAGE_OCI_PUBLIC_ENDPOINT: ${{ secrets.STORAGE_OCI_PUBLIC_ENDPOINT }}
+          STORAGE_OCI_PREAUTH_TTL_SECONDS: ${{ secrets.STORAGE_OCI_PREAUTH_TTL_SECONDS }}
           STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING: ${{ secrets.STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING }}
           STORAGE_PRIMARY_NAMESPACE: ${{ secrets.STORAGE_PRIMARY_NAMESPACE }}
           STORAGE_PRIMARY_BUCKET: ${{ secrets.STORAGE_PRIMARY_BUCKET }}
           STORAGE_BACKUP_NAMESPACE: ${{ secrets.STORAGE_BACKUP_NAMESPACE }}
           STORAGE_BACKUP_BUCKET: ${{ secrets.STORAGE_BACKUP_BUCKET }}
           CORS_ALLOWED_ORIGIN_PATTERNS: ${{ secrets.CORS_ALLOWED_ORIGIN_PATTERNS }}
-          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
-          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         run: |
           set -euo pipefail
-          assign_env_vars() {
-            local var_name var_value var_quoted
-            for var_name in "$@"; do
-              var_value="${!var_name:-}"
-              printf -v var_quoted '%q' "${var_value}"
-              printf '%s=%s ' "${var_name}" "${var_quoted}"
-            done
-          }
-          REMOTE_ENV_ASSIGNMENTS="$(
-            assign_env_vars \
-              DB_PASSWORD \
-              JWT_SECRET \
-              JWT_ACCESS_EXPIRATION \
-              AI_SERVER_BASE_URL \
-              AI_SERVER_CONNECT_TIMEOUT_MS \
-              AI_SERVER_READ_TIMEOUT_MS \
-              AI_SERVER_ASYNC_READ_TIMEOUT_MS \
-              SPRING_DB_URL \
-              SPRING_DB_USERNAME \
-              SPRING_DB_PASSWORD \
-              SPRING_DB_DRIVER_CLASS_NAME \
-              SPRING_FLYWAY_BASELINE_ON_MIGRATE \
-              SPRING_FLYWAY_BASELINE_VERSION \
-              REDIS_URL \
-              RABBITMQ_URL \
-              SPRING_RABBITMQ_USERNAME \
-              SPRING_RABBITMQ_PASSWORD \
-              SPRING_RABBITMQ_VIRTUAL_HOST \
-              RABBITMQ_EXCHANGE \
-              RABBITMQ_QUEUE_REPORT \
-              RABBITMQ_QUEUE_DLQ \
-              STORAGE_API_AUTH_ENABLED \
-              STORAGE_API_KEY_ID \
-              STORAGE_API_KEY_VALUE \
-              STORAGE_API_GLOBAL_ACCESS \
-              STORAGE_API_KEY_ACTIVE \
-              STORAGE_PROVIDER \
-              STORAGE_LOCAL_BASE_DIR \
-              STORAGE_MAX_DOCUMENT_SIZE_MB \
-              STORAGE_MAX_IMAGE_SIZE_MB \
-              STORAGE_DOWNLOAD_URL_TTL_SECONDS \
-              STORAGE_RETRY_ENABLED \
-              STORAGE_RETRY_MAX_ATTEMPTS \
-              STORAGE_RETRY_INTERVAL_MS \
-              STORAGE_RETRY_BASE_BACKOFF_SECONDS \
-              STORAGE_RETRY_MAX_BACKOFF_SECONDS \
-              STORAGE_RETRY_BATCH_SIZE \
-              STORAGE_OCI_CLI_EXECUTABLE \
-              STORAGE_OCI_PRIMARY_PROFILE \
-              STORAGE_OCI_BACKUP_PROFILE \
-              STORAGE_OCI_REGION \
-              STORAGE_OCI_PUBLIC_ENDPOINT \
-              STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING \
-              STORAGE_PRIMARY_NAMESPACE \
-              STORAGE_PRIMARY_BUCKET \
-              STORAGE_BACKUP_NAMESPACE \
-              STORAGE_BACKUP_BUCKET \
-              CORS_ALLOWED_ORIGIN_PATTERNS \
-              BACKEND_HEALTH_URL \
-              BACKEND_APP_DIR
-          )"
-          ssh "${BACKEND_ACCESS_HOST}" "${REMOTE_ENV_ASSIGNMENTS}bash -s" <<'REMOTE_EOF'
+
+          APP_DIR="${BACKEND_APP_DIR}"
+          LOCAL_ENV_FILE="backend.env.tmp"
+          REMOTE_ENV_FILE="${APP_DIR}/backend.env.tmp"
+
+          cat > "${LOCAL_ENV_FILE}" <<EOF
+          DB_PASSWORD=${DB_PASSWORD}
+          JWT_SECRET=${JWT_SECRET}
+          JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
+          AI_SERVER_BASE_URL=${AI_SERVER_BASE_URL}
+          AI_SERVER_CONNECT_TIMEOUT_MS=${AI_SERVER_CONNECT_TIMEOUT_MS}
+          AI_SERVER_READ_TIMEOUT_MS=${AI_SERVER_READ_TIMEOUT_MS}
+          AI_SERVER_ASYNC_READ_TIMEOUT_MS=${AI_SERVER_ASYNC_READ_TIMEOUT_MS}
+          SPRING_DB_URL=${SPRING_DB_URL}
+          SPRING_DB_USERNAME=${SPRING_DB_USERNAME}
+          SPRING_DB_PASSWORD=${SPRING_DB_PASSWORD}
+          SPRING_DB_DRIVER_CLASS_NAME=${SPRING_DB_DRIVER_CLASS_NAME}
+          SPRING_FLYWAY_BASELINE_ON_MIGRATE=${SPRING_FLYWAY_BASELINE_ON_MIGRATE:-true}
+          SPRING_FLYWAY_BASELINE_VERSION=${SPRING_FLYWAY_BASELINE_VERSION:-0}
+          REDIS_URL=${REDIS_URL}
+          RABBITMQ_URL=${RABBITMQ_URL}
+          RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE}
+          RABBITMQ_QUEUE_REPORT=${RABBITMQ_QUEUE_REPORT}
+          RABBITMQ_QUEUE_DLQ=${RABBITMQ_QUEUE_DLQ}
+          STORAGE_API_AUTH_ENABLED=${STORAGE_API_AUTH_ENABLED}
+          STORAGE_API_KEY_ID=${STORAGE_API_KEY_ID:-storage-admin}
+          STORAGE_API_KEY_VALUE=${STORAGE_API_KEY_VALUE}
+          STORAGE_API_GLOBAL_ACCESS=${STORAGE_API_GLOBAL_ACCESS}
+          STORAGE_API_KEY_ACTIVE=${STORAGE_API_KEY_ACTIVE}
+          STORAGE_PROVIDER=${STORAGE_PROVIDER}
+          STORAGE_LOCAL_BASE_DIR=${STORAGE_LOCAL_BASE_DIR}
+          STORAGE_MAX_DOCUMENT_SIZE_MB=${STORAGE_MAX_DOCUMENT_SIZE_MB}
+          STORAGE_MAX_IMAGE_SIZE_MB=${STORAGE_MAX_IMAGE_SIZE_MB}
+          STORAGE_DOWNLOAD_URL_TTL_SECONDS=${STORAGE_DOWNLOAD_URL_TTL_SECONDS}
+          STORAGE_RETRY_ENABLED=${STORAGE_RETRY_ENABLED}
+          STORAGE_RETRY_MAX_ATTEMPTS=${STORAGE_RETRY_MAX_ATTEMPTS}
+          STORAGE_RETRY_INTERVAL_MS=${STORAGE_RETRY_INTERVAL_MS}
+          STORAGE_RETRY_BASE_BACKOFF_SECONDS=${STORAGE_RETRY_BASE_BACKOFF_SECONDS}
+          STORAGE_RETRY_MAX_BACKOFF_SECONDS=${STORAGE_RETRY_MAX_BACKOFF_SECONDS}
+          STORAGE_RETRY_BATCH_SIZE=${STORAGE_RETRY_BATCH_SIZE}
+          STORAGE_OCI_CLI_EXECUTABLE=${STORAGE_OCI_CLI_EXECUTABLE}
+          STORAGE_OCI_PRIMARY_PROFILE=${STORAGE_OCI_PRIMARY_PROFILE}
+          STORAGE_OCI_BACKUP_PROFILE=${STORAGE_OCI_BACKUP_PROFILE}
+          STORAGE_OCI_REGION=${STORAGE_OCI_REGION:-}
+          STORAGE_OCI_PUBLIC_ENDPOINT=${STORAGE_OCI_PUBLIC_ENDPOINT:-}
+          STORAGE_OCI_PREAUTH_TTL_SECONDS=${STORAGE_OCI_PREAUTH_TTL_SECONDS:-900}
+          STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING=${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING}
+          STORAGE_PRIMARY_NAMESPACE=${STORAGE_PRIMARY_NAMESPACE}
+          STORAGE_PRIMARY_BUCKET=${STORAGE_PRIMARY_BUCKET}
+          STORAGE_BACKUP_NAMESPACE=${STORAGE_BACKUP_NAMESPACE}
+          STORAGE_BACKUP_BUCKET=${STORAGE_BACKUP_BUCKET}
+          CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS:-}
+          SPRING_PROFILES_ACTIVE=prod
+          EOF
+          chmod 600 "${LOCAL_ENV_FILE}"
+
+          scp "${LOCAL_ENV_FILE}" "${BACKEND_ACCESS_HOST}:${REMOTE_ENV_FILE}"
+          rm -f "${LOCAL_ENV_FILE}"
+
+          printf -v APP_DIR_Q '%q' "${BACKEND_APP_DIR}"
+          printf -v HEALTH_URL_Q '%q' "${BACKEND_HEALTH_URL}"
+          ssh "${BACKEND_ACCESS_HOST}" "BACKEND_APP_DIR=${APP_DIR_Q} BACKEND_HEALTH_URL=${HEALTH_URL_Q} bash -s" <<'REMOTE_EOF'
             set -euo pipefail
 
             APP_DIR="${BACKEND_APP_DIR}"
@@ -562,25 +514,17 @@ jobs:
                 ;;
             esac
 
-            mkdir -p "${APP_DIR}"
+            mkdir -p "${APP_DIR}" "${APP_DIR}/scripts" "${APP_DIR}/logs"
             test -f "${JAR_PATH}"
+            test -f "${TMP_ENV_PATH}"
+            chmod +x "${APP_DIR}/scripts/discord-health-alert.sh"
 
-            EFFECTIVE_DB_URL="${SPRING_DB_URL:-}"
-            EFFECTIVE_DB_USERNAME="${SPRING_DB_USERNAME:-}"
-            EFFECTIVE_DB_PASSWORD="${SPRING_DB_PASSWORD:-${DB_PASSWORD:-}}"
+            sudo install -m 600 "${TMP_ENV_PATH}" "${ENV_PATH}"
+            rm -f "${TMP_ENV_PATH}"
 
-            if [ -z "${EFFECTIVE_DB_URL// }" ]; then
-              echo "ERROR: DB URL is empty. Check SPRING_DB_URL or SPRING_DATASOURCE_URL secret."
-              exit 1
-            fi
-            if [ -z "${EFFECTIVE_DB_USERNAME// }" ]; then
-              echo "ERROR: DB username is empty. Check SPRING_DB_USERNAME or SPRING_DATASOURCE_USERNAME secret."
-              exit 1
-            fi
-            if [ -z "${EFFECTIVE_DB_PASSWORD// }" ]; then
-              echo "ERROR: DB password is empty. Check SPRING_DB_PASSWORD or SPRING_DATASOURCE_PASSWORD/DB_PASSWORD secret."
-              exit 1
-            fi
+            set -a
+            . "${ENV_PATH}"
+            set +a
 
             EFFECTIVE_REDIS_URL="${REDIS_URL:-}"
             EFFECTIVE_RABBITMQ_URL="${RABBITMQ_URL:-}"
@@ -627,65 +571,8 @@ jobs:
 
             read REDIS_HOST REDIS_PORT < <(extract_host_port "${EFFECTIVE_REDIS_URL}" "6379")
             read RABBITMQ_HOST RABBITMQ_PORT < <(extract_host_port "${EFFECTIVE_RABBITMQ_URL}" "5672")
-
             wait_for_dependency "Redis" "${REDIS_HOST}" "${REDIS_PORT}"
             wait_for_dependency "RabbitMQ" "${RABBITMQ_HOST}" "${RABBITMQ_PORT}"
-
-            {
-              printf '%s\n' \
-                "DB_PASSWORD=${DB_PASSWORD}" \
-                "JWT_SECRET=${JWT_SECRET}" \
-                "JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}" \
-                "AI_SERVER_BASE_URL=${AI_SERVER_BASE_URL}" \
-                "AI_SERVER_CONNECT_TIMEOUT_MS=${AI_SERVER_CONNECT_TIMEOUT_MS}" \
-                "AI_SERVER_READ_TIMEOUT_MS=${AI_SERVER_READ_TIMEOUT_MS}" \
-                "AI_SERVER_ASYNC_READ_TIMEOUT_MS=${AI_SERVER_ASYNC_READ_TIMEOUT_MS}" \
-                "SPRING_DB_URL=${EFFECTIVE_DB_URL}" \
-                "SPRING_DB_USERNAME=${EFFECTIVE_DB_USERNAME}" \
-                "SPRING_DB_PASSWORD=${EFFECTIVE_DB_PASSWORD}" \
-                "SPRING_DB_DRIVER_CLASS_NAME=${SPRING_DB_DRIVER_CLASS_NAME}" \
-                "SPRING_FLYWAY_BASELINE_ON_MIGRATE=${SPRING_FLYWAY_BASELINE_ON_MIGRATE:-true}" \
-                "SPRING_FLYWAY_BASELINE_VERSION=${SPRING_FLYWAY_BASELINE_VERSION:-0}" \
-                "REDIS_URL=${EFFECTIVE_REDIS_URL}" \
-                "RABBITMQ_URL=${EFFECTIVE_RABBITMQ_URL}" \
-                "SPRING_RABBITMQ_USERNAME=${SPRING_RABBITMQ_USERNAME}" \
-                "SPRING_RABBITMQ_PASSWORD=${SPRING_RABBITMQ_PASSWORD}" \
-                "SPRING_RABBITMQ_VIRTUAL_HOST=${SPRING_RABBITMQ_VIRTUAL_HOST}" \
-                "RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE}" \
-                "RABBITMQ_QUEUE_REPORT=${RABBITMQ_QUEUE_REPORT}" \
-                "RABBITMQ_QUEUE_DLQ=${RABBITMQ_QUEUE_DLQ}" \
-                "STORAGE_API_AUTH_ENABLED=${STORAGE_API_AUTH_ENABLED}" \
-                "STORAGE_API_KEY_ID=${STORAGE_API_KEY_ID:-storage-admin}" \
-                "STORAGE_API_KEY_VALUE=${STORAGE_API_KEY_VALUE}" \
-                "STORAGE_API_GLOBAL_ACCESS=${STORAGE_API_GLOBAL_ACCESS}" \
-                "STORAGE_API_KEY_ACTIVE=${STORAGE_API_KEY_ACTIVE}" \
-                "STORAGE_PROVIDER=${STORAGE_PROVIDER}" \
-                "STORAGE_LOCAL_BASE_DIR=${STORAGE_LOCAL_BASE_DIR}" \
-                "STORAGE_MAX_DOCUMENT_SIZE_MB=${STORAGE_MAX_DOCUMENT_SIZE_MB}" \
-                "STORAGE_MAX_IMAGE_SIZE_MB=${STORAGE_MAX_IMAGE_SIZE_MB}" \
-                "STORAGE_DOWNLOAD_URL_TTL_SECONDS=${STORAGE_DOWNLOAD_URL_TTL_SECONDS}" \
-                "STORAGE_RETRY_ENABLED=${STORAGE_RETRY_ENABLED}" \
-                "STORAGE_RETRY_MAX_ATTEMPTS=${STORAGE_RETRY_MAX_ATTEMPTS}" \
-                "STORAGE_RETRY_INTERVAL_MS=${STORAGE_RETRY_INTERVAL_MS}" \
-                "STORAGE_RETRY_BASE_BACKOFF_SECONDS=${STORAGE_RETRY_BASE_BACKOFF_SECONDS}" \
-                "STORAGE_RETRY_MAX_BACKOFF_SECONDS=${STORAGE_RETRY_MAX_BACKOFF_SECONDS}" \
-                "STORAGE_RETRY_BATCH_SIZE=${STORAGE_RETRY_BATCH_SIZE}" \
-                "STORAGE_OCI_CLI_EXECUTABLE=${STORAGE_OCI_CLI_EXECUTABLE}" \
-                "STORAGE_OCI_PRIMARY_PROFILE=${STORAGE_OCI_PRIMARY_PROFILE}" \
-                "STORAGE_OCI_BACKUP_PROFILE=${STORAGE_OCI_BACKUP_PROFILE}" \
-                "STORAGE_OCI_REGION=${STORAGE_OCI_REGION}" \
-                "STORAGE_OCI_PUBLIC_ENDPOINT=${STORAGE_OCI_PUBLIC_ENDPOINT}" \
-                "STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING=${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING}" \
-                "STORAGE_PRIMARY_NAMESPACE=${STORAGE_PRIMARY_NAMESPACE}" \
-                "STORAGE_PRIMARY_BUCKET=${STORAGE_PRIMARY_BUCKET}" \
-                "STORAGE_BACKUP_NAMESPACE=${STORAGE_BACKUP_NAMESPACE}" \
-                "STORAGE_BACKUP_BUCKET=${STORAGE_BACKUP_BUCKET}" \
-                "CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS:-}" \
-                "SPRING_PROFILES_ACTIVE=prod"
-            } > "${TMP_ENV_PATH}"
-            chmod 600 "${TMP_ENV_PATH}"
-            sudo install -m 600 "${TMP_ENV_PATH}" "${ENV_PATH}"
-            rm -f "${TMP_ENV_PATH}"
 
             sudo systemctl restart "${SERVICE_NAME}"
             sudo systemctl is-active --quiet "${SERVICE_NAME}"
@@ -751,3 +638,5 @@ jobs:
             print_flyway_recovery_hint_if_needed
             exit 1
           REMOTE_EOF
+
+
