@@ -492,10 +492,9 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         if (StringUtils.hasText(issuedUrl) && issuedUrl.startsWith("http")) {
             log.info(
-                    "Pre-signed download URL issued. documentId={}, source={}, url={}",
+                    "Pre-signed download URL issued. documentId={}, source={}",
                     documentId,
-                    source.name(),
-                    issuedUrl
+                    source.name()
             );
         }
 
