@@ -528,15 +528,17 @@ jobs:
             test -f "${TMP_ENV_PATH}"
             chmod +x "${APP_DIR}/scripts/discord-health-alert.sh"
 
+            # Read dependency URLs from tmp env before installing the final root-only env file.
+            EFFECTIVE_REDIS_URL="$(awk -F= '/^REDIS_URL=/{print substr($0, index($0, "=")+1); exit}' "${TMP_ENV_PATH}")"
+            EFFECTIVE_RABBITMQ_URL="$(awk -F= '/^RABBITMQ_URL=/{print substr($0, index($0, "=")+1); exit}' "${TMP_ENV_PATH}")"
+
+            if [ -z "${EFFECTIVE_REDIS_URL}" ] || [ -z "${EFFECTIVE_RABBITMQ_URL}" ]; then
+              echo "ERROR: Missing REDIS_URL or RABBITMQ_URL in ${TMP_ENV_PATH}"
+              exit 1
+            fi
+
             sudo install -m 600 "${TMP_ENV_PATH}" "${ENV_PATH}"
             rm -f "${TMP_ENV_PATH}"
-
-            set -a
-            . "${ENV_PATH}"
-            set +a
-
-            EFFECTIVE_REDIS_URL="${REDIS_URL:-}"
-            EFFECTIVE_RABBITMQ_URL="${RABBITMQ_URL:-}"
 
             extract_host_port() {
               local url="$1"
