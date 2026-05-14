@@ -222,19 +222,12 @@ jobs:
           scp scripts/discord-health-alert.sh "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/scripts/discord-health-alert.sh"
 
       - name: Ensure health alert script permissions
-        uses: appleboy/ssh-action@v1.2.0
         env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
-        with:
-          host: ${{ secrets.BACKEND_SERVER_HOST }}
-          username: ${{ secrets.BACKEND_SERVER_USER }}
-          key: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
-          envs: BACKEND_APP_DIR
-          script: |
-            set -euo pipefail
-            APP_DIR="${BACKEND_APP_DIR}"
-            mkdir -p "${APP_DIR}/scripts" "${APP_DIR}/logs"
-            chmod +x "${APP_DIR}/scripts/discord-health-alert.sh"
+        run: |
+          set -euo pipefail
+          ssh "${BACKEND_ACCESS_HOST}" "set -euo pipefail; APP_DIR='${BACKEND_APP_DIR}'; mkdir -p \"\${APP_DIR}/scripts\" \"\${APP_DIR}/logs\"; chmod +x \"\${APP_DIR}/scripts/discord-health-alert.sh\""
 
       - name: Repair Flyway failed migrations
         uses: appleboy/ssh-action@v1.2.0
