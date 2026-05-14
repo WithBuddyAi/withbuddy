@@ -2317,6 +2317,8 @@ Authorization: Bearer {accessToken}
 - 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
 - 운영 환경에서는 스토리지 기반 다운로드 URL 또는 파일 접근 경로를 반환할 수 있다.
 - 로컬 개발 환경에서는 `/api/v1/documents/{documentId}/file` 경로를 다운로드 URL로 반환할 수 있다.
+- pre-signed URL은 서버 내부 스토리지 접근/로깅에만 사용하고, API 응답 본문에는 노출하지 않는다.
+- 보안상 pre-signed URL에는 단기 접근 토큰이 포함되므로, URL 유출 시 만료 전까지 제3자 다운로드가 가능해 응답 노출을 제한한다.
 - `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
 
 #### Response (200 OK)
