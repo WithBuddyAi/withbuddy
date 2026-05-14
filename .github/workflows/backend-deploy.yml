@@ -74,6 +74,11 @@ jobs:
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
+          RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
+          RABBITMQ_PORT: ${{ secrets.RABBITMQ_PORT }}
+          RABBITMQ_USERNAME: ${{ secrets.RABBITMQ_USERNAME }}
+          RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+          RABBITMQ_VHOST: ${{ secrets.RABBITMQ_VHOST }}
           RABBITMQ_EXCHANGE: ${{ secrets.RABBITMQ_EXCHANGE }}
           RABBITMQ_QUEUE_REPORT: ${{ secrets.RABBITMQ_QUEUE_REPORT }}
           RABBITMQ_QUEUE_DLQ: ${{ secrets.RABBITMQ_QUEUE_DLQ }}
@@ -162,6 +167,18 @@ jobs:
           done
           if [ "${#missing_vars[@]}" -gt 0 ]; then
             echo "Missing required secrets: ${missing_vars[*]}"
+            exit 1
+          fi
+
+          # RabbitMQ 자격증명 누락/형식 불량 사전 차단
+          if [ -z "${RABBITMQ_PASSWORD:-}" ]; then
+            if ! printf '%s' "${RABBITMQ_URL}" | grep -Eq '^amqps?://[^:@/]+:[^@/]+@[^/:?#]+(:[0-9]+)?/.+'; then
+              echo "Invalid RABBITMQ_URL format. Expected amqp://user:password@host:port/vhost when RABBITMQ_PASSWORD is not set."
+              exit 1
+            fi
+          fi
+          if printf '%s' "${RABBITMQ_URL}" | grep -Eq '^amqps?://[^@]+@(localhost|127\.0\.0\.1)(:[0-9]+)?/'; then
+            echo "RABBITMQ_URL points to localhost/127.0.0.1, which is not allowed for production deploy."
             exit 1
           fi
 
@@ -412,6 +429,11 @@ jobs:
           SPRING_FLYWAY_BASELINE_VERSION: ${{ secrets.SPRING_FLYWAY_BASELINE_VERSION }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
+          RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
+          RABBITMQ_PORT: ${{ secrets.RABBITMQ_PORT }}
+          RABBITMQ_USERNAME: ${{ secrets.RABBITMQ_USERNAME }}
+          RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+          RABBITMQ_VHOST: ${{ secrets.RABBITMQ_VHOST }}
           RABBITMQ_EXCHANGE: ${{ secrets.RABBITMQ_EXCHANGE }}
           RABBITMQ_QUEUE_REPORT: ${{ secrets.RABBITMQ_QUEUE_REPORT }}
           RABBITMQ_QUEUE_DLQ: ${{ secrets.RABBITMQ_QUEUE_DLQ }}
@@ -450,6 +472,65 @@ jobs:
           LOCAL_ENV_FILE="backend.env.tmp"
           REMOTE_ENV_FILE="${APP_DIR}/backend.env.tmp"
 
+          urldecode() {
+            local data="${1//+/ }"
+            printf '%b' "${data//%/\\x}"
+          }
+
+          RABBITMQ_HOST_EFFECTIVE="${RABBITMQ_HOST:-}"
+          RABBITMQ_PORT_EFFECTIVE="${RABBITMQ_PORT:-}"
+          RABBITMQ_USERNAME_EFFECTIVE="${RABBITMQ_USERNAME:-}"
+          RABBITMQ_PASSWORD_EFFECTIVE="${RABBITMQ_PASSWORD:-}"
+          RABBITMQ_VHOST_EFFECTIVE="${RABBITMQ_VHOST:-}"
+
+          rabbitmq_no_scheme="${RABBITMQ_URL#*://}"
+          rabbitmq_authority="${rabbitmq_no_scheme%%/*}"
+          rabbitmq_path="/${rabbitmq_no_scheme#*/}"
+
+          if [ "${rabbitmq_authority}" = "${rabbitmq_no_scheme}" ]; then
+            echo "Invalid RABBITMQ_URL: missing path/vhost (${RABBITMQ_URL})"
+            exit 1
+          fi
+
+          rabbitmq_hostport="${rabbitmq_authority}"
+          if [[ "${rabbitmq_authority}" == *"@"* ]]; then
+            rabbitmq_auth="${rabbitmq_authority%@*}"
+            rabbitmq_hostport="${rabbitmq_authority#*@}"
+            if [ -z "${RABBITMQ_USERNAME_EFFECTIVE}" ]; then
+              RABBITMQ_USERNAME_EFFECTIVE="$(urldecode "${rabbitmq_auth%%:*}")"
+            fi
+            if [ -z "${RABBITMQ_PASSWORD_EFFECTIVE}" ] && [[ "${rabbitmq_auth}" == *":"* ]]; then
+              RABBITMQ_PASSWORD_EFFECTIVE="$(urldecode "${rabbitmq_auth#*:}")"
+            fi
+          fi
+
+          if [ -z "${RABBITMQ_HOST_EFFECTIVE}" ]; then
+            RABBITMQ_HOST_EFFECTIVE="${rabbitmq_hostport%%:*}"
+          fi
+          if [ -z "${RABBITMQ_PORT_EFFECTIVE}" ]; then
+            if [[ "${rabbitmq_hostport}" == *":"* ]]; then
+              RABBITMQ_PORT_EFFECTIVE="${rabbitmq_hostport##*:}"
+            else
+              RABBITMQ_PORT_EFFECTIVE="5672"
+            fi
+          fi
+          if [ -z "${RABBITMQ_VHOST_EFFECTIVE}" ]; then
+            rabbitmq_vhost_encoded="${rabbitmq_path#/}"
+            RABBITMQ_VHOST_EFFECTIVE="$(urldecode "${rabbitmq_vhost_encoded}")"
+          fi
+          if [ -z "${RABBITMQ_VHOST_EFFECTIVE}" ]; then
+            RABBITMQ_VHOST_EFFECTIVE="/"
+          fi
+
+          if [ -z "${RABBITMQ_USERNAME_EFFECTIVE}" ] || [ -z "${RABBITMQ_PASSWORD_EFFECTIVE}" ]; then
+            echo "Missing RabbitMQ credentials. Set RABBITMQ_USERNAME/RABBITMQ_PASSWORD secrets or provide credentials in RABBITMQ_URL."
+            exit 1
+          fi
+          if [ "${RABBITMQ_HOST_EFFECTIVE}" = "localhost" ] || [ "${RABBITMQ_HOST_EFFECTIVE}" = "127.0.0.1" ]; then
+            echo "Invalid RabbitMQ host for production: ${RABBITMQ_HOST_EFFECTIVE}"
+            exit 1
+          fi
+
           cat > "${LOCAL_ENV_FILE}" <<EOF
           DB_PASSWORD=${DB_PASSWORD}
           JWT_SECRET=${JWT_SECRET}
@@ -466,6 +547,11 @@ jobs:
           SPRING_FLYWAY_BASELINE_VERSION=${SPRING_FLYWAY_BASELINE_VERSION:-0}
           REDIS_URL=${REDIS_URL}
           RABBITMQ_URL=${RABBITMQ_URL}
+          SPRING_RABBITMQ_HOST=${RABBITMQ_HOST_EFFECTIVE}
+          SPRING_RABBITMQ_PORT=${RABBITMQ_PORT_EFFECTIVE}
+          SPRING_RABBITMQ_USERNAME=${RABBITMQ_USERNAME_EFFECTIVE}
+          SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD_EFFECTIVE}
+          SPRING_RABBITMQ_VIRTUAL_HOST=${RABBITMQ_VHOST_EFFECTIVE}
           RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE}
           RABBITMQ_QUEUE_REPORT=${RABBITMQ_QUEUE_REPORT}
           RABBITMQ_QUEUE_DLQ=${RABBITMQ_QUEUE_DLQ}
