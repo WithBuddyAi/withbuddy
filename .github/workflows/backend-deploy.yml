@@ -159,11 +159,11 @@ jobs:
           fi
 
           # OCI pre-signed URL 생성 조건 검증
+          # STORAGE_* 값이 없더라도 런타임에서 host-level OCI_REGION을 사용할 수 있으므로 배포 자체는 차단하지 않는다.
           if [ "${STORAGE_PROVIDER}" = "oci-cli" ] && \
              [ -z "${STORAGE_OCI_REGION:-}" ] && \
              [ -z "${STORAGE_OCI_PUBLIC_ENDPOINT:-}" ]; then
-            echo "Missing required secrets for oci-cli provider: set STORAGE_OCI_REGION or STORAGE_OCI_PUBLIC_ENDPOINT."
-            exit 1
+            echo "WARN: STORAGE_OCI_REGION/STORAGE_OCI_PUBLIC_ENDPOINT not set. Runtime will rely on OCI_REGION from backend host environment."
           fi
 
       - name: Debug Cloudflare Access SSH (temporary)
