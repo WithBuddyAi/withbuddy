@@ -192,10 +192,13 @@ jobs:
             exit 1
           fi
 
-          # Guardrail: OCI endpoint resolution requires at least one of region or public endpoint.
+          # Guardrail: STORAGE_* 미설정 시 host-level OCI_REGION fallback 사용 가능 여부를
+          # SSH 연결 이후 서버에서 실제로 검증한다.
           if [ -z "${STORAGE_OCI_REGION:-}" ] && [ -z "${STORAGE_OCI_PUBLIC_ENDPOINT:-}" ]; then
-            echo "Missing OCI endpoint config: set STORAGE_OCI_REGION or STORAGE_OCI_PUBLIC_ENDPOINT."
-            exit 1
+            echo "WARN: STORAGE_OCI_REGION/STORAGE_OCI_PUBLIC_ENDPOINT not set. Verifying OCI_REGION on backend host."
+            echo "STORAGE_OCI_ENDPOINT_UNRESOLVED=true" >> "$GITHUB_ENV"
+          else
+            echo "STORAGE_OCI_ENDPOINT_UNRESOLVED=false" >> "$GITHUB_ENV"
           fi
 
           # Guardrail: RabbitMQ password must be raw text, not URL-encoded.
@@ -242,6 +245,21 @@ jobs:
             ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
           EOF
           chmod 600 ~/.ssh/config
+
+      - name: Verify OCI endpoint fallback on backend host
+        if: env.STORAGE_OCI_ENDPOINT_UNRESOLVED == 'true'
+        env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+        run: |
+          set -euo pipefail
+          ssh "${BACKEND_ACCESS_HOST}" '
+            set -euo pipefail
+            if [ -z "${OCI_REGION:-}" ]; then
+              echo "Missing OCI endpoint config: set STORAGE_OCI_REGION or STORAGE_OCI_PUBLIC_ENDPOINT secret, or provide OCI_REGION on backend host."
+              exit 1
+            fi
+            echo "OCI_REGION fallback detected on backend host: ${OCI_REGION}"
+          '
 
       - name: Upload app.jar to server
         env:
