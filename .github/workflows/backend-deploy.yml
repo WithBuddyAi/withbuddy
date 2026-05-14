@@ -192,10 +192,9 @@ jobs:
             exit 1
           fi
 
-          # Guardrail: OCI endpoint resolution requires at least one of region or public endpoint.
+          # Guardrail: STORAGE_* 값이 없더라도 런타임 host-level OCI_REGION fallback 경로를 허용한다.
           if [ -z "${STORAGE_OCI_REGION:-}" ] && [ -z "${STORAGE_OCI_PUBLIC_ENDPOINT:-}" ]; then
-            echo "Missing OCI endpoint config: set STORAGE_OCI_REGION or STORAGE_OCI_PUBLIC_ENDPOINT."
-            exit 1
+            echo "WARN: STORAGE_OCI_REGION/STORAGE_OCI_PUBLIC_ENDPOINT not set. Runtime will rely on OCI_REGION from backend host environment."
           fi
 
           # Guardrail: RabbitMQ password must be raw text, not URL-encoded.
