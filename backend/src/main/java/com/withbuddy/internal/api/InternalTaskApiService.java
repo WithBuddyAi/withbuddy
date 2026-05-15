@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.infrastructure.mq.AppRabbitMqProperties;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,7 +28,6 @@ import static com.withbuddy.internal.api.InternalApiModels.TaskStatusResponse;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class InternalTaskApiService {
 
     private static final Duration TASK_TTL = Duration.ofHours(24);
@@ -169,69 +167,6 @@ public class InternalTaskApiService {
             throw new IllegalStateException("비동기 작업 큐 등록에 실패했습니다.", ex);
         }
         return new TaskActionResponse(newTaskId, "QUEUED", now);
-    }
-
-    public Optional<TaskState> findState(String taskId) {
-        if (!StringUtils.hasText(taskId)) {
-            return Optional.empty();
-        }
-        return loadState(taskId.trim());
-    }
-
-    public void markRunning(String taskId) {
-        TaskState state = getStateOrThrow(taskId);
-        if (isTerminal(state.status)) {
-            log.info("[TASK] skip RUNNING transition for terminal task. taskId={}, status={}", taskId, state.status);
-            return;
-        }
-        String now = nowUtc();
-        TaskState running = new TaskState(
-                state.taskId,
-                state.type,
-                "RUNNING",
-                state.payload,
-                state.result,
-                state.error,
-                state.callbackUrl,
-                state.timeoutSeconds,
-                state.retryCount,
-                state.createdAt,
-                now
-        );
-        saveState(running);
-    }
-
-    public void markSuccess(String taskId, JsonNode result) {
-        TaskState state = getStateOrThrow(taskId);
-        if (isTerminal(state.status)) {
-            log.info("[TASK] skip SUCCESS transition for terminal task. taskId={}, status={}", taskId, state.status);
-            return;
-        }
-        String now = nowUtc();
-        TaskState success = new TaskState(
-                state.taskId,
-                state.type,
-                "SUCCESS",
-                state.payload,
-                result,
-                null,
-                state.callbackUrl,
-                state.timeoutSeconds,
-                state.retryCount,
-                state.createdAt,
-                now
-        );
-        saveState(success);
-    }
-
-    public void markFailed(String taskId, String errorMessage) {
-        TaskState state = getStateOrThrow(taskId);
-        if (isTerminal(state.status)) {
-            log.info("[TASK] skip FAILED transition for terminal task. taskId={}, status={}", taskId, state.status);
-            return;
-        }
-        TaskState failed = state.withFailure(errorMessage, nowUtc());
-        saveState(failed);
     }
 
     private Optional<TaskCreateResponse> getByIdempotencyKey(String idempotencyKey) {
