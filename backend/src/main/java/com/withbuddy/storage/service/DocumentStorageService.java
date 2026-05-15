@@ -500,9 +500,10 @@ public class DocumentStorageService implements DocumentDownloadService {
             );
         }
 
-        String downloadUrl = StringUtils.hasText(issuedUrl)
-                ? issuedUrl
-                : buildInternalDownloadUrl(documentId, source);
+        String downloadUrl = buildInternalDownloadUrl(documentId, source);
+        if (requesterScope.globalAccess() && StringUtils.hasText(issuedUrl)) {
+            downloadUrl = issuedUrl;
+        }
 
         return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
     }
