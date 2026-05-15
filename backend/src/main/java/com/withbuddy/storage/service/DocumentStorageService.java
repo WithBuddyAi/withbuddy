@@ -486,10 +486,19 @@ public class DocumentStorageService implements DocumentDownloadService {
         StorageSource source = resolveSource(file);
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
         String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
-        String downloadUrl = redisCacheService.get(redisKey)
+        String issuedUrl = redisCacheService.get(redisKey)
                 .filter(StringUtils::hasText)
                 .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
-        return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
+
+        if (StringUtils.hasText(issuedUrl) && issuedUrl.startsWith("http")) {
+            log.info(
+                    "Pre-signed download URL issued. documentId={}, source={}",
+                    documentId,
+                    source.name()
+            );
+        }
+
+        return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source), preauthTtlSeconds, source.name());
     }
 
     private String createAndCacheDownloadUrl(
@@ -526,6 +535,10 @@ public class DocumentStorageService implements DocumentDownloadService {
                     safeMessage(e)
             );
         }
+        return "";
+    }
+
+    private String buildInternalDownloadUrl(Long documentId, StorageSource source) {
         return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
     }
 
