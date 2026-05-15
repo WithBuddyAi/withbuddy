@@ -45,6 +45,7 @@ import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserRole;
 
 import java.io.IOException;
+import java.net.URI;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -495,11 +496,15 @@ public class DocumentStorageService implements DocumentDownloadService {
                     "Pre-signed download URL issued. documentId={}, source={}, url={}",
                     documentId,
                     source.name(),
-                    issuedUrl
+                    maskUrlForLog(issuedUrl)
             );
         }
 
-        return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source), preauthTtlSeconds, source.name());
+        String downloadUrl = StringUtils.hasText(issuedUrl)
+                ? issuedUrl
+                : buildInternalDownloadUrl(documentId, source);
+
+        return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
     }
 
     private String createAndCacheDownloadUrl(
@@ -547,11 +552,19 @@ public class DocumentStorageService implements DocumentDownloadService {
         if (!StringUtils.hasText(url)) {
             return "<empty>";
         }
-        int queryIndex = url.indexOf('?');
-        if (queryIndex < 0) {
-            return url;
+        try {
+            URI parsed = URI.create(url);
+            if (StringUtils.hasText(parsed.getScheme()) && StringUtils.hasText(parsed.getHost())) {
+                String authority = parsed.getHost();
+                if (parsed.getPort() >= 0) {
+                    authority = authority + ":" + parsed.getPort();
+                }
+                return parsed.getScheme() + "://" + authority + "/***";
+            }
+        } catch (IllegalArgumentException ignored) {
+            // malformed URL은 전체 마스킹 처리
         }
-        return url.substring(0, queryIndex) + "?***";
+        return "<redacted>";
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {
