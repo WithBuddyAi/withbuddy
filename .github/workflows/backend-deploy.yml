@@ -57,9 +57,6 @@ jobs:
           BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-          DB_SERVER_HOST: ${{ secrets.DB_SERVER_HOST }}
-          DB_SERVER_USER: ${{ secrets.DB_SERVER_USER }}
-          DB_SERVER_SSH_KEY: ${{ secrets.DB_SERVER_SSH_KEY }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
@@ -117,7 +114,6 @@ jobs:
             BACKEND_ACCESS_HOST
             CF_ACCESS_CLIENT_ID
             CF_ACCESS_CLIENT_SECRET
-            DB_SERVER_HOST
             BACKEND_APP_DIR
             SPRING_DB_URL
             SPRING_DB_USERNAME
@@ -248,22 +244,23 @@ jobs:
 
       - name: Repair Flyway failed migrations
         continue-on-error: true
-        uses: appleboy/ssh-action@v1.2.0
         env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
-        with:
-          host: ${{ secrets.DB_SERVER_HOST }}
-          username: ${{ secrets.DB_SERVER_USER != '' && secrets.DB_SERVER_USER || secrets.BACKEND_SERVER_USER }}
-          key: ${{ contains(secrets.DB_SERVER_SSH_KEY, 'PRIVATE KEY-----') && secrets.DB_SERVER_SSH_KEY || secrets.BACKEND_SERVER_SSH_KEY }}
-          proxy_host: ${{ secrets.DB_SERVER_PROXY_HOST }}
-          proxy_username: ${{ secrets.DB_SERVER_PROXY_USER }}
-          proxy_key: ${{ secrets.DB_SERVER_PROXY_SSH_KEY }}
-          debug: true
-          envs: SPRING_DB_URL,SPRING_DB_USERNAME,SPRING_DB_PASSWORD
-          script: |
+        run: |
             set -euo pipefail
+            SPRING_DB_URL_B64="$(printf '%s' "${SPRING_DB_URL}" | base64 | tr -d '\n')"
+            SPRING_DB_USERNAME_B64="$(printf '%s' "${SPRING_DB_USERNAME}" | base64 | tr -d '\n')"
+            SPRING_DB_PASSWORD_B64="$(printf '%s' "${SPRING_DB_PASSWORD}" | base64 | tr -d '\n')"
+
+            ssh "${BACKEND_ACCESS_HOST}" \
+              "SPRING_DB_URL_B64='${SPRING_DB_URL_B64}' SPRING_DB_USERNAME_B64='${SPRING_DB_USERNAME_B64}' SPRING_DB_PASSWORD_B64='${SPRING_DB_PASSWORD_B64}' bash -se" <<'REMOTE'
+            set -euo pipefail
+            SPRING_DB_URL="$(printf '%s' "${SPRING_DB_URL_B64}" | base64 -d)"
+            SPRING_DB_USERNAME="$(printf '%s' "${SPRING_DB_USERNAME_B64}" | base64 -d)"
+            SPRING_DB_PASSWORD="$(printf '%s' "${SPRING_DB_PASSWORD_B64}" | base64 -d)"
 
             # Parse JDBC URL: jdbc:mysql://host:port/dbname?params
             DB_RAW="${SPRING_DB_URL#jdbc:mysql://}"
@@ -408,6 +405,7 @@ jobs:
 
             echo "No eligible failed migration versions found for auto-repair."
             exit 0
+            REMOTE
 
       - name: Restart backend (Cloudflare SSH)
         env:
