@@ -543,6 +543,17 @@ public class DocumentStorageService implements DocumentDownloadService {
         return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
     }
 
+    private String maskUrlForLog(String url) {
+        if (!StringUtils.hasText(url)) {
+            return "<empty>";
+        }
+        int queryIndex = url.indexOf('?');
+        if (queryIndex < 0) {
+            return url;
+        }
+        return url.substring(0, queryIndex) + "?***";
+    }
+
     public byte[] downloadFile(Long documentId, StorageSource source) {
         RequesterScope requesterScope = resolveDocumentAccessScope();
 
