@@ -83,6 +83,10 @@ app:
     analytics-ttl-ms: ${RABBITMQ_ANALYTICS_TTL_MS:30000}
     listener-prefetch: ${RABBITMQ_LISTENER_PREFETCH:10}
     listener-max-attempts: ${RABBITMQ_LISTENER_MAX_ATTEMPTS:3}
+  internal-task-consumer:
+    enabled: ${INTERNAL_TASK_CONSUMER_ENABLED:false}
+    dry-run: ${INTERNAL_TASK_CONSUMER_DRY_RUN:true}
+    concurrency: ${INTERNAL_TASK_CONSUMER_CONCURRENCY:1}
   storage:
     provider: ${STORAGE_PROVIDER:local}
     local-base-dir: ${STORAGE_LOCAL_BASE_DIR:storage-data}
