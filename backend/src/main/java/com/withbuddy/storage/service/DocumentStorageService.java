@@ -489,6 +489,16 @@ public class DocumentStorageService implements DocumentDownloadService {
         String downloadUrl = redisCacheService.get(redisKey)
                 .filter(StringUtils::hasText)
                 .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
+
+        if (StringUtils.hasText(downloadUrl) && downloadUrl.startsWith("http")) {
+            log.info(
+                    "Pre-signed download URL issued. documentId={}, source={}, url={}",
+                    documentId,
+                    source.name(),
+                    maskUrlForLog(downloadUrl)
+            );
+        }
+
         return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
     }
 
@@ -527,6 +537,17 @@ public class DocumentStorageService implements DocumentDownloadService {
             );
         }
         return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
+    }
+
+    private String maskUrlForLog(String url) {
+        if (!StringUtils.hasText(url)) {
+            return "<empty>";
+        }
+        int queryIndex = url.indexOf('?');
+        if (queryIndex < 0) {
+            return url;
+        }
+        return url.substring(0, queryIndex) + "?***";
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {
