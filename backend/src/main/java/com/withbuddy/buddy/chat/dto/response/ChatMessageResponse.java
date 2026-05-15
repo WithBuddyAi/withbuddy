@@ -67,7 +67,7 @@ public class ChatMessageResponse {
         @Schema(description = "MIME content type", example = "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         private String contentType;
 
-        @Schema(description = "Download URL", example = "/api/v1/documents/11/download")
+        @Schema(description = "Download URL", example = "/api/v1/chat/documents/11/download")
         private String downloadUrl;
     }
 
