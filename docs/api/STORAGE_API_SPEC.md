@@ -2,8 +2,17 @@
 
 > 목적: 실제 백엔드 구현과 동일한 Storage API 계약을 제공한다.
 
-**버전**: 0.6.0
-**기준일**: 2026-04-10
+**버전**: 0.7.0
+**기준일**: 2026-05-17
+
+---
+
+## 0. 변경 이력 (2026-05-17)
+
+- `/api/v1/documents/{documentId}/download` 응답의 `expiresIn` 기본값을 30초 기준으로 명시.
+- `/api/v1/documents/{documentId}/file`를 "개발용 직접 다운로드"가 아닌 "운영 기본 302 Redirect"로 정정.
+- `/file` 응답 헤더(`Cache-Control`, `Pragma`, `Referrer-Policy`, `X-Content-Type-Options`)를 명시.
+- 다운로드 처리 목표를 "백엔드 프록시 제거를 통한 서버 부하 절감"으로 명시.
 
 ---
 
@@ -23,7 +32,7 @@
     - 조회/삭제: 전체 문서 범위
   - Bearer 모드: JWT `companyCode` 기준
 - 관리자 키 확장: `global-access=true`(기본) 권장
-- 에러 포맷: `docs/API.md`의 `ErrorResponse`와 동일
+- 에러 포맷: `docs/api/API_CURRENT.md`의 `ErrorResponse`와 동일
 
 인증 모드 매트릭스:
 - `STORAGE_API_AUTH_ENABLED=true`:
@@ -147,14 +156,36 @@ Internal API 공통 규정:
 ```json
 {
   "downloadUrl": "/api/v1/documents/101/file?source=PRIMARY",
-  "expiresIn": 300,
+  "expiresIn": 30,
   "source": "PRIMARY"
 }
 ```
 
-### 2.5 파일 직접 다운로드(개발용)
+동작 메모:
+- 응답 본문에는 외부 pre-signed URL을 직접 담지 않는다.
+- `downloadUrl`은 내부 경로이며, 실제 외부 URL은 다음 단계 `/file` 호출 시 생성된다.
+- `expiresIn`은 pre-signed URL 유효시간(현재 기본 30초, `app.storage.oci-cli.preauth-ttl-seconds`)이다.
+
+### 2.5 파일 다운로드 (302 Redirect)
 
 `GET /api/v1/documents/{documentId}/file?source=PRIMARY|BACKUP`
+
+응답: `302 Found`
+
+```http
+HTTP/1.1 302 Found
+Location: https://objectstorage.ap-osaka-1.oraclecloud.com/p/.../n/.../b/.../o/...
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+Referrer-Policy: no-referrer
+X-Content-Type-Options: nosniff
+Content-Length: 0
+```
+
+동작 메모:
+- 서버는 요청마다 pre-signed URL을 신규 발급한다(재사용 캐시 비활성화).
+- 백엔드가 파일 바이트를 프록시하지 않고, 클라이언트가 외부 스토리지에서 직접 다운로드한다.
+- 이 방식은 API 서버의 파일 스트리밍 부하(대역폭/CPU)를 줄이기 위한 운영 기본 정책이다.
 
 ### 2.6 백업 재시도
 
