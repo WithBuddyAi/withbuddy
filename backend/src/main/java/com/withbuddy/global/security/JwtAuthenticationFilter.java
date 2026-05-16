@@ -9,6 +9,7 @@ import com.withbuddy.global.jwt.SessionExpiredException;
 import com.withbuddy.global.jwt.SessionRevokedException;
 import com.withbuddy.global.jwt.TokenMissingException;
 import com.withbuddy.global.logging.RedisFailureLogSupport;
+import com.withbuddy.global.logging.RequestUrlMaskingSupport;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -88,20 +89,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (RedisConnectionFailureException | QueryTimeoutException e) {
+            String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
             RedisFailureLogSupport.logRedisFailure(log, request, e);
-            writeServiceUnavailable(response, request.getRequestURI());
+            writeServiceUnavailable(response, maskedPath);
             return;
         } catch (TokenMissingException e) {
-            writeUnauthorized(response, request.getRequestURI(), "TOKEN_MISSING", "auth", e.getMessage());
+            String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
+            writeUnauthorized(response, maskedPath, "TOKEN_MISSING", "auth", e.getMessage());
             return;
         } catch (SessionExpiredException | ExpiredJwtException e) {
-            writeUnauthorized(response, request.getRequestURI(), "SESSION_EXPIRED", "session", e.getMessage());
+            String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
+            writeUnauthorized(response, maskedPath, "SESSION_EXPIRED", "session", e.getMessage());
             return;
         } catch (SessionRevokedException e) {
-            writeUnauthorized(response, request.getRequestURI(), "SESSION_REVOKED", "session", e.getMessage());
+            String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
+            writeUnauthorized(response, maskedPath, "SESSION_REVOKED", "session", e.getMessage());
             return;
         } catch (UnauthorizedException | JwtException | IllegalArgumentException e) {
-            writeUnauthorized(response, request.getRequestURI(), "INVALID_TOKEN", "token", e.getMessage());
+            String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
+            writeUnauthorized(response, maskedPath, "INVALID_TOKEN", "token", e.getMessage());
             return;
         }
 
