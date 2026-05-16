@@ -106,7 +106,7 @@ app:
       backup-profile: ${STORAGE_OCI_BACKUP_PROFILE:DEFAULT}
       region: ${STORAGE_OCI_REGION:}
       public-endpoint: ${STORAGE_OCI_PUBLIC_ENDPOINT:}
-      preauth-ttl-seconds: ${STORAGE_OCI_PREAUTH_TTL_SECONDS:900}
+      preauth-ttl-seconds: ${STORAGE_OCI_PREAUTH_TTL_SECONDS:30}
       suppress-file-permissions-warning: ${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING:true}
     primary:
       namespace: ${STORAGE_PRIMARY_NAMESPACE:primary}
