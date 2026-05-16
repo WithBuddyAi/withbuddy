@@ -3,6 +3,7 @@ package com.withbuddy.global.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
+import com.withbuddy.global.logging.RequestUrlMaskingSupport;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -67,7 +68,12 @@ public class StorageApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         Optional<StorageApiKeyProperties.ApiKey> matchedKey = storageApiKeyProperties.findActiveKey(apiKeyValue);
         if (matchedKey.isEmpty()) {
-            writeUnauthorized(response, request.getRequestURI(), API_KEY_HEADER, "유효하지 않은 API Key 입니다.");
+            writeUnauthorized(
+                    response,
+                    RequestUrlMaskingSupport.resolveMaskedPath(request),
+                    API_KEY_HEADER,
+                    "유효하지 않은 API Key 입니다."
+            );
             return;
         }
 

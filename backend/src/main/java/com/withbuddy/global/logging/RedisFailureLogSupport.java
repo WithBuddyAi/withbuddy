@@ -35,7 +35,7 @@ public final class RedisFailureLogSupport {
                 failedAt,
                 occurrence,
                 request.getMethod(),
-                request.getRequestURI(),
+                RequestUrlMaskingSupport.resolveMaskedPath(request),
                 userIdentityHint.userIdentifiable(),
                 userIdentityHint.userIdHint(),
                 resolveClientIp(request),
