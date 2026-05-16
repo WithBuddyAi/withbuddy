@@ -41,6 +41,7 @@ class AgentState(TypedDict):
     user_style: str
     answer: str
     metadata: dict
+    hire_date: str
 
 
 # ── Intent 분류 프롬프트 ─────────────────────────────────────
@@ -48,11 +49,11 @@ class AgentState(TypedDict):
 _INTENT_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """사용자 메시지의 의도를 분류하세요. 반드시 아래 키워드 중 하나만 출력하세요.
 
-chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로, 오늘 날짜·요일 질문, 입사한 지 며칠인지·몇 일차인지 등 근무 일수 질문, 입사일(날짜) 질문 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다", "오늘 몇일이지?", "입사한지 얼마나 됐지?", "나 입사한지 몇일이야", "아직 한 달 안됐어", "내 입사일 몰라?", "입사일이 언제야?", "입사일 알려줘", "내 입사일 맞춰봐", "언제 입사했어?")
+chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로, 오늘 날짜·요일 질문, 입사한 지 며칠인지·몇 일차인지 등 근무 일수 질문, 입사일(날짜) 질문, 실수·혼남에 대한 불안·걱정 표현 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다", "오늘 몇일이지?", "입사한지 얼마나 됐지?", "나 입사한지 몇일이야", "아직 한 달 안됐어", "내 입사일 몰라?", "입사일이 언제야?", "입사일 알려줘", "내 입사일 맞춰봐", "언제 입사했어?", "사수한테 혼날까?", "실수해서 혼날까봐 걱정돼", "이러다 잘리는 거 아냐?")
   ⚠️ "대화가 안 돼", "메시지가 안 보내져", "연결이 끊겼어" 같은 서비스 오류 문의는 out_of_scope_external로 분류
 out_of_scope_internal : 직무 실무·기술·조직 판단·대인관계 등 사수님이 답할 수 있는 업무 관련 질문
   예) "코딩 어떻게 해", "엑셀 수식 알려줘", "SQL 쿼리 짜줘"
-      "팀장님께 이 내용을 바로 보고해도 될까요?", "이 이슈를 슬랙 공개 채널에 올려도 돼요?", "이 정도 실수면 혼날까요?"
+      "팀장님께 이 내용을 바로 보고해도 될까요?", "이 이슈를 슬랙 공개 채널에 올려도 돼요?"
       "동료가 제 말을 무시하는데 어떻게 대응해야 해요?", "사수가 저를 싫어하는 것 같은데 어떡해요?"
   ⚠️ 회사 IT 환경·도구 사용법(MFA 설정, VPN 접속, Slack 채널 초대·Notion 권한 부여, 계정 세팅, 비밀번호 변경, 화면 잠금, 소프트웨어 설치 등)은 out_of_scope_internal이 아닌 반드시 rag로 분류
   ⚠️ "슬랙에 올려도 되나요?", "보고해도 될까요?" 같은 보고·공유 여부 판단은 out_of_scope_internal로 분류
@@ -329,13 +330,22 @@ def chitchat_agent_node(state: AgentState) -> dict:
         return {}
     from datetime import date as _date
     from chains.rag_chain import _get_company_name
+    hire_info = ""
+    hire_date = state.get("hire_date", "")
+    if hire_date:
+        try:
+            diff = (_date.today() - _date.fromisoformat(hire_date)).days
+            hd = _date.fromisoformat(hire_date)
+            hire_info = f"이 사용자는 입사 {diff + 1}일차이에요. 입사일은 {hd.year}년 {hd.month}월 {hd.day}일이에요.\n"
+        except Exception:
+            pass
     answer = _get_chitchat_chain().invoke({
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
         "company_name": _get_company_name(state.get("company_code", "")),
         "today_date": _date.today().strftime("%Y년 %m월 %d일"),
-        "hire_info": "",
+        "hire_info": hire_info,
     })
     return {"answer": answer}
 
@@ -413,7 +423,7 @@ class OrchestratorResult:
     company_info: dict
 
 
-def run_orchestrator(user_id: str, user_name: str, message: str, company_code: str = "") -> OrchestratorResult:
+def run_orchestrator(user_id: str, user_name: str, message: str, company_code: str = "", hire_date: str = "") -> OrchestratorResult:
     """
     오케스트레이터 실행.
     - RAG 의도: answer="" 반환 → 호출자가 stream_rag_chain으로 스트리밍 처리
@@ -433,6 +443,7 @@ def run_orchestrator(user_id: str, user_name: str, message: str, company_code: s
         "user_style": "",
         "answer": "",
         "metadata": {},
+        "hire_date": hire_date,
     }
     result = get_graph().invoke(initial)
     return OrchestratorResult(
