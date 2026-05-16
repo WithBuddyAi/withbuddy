@@ -45,7 +45,7 @@ public class StorageProperties {
         private String backupProfile = "DEFAULT";
         private String region = "";
         private String publicEndpoint = "";
-        private int preauthTtlSeconds = 900;
+        private int preauthTtlSeconds = 30;
         private boolean suppressFilePermissionsWarning = true;
     }
 

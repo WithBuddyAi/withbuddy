@@ -4,8 +4,6 @@ import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.infrastructure.storage.ObjectStorageClient;
 import com.withbuddy.infrastructure.storage.StorageProperties;
-import com.withbuddy.infrastructure.redis.RedisCacheKeys;
-import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.global.security.StorageApiKeyPrincipal;
 import com.withbuddy.storage.dto.request.DocumentBulkDeleteRequest;
 import com.withbuddy.storage.dto.response.DocumentBackupRetryResponse;
@@ -47,7 +45,6 @@ import com.withbuddy.account.user.entity.UserRole;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -89,7 +86,6 @@ public class DocumentStorageService implements DocumentDownloadService {
     private final DocumentBackupJobRepository documentBackupJobRepository;
     private final ObjectStorageClient objectStorageClient;
     private final StorageProperties storageProperties;
-    private final RedisCacheService redisCacheService;
     private final UserRepository userRepository;
 
     public DocumentStorageService(
@@ -98,7 +94,6 @@ public class DocumentStorageService implements DocumentDownloadService {
             DocumentBackupJobRepository documentBackupJobRepository,
             ObjectStorageClient objectStorageClient,
             StorageProperties storageProperties,
-            RedisCacheService redisCacheService,
             UserRepository userRepository
     ) {
         this.documentRepository = documentRepository;
@@ -106,7 +101,6 @@ public class DocumentStorageService implements DocumentDownloadService {
         this.documentBackupJobRepository = documentBackupJobRepository;
         this.objectStorageClient = objectStorageClient;
         this.storageProperties = storageProperties;
-        this.redisCacheService = redisCacheService;
         this.userRepository = userRepository;
     }
 
@@ -508,19 +502,14 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
 
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
-        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
-        String cachedUrl = redisCacheService.get(redisKey).filter(StringUtils::hasText).orElse(null);
-        boolean cacheHit = StringUtils.hasText(cachedUrl);
-        String issuedUrl = cacheHit
-                ? cachedUrl
-                : createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds);
+        // one-time 성격 강화를 위해 presigned URL은 요청마다 신규 발급한다(재사용 캐시 비활성화).
+        String issuedUrl = createPreSignedDownloadUrl(documentId, file, source, preauthTtlSeconds);
 
         if (!StringUtils.hasText(issuedUrl)) {
             log.warn(
-                    "Pre-signed redirect URL issue failed. documentId={}, source={}, cacheHit={}, reason=EMPTY_URL",
+                    "Pre-signed redirect URL issue failed. documentId={}, source={}, reason=EMPTY_URL",
                     documentId,
-                    source.name(),
-                    cacheHit
+                    source.name()
             );
             throw new StorageException(
                     HttpStatus.BAD_GATEWAY,
@@ -531,20 +520,19 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
 
         log.info(
-                "Pre-signed redirect URL issue success. documentId={}, source={}, cacheHit={}, url={}",
+                "Pre-signed redirect URL issue success. documentId={}, source={}, ttlSeconds={}, url={}",
                 documentId,
                 source.name(),
-                cacheHit,
+                preauthTtlSeconds,
                 issuedUrl
         );
         return issuedUrl;
     }
 
-    private String createAndCacheDownloadUrl(
+    private String createPreSignedDownloadUrl(
             Long documentId,
             DocumentFile file,
             StorageSource source,
-            String redisKey,
             int preauthTtlSeconds
     ) {
         try {
@@ -563,9 +551,8 @@ public class DocumentStorageService implements DocumentDownloadService {
             );
 
             if (StringUtils.hasText(preSignedUrl)) {
-                redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
                 log.info(
-                        "Pre-signed URL generated and cached. documentId={}, source={}, ttlSeconds={}, url={}",
+                        "Pre-signed URL generated. documentId={}, source={}, ttlSeconds={}, url={}",
                         documentId,
                         source.name(),
                         preauthTtlSeconds,
