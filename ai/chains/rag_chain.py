@@ -713,8 +713,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     if fixed != full_answer:
         yield "\x00" + fixed, None, None, None  # \x00 prefix → 프론트에서 전체 교체 신호
 
-    save_interaction(user_id, question, fixed)
-
     # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
     if (company_code and retrieved_docs and not _is_unanswered(fixed, retrieved_docs)
             and all(d.metadata.get("company_code", "") == "" for d in retrieved_docs)):
