@@ -45,7 +45,6 @@ import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserRole;
 
 import java.io.IOException;
-import java.net.URI;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -486,26 +485,59 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         StorageSource source = resolveSource(file);
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
-        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
-        String issuedUrl = redisCacheService.get(redisKey)
-                .filter(StringUtils::hasText)
-                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
+        return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source), preauthTtlSeconds, source.name());
+    }
 
-        if (StringUtils.hasText(issuedUrl) && issuedUrl.startsWith("http")) {
-            log.info(
-                    "Pre-signed download URL issued. documentId={}, source={}, url={}",
+    public String issueRedirectDownloadUrl(Long documentId, StorageSource requestedSource) {
+        RequesterScope requesterScope = resolveDocumentAccessScope();
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+
+        validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        if (!requesterScope.globalAccess()) {
+            validateTemplateDocument(document);
+        }
+
+        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
+
+        StorageSource source = requestedSource == StorageSource.BACKUP ? StorageSource.BACKUP : StorageSource.PRIMARY;
+        if (source == StorageSource.BACKUP && !StringUtils.hasText(file.getBackupObjectKey())) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
+        }
+
+        int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
+        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
+        String cachedUrl = redisCacheService.get(redisKey).filter(StringUtils::hasText).orElse(null);
+        boolean cacheHit = StringUtils.hasText(cachedUrl);
+        String issuedUrl = cacheHit
+                ? cachedUrl
+                : createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds);
+
+        if (!StringUtils.hasText(issuedUrl)) {
+            log.warn(
+                    "Pre-signed redirect URL issue failed. documentId={}, source={}, cacheHit={}, reason=EMPTY_URL",
                     documentId,
                     source.name(),
-                    maskUrlForLog(issuedUrl)
+                    cacheHit
+            );
+            throw new StorageException(
+                    HttpStatus.BAD_GATEWAY,
+                    "DOWNLOAD_URL_UNAVAILABLE",
+                    "documentId",
+                    "다운로드 URL 생성에 실패했습니다."
             );
         }
 
-        String downloadUrl = buildInternalDownloadUrl(documentId, source);
-        if (requesterScope.globalAccess() && StringUtils.hasText(issuedUrl)) {
-            downloadUrl = issuedUrl;
-        }
-
-        return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
+        log.info(
+                "Pre-signed redirect URL issue success. documentId={}, source={}, cacheHit={}, url={}",
+                documentId,
+                source.name(),
+                cacheHit,
+                issuedUrl
+        );
+        return issuedUrl;
     }
 
     private String createAndCacheDownloadUrl(
@@ -532,11 +564,23 @@ public class DocumentStorageService implements DocumentDownloadService {
 
             if (StringUtils.hasText(preSignedUrl)) {
                 redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
+                log.info(
+                        "Pre-signed URL generated and cached. documentId={}, source={}, ttlSeconds={}, url={}",
+                        documentId,
+                        source.name(),
+                        preauthTtlSeconds,
+                        preSignedUrl
+                );
                 return preSignedUrl;
             }
+            log.warn(
+                    "Pre-signed URL generation returned empty value. documentId={}, source={}",
+                    documentId,
+                    source.name()
+            );
         } catch (Exception e) {
             log.warn(
-                    "pre-signed URL 생성 실패. documentId={}, source={}, reason={}",
+                    "Pre-signed URL generation failed. documentId={}, source={}, reason={}",
                     documentId,
                     source.name(),
                     safeMessage(e)
@@ -547,25 +591,6 @@ public class DocumentStorageService implements DocumentDownloadService {
 
     private String buildInternalDownloadUrl(Long documentId, StorageSource source) {
         return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
-    }
-
-    private String maskUrlForLog(String url) {
-        if (!StringUtils.hasText(url)) {
-            return "<empty>";
-        }
-        try {
-            URI parsed = URI.create(url);
-            if (StringUtils.hasText(parsed.getScheme()) && StringUtils.hasText(parsed.getHost())) {
-                String authority = parsed.getHost();
-                if (parsed.getPort() >= 0) {
-                    authority = authority + ":" + parsed.getPort();
-                }
-                return parsed.getScheme() + "://" + authority + "/***";
-            }
-        } catch (IllegalArgumentException ignored) {
-            // malformed URL은 전체 마스킹 처리
-        }
-        return "<redacted>";
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {
