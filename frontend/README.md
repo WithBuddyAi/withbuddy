@@ -1,4 +1,4 @@
-# 🤝 With Buddy
+# 🤝 WithBuddy
 
 신입사원이 회사에 빠르게 적응할 수 있도록 도와주는 온보딩 AI 서비스
 
@@ -20,13 +20,13 @@
 
 | 항목      | 내용                                          |
 | --------- | --------------------------------------------- |
-| 서비스명  | With Buddy                                    |
+| 서비스명  | WithBuddy                                     |
 | 대상      | 스타트업 · 중소기업의 신입사원(확장 가능성 ↑) |
 | 수습 기간 | 입사 후 3개월                                 |
 | MVP 범위  | 인사 · 행정 (+ 사내 문화)                     |
-| 개발 상태 | 🚧 기획 & 설계 단계                           |
+| 개발 상태 | 🚧 MVP 기능 구현 단계                         |
 
-With Buddy는?
+WithBuddy는?
 신입사원이 **사내 문서 기반 Q&A**, **단계별 가이드(Nudge)**를 통해  
 혼자서도 빠르게 적응할 수 있도록 도와주는 서비스
 
@@ -36,8 +36,7 @@ With Buddy는?
 
 ### 🔐 로그인
 
-- 회사명 · 이름 · 사번 입력으로 간편 로그인
-- 추후 고도화: 비밀번호, IP 인증, 회사 코드 방식으로 개선 예정
+- 회사코드 · 사번 · 이름 입력으로 간편 로그인
 
 ### 🤝 My Buddy
 
@@ -46,16 +45,21 @@ With Buddy는?
 | **Q&A 채팅**    | 사내 문서 기반 RAG 질의응답. 궁금한 걸 언제든 물어보세요    |
 | **Buddy Nudge** | 입사 단계에 맞춰 필요한 정보와 할 일을 먼저 알려주는 가이드 |
 
+### 🛠️ 관리자 페이지
+
+| 기능               | 설명                                         |
+| ------------------ | -------------------------------------------- |
+| **신입 계정 생성** | 이름 · 사번 · 입사일 입력으로 신입 계정 생성 |
+
 <br>
 
 ## 🖥️ 화면 구성
 
-| 화면            | 설명                         |
-| --------------- | ---------------------------- |
-| 로그인 페이지   | 회사명 · 이름 · 사번 입력 폼 |
-| 메인 (My Buddy) | Nudge 카드 + Q&A 채팅 영역   |
-
-> 📐 화면 설계는 현재 기획 · 디자인 단계로 UI 확정 후 스크린샷을 추가할 예정
+| 화면            | 설명                           |
+| --------------- | ------------------------------ |
+| 로그인 페이지   | 회사코드 · 사번 · 이름 입력 폼 |
+| 메인 (My Buddy) | Nudge 카드 + Q&A 채팅 영역     |
+| 관리자 페이지   | 신입 계정 생성 폼              |
 
 <br>
 
@@ -77,22 +81,27 @@ With Buddy는?
 
 ```
 src/
-├── App.jsx                  # 라우팅 설정, 전체 앱 진입점
+├── App.jsx                        # 라우팅 설정, 전체 앱 진입점
 ├── api/
-│   └── axiosInstance.js     # axios 공통 설정 (토큰 자동 첨부, 401 자동 로그아웃)
+│   └── axiosInstance.js           # axios 공통 설정 (토큰 자동 첨부, 401 자동 로그아웃)
 ├── contexts/
-│   └── UserContext.jsx      # 사용자 정보 전역 상태 관리 (hireDate, dayOffset)
+│   └── UserContext.jsx            # 사용자 정보 전역 상태 관리 (hireDate, dayOffset)
 ├── components/
-│   ├── Tooltip.jsx          # 툴팁 공통 컴포넌트
-│   ├── Sidebar.jsx          # 사이드바 (사용자 정보, 메뉴, 대화기록 달력)
-│   ├── LogoutModal.jsx      # 로그아웃 확인 모달
-│   ├── ErrorToast.jsx       # 에러 토스트 메시지
-│   ├── MessageList.jsx      # 채팅 메시지 목록
-│   ├── QuickQuestions.jsx   # 빠른 질문 버튼 목록
-│   └── ChatInput.jsx        # 채팅 입력창
+│   ├── Tooltip.jsx                # 툴팁 공통 컴포넌트
+│   ├── Sidebar.jsx                # 사이드바 (사용자 정보, 메뉴, 대화기록 달력)
+│   ├── LogoutModal.jsx            # 로그아웃 확인 모달
+│   ├── ErrorToast.jsx             # 에러 토스트 메시지
+│   ├── MessageList.jsx            # 채팅 메시지 목록
+│   ├── QuickQuestions.jsx         # 빠른 질문 버튼 목록
+│   ├── ChatInput.jsx              # 채팅 입력창
+│   └── admin/
+│       ├── AdminSidebar.jsx       # 관리자 사이드바
+│       ├── AdminMainView.jsx      # 관리자 메인 화면
+│       └── AdminCreateView.jsx    # 신입 계정 생성 화면 (폼 + 유효성 검사 + API 호출)
 └── pages/
-    ├── Login.jsx            # 로그인 페이지
-    └── MyBuddy.jsx          # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
+    ├── Login.jsx                  # 로그인 페이지
+    ├── MyBuddy.jsx                # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
+    └── Admin.jsx                  # 관리자 페이지 (뷰 전환 · 레이아웃 담당)
 ```
 
 > 💡 **axiosInstance란?**  
@@ -102,6 +111,10 @@ src/
 > 💡 **UserContext란?**  
 > 로그인한 사용자의 hireDate, dayOffset 등을 전역으로 관리하여  
 > 여러 컴포넌트에서 공통으로 사용할 수 있도록 하는 Context API 파일
+
+> 💡 **admin/ 폴더란?**  
+> 관리자 페이지 관련 컴포넌트를 모아둔 폴더.  
+> `AdminCreateView`는 계정 생성에 필요한 state, 유효성 검사, API 호출을 직접 관리함
 
 <br>
 
@@ -139,14 +152,14 @@ main                          # 최종 배포용 (건드리지 말기)
 
 커밋 메시지는 **어떤 작업을 했는지** 한눈에 알 수 있게 작성
 
-| 타입       | 설명                     | 예시                                   |
-| ---------- | ------------------------ | -------------------------------------- |
-| `feat`     | 새로운 기능 추가         | `feat: 로그인 폼 유효성 검사 추가`     |
-| `fix`      | 버그 수정                | `fix: 로그인 버튼 중복 클릭 오류 수정` |
-| `style`    | UI · 스타일 변경         | `style: 버튼 색상 및 여백 조정`        |
-| `refactor` | 기능 변화 없이 코드 정리 | `refactor: MyBuddy 컴포넌트 분리`      |
-| `docs`     | 문서 수정                | `docs: README 화면 구성 업데이트`      |
-| `chore`    | 설정 · 패키지 변경       | `chore: Tailwind CSS 설정 추가`        |
+| 타입       | 설명                     | 예시                                      |
+| ---------- | ------------------------ | ----------------------------------------- |
+| `feat`     | 새로운 기능 추가         | `feat: 로그인 폼 유효성 검사 추가`        |
+| `fix`      | 버그 수정                | `fix: 로그인 버튼 중복 클릭 오류 수정`    |
+| `style`    | UI · 스타일 변경         | `style: 버튼 색상 및 여백 조정`           |
+| `refactor` | 기능 변화 없이 코드 정리 | `refactor: AdminCreateView 컴포넌트 분리` |
+| `docs`     | 문서 수정                | `docs: README 프로젝트 구조 업데이트`     |
+| `chore`    | 설정 · 패키지 변경       | `chore: Tailwind CSS 설정 추가`           |
 
 ```bash
 # ✅ 좋은 예
@@ -164,6 +177,9 @@ git commit -m "ㅇㅇ"
 - 변수 · 함수명: **camelCase** (`userName`, `handleSubmit`)
 - 스타일링: **Tailwind CSS** 클래스 사용 (별도 CSS 파일 최소화)
 - 하나의 파일이 너무 길어지면 컴포넌트로 분리
+- 관련 컴포넌트는 폴더로 묶어서 관리 (예: `components/admin/`)
+
+<br>
 
 ## 변경 이력
 
@@ -171,3 +187,4 @@ git commit -m "ㅇㅇ"
 - 2026-04-22: 프로젝트 구조에 `api/axiosInstance.js` 추가.
 - 2026-04-27: `contexts/UserContext.jsx` 추가 (hireDate·dayOffset 전역 상태 관리), dayOffset 계산 로직 개선, SSoT 인증 상태 통합.
 - 2026-04-28: `ProtectedRoute.jsx`, `Layout.jsx` 제거, `components/` 폴더에 Sidebar, LogoutModal, ErrorToast, MessageList, QuickQuestions, ChatInput 컴포넌트 분리 추가.
+- 2026-05-11: 서비스명 WithBuddy로 수정, 관리자 페이지(신입 계정 생성) 추가, `components/admin/` 폴더 구조 반영 (AdminSidebar, AdminMainView, AdminCreateView 분리).

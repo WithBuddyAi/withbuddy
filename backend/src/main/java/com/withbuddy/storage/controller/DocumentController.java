@@ -1,15 +1,15 @@
 package com.withbuddy.storage.controller;
 
-import com.withbuddy.storage.dto.DocumentBackupRetryResponse;
-import com.withbuddy.storage.dto.DocumentBulkDeleteCheckResponse;
-import com.withbuddy.storage.dto.DocumentBulkDeleteRequest;
-import com.withbuddy.storage.dto.DocumentBulkDeleteResponse;
-import com.withbuddy.storage.dto.DocumentDeleteCheckResponse;
-import com.withbuddy.storage.dto.DocumentDeleteResponse;
-import com.withbuddy.storage.dto.DocumentDetailResponse;
-import com.withbuddy.storage.dto.DocumentDownloadResponse;
-import com.withbuddy.storage.dto.DocumentListResponse;
-import com.withbuddy.storage.dto.DocumentUploadResponse;
+import com.withbuddy.storage.dto.request.DocumentBulkDeleteRequest;
+import com.withbuddy.storage.dto.response.DocumentBackupRetryResponse;
+import com.withbuddy.storage.dto.response.DocumentBulkDeleteCheckResponse;
+import com.withbuddy.storage.dto.response.DocumentBulkDeleteResponse;
+import com.withbuddy.storage.dto.response.DocumentDeleteCheckResponse;
+import com.withbuddy.storage.dto.response.DocumentDeleteResponse;
+import com.withbuddy.storage.dto.response.DocumentDetailResponse;
+import com.withbuddy.storage.dto.response.DocumentDownloadResponse;
+import com.withbuddy.storage.dto.response.DocumentListResponse;
+import com.withbuddy.storage.dto.response.DocumentUploadResponse;
 import com.withbuddy.storage.entity.StorageSource;
 import com.withbuddy.storage.service.DocumentStorageService;
 import io.swagger.v3.oas.annotations.Operation;

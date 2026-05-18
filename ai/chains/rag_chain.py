@@ -185,6 +185,35 @@ async def _fire_unanswered_alert(user_id: str, question: str, company_code: str 
     except Exception:
         pass
 
+_TEMPLATE_STOPWORDS = {"신청", "신청서", "방법", "처리", "서류", "안내", "가이드", "작성", "주세요", "알려줘"}
+_KO_PARTICLE_RE = re.compile(r"(은|는|이|가|을|를|의|에서|에게|에|으로|로|과|와|도|만|부터|까지)$")
+
+
+def _match_template_docs(company_code: str, question: str) -> tuple[list[int], list[str]]:
+    """질문 키워드와 BE TEMPLATE 문서 title/fileName 매칭 → (documentId 리스트, title 리스트) 반환."""
+    if not company_code:
+        return [], []
+    try:
+        from core.be_client import get_template_docs
+        templates = get_template_docs(company_code)
+        if not templates:
+            return [], []
+        raw_words = {w for w in re.split(r"[\s_\-?？]+", question) if len(w) >= 2}
+        # 조사 제거: "비품은" → "비품", "연차를" → "연차"
+        q_words = {_KO_PARTICLE_RE.sub("", w) for w in raw_words} - _TEMPLATE_STOPWORDS
+        q_words.discard("")
+        ids, titles = [], []
+        for doc in templates:
+            target = f"{doc.get('title', '')} {doc.get('fileName', '')}"
+            t_words = {w for w in re.split(r"[\s_\-\.]+", target) if len(w) >= 2} - _TEMPLATE_STOPWORDS
+            if any(qw in tw or tw in qw for qw in q_words for tw in t_words):
+                ids.append(doc["documentId"])
+                titles.append(doc.get("title") or doc.get("fileName") or "")
+        return ids, titles
+    except Exception:
+        return [], []
+
+
 _COMPANY_NAMES: dict[str, str] = {
     "WB0001": "테크 주식회사",
     "WB0002": "스튜디오 프리즘",
@@ -463,7 +492,9 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         retrieved_docs = retrieved_docs[:top_k]
 
     source_names = _extract_sources(retrieved_docs)
-    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
+    # 공통 법령 문서(company_code="")는 BE 다운로드 권한 없으므로 회사 문서 ID만 반환
+    template_ids, template_titles = _match_template_docs(company_code, question)
+    doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id") and d.metadata.get("company_code", "") == company_code} | set(template_ids))
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
@@ -473,6 +504,10 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         return answer, source_names, related_docs, doc_ids
 
     formatted_context = _format_docs(retrieved_docs)
+    if template_titles:
+        formatted_context = f"📎 이 답변 하단 카드에 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n\n" + formatted_context
+    else:
+        formatted_context = "⛔ 이 답변에는 첨부 파일이 없습니다. '파일이 첨부됐다', '카드에서 다운로드', '파일을 직접 제공할 수 없다' 같은 파일 관련 언급은 일절 하지 마세요.\n\n" + formatted_context
     if _is_legal_question(question):
         formatted_context = (
             "⚠️ 아래는 법령 원문입니다. 각 항목(1., 2., 3., 4. ...)의 문장을 절대 바꾸거나 해석하지 말고 원문 그대로 전달하세요.\n\n"
@@ -487,8 +522,14 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     hire_info = ""
     if hire_date:
         try:
-            days = (_date.today() - _date.fromisoformat(hire_date)).days + 1
-            hire_info = f"\n사용자 입사 {days}일차입니다. (입사일: {hire_date})"
+            diff = (_date.today() - _date.fromisoformat(hire_date)).days
+            days = diff + 1
+            hire_info = (
+                f"\n[입사 일차 계산]\n"
+                f"입사일: {hire_date} / 오늘: {_date.today().isoformat()}\n"
+                f"날짜 차이: {diff}일 → 입사 당일을 1일차로 계산하므로 {diff}+1 = {days}일차\n"
+                f"※ 반드시 입사 {days}일차로 답하세요."
+            )
         except Exception:
             pass
 
@@ -591,7 +632,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         top_k = min(3 * len(sub_questions), 6)
         retrieved_docs = retrieved_docs[:top_k]
     source_names = _extract_sources(retrieved_docs)
-    rag_doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id")})
+    # 공통 법령 문서(company_code="")는 BE 다운로드 권한 없으므로 회사 문서 ID만 반환
+    template_ids, template_titles = _match_template_docs(company_code, question)
+    rag_doc_ids = list({int(d.metadata["doc_id"]) for d in retrieved_docs if d.metadata.get("doc_id") and d.metadata.get("company_code", "") == company_code} | set(template_ids))
 
     # 원문 직접 출력 (LLM 우회) — 할루시네이션 방지
     if _is_direct_legal_question(question):
@@ -603,6 +646,10 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         return
 
     formatted_context = _format_docs(retrieved_docs)
+    if template_titles:
+        formatted_context = f"📎 이 답변 하단 카드에 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n\n" + formatted_context
+    else:
+        formatted_context = "⛔ 이 답변에는 첨부 파일이 없습니다. '파일이 첨부됐다', '카드에서 다운로드', '파일을 직접 제공할 수 없다' 같은 파일 관련 언급은 일절 하지 마세요.\n\n" + formatted_context
     if _is_legal_question(question):
         formatted_context = (
             "⚠️ 아래는 법령 원문입니다. 각 항목(1., 2., 3., 4. ...)의 문장을 절대 바꾸거나 해석하지 말고 원문 그대로 전달하세요.\n\n"
@@ -617,8 +664,14 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     hire_info = ""
     if hire_date:
         try:
-            days = (_date.today() - _date.fromisoformat(hire_date)).days + 1
-            hire_info = f"\n사용자 입사 {days}일차입니다. (입사일: {hire_date})"
+            diff = (_date.today() - _date.fromisoformat(hire_date)).days
+            days = diff + 1
+            hire_info = (
+                f"\n[입사 일차 계산]\n"
+                f"입사일: {hire_date} / 오늘: {_date.today().isoformat()}\n"
+                f"날짜 차이: {diff}일 → 입사 당일을 1일차로 계산하므로 {diff}+1 = {days}일차\n"
+                f"※ 반드시 입사 {days}일차로 답하세요."
+            )
         except Exception:
             pass
 
@@ -659,8 +712,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     if fixed != full_answer:
         yield "\x00" + fixed, None, None, None  # \x00 prefix → 프론트에서 전체 교체 신호
-
-    save_interaction(user_id, question, fixed)
 
     # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
     if (company_code and retrieved_docs and not _is_unanswered(fixed, retrieved_docs)

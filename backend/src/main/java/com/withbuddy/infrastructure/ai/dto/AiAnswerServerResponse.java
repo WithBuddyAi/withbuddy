@@ -1,6 +1,6 @@
 package com.withbuddy.infrastructure.ai.dto;
 
-import com.withbuddy.chat.entity.MessageType;
+import com.withbuddy.buddy.chat.entity.MessageType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

@@ -375,7 +375,7 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 
 **상세 문서**
 - 현재 운영 API: [API.md](../API.md)
-- 목표 API: [PLANNED_API.md](../PLANNED_API.md)
+- 목표 API: [PLANNED_API.md](../api/PLANNED_API.md)
 
 ---
 

@@ -1,10 +1,11 @@
 package com.withbuddy.admin.metrics.controller;
 
-import com.withbuddy.admin.metrics.dto.FirstInteractionRateResponse;
-import com.withbuddy.admin.metrics.dto.RagExperienceRateResponse;
-import com.withbuddy.admin.metrics.dto.RevisitRateResponse;
-import com.withbuddy.admin.metrics.dto.TtaResponse;
-import com.withbuddy.admin.metrics.dto.UnansweredRateResponse;
+import com.withbuddy.admin.metrics.docs.AdminMetricsControllerDocs;
+import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
+import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
+import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
+import com.withbuddy.admin.metrics.dto.response.TtaResponse;
+import com.withbuddy.admin.metrics.dto.response.UnansweredRateResponse;
 import com.withbuddy.admin.metrics.service.AdminMetricsService;
 import com.withbuddy.global.security.AuthenticationPrincipalResolver;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;

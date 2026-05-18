@@ -1,17 +1,17 @@
 package com.withbuddy.admin.metrics.service;
 
-import com.withbuddy.admin.metrics.dto.FirstInteractionRateResponse;
-import com.withbuddy.admin.metrics.dto.RagExperienceRateResponse;
-import com.withbuddy.admin.metrics.dto.RevisitRateResponse;
-import com.withbuddy.admin.metrics.dto.TtaResponse;
-import com.withbuddy.admin.metrics.dto.UnansweredRateResponse;
+import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
+import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
+import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
+import com.withbuddy.admin.metrics.dto.response.TtaResponse;
+import com.withbuddy.admin.metrics.dto.response.UnansweredRateResponse;
 import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
-import com.withbuddy.auth.repository.UserRepository;
+import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
-import com.withbuddy.user.entity.User;
-import com.withbuddy.user.entity.UserRole;
+import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserRole;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

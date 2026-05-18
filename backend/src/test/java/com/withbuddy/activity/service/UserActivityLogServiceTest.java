@@ -1,10 +1,10 @@
 package com.withbuddy.activity.service;
 
-import com.withbuddy.activity.dto.LogResponse;
-import com.withbuddy.activity.entity.EventTarget;
-import com.withbuddy.activity.entity.UserActivityLog;
-import com.withbuddy.activity.repository.UserActivityLogRepository;
-import com.withbuddy.chat.service.QuickQuestionCatalog;
+import com.withbuddy.admin.activity.dto.response.LogResponse;
+import com.withbuddy.admin.activity.entity.UserActivityLog;
+import com.withbuddy.admin.activity.repository.UserActivityLogRepository;
+import com.withbuddy.admin.activity.service.UserActivityLogService;
+import com.withbuddy.buddy.chat.service.QuickQuestionCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

@@ -20,7 +20,6 @@ from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
 from utils.sensitive_filter import check_sensitive, check_global_block
-from utils.circuit_breaker import check_circuit_breaker
 
 router = APIRouter(tags=["chat"])
 
@@ -94,8 +93,6 @@ async def chat_stream(request: ChatRequest):
     오케스트레이터 기반 멀티에이전트 질의응답 (SSE 스트리밍)
     토큰 단위로 실시간 응답을 전송합니다.
     """
-    check_circuit_breaker()
-
     async def event_generator():
         try:
             from chains.rag_chain import _resolve_selection, _fix_names
@@ -107,7 +104,7 @@ async def chat_stream(request: ChatRequest):
             if resolved:
                 message = resolved
 
-            result = run_orchestrator(uid, request.user.name, message, request.user.companyCode)
+            result = run_orchestrator(uid, request.user.name, message, request.user.companyCode, hire_date=request.user.hireDate)
             if result.intent != "rag":
                 fixed_answer = _fix_names(result.answer)
                 save_interaction(uid, message, fixed_answer)
@@ -246,6 +243,23 @@ class InternalAIAnswerResponse(BaseModel):
     recommendedContacts: list = Field(default_factory=list, description="no_result 시 추천 담당자 목록")
 
 
+def _build_documents(doc_ids: list[int], company_code: str = "") -> list[dict]:
+    """doc_ids → presigned URL 조회 후 documents 배열 반환."""
+    from core.be_client import get_presigned_url
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=len(doc_ids) or 1) as pool:
+        urls = list(pool.map(get_presigned_url, doc_ids))
+    result = []
+    for did, url in zip(doc_ids, urls):
+        if url and company_code and "companies/" in url and f"companies/{company_code}/" not in url:
+            continue  # 타사 문서 경로가 URL에 명시된 경우 제외
+        entry = {"documentId": did}
+        if url:
+            entry["downloadUrl"] = url
+        result.append(entry)
+    return result
+
+
 _NO_RESULT_KW = [
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
@@ -256,6 +270,13 @@ _NO_RESULT_KW = [
     "문서에 없네요", "문서에 없어요",
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
+
+_LEGAL_JUDGMENT_PATTERNS = [
+    "불법이에요", "불법인가요", "불법입니까",
+    "합법이에요", "합법인가요",
+    "거부할 수 있나요", "거부할 수 있어요", "거부가 가능한가요",
+    "인정될 수 있나요", "성립하나요", "위법인가요", "위법이에요",
+]
 
 
 _VAGUE_ENDINGS = re.compile(
@@ -284,7 +305,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
     non_sensitive_parts: list[str] = []
     for part in parts:
         action, s_answer = check_sensitive(part, user_name)
-        if action == "block":
+        if action in ("block", "sensitive"):
             sensitive_answers.append(s_answer)
         else:
             non_sensitive_parts.append(part)
@@ -364,11 +385,18 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
         contact = await get_contact_for_question(company_code, request.content)
         recommended_contacts = [contact]
 
+    docs_list = (
+        []
+        if message_type in ("no_result", "out_of_scope")
+        else await asyncio.get_event_loop().run_in_executor(
+            None, _build_documents, doc_ids, company_code
+        )
+    )
     return InternalAIAnswerResponse(
         questionId=request.questionId,
         messageType=message_type,
         content=final_content,
-        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
+        documents=docs_list,
         recommendedContacts=recommended_contacts,
     )
 
@@ -376,7 +404,6 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
-    check_circuit_breaker()
     # 욕설·극단적 위기 → 전체 차단 (복합 질문 여부 무관)
     action, answer = check_global_block(request.content, request.user.name)
     if action == "block":
@@ -399,26 +426,43 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             messageType="out_of_scope",
             content=answer,
         )
+    if action == "sensitive":
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="sensitive",
+            content=answer,
+        )
 
     # 오케스트레이터 intent 체크 — out_of_scope/chitchat은 RAG 건너뜀
     from agents.orchestrator import (
-        _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
+        _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE, _INTERPERSONAL_KEYWORDS, _OUT_OF_SCOPE_INTERPERSONAL_MESSAGE,
     )
-    if not (any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(request.content)):
-        try:
-            async with asyncio.timeout(3):
-                raw_intent = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
-                )
-        except asyncio.TimeoutError:
-            raw_intent = "rag"  # intent 체크 지연 시 RAG로 폴백
+    _labor_law_matched = any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or bool(_ARTICLE_PATTERN.search(request.content))
+    if not _labor_law_matched:
+        from core.be_client import cache_get, cache_set
+        _intent_cache_key = f"{request.user.companyCode}:{request.content}"
+        raw_intent = cache_get("intent_v1", _intent_cache_key) or ""
+        if not raw_intent:
+            try:
+                async with asyncio.timeout(3):
+                    raw_intent = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+                    )
+            except asyncio.TimeoutError:
+                raw_intent = "rag"  # intent 체크 지연 시 RAG로 폴백
+            cache_set("intent_v1", _intent_cache_key, raw_intent, ttl_seconds=3600)
         if "out_of_scope_internal" in raw_intent:
             from routers.recommend import get_contact_for_question
             contact = await get_contact_for_question(request.user.companyCode, request.content)
+            _oos_msg = (
+                _OUT_OF_SCOPE_INTERPERSONAL_MESSAGE
+                if any(kw in request.content for kw in _INTERPERSONAL_KEYWORDS)
+                else _OUT_OF_SCOPE_MESSAGE
+            )
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="out_of_scope",
-                content=_OUT_OF_SCOPE_MESSAGE,
+                content=_oos_msg,
                 recommendedContacts=[contact],
             )
         if "out_of_scope_external" in raw_intent:
@@ -438,11 +482,16 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             from chains.rag_chain import _get_company_name
             from datetime import date as _date
             _today_str = _date.today().strftime("%Y년 %m월 %d일")
-            _hire_info = ""
+            from agents.orchestrator import _SUPPORT_TEAM as _ST
+            _dept = _ST.get(request.user.companyCode, "담당자")
+            _hire_info = f"오늘은 {_today_str}이에요.\n입사일 미확인 시 문의 부서: {_dept}"
             if request.user.hireDate:
                 try:
-                    _days = (_date.today() - _date.fromisoformat(request.user.hireDate)).days + 1
-                    _hire_info = f"\n사용자 입사 {_days}일차입니다. (입사일: {request.user.hireDate})"
+                    _diff = (_date.today() - _date.fromisoformat(request.user.hireDate)).days
+                    _days = _diff + 1
+                    _hd = _date.fromisoformat(request.user.hireDate)
+                    _hire_date_str = f"{_hd.year}년 {_hd.month}월 {_hd.day}일"
+                    _hire_info = f"오늘은 {_today_str}이에요. 이 사용자는 입사 {_days}일차이에요. 입사일은 {_hire_date_str}이에요.\n입사일 문의 부서: {_dept}"
                 except Exception:
                     pass
             chitchat_answer = await asyncio.get_event_loop().run_in_executor(
@@ -452,16 +501,28 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "user_style": "",
                     "chat_history": history_text,
                     "company_name": request.user.companyName or _get_company_name(request.user.companyCode),
-                    "today_date": _today_str,
                     "hire_info": _hire_info,
                 }),
             )
             save_interaction(user_id, request.content, chitchat_answer)
+            from utils.sensitive_filter import _EMOTIONAL_CRISIS_KEYWORDS as _ECK
+            _chitchat_type = "sensitive" if any(k in request.content for k in _ECK) else "out_of_scope"
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
-                messageType="out_of_scope",
+                messageType=_chitchat_type,
                 content=chitchat_answer,
             )
+
+    # 법률 판단 요청 → 전문가 확인 안내 (LABOR_LAW 키워드 매칭 시만)
+    if _labor_law_matched and any(p in request.content for p in _LEGAL_JUDGMENT_PATTERNS):
+        from routers.recommend import get_contact_for_question
+        contact = await get_contact_for_question(request.user.companyCode, request.content)
+        return InternalAIAnswerResponse(
+            questionId=request.questionId,
+            messageType="out_of_scope",
+            content=_OUT_OF_SCOPE_MESSAGE,
+            recommendedContacts=[contact],
+        )
 
     from langchain_core.messages import HumanMessage, AIMessage
     from utils.clarifying import (
@@ -569,7 +630,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         questionId=request.questionId,
         messageType=message_type,
         content=answer,
-        documents=[] if message_type in ("no_result", "out_of_scope") else [{"documentId": did} for did in doc_ids],
+        documents=(
+            []
+            if message_type in ("no_result", "out_of_scope")
+            else await asyncio.get_event_loop().run_in_executor(
+                None, _build_documents, doc_ids, request.user.companyCode
+            )
+        ),
         recommendedContacts=recommended_contacts,
     )
 

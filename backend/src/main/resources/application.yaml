@@ -83,6 +83,10 @@ app:
     analytics-ttl-ms: ${RABBITMQ_ANALYTICS_TTL_MS:30000}
     listener-prefetch: ${RABBITMQ_LISTENER_PREFETCH:10}
     listener-max-attempts: ${RABBITMQ_LISTENER_MAX_ATTEMPTS:3}
+  internal-task-consumer:
+    enabled: ${INTERNAL_TASK_CONSUMER_ENABLED:false}
+    dry-run: ${INTERNAL_TASK_CONSUMER_DRY_RUN:true}
+    concurrency: ${INTERNAL_TASK_CONSUMER_CONCURRENCY:1}
   storage:
     provider: ${STORAGE_PROVIDER:local}
     local-base-dir: ${STORAGE_LOCAL_BASE_DIR:storage-data}
@@ -102,7 +106,7 @@ app:
       backup-profile: ${STORAGE_OCI_BACKUP_PROFILE:DEFAULT}
       region: ${STORAGE_OCI_REGION:}
       public-endpoint: ${STORAGE_OCI_PUBLIC_ENDPOINT:}
-      preauth-ttl-seconds: ${STORAGE_OCI_PREAUTH_TTL_SECONDS:900}
+      preauth-ttl-seconds: ${STORAGE_OCI_PREAUTH_TTL_SECONDS:30}
       suppress-file-permissions-warning: ${STORAGE_OCI_SUPPRESS_PERMISSIONS_WARNING:true}
     primary:
       namespace: ${STORAGE_PRIMARY_NAMESPACE:primary}
