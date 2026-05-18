@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>IN SCOPE 평가 결과 — 2026-05-18</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Malgun Gothic', sans-serif; font-size: 12px; margin: 24px 28px; color: #1e293b; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 28px 0 12px; border-bottom: 2px solid #1e293b; padding-bottom: 4px; }
+  .meta { color: #64748b; margin-bottom: 16px; font-size: 11px; }
+  .summary { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .card { padding: 12px 20px; border-radius: 8px; text-align: center; min-width: 100px; background: #f8fafc; border: 1px solid #e2e8f0; }
+  .card .num { font-size: 26px; font-weight: bold; }
+  .card .label { font-size: 11px; color: #64748b; margin-top: 2px; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
+  th { background: #334155; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }
+  td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; font-size: 11px; line-height: 1.5; }
+  .pass { color: #16a34a; font-weight: bold; }
+  .fail { color: #ef4444; font-weight: bold; }
+  @media print { body { margin: 10px 14px; } tr { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<h1>WithBuddy IN SCOPE 평가 결과</h1>
+<div class="meta">평가 일시: 2026-05-18 11:54 &nbsp;|&nbsp; 총 50문항 &nbsp;|&nbsp; 회사코드: WB0001 &nbsp;|&nbsp; 측정 방법: test_inscope.py (실제 서버 API)</div>
+
+<h2>전체 지표</h2>
+<div class="summary">
+  <div class="card"><div class="num" style="color:#16a34a">100%</div><div class="label">IN SCOPE 정답률</div></div>
+  <div class="card"><div class="num" style="color:#16a34a">50 / 50</div><div class="label">Pass / Total</div></div>
+  <div class="card"><div class="num" style="color:#6366f1">7.5s</div><div class="label">평균 응답시간</div></div>
+  <div class="card"><div class="num" style="color:#64748b">1주차</div><div class="label">BM25 적용 전 베이스라인</div></div>
+</div>
+
+<h2>카테고리별 요약</h2>
+<table>
+  <tr><th>카테고리</th><th>Pass</th><th>Total</th><th>정답률</th></tr>
+  <tr><td>ONBOARDING</td><td class="pass">10</td><td>10</td><td class="pass">100%</td></tr>
+  <tr><td>HR</td><td class="pass">10</td><td>10</td><td class="pass">100%</td></tr>
+  <tr><td>ADMIN</td><td class="pass">10</td><td>10</td><td class="pass">100%</td></tr>
+  <tr><td>WELFARE</td><td class="pass">10</td><td>10</td><td class="pass">100%</td></tr>
+  <tr><td>IT</td><td class="pass">10</td><td>10</td><td class="pass">100%</td></tr>
+</table>
+
+<h2>문항별 상세</h2>
+<table>
+  <tr><th>#</th><th>카테고리</th><th>질문</th><th>판정</th><th>응답시간</th><th>messageType</th></tr>
+  <tr><td>Q01</td><td>ONBOARDING</td><td>첫 출근하면 누구를 찾아가야 하나요?</td><td class="pass">PASS</td><td>6.96s</td><td>rag_answer</td></tr>
+  <tr><td>Q02</td><td>ONBOARDING</td><td>입사 첫날 어떤 장비를 받나요?</td><td class="pass">PASS</td><td>5.91s</td><td>rag_answer</td></tr>
+  <tr><td>Q03</td><td>ONBOARDING</td><td>회사 이메일 계정은 언제 받고 비밀번호는 어떻게 되나요?</td><td class="pass">PASS</td><td>6.79s</td><td>rag_answer</td></tr>
+  <tr><td>Q04</td><td>ONBOARDING</td><td>입사 첫날 점심은 어떻게 하나요?</td><td class="pass">PASS</td><td>7.06s</td><td>rag_answer</td></tr>
+  <tr><td>Q05</td><td>ONBOARDING</td><td>입사 첫날 진행 순서는 어떻게 되나요?</td><td class="pass">PASS</td><td>7.52s</td><td>rag_answer</td></tr>
+  <tr><td>Q06</td><td>ONBOARDING</td><td>4대보험을 바로 신청해야 하나요?</td><td class="pass">PASS</td><td>7.24s</td><td>rag_answer</td></tr>
+  <tr><td>Q07</td><td>ONBOARDING</td><td>주차 등록은 어떻게 하나요?</td><td class="pass">PASS</td><td>6.77s</td><td>rag_answer</td></tr>
+  <tr><td>Q08</td><td>ONBOARDING</td><td>IT 계정이나 VPN 문제는 누구에게 물어봐야 하나요?</td><td class="pass">PASS</td><td>7.4s</td><td>rag_answer</td></tr>
+  <tr><td>Q09</td><td>ONBOARDING</td><td>연차나 급여, 증명서 관련 문의는 누구에게 하나요?</td><td class="pass">PASS</td><td>9.68s</td><td>rag_answer</td></tr>
+  <tr><td>Q10</td><td>ONBOARDING</td><td>입사 첫날 계정 세팅은 어떤 순서로 하나요?</td><td class="pass">PASS</td><td>9.81s</td><td>rag_answer</td></tr>
+  <tr><td>Q11</td><td>HR</td><td>출근 시간이 어떻게 되나요?</td><td class="pass">PASS</td><td>8.94s</td><td>rag_answer</td></tr>
+  <tr><td>Q12</td><td>HR</td><td>출퇴근 기록은 어떻게 해요?</td><td class="pass">PASS</td><td>6.73s</td><td>rag_answer</td></tr>
+  <tr><td>Q13</td><td>HR</td><td>수습 기간이 얼마나 될까요?</td><td class="pass">PASS</td><td>9.29s</td><td>rag_answer</td></tr>
+  <tr><td>Q14</td><td>HR</td><td>수습 기간에도 연차가 생기나요?</td><td class="pass">PASS</td><td>6.64s</td><td>rag_answer</td></tr>
+  <tr><td>Q15</td><td>HR</td><td>수습 평가는 어떻게 진행되나요?</td><td class="pass">PASS</td><td>8.73s</td><td>rag_answer</td></tr>
+  <tr><td>Q16</td><td>HR</td><td>연차는 언제부터 생겨요?</td><td class="pass">PASS</td><td>6.92s</td><td>rag_answer</td></tr>
+  <tr><td>Q17</td><td>HR</td><td>연차 신청은 어떻게 해요?</td><td class="pass">PASS</td><td>7.91s</td><td>rag_answer</td></tr>
+  <tr><td>Q18</td><td>HR</td><td>오전 반차를 쓰면 몇 시에 출근하나요?</td><td class="pass">PASS</td><td>8.1s</td><td>rag_answer</td></tr>
+  <tr><td>Q19</td><td>HR</td><td>병가는 며칠까지 쓸 수 있어요?</td><td class="pass">PASS</td><td>6.97s</td><td>rag_answer</td></tr>
+  <tr><td>Q20</td><td>HR</td><td>급여일이 언제예요?</td><td class="pass">PASS</td><td>6.46s</td><td>rag_answer</td></tr>
+  <tr><td>Q21</td><td>ADMIN</td><td>연차 신청은 Flex에서 해요, Notion에서 해요?</td><td class="pass">PASS</td><td>8.03s</td><td>rag_answer</td></tr>
+  <tr><td>Q22</td><td>ADMIN</td><td>경비 정산은 어떻게 해요?</td><td class="pass">PASS</td><td>8.54s</td><td>rag_answer</td></tr>
+  <tr><td>Q23</td><td>ADMIN</td><td>경비 정산 시 이동비는 어떻게 써요?</td><td class="pass">PASS</td><td>8.2s</td><td>rag_answer</td></tr>
+  <tr><td>Q24</td><td>ADMIN</td><td>점심 식대는 영수증 제출해야 하나요?</td><td class="pass">PASS</td><td>7.1s</td><td>rag_answer</td></tr>
+  <tr><td>Q25</td><td>ADMIN</td><td>야근 식대랑 야식비는 뭐가 달라요?</td><td class="pass">PASS</td><td>7.67s</td><td>rag_answer</td></tr>
+  <tr><td>Q26</td><td>ADMIN</td><td>법인카드 사용 후 어떻게 처리해요?</td><td class="pass">PASS</td><td>7.57s</td><td>rag_answer</td></tr>
+  <tr><td>Q27</td><td>ADMIN</td><td>비품은 어떻게 신청해요?</td><td class="pass">PASS</td><td>8.04s</td><td>rag_answer</td></tr>
+  <tr><td>Q28</td><td>ADMIN</td><td>A4 용지는 어디 있어요?</td><td class="pass">PASS</td><td>7.03s</td><td>rag_answer</td></tr>
+  <tr><td>Q29</td><td>ADMIN</td><td>회의실은 어디서 예약해요?</td><td class="pass">PASS</td><td>6.27s</td><td>rag_answer</td></tr>
+  <tr><td>Q30</td><td>ADMIN</td><td>출입카드 잃어버리면 어떻게 해요?</td><td class="pass">PASS</td><td>6.68s</td><td>rag_answer</td></tr>
+  <tr><td>Q31</td><td>WELFARE</td><td>복지카드는 언제부터 쓸 수 있어요?</td><td class="pass">PASS</td><td>7.34s</td><td>rag_answer</td></tr>
+  <tr><td>Q32</td><td>WELFARE</td><td>복지카드 한도가 얼마예요?</td><td class="pass">PASS</td><td>5.37s</td><td>rag_answer</td></tr>
+  <tr><td>Q33</td><td>WELFARE</td><td>복지카드로 쓸 수 있는 항목이 뭐예요?</td><td class="pass">PASS</td><td>4.39s</td><td>rag_answer</td></tr>
+  <tr><td>Q34</td><td>WELFARE</td><td>파티룸에서 뭘 무료로 이용할 수 있어요?</td><td class="pass">PASS</td><td>13.84s</td><td>rag_answer</td></tr>
+  <tr><td>Q35</td><td>WELFARE</td><td>본인 결혼하면 경조금이 얼마예요?</td><td class="pass">PASS</td><td>7.24s</td><td>rag_answer</td></tr>
+  <tr><td>Q36</td><td>WELFARE</td><td>금요일에 뭔가 혜택이 있나요?</td><td class="pass">PASS</td><td>6.12s</td><td>rag_answer</td></tr>
+  <tr><td>Q37</td><td>WELFARE</td><td>건강검진은 언제부터 받을 수 있어요?</td><td class="pass">PASS</td><td>7.41s</td><td>rag_answer</td></tr>
+  <tr><td>Q38</td><td>WELFARE</td><td>단체보험은 언제부터 적용돼요?</td><td class="pass">PASS</td><td>6.51s</td><td>rag_answer</td></tr>
+  <tr><td>Q39</td><td>WELFARE</td><td>도서 구매비 지원이 있나요?</td><td class="pass">PASS</td><td>7.47s</td><td>rag_answer</td></tr>
+  <tr><td>Q40</td><td>WELFARE</td><td>온라인 강의 지원은 어떻게 돼요?</td><td class="pass">PASS</td><td>6.73s</td><td>rag_answer</td></tr>
+  <tr><td>Q41</td><td>IT</td><td>입사 첫날 노트북 세팅은 어떻게 해요?</td><td class="pass">PASS</td><td>7.73s</td><td>rag_answer</td></tr>
+  <tr><td>Q42</td><td>IT</td><td>비밀번호는 얼마나 자주 바꿔야 해요?</td><td class="pass">PASS</td><td>8.55s</td><td>rag_answer</td></tr>
+  <tr><td>Q43</td><td>IT</td><td>MFA 설정은 어떻게 해요?</td><td class="pass">PASS</td><td>6.56s</td><td>rag_answer</td></tr>
+  <tr><td>Q44</td><td>IT</td><td>VPN은 언제 써야 해요?</td><td class="pass">PASS</td><td>7.82s</td><td>rag_answer</td></tr>
+  <tr><td>Q45</td><td>IT</td><td>VPN 연결이 안 될 때 어떻게 해요?</td><td class="pass">PASS</td><td>8.56s</td><td>rag_answer</td></tr>
+  <tr><td>Q46</td><td>IT</td><td>Slack 채널은 어떻게 이동받아요?</td><td class="pass">PASS</td><td>7.19s</td><td>rag_answer</td></tr>
+  <tr><td>Q47</td><td>IT</td><td>Slack에서 확인했다는 표시는 어떻게 해요?</td><td class="pass">PASS</td><td>7.86s</td><td>rag_answer</td></tr>
+  <tr><td>Q48</td><td>IT</td><td>Notion 권한은 어떻게 받아요?</td><td class="pass">PASS</td><td>7.16s</td><td>rag_answer</td></tr>
+  <tr><td>Q49</td><td>IT</td><td>소프트웨어 설치하고 싶은데 어떻게 해요?</td><td class="pass">PASS</td><td>6.78s</td><td>rag_answer</td></tr>
+  <tr><td>Q50</td><td>IT</td><td>퇴근할 때 노트북 화면 잠금은 어떻게 해요?</td><td class="pass">PASS</td><td>7.73s</td><td>rag_answer</td></tr>
+</table>
+
+</body>
+</html>
