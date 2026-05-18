@@ -21,7 +21,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field
 
-from core.vectorstore import get_vectorstore
+from core.vectorstore import get_vectorstore, invalidate_bm25_cache
 
 _COMPANY_INFO_PATH = Path(__file__).parent.parent / "data" / "company_info.json"
 
@@ -285,6 +285,7 @@ async def upload_document(file: UploadFile = File(...), company_code: str = Form
 
     vs = get_vectorstore()
     vs.add_documents(docs)
+    invalidate_bm25_cache(company_code)
 
     return {
         "message": f"'{filename}' 업로드 및 인덱싱 완료",
@@ -321,5 +322,6 @@ async def delete_document(filename: str):
 
     # 파일 삭제
     file_path.unlink()
+    invalidate_bm25_cache()
 
     return {"message": f"'{filename}' 삭제 완료"}

@@ -6,13 +6,19 @@ ChromaDB를 로컬 디스크(./chroma_db)에 영구 저장하고 관리합니다
 싱글톤 패턴(@lru_cache)으로 앱 실행 중 한 번만 연결합니다.
 """
 
+import logging
 from functools import lru_cache
-from typing import List
+from typing import Any, List, Optional
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
 from core.embeddings import get_embeddings
+
+logger = logging.getLogger(__name__)
+
+# BM25 인덱스 캐시 (company_code → BM25Retriever)
+_bm25_cache: dict[str, Any] = {}
 
 # ChromaDB 영구 저장 경로
 CHROMA_DB_PATH = "./chroma_db"
@@ -68,6 +74,95 @@ def search_legal_docs(query: str, k: int = 7, score_threshold: float = 0.30) -> 
         query, k=k, filter={"document_type": "LEGAL"}
     )
     return [doc for doc, score in raw if score >= score_threshold]
+
+
+def _build_bm25_corpus(company_code: str) -> List[Document]:
+    """ChromaDB에서 회사+공통 문서 전체 로드 (BM25 코퍼스용)"""
+    vs = get_vectorstore()
+    col = vs._collection
+    docs: List[Document] = []
+
+    if company_code:
+        res = col.get(
+            where={"$and": [{"company_code": company_code}, {"document_type": {"$ne": "TEMPLATE"}}]},
+            include=["documents", "metadatas"],
+        )
+        for content, meta in zip(res["documents"], res["metadatas"]):
+            docs.append(Document(page_content=content, metadata=meta or {}))
+
+    common = col.get(
+        where={"$and": [{"company_code": ""}, {"document_type": {"$ne": "TEMPLATE"}}]},
+        include=["documents", "metadatas"],
+    )
+    for content, meta in zip(common["documents"], common["metadatas"]):
+        docs.append(Document(page_content=content, metadata=meta or {}))
+
+    return docs
+
+
+_kiwi_instance = None
+
+
+def _tokenize_ko(text: str) -> List[str]:
+    """kiwipiepy 형태소 분석 — 조사/어미 제거 후 어간만 추출 (BM25 토큰화용)"""
+    global _kiwi_instance
+    try:
+        from kiwipiepy import Kiwi
+        if _kiwi_instance is None:
+            _kiwi_instance = Kiwi()
+        return [t.form for t in _kiwi_instance.tokenize(text)
+                if t.tag not in ("JX", "JC", "JKS", "JKO", "JKB", "JKG", "JKV", "JKQ", "EP", "EF", "EC", "ETN", "ETM")]
+    except Exception:
+        return text.split()
+
+
+def get_bm25_retriever(company_code: str, k: int = 5) -> Optional[Any]:
+    """BM25Retriever 반환 (company_code별 캐시)"""
+    try:
+        from langchain_community.retrievers import BM25Retriever
+    except ImportError:
+        return None
+
+    if company_code not in _bm25_cache:
+        docs = _build_bm25_corpus(company_code)
+        if not docs:
+            _bm25_cache[company_code] = None
+        else:
+            _bm25_cache[company_code] = BM25Retriever.from_documents(docs, preprocess_func=_tokenize_ko)
+            logger.info("BM25 인덱스 생성: %s (%d개 문서)", company_code or "공통", len(docs))
+
+    retriever = _bm25_cache[company_code]
+    if retriever is None:
+        return None
+    retriever.k = k
+    return retriever
+
+
+def invalidate_bm25_cache(company_code: str = "") -> None:
+    """문서 추가/삭제 후 BM25 캐시 무효화"""
+    if company_code:
+        _bm25_cache.pop(company_code, None)
+    else:
+        _bm25_cache.clear()
+
+
+def _rrf_merge(vec_docs: List[Document], bm25_docs: List[Document], k: int) -> List[Document]:
+    """Reciprocal Rank Fusion으로 벡터 + BM25 결과 병합"""
+    scores: dict[str, float] = {}
+    doc_map: dict[str, Document] = {}
+
+    for rank, doc in enumerate(vec_docs):
+        key = doc.page_content[:120]
+        scores[key] = scores.get(key, 0.0) + 1.0 / (rank + 60)
+        doc_map[key] = doc
+
+    for rank, doc in enumerate(bm25_docs):
+        key = doc.page_content[:120]
+        scores[key] = scores.get(key, 0.0) + 1.0 / (rank + 60)
+        doc_map[key] = doc
+
+    ranked = sorted(scores, key=lambda x: scores[x], reverse=True)
+    return [doc_map[key] for key in ranked[:k]]
 
 
 def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.30, category: str = "") -> List[Document]:
@@ -129,5 +224,15 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
 
     if not merged:
         return []
+
+    # BM25 하이브리드 검색 병합 (실패 시 벡터 결과 그대로 반환)
+    if company_code:
+        try:
+            bm25 = get_bm25_retriever(company_code, k=k)
+            if bm25:
+                bm25_results = bm25.invoke(query)
+                return _rrf_merge(merged, bm25_results, k)
+        except Exception as e:
+            logger.warning("BM25 검색 실패, 벡터 결과만 사용: %s", e)
 
     return merged[:k]
