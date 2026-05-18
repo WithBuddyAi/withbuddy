@@ -9,6 +9,7 @@ import com.withbuddy.global.jwt.SessionNotActiveException;
 import com.withbuddy.global.jwt.SessionRevokedException;
 import com.withbuddy.global.jwt.TokenMissingException;
 import com.withbuddy.global.logging.RedisFailureLogSupport;
+import com.withbuddy.global.logging.RequestUrlMaskingSupport;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.account.user.exception.DuplicateEmployeeNumberException;
@@ -52,7 +53,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "UNAUTHORIZED",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
@@ -73,7 +74,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "INVALID_TOKEN",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
@@ -94,10 +95,10 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "SESSION_EXPIRED",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
-        log.warn("Token expired: path={}, message={}", request.getRequestURI(), e.getMessage());
+        log.warn("Token expired: path={}, message={}", resolveMaskedPath(request), e.getMessage());
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
@@ -117,7 +118,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "SESSION_EXPIRED",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
@@ -138,7 +139,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "SESSION_REVOKED",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
@@ -159,10 +160,10 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "INVALID_TOKEN",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
-        log.warn("Invalid token: path={}, message={}", request.getRequestURI(), e.getMessage());
+        log.warn("Invalid token: path={}, message={}", resolveMaskedPath(request), e.getMessage());
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
@@ -187,7 +188,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 "BAD_REQUEST",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -208,7 +209,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 "BAD_REQUEST",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -238,7 +239,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 "BAD_REQUEST",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -263,7 +264,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 "BAD_REQUEST",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -284,7 +285,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "TOKEN_MISSING",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
@@ -305,10 +306,10 @@ public class GlobalExceptionHandler {
                 e.getStatus().getReasonPhrase(),
                 e.getCode(),
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
-        log.warn("Storage error: path={}, field={}, message={}", request.getRequestURI(), e.getField(), e.getMessage());
+        log.warn("Storage error: path={}, field={}, message={}", resolveMaskedPath(request), e.getField(), e.getMessage());
 
         return ResponseEntity.status(e.getStatus()).body(response);
     }
@@ -328,10 +329,10 @@ public class GlobalExceptionHandler {
                 HttpStatus.GATEWAY_TIMEOUT.getReasonPhrase(),
                 "AI_TIMEOUT",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
-        log.warn("AI timeout: path={}, message={}", request.getRequestURI(), e.getMessage());
+        log.warn("AI timeout: path={}, message={}", resolveMaskedPath(request), e.getMessage());
 
         return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(response);
     }
@@ -351,7 +352,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase(),
                 "SESSION_STORE_UNAVAILABLE",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         RedisFailureLogSupport.logRedisFailure(log, request, e);
@@ -374,10 +375,10 @@ public class GlobalExceptionHandler {
                 HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
                 "INTERNAL_SERVER_ERROR",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
-        log.error("서버 오류: path={}", request.getRequestURI(), e);
+        log.error("서버 오류: path={}", resolveMaskedPath(request), e);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
@@ -397,7 +398,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "TOKEN_MISSING",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
@@ -418,7 +419,7 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT.getReasonPhrase(),
                 "DUPLICATE_EMPLOYEE_NUMBER",
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
@@ -439,9 +440,14 @@ public class GlobalExceptionHandler {
                 HttpStatus.FORBIDDEN.getReasonPhrase(),
                 e.getCode(),
                 errors,
-                request.getRequestURI()
+                resolveMaskedPath(request)
         );
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
+
+    private String resolveMaskedPath(HttpServletRequest request) {
+        return RequestUrlMaskingSupport.resolveMaskedPath(request);
+    }
 }
+
