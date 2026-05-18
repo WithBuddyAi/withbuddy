@@ -209,11 +209,14 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     if not merged:
         return []
 
-    # BM25 하이브리드 검색 병합
+    # BM25 하이브리드 검색 병합 (실패 시 벡터 결과 그대로 반환)
     if company_code:
-        bm25 = get_bm25_retriever(company_code, k=k)
-        if bm25:
-            bm25_results = bm25.invoke(query)
-            return _rrf_merge(merged, bm25_results, k)
+        try:
+            bm25 = get_bm25_retriever(company_code, k=k)
+            if bm25:
+                bm25_results = bm25.invoke(query)
+                return _rrf_merge(merged, bm25_results, k)
+        except Exception as e:
+            logger.warning("BM25 검색 실패, 벡터 결과만 사용: %s", e)
 
     return merged[:k]
