@@ -103,15 +103,18 @@ def _build_bm25_corpus(company_code: str) -> List[Document]:
 _kiwi_instance = None
 
 
+_BM25_CONTENT_TAGS = {"NNG", "NNP", "SL", "SH", "SN"}
+
+
 def _tokenize_ko(text: str) -> List[str]:
-    """kiwipiepy 형태소 분석 — 조사/어미 제거 후 어간만 추출 (BM25 토큰화용)"""
+    """kiwipiepy 형태소 분석 — 명사/고유명사/외국어만 추출 (BM25 토큰화용)"""
     global _kiwi_instance
     try:
         from kiwipiepy import Kiwi
         if _kiwi_instance is None:
             _kiwi_instance = Kiwi()
         return [t.form for t in _kiwi_instance.tokenize(text)
-                if t.tag not in ("JX", "JC", "JKS", "JKO", "JKB", "JKG", "JKV", "JKQ", "EP", "EF", "EC", "ETN", "ETM")]
+                if t.tag in _BM25_CONTENT_TAGS]
     except Exception:
         return text.split()
 
