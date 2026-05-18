@@ -100,6 +100,17 @@ def _build_bm25_corpus(company_code: str) -> List[Document]:
     return docs
 
 
+def _tokenize_ko(text: str) -> List[str]:
+    """kiwipiepy 형태소 분석 — 조사/어미 제거 후 어간만 추출 (BM25 토큰화용)"""
+    try:
+        from kiwipiepy import Kiwi
+        kiwi = Kiwi()
+        return [t.form for t in kiwi.tokenize(text)
+                if t.tag not in ("JX", "JC", "JKS", "JKO", "JKB", "JKG", "JKV", "JKQ", "EP", "EF", "EC", "ETN", "ETM")]
+    except Exception:
+        return text.split()
+
+
 def get_bm25_retriever(company_code: str, k: int = 5) -> Optional[Any]:
     """BM25Retriever 반환 (company_code별 캐시)"""
     try:
@@ -112,7 +123,7 @@ def get_bm25_retriever(company_code: str, k: int = 5) -> Optional[Any]:
         if not docs:
             _bm25_cache[company_code] = None
         else:
-            _bm25_cache[company_code] = BM25Retriever.from_documents(docs)
+            _bm25_cache[company_code] = BM25Retriever.from_documents(docs, preprocess_func=_tokenize_ko)
             logger.info("BM25 인덱스 생성: %s (%d개 문서)", company_code or "공통", len(docs))
 
     retriever = _bm25_cache[company_code]
