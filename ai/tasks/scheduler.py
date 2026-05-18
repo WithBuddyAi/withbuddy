@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _keepalive_llm() -> None:
-    """LLM 콜드 스타트 방지 — 30분마다 최소 호출로 연결 유지"""
+    """LLM 콜드 스타트 방지 — 1시간마다 최소 호출로 연결 유지"""
     try:
         from core.llm import get_llm
         await asyncio.to_thread(get_llm().invoke, "ping")
@@ -57,12 +57,12 @@ def start_scheduler() -> None:
     _scheduler.add_job(
         _keepalive_llm,
         "interval",
-        minutes=30,
+        minutes=60,
         id="llm_keepalive",
         replace_existing=True,
     )
     _scheduler.start()
-    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 09:00 My Buddy 체크인 / 30분 LLM keep-alive 활성화")
+    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 09:00 My Buddy 체크인 / 60분 LLM keep-alive 활성화")
 
 
 def stop_scheduler() -> None:
