@@ -34,8 +34,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-@RestController
-@RequestMapping("/api/v1/documents")
+@RestController("adminDocumentController")
+@RequestMapping("/api/v1/admin/documents")
 @Validated
 @Tag(name = "Documents", description = "스토리지 문서 API")
 public class DocumentController {
