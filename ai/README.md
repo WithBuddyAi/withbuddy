@@ -53,7 +53,7 @@ ai/
 │
 ├── core/                    # 핵심 모듈 (LLM, 임베딩, ChromaDB, Slack)
 ├── chains/                  # LangChain RAG 체인 (복합 질문 분리, 병렬 검색)
-├── agents/                  # ReAct 에이전트 (실험용)
+├── agents/                  # 오케스트레이터·프리보딩·커뮤니케이션 에이전트
 ├── routers/                 # API 라우터
 ├── tasks/                   # 스케줄러 / Slack 자동 알림
 ├── utils/                   # 프롬프트 템플릿
