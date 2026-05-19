@@ -504,6 +504,44 @@ public class DocumentStorageService implements DocumentDownloadService {
         return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source), preauthTtlSeconds, source.name());
     }
 
+    public String issueRedirectDownloadUrl(Long documentId, StorageSource source) {
+        RequesterScope requesterScope = resolveDocumentAccessScope();
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+
+        validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        if (!requesterScope.globalAccess()) {
+            validateTemplateDocument(document);
+        }
+
+        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
+
+        StorageSource resolvedSource = source == null ? resolveSource(file) : source;
+        if (resolvedSource == StorageSource.BACKUP && !StringUtils.hasText(file.getBackupObjectKey())) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
+        }
+
+        int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
+        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), resolvedSource.name());
+        String issuedUrl = redisCacheService.get(redisKey)
+                .filter(StringUtils::hasText)
+                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, resolvedSource, redisKey, preauthTtlSeconds));
+
+        if (!StringUtils.hasText(issuedUrl) || !issuedUrl.startsWith("http")) {
+            throw new StorageException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "FILE_003",
+                    "documentId",
+                    "다운로드 URL 발급에 실패했습니다."
+            );
+        }
+
+        logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, resolvedSource, preauthTtlSeconds, null, "REDIRECT");
+        return issuedUrl;
+    }
+
     private String createAndCacheDownloadUrl(
             Long documentId,
             DocumentFile file,
