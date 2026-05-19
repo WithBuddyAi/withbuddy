@@ -498,9 +498,9 @@ public class DocumentStorageService implements DocumentDownloadService {
                     documentId,
                     source.name()
             );
+            logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, source, preauthTtlSeconds, null, "REDIRECT");
         }
 
-        logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, source, preauthTtlSeconds, null, "REDIRECT");
         return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source), preauthTtlSeconds, source.name());
     }
 
