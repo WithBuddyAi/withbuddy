@@ -97,4 +97,20 @@ public class User {
                 .role(UserRole.USER)
                 .build();
     }
+
+    public static User createUser(
+            Company company,
+            String name,
+            String employeeNumber,
+            LocalDate hireDate
+    ) {
+        return createUser(
+                company,
+                name,
+                "-",
+                "-",
+                employeeNumber,
+                hireDate
+        );
+    }
 }
