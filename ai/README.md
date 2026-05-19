@@ -25,7 +25,7 @@
 | 분류 | 기술 |
 |------|------|
 | **AI** | Python 3.11, FastAPI, LangChain, ChromaDB, Claude Haiku 4.5 (Anthropic) |
-| **임베딩** | Gemini Embedding 2 (`text-embedding-004`) |
+| **임베딩** | Gemini Embedding 2 (`models/gemini-embedding-2`) |
 | **검색** | 벡터 유사도 + BM25 하이브리드 (RRF 병합, kiwipiepy 한국어 형태소 분석) |
 | **평가** | RAGAS, LangSmith |
 | **Slack** | slack_sdk, slack_bolt (Socket Mode) |
