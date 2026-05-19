@@ -1,7 +1,7 @@
 # ERD
 
-**현재 버전: v1.8**  
-**최종 수정일: 2026-04-30**
+**현재 버전: v2.0**
+**최종 수정일: 2026-05-19**
 
 ## 개요
 **MVP 기준 ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
@@ -35,6 +35,8 @@
 - `id` : PK, bigint
 - `company_code` : FK → `companies.company_code`
 - `role` : 사용자 역할, varchar, 기본값 `USER` (`USER`, `ADMIN`)
+- `department` : 부서, varchar(100)
+- `team_name` : 팀명, varchar(100)
 - `name` : 사용자 이름, varchar
 - `employee_number` : 사번, varchar
 - `hire_date` : 입사일, date
@@ -43,6 +45,7 @@
 
 ### 설명
 - 사용자를 식별하기 위한 기본 정보를 저장한다.
+- `department`와 `team_name`은 사용자의 소속 조직 정보를 저장하며, 각각 최대 100자까지 허용한다.
 - 사용자는 로그인 시 회사코드, 이름, 사번을 입력한다.
 - 서버는 입력된 회사코드로 회사를 조회한 뒤, 해당 회사의 `company_code`와 사용자 이름, 사번을 기준으로 사용자를 확인한다.
 
@@ -274,6 +277,7 @@
 - v1.6 (2026-04-14): `document_files`, `document_backup_jobs`, `chat_message_documents` 테이블 추가, 답변 메시지와 근거 문서의 다중 연결 구조 반영, 문서-파일-백업 작업 관계 설명 추가
 - v1.7 (2026-04-28): `users.role` 컬럼 추가, 일반 사용자(`USER`)와 관리자(`ADMIN`) 계정 구분 기준 반영
 - v1.8 (2026-04-30): `chat_messages` 테이블에 `recommended_contacts_json` 컬럼 추가
+- v2.0 (2026-05-19): `users.department`, `users.team_name` 컬럼 추가 및 각 컬럼 최대 길이 100자 기준 반영
 
 ---
 

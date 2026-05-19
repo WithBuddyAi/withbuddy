@@ -1,4 +1,4 @@
-package com.withbuddy.account.user.dto.request;
+package com.withbuddy.admin.user.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -24,6 +24,16 @@ public class CreateUserRequest {
     @NotBlank(message = "사번은 필수입니다.")
     @Pattern(regexp = "^[A-Za-z0-9]{4,20}$", message = "사번은 영문과 숫자로 4~20자여야 합니다.")
     private String employeeNumber;
+
+    @Schema(description = "신입 사원 부서", example = "개발본부")
+    @NotBlank(message = "부서는 필수입니다.")
+    @Size(max = 100, message = "부서는 최대 100자까지 입력할 수 있습니다.")
+    private String department;
+
+    @Schema(description = "신입 사원 팀명", example = "백엔드팀")
+    @NotBlank(message = "팀명은 필수입니다.")
+    @Size(max = 100, message = "팀명은 최대 100자까지 입력할 수 있습니다.")
+    private String teamName;
 
     @Schema(description = "입사일", example = "2026-03-01", type = "string", format = "date")
     @NotNull(message = "입사일은 필수입니다.")

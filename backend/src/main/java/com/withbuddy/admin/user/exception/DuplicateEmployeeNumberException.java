@@ -1,4 +1,4 @@
-package com.withbuddy.account.user.exception;
+package com.withbuddy.admin.user.exception;
 
 public class DuplicateEmployeeNumberException extends RuntimeException {
 
