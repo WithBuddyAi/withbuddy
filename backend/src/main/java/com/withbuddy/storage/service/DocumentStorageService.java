@@ -30,6 +30,7 @@ import com.withbuddy.storage.repository.DocumentRepository;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -80,6 +81,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
     private record RequesterScope(
             String companyCode,
+            Long userId,
             boolean globalAccess
     ) {
     }
@@ -496,6 +498,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                     documentId,
                     source.name()
             );
+            logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, source, preauthTtlSeconds, null, "REDIRECT");
         }
 
         return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source), preauthTtlSeconds, source.name());
@@ -524,6 +527,13 @@ public class DocumentStorageService implements DocumentDownloadService {
             );
 
             if (StringUtils.hasText(preSignedUrl)) {
+                redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
+                log.info(
+                        "Pre-signed URL generated. documentId={}, source={}, ttlSeconds={}",
+                        documentId,
+                        source.name(),
+                        preauthTtlSeconds
+                );
                 redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
                 return preSignedUrl;
             }
@@ -560,10 +570,14 @@ public class DocumentStorageService implements DocumentDownloadService {
             if (!StringUtils.hasText(file.getBackupObjectKey())) {
                 throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
             }
-            return objectStorageClient.getObject(file.getBackupNamespace(), file.getBackupBucket(), file.getBackupObjectKey());
+            byte[] payload = objectStorageClient.getObject(file.getBackupNamespace(), file.getBackupBucket(), file.getBackupObjectKey());
+            logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, source, null, payload.length, "DIRECT");
+            return payload;
         }
 
-        return objectStorageClient.getObject(file.getPrimaryNamespace(), file.getPrimaryBucket(), file.getPrimaryObjectKey());
+        byte[] payload = objectStorageClient.getObject(file.getPrimaryNamespace(), file.getPrimaryBucket(), file.getPrimaryObjectKey());
+        logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, source, null, payload.length, "DIRECT");
+        return payload;
     }
 
     public String resolveDownloadFileName(Long documentId) {
@@ -903,7 +917,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         Object principal = authentication.getPrincipal();
         if (principal instanceof StorageApiKeyPrincipal storagePrincipal) {
-            return new RequesterScope(null, storagePrincipal.globalAccess());
+            return new RequesterScope(null, null, storagePrincipal.globalAccess());
         }
         return null;
     }
@@ -936,9 +950,44 @@ public class DocumentStorageService implements DocumentDownloadService {
                 throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
             }
 
-            return new RequesterScope(currentUser.getCompany().getCompanyCode(), false);
+            return new RequesterScope(currentUser.getCompany().getCompanyCode(), currentUser.getId(), false);
         }
         return null;
+    }
+
+    private void logDownloadAuditEvent(
+            String event,
+            RequesterScope requesterScope,
+            Document document,
+            StorageSource source,
+            Integer ttlSeconds,
+            Integer contentLength,
+            String route
+    ) {
+        String userId = requesterScope.userId() == null ? "SYSTEM" : String.valueOf(requesterScope.userId());
+        String requesterCompanyCode = StringUtils.hasText(requesterScope.companyCode()) ? requesterScope.companyCode() : "GLOBAL";
+        String documentCompanyCode = StringUtils.hasText(document.getCompanyCode()) ? document.getCompanyCode() : "COMMON";
+        String traceId = resolveTraceId();
+
+        log.info(
+                "AUDIT_DOWNLOAD event={} route={} userId={} requesterCompanyCode={} documentCompanyCode={} documentId={} source={} ttlSeconds={} contentLength={} globalAccess={} traceId={}",
+                event,
+                route,
+                userId,
+                requesterCompanyCode,
+                documentCompanyCode,
+                document.getId(),
+                source.name(),
+                ttlSeconds == null ? "-" : ttlSeconds,
+                contentLength == null ? "-" : contentLength,
+                requesterScope.globalAccess(),
+                traceId
+        );
+    }
+
+    private String resolveTraceId() {
+        String traceId = MDC.get("traceId");
+        return StringUtils.hasText(traceId) ? traceId : "-";
     }
 
     private void compensatePrimaryObject(String namespace, String bucket, String objectKey, Exception rootCause) {
