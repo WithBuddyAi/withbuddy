@@ -65,9 +65,6 @@ REDIS_URL=redis://:CHANGE_ME_REDIS_PASSWORD@<DB_PRIVATE_IP>:6379/0
 RABBITMQ_URL=amqp://withbuddy_app:CHANGE_ME_RMQ_PASSWORD@<DB_PRIVATE_IP>:5672/%2F
 RABBITMQ_EXCHANGE=withbuddy.events
 RABBITMQ_QUEUE_INTERNAL_TASKS=q.internal.tasks
-INTERNAL_TASK_CONSUMER_ENABLED=false
-INTERNAL_TASK_CONSUMER_DRY_RUN=true
-INTERNAL_TASK_CONSUMER_CONCURRENCY=1
 
 # Internal API 인증 (AI -> Backend)
 INTERNAL_API_AUTH_ENABLED=true
@@ -266,10 +263,6 @@ ${{ secrets.AI_SERVICE_NAME }}=withbuddy-ai
 - `RABBITMQ_EXCHANGE` - Backend 서버용 RabbitMQ exchange
 - `RABBITMQ_QUEUE_REPORT` - Backend 서버용 리포트 큐 이름
 - `RABBITMQ_QUEUE_DLQ` - Backend 서버용 DLQ 큐 이름
-- `RABBITMQ_QUEUE_INTERNAL_TASKS` - Backend Internal Task 큐 이름
-- `INTERNAL_TASK_CONSUMER_ENABLED` - InternalTaskConsumer 활성화 여부 (`true/false`)
-- `INTERNAL_TASK_CONSUMER_DRY_RUN` - Internal Task 드라이런 처리 여부 (`true/false`)
-- `INTERNAL_TASK_CONSUMER_CONCURRENCY` - Internal Task Consumer 동시성 수
 
 ---
 
