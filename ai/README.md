@@ -84,6 +84,12 @@ SLACK_BOT_TOKEN=xoxb-...
 SLACK_APP_TOKEN=xapp-...
 ```
 
+문서 임베딩:
+
+```bash
+python scripts/ingest.py
+```
+
 서버 실행:
 
 ```bash
