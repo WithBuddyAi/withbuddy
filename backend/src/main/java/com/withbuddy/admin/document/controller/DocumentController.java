@@ -1,4 +1,4 @@
-package com.withbuddy.storage.controller;
+package com.withbuddy.admin.document.controller;
 
 import com.withbuddy.storage.dto.request.DocumentBulkDeleteRequest;
 import com.withbuddy.storage.dto.response.DocumentBackupRetryResponse;
