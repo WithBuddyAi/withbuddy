@@ -2366,6 +2366,8 @@ Authorization: Bearer {accessToken}
 - 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
 - 응답 `downloadUrl`에는 내부 경로(`/api/v1/documents/{documentId}/file?source=...`)만 반환한다.
 - pre-signed URL은 `/file` 호출 시점에만 생성되어 `302 Location`으로 전달된다.
+- 다운로드 감사 로그는 `AUDIT_DOWNLOAD` 구조화 로그로 기록되며, pre-signed URL 원문은 로그에 남기지 않는다.
+- Grafana/Loki 운영 쿼리는 `docs/operations/storage/AUDIT_DOWNLOAD_GRAFANA_LOKI.md`를 따른다.
 - 응답의 `expiresIn`은 현재 pre-signed URL 유효시간(기본 30초)을 의미한다.
 - 응답의 `source`는 실제 다운로드에 사용할 스토리지 소스(`PRIMARY` 또는 `BACKUP`)다.
 - `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
