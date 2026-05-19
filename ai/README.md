@@ -54,12 +54,13 @@ ai/
 ├── core/                    # 핵심 모듈 (LLM, 임베딩, ChromaDB, Slack)
 ├── chains/                  # LangChain RAG 체인 (복합 질문 분리, 병렬 검색)
 ├── agents/                  # 오케스트레이터·프리보딩·커뮤니케이션 에이전트
+├── memory/                  # 대화 히스토리·프로필·미답변 저장소 (JSON)
 ├── routers/                 # API 라우터
 ├── tasks/                   # 스케줄러 / Slack 자동 알림
 ├── utils/                   # 프롬프트 템플릿
 ├── scripts/                 # 문서 임베딩·평가 스크립트 (ingest, evaluate, test)
 ├── docs/                    # 사내 문서 (RAG 소스: 사규·법률·온보딩)
-├── data/                    # 런타임 데이터 (대화 히스토리)
+├── data/                    # 런타임 데이터
 ```
 
 ---
