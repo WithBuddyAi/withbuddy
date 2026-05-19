@@ -49,7 +49,6 @@
 ```
 ai/
 ├── main.py                  # FastAPI 진입점
-├── streamlit_app.py         # Streamlit 관리자 대시보드
 ├── requirements.txt
 │
 ├── core/                    # 핵심 모듈 (LLM, 임베딩, ChromaDB, Slack)
