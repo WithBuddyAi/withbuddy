@@ -5,7 +5,10 @@
 사용하는 ChatPromptTemplate을 정의합니다.
 """
 
+from langchain_core.messages import SystemMessage
+from langchain_core.prompt_values import ChatPromptValue
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnableLambda
 
 
 # ─────────────────────────────────────────
@@ -206,6 +209,34 @@ RAG_PROMPT = ChatPromptTemplate.from_messages([
     MessagesPlaceholder(variable_name="chat_history"),  # 멀티턴 대화 히스토리
     ("human", "{question}"),
 ])
+
+
+def _inject_cache_control(prompt_value: ChatPromptValue) -> ChatPromptValue:
+    """시스템 프롬프트의 정적 규칙 블록에 Anthropic Prompt Caching 마커 주입.
+
+    '오늘 날짜:' 앞까지(회사 규칙·페르소나 등 정적 부분)를 cache_control=ephemeral로
+    마킹하고, 그 뒤(today_date/user_name/hire_info/context)는 캐시하지 않는다.
+    """
+    messages = prompt_value.to_messages()
+    result = []
+    for msg in messages:
+        if isinstance(msg, SystemMessage) and isinstance(msg.content, str):
+            content = msg.content
+            idx = content.find("\n오늘 날짜:")
+            if idx != -1:
+                result.append(SystemMessage(content=[
+                    {"type": "text", "text": content[:idx], "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": content[idx:]},
+                ]))
+            else:
+                # 구분자 없으면 캐싱 적용 안 함 — 비용 낭비 방지
+                result.append(msg)
+        else:
+            result.append(msg)
+    return ChatPromptValue(messages=result)
+
+
+RAG_PROMPT_CACHED = RAG_PROMPT | RunnableLambda(_inject_cache_control)
 
 
 # ─────────────────────────────────────────
