@@ -172,7 +172,7 @@ def _rrf_merge(vec_docs: List[Document], bm25_docs: List[Document], k: int) -> L
     return [doc_map[key] for key in ranked[:k]]
 
 
-_SEARCH_CACHE_TTL = 1800  # 30분
+_SEARCH_CACHE_TTL = 7200  # 2시간 (문서 업로드 빈도 낮음, TTL로만 관리)
 
 
 def _search_cache_key(query: str, company_code: str, category: str, k: int) -> str:
