@@ -229,9 +229,8 @@ def _inject_cache_control(prompt_value: ChatPromptValue) -> ChatPromptValue:
                     {"type": "text", "text": content[idx:]},
                 ]))
             else:
-                result.append(SystemMessage(content=[
-                    {"type": "text", "text": content, "cache_control": {"type": "ephemeral"}},
-                ]))
+                # 구분자 없으면 캐싱 적용 안 함 — 비용 낭비 방지
+                result.append(msg)
         else:
             result.append(msg)
     return ChatPromptValue(messages=result)
