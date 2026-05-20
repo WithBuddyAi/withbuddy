@@ -22,6 +22,7 @@ def get_intent_llm() -> ChatAnthropic:
         anthropic_api_key=api_key,
         temperature=0.0,
         max_tokens=20,
+        max_retries=4,
     )
 
 
@@ -48,4 +49,5 @@ def get_llm() -> ChatAnthropic:
         anthropic_api_key=api_key,
         temperature=0.3,                   # Q&A는 일관성 우선
         max_tokens=1024,                   # 온보딩 Q&A에 충분한 길이
+        max_retries=4,                     # 529 Overloaded 등 일시 장애 자동 재시도
     )
