@@ -4,6 +4,8 @@ import char from "../../assets/Favicon_web.svg";
 import bar from "../../assets/side_bar.svg";
 
 function AdminSidebar({ isSidebarOpen, setIsSidebarOpen, setIsLogoutModal }) {
+  const name = localStorage.getItem("name") || "";
+
   return (
     <div className="contents">
       {isSidebarOpen ? (
@@ -24,7 +26,14 @@ function AdminSidebar({ isSidebarOpen, setIsSidebarOpen, setIsLogoutModal }) {
                 alt="위드버디 대표 로고"
                 className="w-[26px] mr-[12px]"
               />
-              <p className="text-[#343A40] text-[16px] font-semibold">관리자</p>
+              <div className="flex gap-[4px] items-center">
+                <p className="text-[#343A40] text-[16px] font-semibold">
+                  {name}
+                </p>
+                <p className="py-[2px] px-[8px] rounded-[9999px] bg-[#E6EDF2] text-[11px] text-[#336B97]">
+                  관리자
+                </p>
+              </div>
             </div>
             {/* 데스크탑: bar 아이콘 */}
             <img
