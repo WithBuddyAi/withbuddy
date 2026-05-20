@@ -146,9 +146,10 @@ public class DocumentController {
     @GetMapping("/{documentId}/file")
     public ResponseEntity<Void> file(
             @PathVariable Long documentId,
-            @RequestParam(defaultValue = "PRIMARY") StorageSource source
+            @RequestParam(defaultValue = "PRIMARY") StorageSource source,
+            @RequestParam("token") String token
     ) {
-        String redirectUrl = documentStorageService.issueRedirectDownloadUrl(documentId, source);
+        String redirectUrl = documentStorageService.issueRedirectDownloadUrl(documentId, source, token);
 
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(redirectUrl))

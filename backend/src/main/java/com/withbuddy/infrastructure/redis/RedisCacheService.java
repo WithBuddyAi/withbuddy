@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.List;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -25,6 +26,36 @@ public class RedisCacheService {
             else
                 return 0
             end
+            """,
+            Long.class
+    );
+
+    private static final DefaultRedisScript<Long> CONSUME_DOWNLOAD_TOKEN_SCRIPT = new DefaultRedisScript<>(
+            """
+            if redis.call('exists', KEYS[1]) == 0 then
+                return -1
+            end
+
+            local documentId = redis.call('hget', KEYS[1], 'documentId')
+            local source = redis.call('hget', KEYS[1], 'source')
+            if documentId ~= ARGV[1] or source ~= ARGV[2] then
+                return -2
+            end
+
+            local remaining = tonumber(redis.call('hget', KEYS[1], 'remaining') or '-1')
+            if remaining <= 0 then
+                redis.call('del', KEYS[1])
+                return -3
+            end
+
+            remaining = remaining - 1
+            if remaining <= 0 then
+                redis.call('del', KEYS[1])
+                return 0
+            end
+
+            redis.call('hset', KEYS[1], 'remaining', tostring(remaining))
+            return remaining
             """,
             Long.class
     );
@@ -63,6 +94,21 @@ public class RedisCacheService {
 
     public void expire(String key, Duration ttl) {
         redisTemplate.expire(key, ttl);
+    }
+
+    public void putHash(String key, Map<String, String> values, Duration ttl) {
+        redisTemplate.opsForHash().putAll(key, values);
+        redisTemplate.expire(key, ttl);
+    }
+
+    public Long consumeDownloadToken(String key, String documentId, String source) {
+        Long result = redisTemplate.execute(
+                CONSUME_DOWNLOAD_TOKEN_SCRIPT,
+                Collections.singletonList(key),
+                documentId,
+                source
+        );
+        return result == null ? -1L : result;
     }
 
     public boolean releaseLock(String key, String lockValue) {
