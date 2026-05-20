@@ -16,6 +16,7 @@ public class StorageProperties {
     private int maxDocumentSizeMb = 20;
     private int maxImageSizeMb = 5;
     private int downloadUrlTtlSeconds = 300;
+    private int downloadUrlMaxUses = 1;
 
     private Bucket primary = new Bucket("primary", "withbuddy-primary");
     private Bucket backup = new Bucket("backup", "withbuddy-backup");

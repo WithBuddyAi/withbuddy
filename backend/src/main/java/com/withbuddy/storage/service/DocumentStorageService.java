@@ -486,26 +486,23 @@ public class DocumentStorageService implements DocumentDownloadService {
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
 
         StorageSource source = resolveSource(file);
-        int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
-        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
-        String issuedUrl = redisCacheService.get(redisKey)
-                .filter(StringUtils::hasText)
-                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
+        int tokenTtlSeconds = Math.max(1, storageProperties.getDownloadUrlTtlSeconds());
+        int tokenMaxUses = Math.max(1, storageProperties.getDownloadUrlMaxUses());
+        String downloadToken = issueDownloadToken(documentId, source, tokenTtlSeconds, tokenMaxUses);
 
-        if (StringUtils.hasText(issuedUrl) && issuedUrl.startsWith("http")) {
-            log.info(
-                    "Pre-signed download URL issued. documentId={}, source={}",
-                    documentId,
-                    source.name()
-            );
-            logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, source, preauthTtlSeconds, null, "REDIRECT");
-        }
-
-        return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source), preauthTtlSeconds, source.name());
+        return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source, downloadToken), tokenTtlSeconds, source.name());
     }
 
-    public String issueRedirectDownloadUrl(Long documentId, StorageSource source) {
+    public String issueRedirectDownloadUrl(Long documentId, StorageSource source, String downloadToken) {
         RequesterScope requesterScope = resolveDocumentAccessScope();
+        if (!StringUtils.hasText(downloadToken)) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "BAD_REQUEST",
+                    "token",
+                    "다운로드 토큰이 필요합니다."
+            );
+        }
 
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
@@ -538,6 +535,7 @@ public class DocumentStorageService implements DocumentDownloadService {
             );
         }
 
+        consumeDownloadToken(downloadToken, documentId, resolvedSource);
         logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, resolvedSource, preauthTtlSeconds, null, "REDIRECT");
         return issuedUrl;
     }
@@ -586,8 +584,46 @@ public class DocumentStorageService implements DocumentDownloadService {
         return "";
     }
 
-    private String buildInternalDownloadUrl(Long documentId, StorageSource source) {
-        return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
+    private String buildInternalDownloadUrl(Long documentId, StorageSource source, String token) {
+        return "/api/v1/documents/" + documentId + "/file?source=" + source.name() + "&token=" + token;
+    }
+
+    private String issueDownloadToken(Long documentId, StorageSource source, int tokenTtlSeconds, int maxUses) {
+        String token = UUID.randomUUID().toString();
+        String tokenKey = RedisCacheKeys.downloadToken(token);
+        redisCacheService.putHash(
+                tokenKey,
+                Map.of(
+                        "documentId", String.valueOf(documentId),
+                        "source", source.name(),
+                        "remaining", String.valueOf(maxUses)
+                ),
+                Duration.ofSeconds(tokenTtlSeconds)
+        );
+        return token;
+    }
+
+    private void consumeDownloadToken(String token, Long documentId, StorageSource source) {
+        String tokenKey = RedisCacheKeys.downloadToken(token);
+        Long remaining = redisCacheService.consumeDownloadToken(tokenKey, String.valueOf(documentId), source.name());
+
+        if (remaining >= 0) {
+            return;
+        }
+        if (remaining == -2L) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "BAD_REQUEST",
+                    "token",
+                    "다운로드 토큰이 요청 대상과 일치하지 않습니다."
+            );
+        }
+        throw new StorageException(
+                HttpStatus.GONE,
+                "DOWNLOAD_TOKEN_EXPIRED",
+                "token",
+                "다운로드 토큰이 만료되었거나 사용 횟수를 초과했습니다."
+        );
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {

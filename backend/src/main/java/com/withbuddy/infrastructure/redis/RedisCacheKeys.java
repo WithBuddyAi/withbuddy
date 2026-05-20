@@ -41,6 +41,10 @@ public final class RedisCacheKeys {
         return "presigned:url:" + fileId + ":" + normalize(source);
     }
 
+    public static String downloadToken(String token) {
+        return "download:token:" + token;
+    }
+
     public static String docsListFirstPage(String scope, String formType) {
         return "docs:list:" + scope + ":" + normalize(formType) + ":first";
     }
