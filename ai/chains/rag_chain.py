@@ -19,7 +19,7 @@ from core.llm import get_llm
 from core.vectorstore import search_with_company_fallback, search_legal_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
-from utils.prompts import RAG_PROMPT
+from utils.prompts import RAG_PROMPT, RAG_PROMPT_CACHED
 
 def _fix_names(text: str) -> str:
     """'님 -' → '님:' 통일 및 어색한 문장 교체."""
@@ -291,7 +291,7 @@ def _dedup_answer(text: str) -> str:
 def _get_chain():
     global _chain
     if _chain is None:
-        _chain = (RAG_PROMPT | get_llm() | StrOutputParser()).with_config(
+        _chain = (RAG_PROMPT_CACHED | get_llm() | StrOutputParser()).with_config(
             {"tags": ["rag-chain"], "run_name": "withbuddy-rag"}
         )
     return _chain
