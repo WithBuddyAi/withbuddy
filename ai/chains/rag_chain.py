@@ -300,20 +300,6 @@ def _get_chain():
 _MAX_CHUNK_CHARS = 400    # 청크당 최대 글자 수 (토큰 절약)
 _MAX_CONTEXT_CHARS = 2000  # 전체 컨텍스트 최대 글자 수
 
-# 문서 내 회사명 치환 목록 — PDF 원본의 회사명을 서비스명으로 변경
-_COMPANY_REPLACEMENTS = [
-    ("한전KDN", "테크 주식회사"),
-    ("한국전력공사", "테크 주식회사"),
-    ("한국전력", "테크 주식회사"),
-    ("KEPCO", "테크 주식회사"),
-    ("KDN", "테크 주식회사"),
-    ("한전", "테크 주식회사"),
-]
-
-def _replace_company(text: str) -> str:
-    for old, new in _COMPANY_REPLACEMENTS:
-        text = text.replace(old, new)
-    return text
 
 
 # 법령명 축약 매핑
@@ -399,7 +385,7 @@ def _format_docs(docs: List[Document]) -> str:
     parts = []
     total = 0
     for doc in docs:
-        content = _replace_company(doc.page_content[:_MAX_CHUNK_CHARS])
+        content = doc.page_content[:_MAX_CHUNK_CHARS]
         source = doc.metadata.get("source", "알 수 없음")
         entry = f"[출처: {source}]\n{content}"
         if total + len(entry) > _MAX_CONTEXT_CHARS:
