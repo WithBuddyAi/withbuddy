@@ -520,8 +520,6 @@ public class DocumentStorageService implements DocumentDownloadService {
             throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
         }
 
-        consumeDownloadToken(downloadToken, documentId, resolvedSource);
-
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
         String redisKey = RedisCacheKeys.presignedUrl(file.getId(), resolvedSource.name());
         String issuedUrl = redisCacheService.get(redisKey)
@@ -537,6 +535,7 @@ public class DocumentStorageService implements DocumentDownloadService {
             );
         }
 
+        consumeDownloadToken(downloadToken, documentId, resolvedSource);
         logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, resolvedSource, preauthTtlSeconds, null, "REDIRECT");
         return issuedUrl;
     }
