@@ -12,7 +12,7 @@ import com.withbuddy.global.logging.RedisFailureLogSupport;
 import com.withbuddy.global.logging.RequestUrlMaskingSupport;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
-import com.withbuddy.account.user.exception.DuplicateEmployeeNumberException;
+import com.withbuddy.admin.user.exception.DuplicateEmployeeNumberException;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;

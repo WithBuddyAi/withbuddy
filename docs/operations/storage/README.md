@@ -6,6 +6,8 @@
 
 - [RUNBOOK.md](./RUNBOOK.md): Storage API 운영 및 장애 대응 절차
 - [OPS_LOG_2026-04-11_OBJECT_STORAGE.md](./OPS_LOG_2026-04-11_OBJECT_STORAGE.md): Object Storage 작업 이력
+- [AUDIT_DOWNLOAD_GRAFANA_LOKI.md](./AUDIT_DOWNLOAD_GRAFANA_LOKI.md): 다운로드 감사 로그 Grafana/Loki 쿼리 및 알림 가이드
+- [DOWNLOAD_ACCESS_POLICY.md](./DOWNLOAD_ACCESS_POLICY.md): 다운로드 접근 차단 및 감사 로그 정책(SCRUM-366)
 
 ## 관리 원칙
 

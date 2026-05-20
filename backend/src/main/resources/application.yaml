@@ -93,6 +93,7 @@ app:
     max-document-size-mb: ${STORAGE_MAX_DOCUMENT_SIZE_MB:20}
     max-image-size-mb: ${STORAGE_MAX_IMAGE_SIZE_MB:5}
     download-url-ttl-seconds: ${STORAGE_DOWNLOAD_URL_TTL_SECONDS:300}
+    download-url-max-uses: ${STORAGE_DOWNLOAD_URL_MAX_USES:1}
     retry:
       enabled: ${STORAGE_RETRY_ENABLED:true}
       max-attempts: ${STORAGE_RETRY_MAX_ATTEMPTS:5}

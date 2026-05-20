@@ -33,12 +33,9 @@ import com.withbuddy.storage.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -47,9 +44,7 @@ import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -71,8 +66,7 @@ public class ChatMessageService {
     private static final AtomicLong AI_HTTP_500_ERROR_COUNT = new AtomicLong(0);
     private static final AtomicLong AI_NETWORK_ERROR_COUNT = new AtomicLong(0);
     private static final AtomicLong AI_OTHER_ERROR_COUNT = new AtomicLong(0);
-    private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE =
-            new TypeReference<>() {};
+    private static final TypeReference<List<ChatMessageResponse.RecommendedContactResponse>> RECOMMENDED_CONTACTS_TYPE = new TypeReference<>() {};
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
@@ -132,12 +126,7 @@ public class ChatMessageService {
                 );
 
                 MessageType answerMessageType = aiResponse.getMessageType();
-                String answerContent = sanitizeAnswerContent(aiResponse.getContent());
-                List<Long> answerDocumentIds = enrichDocumentIdsFromAnswer(
-                        companyCode,
-                        answerContent,
-                        filterExistingDocumentIds(extractDocumentIds(aiResponse))
-                );
+                List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
                 List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
                         toRecommendedContactResponses(aiResponse.getRecommendedContacts());
                 String recommendedContactsJson = serializeRecommendedContacts(recommendedContacts);
@@ -146,7 +135,7 @@ public class ChatMessageService {
                         status -> saveAnswerMessage(
                                 loginUserId,
                                 answerMessageType,
-                                answerContent,
+                                aiResponse.getContent(),
                                 answerDocumentIds,
                                 recommendedContactsJson
                         )
@@ -356,136 +345,6 @@ public class ChatMessageService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
-    }
-
-    private List<Long> enrichDocumentIdsFromAnswer(
-            String companyCode,
-            String answerContent,
-            List<Long> extractedDocumentIds
-    ) {
-        Set<Long> resolvedIds = new LinkedHashSet<>();
-        if (extractedDocumentIds != null) {
-            resolvedIds.addAll(extractedDocumentIds);
-        }
-
-        if (!StringUtils.hasText(companyCode) || !StringUtils.hasText(answerContent)) {
-            return List.copyOf(resolvedIds);
-        }
-
-        String normalizedAnswer = normalizeForMatch(answerContent);
-        if (normalizedAnswer.length() < 2) {
-            return List.copyOf(resolvedIds);
-        }
-
-        List<Document> templateDocs = documentRepository.searchDocuments(
-                        companyCode,
-                        "TEMPLATE",
-                        null,
-                        PageRequest.of(0, 100, Sort.by(Sort.Direction.DESC, "updatedAt"))
-                )
-                .getContent();
-        if (templateDocs.isEmpty()) {
-            return List.copyOf(resolvedIds);
-        }
-
-        List<Long> templateIds = templateDocs.stream()
-                .map(Document::getId)
-                .toList();
-        Map<Long, DocumentFile> templateFileMap = documentFileRepository.findByDocumentIdIn(templateIds).stream()
-                .collect(Collectors.toMap(
-                        DocumentFile::getDocumentId,
-                        Function.identity(),
-                        (existing, replacement) -> existing
-                ));
-
-        for (Document templateDoc : templateDocs) {
-            if (resolvedIds.contains(templateDoc.getId())) {
-                continue;
-            }
-
-            DocumentFile templateFile = templateFileMap.get(templateDoc.getId());
-            String fileName = templateFile == null ? null : templateFile.getOriginalFileName();
-            if (containsNormalizedKeyword(normalizedAnswer, templateDoc.getTitle())
-                    || containsNormalizedKeyword(normalizedAnswer, fileName)) {
-                resolvedIds.add(templateDoc.getId());
-            }
-        }
-
-        return List.copyOf(resolvedIds);
-    }
-
-    private String sanitizeAnswerContent(String content) {
-        if (!StringUtils.hasText(content)) {
-            return content;
-        }
-
-        String[] lines = content.split("\\R", -1);
-        List<String> sanitizedLines = new ArrayList<>(lines.length);
-        for (String rawLine : lines) {
-            String line = rawLine;
-            String trimmed = line.trim();
-
-            if (isSuspiciousPathLine(trimmed)) {
-                continue;
-            }
-
-            int pipeIndex = line.indexOf('|');
-            if (pipeIndex >= 0) {
-                String right = line.substring(pipeIndex + 1).trim();
-                if (looksLikePathFragment(right)) {
-                    line = line.substring(0, pipeIndex).trim();
-                }
-            }
-            sanitizedLines.add(line);
-        }
-
-        String sanitized = String.join("\n", sanitizedLines).replaceAll("\\n{3,}", "\n\n");
-        return sanitized.trim();
-    }
-
-    private boolean isSuspiciousPathLine(String line) {
-        if (!StringUtils.hasText(line)) {
-            return false;
-        }
-        String lower = line.toLowerCase(Locale.ROOT);
-        boolean hasPathSeparator = line.contains("\\") || line.contains("/");
-        return hasPathSeparator && (
-                lower.contains("src/main")
-                        || lower.contains("meta-inf")
-                        || lower.contains("autoconfiguration.imports")
-        );
-    }
-
-    private boolean looksLikePathFragment(String text) {
-        if (!StringUtils.hasText(text)) {
-            return false;
-        }
-        String lower = text.toLowerCase(Locale.ROOT);
-        boolean hasPathSeparator = text.contains("\\") || text.contains("/");
-        boolean hasFileLikePattern = text.matches(".*\\.[a-zA-Z0-9]{2,20}.*");
-        boolean hasSourcePathHint = lower.contains("src/main")
-                || lower.contains("meta-inf")
-                || lower.contains("autoconfiguration.imports");
-        return hasPathSeparator && (hasFileLikePattern || hasSourcePathHint);
-    }
-
-    private boolean containsNormalizedKeyword(String normalizedAnswer, String candidate) {
-        if (!StringUtils.hasText(candidate)) {
-            return false;
-        }
-        String normalizedCandidate = normalizeForMatch(candidate);
-        if (normalizedCandidate.length() < 2) {
-            return false;
-        }
-        return normalizedAnswer.contains(normalizedCandidate);
-    }
-
-    private String normalizeForMatch(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return value.toLowerCase(Locale.ROOT)
-                .replaceAll("[^0-9a-zA-Z가-힣]", "");
     }
 
     private List<Long> filterExistingDocumentIds(List<Long> documentIds) {

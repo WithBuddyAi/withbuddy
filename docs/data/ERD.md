@@ -1,12 +1,12 @@
 # ERD
 
-**현재 버전: v1.8**  
-**최종 수정일: 2026-04-30**
+**현재 버전: v2.1**
+**최종 수정일: 2026-05-20**
 
 ## 개요
-**MVP 기준 ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
+**ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
 
-현재 MVP에서는 **로그인 사용자 관리**, **사내 문서 기반 Q&A**, **입사 시점별 온보딩 가이드 제공**, **채팅형 메시지 기록 저장**, **사용자 활동 로그 저장**을 중심으로 최소한의 데이터 구조를 설계한다.
+현재 ERD는 **로그인 사용자 관리**, **회사별 부서/팀 기준정보 관리**, **사내 문서 기반 Q&A**, **입사 시점별 온보딩 가이드 제공**, **채팅형 메시지 기록 저장**, **사용자 활동 로그 저장**을 중심으로 데이터 구조를 정리한다.
 
 ---
 
@@ -35,20 +35,60 @@
 - `id` : PK, bigint
 - `company_code` : FK → `companies.company_code`
 - `role` : 사용자 역할, varchar, 기본값 `USER` (`USER`, `ADMIN`)
+- `department` : 부서, varchar(100)
+- `team_name` : 팀명, varchar(100), nullable
 - `name` : 사용자 이름, varchar
 - `employee_number` : 사번, varchar
 - `hire_date` : 입사일, date
 - `created_at` : 생성 일시, datetime
 - `updated_at` : 수정 일시, datetime
 
+### 제약조건
+- `company_code`는 `companies.company_code`를 참조한다.
+- `(company_code, employee_number)` 조합은 중복될 수 없다.
+- `(company_code, department, team_name)` 조합은 `company_organization_units(company_code, department, team_name)` 조합을 참조한다.
+- `team_name`은 팀 구분이 없는 부서의 경우 `null`을 허용한다.
+
 ### 설명
 - 사용자를 식별하기 위한 기본 정보를 저장한다.
+- `department`와 `team_name`은 사용자의 소속 조직 정보를 저장하며, 회사별 사전 등록된 조직 기준정보인 `company_organization_units`를 기준으로 관리한다.
+- `team_name`은 팀 구분이 없는 부서의 경우 `null`로 저장할 수 있다.
 - 사용자는 로그인 시 회사코드, 이름, 사번을 입력한다.
 - 서버는 입력된 회사코드로 회사를 조회한 뒤, 해당 회사의 `company_code`와 사용자 이름, 사번을 기준으로 사용자를 확인한다.
+- 계정 생성 또는 수정 시 `department`, `team_name` 값은 현재 관리자의 회사에 등록된 `company_organization_units` 기준정보에 존재하는 조합인지 검증한다.
+- `team_name`이 `null`인 경우 MySQL 복합 외래키 검증 특성상 DB 제약조건만으로 모든 케이스를 완전히 강제하기 어렵기 때문에, 서비스 로직에서도 조직 기준정보 존재 여부를 검증한다.
 
 ---
 
-## 3.1 documents
+## 3. company_organization_units
+### 역할
+회사별로 계정 생성 시 선택 가능한 부서/팀 기준정보를 저장하는 테이블이다.
+
+### 컬럼
+- `id` : PK, bigint
+- `company_code` : FK → `companies.company_code`
+- `department` : 부서명, varchar(100)
+- `team_name` : 팀명, varchar(100), nullable
+- `created_at` : 생성 일시, datetime
+- `updated_at` : 수정 일시, datetime
+
+### 제약조건
+- `company_code`는 `companies.company_code`를 참조한다.
+- `(company_code, department, team_name)` 조합은 중복될 수 없다.
+- `users(company_code, department, team_name)`는 `company_organization_units(company_code, department, team_name)` 조합을 참조한다.
+- `team_name`은 팀 구분이 없는 부서의 경우 `null`을 허용한다.
+
+### 설명
+- 계정 생성 폼에서 사용하는 부서/팀 드롭다운 또는 자동완성 옵션의 기준 데이터를 저장한다.
+- 이 테이블은 기존 `users` 데이터에서 부서/팀을 추출하기 위한 테이블이 아니라, 회사별로 사전에 등록된 조직 정보를 관리하기 위한 기준정보 테이블이다.
+- 같은 회사 안에서 동일한 부서/팀 조합은 중복 등록할 수 없다.
+- 팀 구분이 없는 부서는 `team_name`을 `null`로 저장할 수 있다.
+- 사용자의 소속 부서/팀은 `users.department`, `users.team_name`에 저장되지만, 입력 가능한 값은 이 테이블의 회사별 조직 기준정보로 제한한다.
+- 회사별 부서/팀 목록 조회 API는 `users` 테이블이 아니라 이 테이블을 기준으로 조회한다.
+
+---
+
+## 4.1 documents
 ### 역할
 사내 문서 기반 Q&A의 답변 근거가 되는 문서 저장 테이블이다.
 
@@ -74,7 +114,7 @@
 
 ---
 
-## 3.2 document_files
+## 4.2 document_files
 ### 역할
 문서 원본 파일의 저장 정보와 백업 상태를 관리하는 테이블이다.
 
@@ -111,7 +151,7 @@
 
 ---
 
-## 3.3 document_backup_jobs
+## 4.3 document_backup_jobs
 ### 역할
 문서 파일 백업 작업의 실행 이력을 저장하는 테이블이다.
 
@@ -139,7 +179,7 @@
 
 ---
 
-## 4. onboarding_suggestions
+## 5. onboarding_suggestions
 ### 역할
 입사 시점별로 사용자에게 보여줄 온보딩 가이드를 저장하는 테이블이다.
 
@@ -157,7 +197,7 @@
 
 ---
 
-## 5.1 chat_messages
+## 6.1 chat_messages
 ### 역할
 실제 채팅창에 표시되는 질문, 답변, 제안 메시지를 저장하는 테이블이다.
 
@@ -189,7 +229,7 @@
 
 ---
 
-## 5.2 chat_message_documents
+## 6.2 chat_message_documents
 ### 역할
 채팅 메시지와 근거 문서를 연결하는 매핑 테이블이다.
 
@@ -209,7 +249,7 @@
 
 ---
 
-## 6. user_activity_logs
+## 7. user_activity_logs
 ### 역할
 사용자의 세션 시작 기록과 버튼 클릭 로그를 저장하는 테이블이다.
 
@@ -237,6 +277,8 @@
 ## 테이블 관계
 #### 관계 요약
 - `companies` 1 : N `users`
+- `companies` 1 : N `company_organization_units`
+- `company_organization_units` 1 : N `users` (`company_code`, `department`, `team_name` 조합 기준)
 - `companies` 1 : N `documents`
 - `companies` 1 : N `document_files` (선택적 연결, company_code nullable)
 - `documents` 1 : 1 `document_files`
@@ -249,6 +291,8 @@
 
 #### 관계 설명
 - 회사 1개는 여러 명의 사용자를 가질 수 있다.
+- 회사 1개는 여러 개의 부서/팀 기준정보를 가질 수 있다.
+- 사용자의 `company_code`, `department`, `team_name` 조합은 회사별 조직 기준정보인 `company_organization_units`의 조합을 참조한다.
 - 회사 1개는 여러 개의 문서를 가질 수 있다.
 - 회사 1개는 여러 개의 문서 파일 메타데이터를 가질 수 있다.
 - 문서 1개는 현재 구조상 문서 파일 메타데이터 1개와 연결된다.
@@ -265,7 +309,7 @@
 - v0.1 (2026-03-16): ERD 초안 작성
 - v0.2 (2026-03-17): `users`, `documents`, `questions` 테이블에 시간 관련 컬럼(`created_at`, `updated_at`, `answered_at`) 반영
 - v0.3 (2026-03-20): `questions` 테이블을 `chat_messages` 구조로 변경하고, `onboarding_suggestions` 테이블 추가
-- v1.0 (2026-03-23): `companies` 테이블 추가, 회사 식별 구조를 `company_id` 기준으로 정리, 회사 공통 문서/회사별 문서 구분 구조 반영 및 MVP 기준 ERD 확정
+- v1.0 (2026-03-23): `companies` 테이블 추가, 회사 식별 구조를 `company_id` 기준으로 정리, 회사 공통 문서/회사별 문서 구분 구조 반영 및 ERD 구조 정리
 - v1.1 (2026-03-26): `companies` 테이블에 `company_code` 컬럼 추가 및 로그인 식별 기준 반영, `user_activity_logs` 테이블 추가, `chat_messages.message_type` 표준값 정의 및 답변 여부 해석 기준 반영
 - v1.2 (2026-03-26): `user_activity_logs`의 이벤트 유형 및 로그 수집 방식 설명 보강
 - v1.3 (2026-03-30): `documents` 테이블 `content` 수정
@@ -274,6 +318,8 @@
 - v1.6 (2026-04-14): `document_files`, `document_backup_jobs`, `chat_message_documents` 테이블 추가, 답변 메시지와 근거 문서의 다중 연결 구조 반영, 문서-파일-백업 작업 관계 설명 추가
 - v1.7 (2026-04-28): `users.role` 컬럼 추가, 일반 사용자(`USER`)와 관리자(`ADMIN`) 계정 구분 기준 반영
 - v1.8 (2026-04-30): `chat_messages` 테이블에 `recommended_contacts_json` 컬럼 추가
+- v2.0 (2026-05-19): `users.department`, `users.team_name` 컬럼 추가 및 각 컬럼 최대 길이 100자 기준 반영
+- v2.1 (2026-05-20): 회사별 부서/팀 기준정보 관리를 위한 `company_organization_units` 테이블 추가, `users.team_name` nullable 반영, `users(company_code, department, team_name)`와 `company_organization_units(company_code, department, team_name)` 간 복합 외래키 관계 반영
 
 ---
 
@@ -283,4 +329,4 @@
 ---
 
 ## 한 줄 정리
-본 ERD는 로그인 사용자 관리, 사내 문서 기반 Q&A, 입사 시점별 온보딩 가이드 제공, 채팅형 메시지 기록 저장, 사용자 활동 로그 저장에 필요한 최소 데이터 구조를 중심으로 설계하였다.
+본 ERD는 로그인 사용자 관리, 회사별 부서/팀 기준정보 관리, 사내 문서 기반 Q&A, 입사 시점별 온보딩 가이드 제공, 채팅형 메시지 기록 저장, 사용자 활동 로그 저장에 필요한 데이터 구조를 중심으로 설계하였다.
