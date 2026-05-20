@@ -63,6 +63,7 @@ public class ChatMessageService {
     private static final int MAX_HISTORY_MESSAGES = 10;
     private static final int RETRY_REUSE_WINDOW_MINUTES = 10;
     private static final AtomicLong AI_TIMEOUT_ERROR_COUNT = new AtomicLong(0);
+    private static final AtomicLong AI_OVERLOADED_529_ERROR_COUNT = new AtomicLong(0);
     private static final AtomicLong AI_HTTP_500_ERROR_COUNT = new AtomicLong(0);
     private static final AtomicLong AI_NETWORK_ERROR_COUNT = new AtomicLong(0);
     private static final AtomicLong AI_OTHER_ERROR_COUNT = new AtomicLong(0);
@@ -475,6 +476,9 @@ public class ChatMessageService {
     }
 
     private String classifyAiErrorType(Throwable throwable) {
+        if (containsStatusCode(throwable, 529) || containsKeyword(throwable, "overloaded_error")) {
+            return "OVERLOADED_529";
+        }
         if (containsStatusCode(throwable, 500)) {
             return "HTTP_500";
         }
@@ -497,6 +501,18 @@ public class ChatMessageService {
         return false;
     }
 
+    private boolean containsKeyword(Throwable throwable, String keyword) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase(Locale.ROOT).contains(keyword.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
     private boolean hasCause(Throwable throwable, Class<? extends Throwable> targetType) {
         Throwable current = throwable;
         while (current != null) {
@@ -511,6 +527,7 @@ public class ChatMessageService {
     private void logAiErrorMetric(String errorType, Long questionId, Throwable throwable) {
         long count = switch (errorType) {
             case "TIMEOUT" -> AI_TIMEOUT_ERROR_COUNT.incrementAndGet();
+            case "OVERLOADED_529" -> AI_OVERLOADED_529_ERROR_COUNT.incrementAndGet();
             case "HTTP_500" -> AI_HTTP_500_ERROR_COUNT.incrementAndGet();
             case "NETWORK" -> AI_NETWORK_ERROR_COUNT.incrementAndGet();
             default -> AI_OTHER_ERROR_COUNT.incrementAndGet();

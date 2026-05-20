@@ -5,6 +5,7 @@
 ## 문서 목록
 
 - [DEPLOYMENT-ORACLE.md](./DEPLOYMENT-ORACLE.md): Oracle Cloud 배포 가이드
+- [ai/OVERLOADED_529_GRAFANA_LOKI.md](./ai/OVERLOADED_529_GRAFANA_LOKI.md): AI 529 과부하 Grafana/Loki 쿼리 및 알림 가이드
 - [storage/README.md](./storage/README.md): 스토리지 운영 문서 인덱스
 - [storage/RUNBOOK.md](./storage/RUNBOOK.md): Storage API 운영 런북
 - [storage/OPS_LOG_2026-04-11_OBJECT_STORAGE.md](./storage/OPS_LOG_2026-04-11_OBJECT_STORAGE.md): Object Storage 작업 로그
