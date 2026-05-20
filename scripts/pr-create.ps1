@@ -18,7 +18,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "gh 인증이 필요합니다. 먼저 'gh auth login'을 실행하세요."
 }
 
-$args = @("pr", "create", "--fill", "--fill-verbose", "--base", $Base)
+$args = @("pr", "create", "--fill-verbose", "--base", $Base)
 if ($Draft) {
     $args += "--draft"
 }
