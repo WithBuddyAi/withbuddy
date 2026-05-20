@@ -12,7 +12,7 @@ import MessageList from "../components/MessageList";
 import QuickQuestions from "../components/QuickQuestions";
 import ChatInput from "../components/ChatInput";
 import SessionModal from "../components/SessionModal";
-import { setModalHandler } from "../api/axiosInstance";
+import { setModalHandler } from "../api/handlers";
 
 function MyBuddy({ setIsLoggedIn }) {
   // 세션 정책 부분

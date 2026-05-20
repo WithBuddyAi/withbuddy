@@ -88,7 +88,11 @@ function Admin({ setIsLoggedIn }) {
         />
 
         {/* 본문 영역 */}
-        <div className="relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between md:p-[40px] overflow-hidden">
+        <div
+          className={`relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between md:p-[40px] overflow-hidden ${
+            view === "new" ? "lg:max-w-[1112px]" : ""
+          }`}
+        >
           {/* 모바일 헤더 */}
           <div className="flex md:hidden items-center py-[16px] px-[24px] bg-[#EAF6FF]">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
@@ -102,14 +106,15 @@ function Admin({ setIsLoggedIn }) {
 
           {/* 본문 콘텐츠 */}
           <div className="flex-1 overflow-y-auto px-[24px] pb-[16px] md:px-0 md:pb-0">
-            {view === "main" ? (
-              // 메인 화면
+            {/* 메인 화면 */}
+            {view === "main" && (
               <AdminMainView
                 handleViewChange={handleViewChange}
                 successMessage={successMessage}
               />
-            ) : (
-              // 계정 생성 화면
+            )}
+            {/* 계정 생성 화면 */}
+            {view === "new" && (
               <AdminCreateView
                 handleViewChange={handleViewChange}
                 onSuccess={(message) => {
