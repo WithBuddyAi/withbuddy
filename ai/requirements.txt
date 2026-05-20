@@ -7,6 +7,8 @@ langchain>=0.3.0
 langchain-core>=0.3.0
 langchain-text-splitters>=0.3.0
 langchain-community>=0.3.0
+rank-bm25>=0.2.2                  # BM25 하이브리드 검색
+kiwipiepy>=0.23.0                 # 한국어 형태소 분석 (BM25 토큰화 조사 제거)
 langchain-anthropic>=0.3.0        # Claude API 연동
 langchain-huggingface>=0.1.0      # HuggingFace 임베딩 (리랭커 모델용으로 유지)
 langchain-google-genai>=2.0.0     # Gemini Embedding 2
@@ -23,8 +25,8 @@ pypdf>=4.0.0                      # PDF 파일 로드
 pymupdf>=1.24.0                   # PDF→Markdown 변환 (폰트 크기 기반 제목 감지)
 python-multipart>=0.0.9           # FastAPI 파일 업로드 (multipart/form-data)
 docx2txt>=0.8                     # DOCX 파일 로드
-requests>=2.31.0                  # 사규 PDF 다운로드 (ingest_regulations.py 용)
-beautifulsoup4>=4.12.0            # HTML 파싱 (kdn.com 사규 크롤링용)
+requests>=2.31.0                  # HTTP 클라이언트 (BE API 호출용)
+beautifulsoup4>=4.12.0            # HTML 파싱
 
 # ── Slack 연동 ───────────────────────────────
 slack_sdk>=3.27.0                 # Slack Web API 클라이언트

@@ -19,7 +19,7 @@ from core.llm import get_llm
 from core.vectorstore import search_with_company_fallback, search_legal_docs
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
-from utils.prompts import RAG_PROMPT
+from utils.prompts import RAG_PROMPT, RAG_PROMPT_CACHED
 
 def _fix_names(text: str) -> str:
     """'님 -' → '님:' 통일 및 어색한 문장 교체."""
@@ -291,7 +291,7 @@ def _dedup_answer(text: str) -> str:
 def _get_chain():
     global _chain
     if _chain is None:
-        _chain = (RAG_PROMPT | get_llm() | StrOutputParser()).with_config(
+        _chain = (RAG_PROMPT_CACHED | get_llm() | StrOutputParser()).with_config(
             {"tags": ["rag-chain"], "run_name": "withbuddy-rag"}
         )
     return _chain
@@ -300,20 +300,6 @@ def _get_chain():
 _MAX_CHUNK_CHARS = 400    # 청크당 최대 글자 수 (토큰 절약)
 _MAX_CONTEXT_CHARS = 2000  # 전체 컨텍스트 최대 글자 수
 
-# 문서 내 회사명 치환 목록 — PDF 원본의 회사명을 서비스명으로 변경
-_COMPANY_REPLACEMENTS = [
-    ("한전KDN", "테크 주식회사"),
-    ("한국전력공사", "테크 주식회사"),
-    ("한국전력", "테크 주식회사"),
-    ("KEPCO", "테크 주식회사"),
-    ("KDN", "테크 주식회사"),
-    ("한전", "테크 주식회사"),
-]
-
-def _replace_company(text: str) -> str:
-    for old, new in _COMPANY_REPLACEMENTS:
-        text = text.replace(old, new)
-    return text
 
 
 # 법령명 축약 매핑
@@ -399,7 +385,7 @@ def _format_docs(docs: List[Document]) -> str:
     parts = []
     total = 0
     for doc in docs:
-        content = _replace_company(doc.page_content[:_MAX_CHUNK_CHARS])
+        content = doc.page_content[:_MAX_CHUNK_CHARS]
         source = doc.metadata.get("source", "알 수 없음")
         entry = f"[출처: {source}]\n{content}"
         if total + len(entry) > _MAX_CONTEXT_CHARS:
@@ -712,8 +698,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     if fixed != full_answer:
         yield "\x00" + fixed, None, None, None  # \x00 prefix → 프론트에서 전체 교체 신호
-
-    save_interaction(user_id, question, fixed)
 
     # Case A: 회사 문서 없음 + 공통 법령 문서만 검색된 경우 안내 문구 추가
     if (company_code and retrieved_docs and not _is_unanswered(fixed, retrieved_docs)

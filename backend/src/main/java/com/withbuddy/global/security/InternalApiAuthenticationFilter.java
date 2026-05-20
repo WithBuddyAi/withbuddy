@@ -3,6 +3,7 @@ package com.withbuddy.global.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
+import com.withbuddy.global.logging.RequestUrlMaskingSupport;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -63,11 +64,21 @@ public class InternalApiAuthenticationFilter extends OncePerRequestFilter {
         String actualToken = request.getHeader(headerName);
 
         if (!StringUtils.hasText(expectedToken)) {
-            writeUnauthorized(response, request.getRequestURI(), headerName, "내부 API 토큰이 설정되지 않았습니다.");
+            writeUnauthorized(
+                    response,
+                    RequestUrlMaskingSupport.resolveMaskedPath(request),
+                    headerName,
+                    "내부 API 토큰이 설정되지 않았습니다."
+            );
             return;
         }
         if (!StringUtils.hasText(actualToken) || !expectedToken.equals(actualToken)) {
-            writeUnauthorized(response, request.getRequestURI(), headerName, "유효하지 않은 내부 API 토큰입니다.");
+            writeUnauthorized(
+                    response,
+                    RequestUrlMaskingSupport.resolveMaskedPath(request),
+                    headerName,
+                    "유효하지 않은 내부 API 토큰입니다."
+            );
             return;
         }
 

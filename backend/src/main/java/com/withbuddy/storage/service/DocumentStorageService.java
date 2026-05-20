@@ -30,6 +30,7 @@ import com.withbuddy.storage.repository.DocumentRepository;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -80,6 +81,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
     private record RequesterScope(
             String companyCode,
+            Long userId,
             boolean globalAccess
     ) {
     }
@@ -484,12 +486,58 @@ public class DocumentStorageService implements DocumentDownloadService {
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
 
         StorageSource source = resolveSource(file);
+        int tokenTtlSeconds = Math.max(1, storageProperties.getDownloadUrlTtlSeconds());
+        int tokenMaxUses = Math.max(1, storageProperties.getDownloadUrlMaxUses());
+        String downloadToken = issueDownloadToken(documentId, source, tokenTtlSeconds, tokenMaxUses);
+
+        return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source, downloadToken), tokenTtlSeconds, source.name());
+    }
+
+    public String issueRedirectDownloadUrl(Long documentId, StorageSource source, String downloadToken) {
+        RequesterScope requesterScope = resolveDocumentAccessScope();
+        if (!StringUtils.hasText(downloadToken)) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "BAD_REQUEST",
+                    "token",
+                    "다운로드 토큰이 필요합니다."
+            );
+        }
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+
+        validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        if (!requesterScope.globalAccess()) {
+            validateTemplateDocument(document);
+        }
+
+        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
+
+        StorageSource resolvedSource = source == null ? resolveSource(file) : source;
+        if (resolvedSource == StorageSource.BACKUP && !StringUtils.hasText(file.getBackupObjectKey())) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
+        }
+
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
-        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), source.name());
-        String downloadUrl = redisCacheService.get(redisKey)
+        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), resolvedSource.name());
+        String issuedUrl = redisCacheService.get(redisKey)
                 .filter(StringUtils::hasText)
-                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, source, redisKey, preauthTtlSeconds));
-        return new DocumentDownloadResponse(downloadUrl, preauthTtlSeconds, source.name());
+                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, resolvedSource, redisKey, preauthTtlSeconds));
+
+        if (!StringUtils.hasText(issuedUrl) || !issuedUrl.startsWith("http")) {
+            throw new StorageException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "FILE_003",
+                    "documentId",
+                    "다운로드 URL 발급에 실패했습니다."
+            );
+        }
+
+        consumeDownloadToken(downloadToken, documentId, resolvedSource);
+        logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, resolvedSource, preauthTtlSeconds, null, "REDIRECT");
+        return issuedUrl;
     }
 
     private String createAndCacheDownloadUrl(
@@ -516,6 +564,13 @@ public class DocumentStorageService implements DocumentDownloadService {
 
             if (StringUtils.hasText(preSignedUrl)) {
                 redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
+                log.info(
+                        "Pre-signed URL generated. documentId={}, source={}, ttlSeconds={}",
+                        documentId,
+                        source.name(),
+                        preauthTtlSeconds
+                );
+                redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
                 return preSignedUrl;
             }
         } catch (Exception e) {
@@ -526,7 +581,49 @@ public class DocumentStorageService implements DocumentDownloadService {
                     safeMessage(e)
             );
         }
-        return "/api/v1/documents/" + documentId + "/file?source=" + source.name();
+        return "";
+    }
+
+    private String buildInternalDownloadUrl(Long documentId, StorageSource source, String token) {
+        return "/api/v1/documents/" + documentId + "/file?source=" + source.name() + "&token=" + token;
+    }
+
+    private String issueDownloadToken(Long documentId, StorageSource source, int tokenTtlSeconds, int maxUses) {
+        String token = UUID.randomUUID().toString();
+        String tokenKey = RedisCacheKeys.downloadToken(token);
+        redisCacheService.putHash(
+                tokenKey,
+                Map.of(
+                        "documentId", String.valueOf(documentId),
+                        "source", source.name(),
+                        "remaining", String.valueOf(maxUses)
+                ),
+                Duration.ofSeconds(tokenTtlSeconds)
+        );
+        return token;
+    }
+
+    private void consumeDownloadToken(String token, Long documentId, StorageSource source) {
+        String tokenKey = RedisCacheKeys.downloadToken(token);
+        Long remaining = redisCacheService.consumeDownloadToken(tokenKey, String.valueOf(documentId), source.name());
+
+        if (remaining >= 0) {
+            return;
+        }
+        if (remaining == -2L) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "BAD_REQUEST",
+                    "token",
+                    "다운로드 토큰이 요청 대상과 일치하지 않습니다."
+            );
+        }
+        throw new StorageException(
+                HttpStatus.GONE,
+                "DOWNLOAD_TOKEN_EXPIRED",
+                "token",
+                "다운로드 토큰이 만료되었거나 사용 횟수를 초과했습니다."
+        );
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {
@@ -547,10 +644,14 @@ public class DocumentStorageService implements DocumentDownloadService {
             if (!StringUtils.hasText(file.getBackupObjectKey())) {
                 throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
             }
-            return objectStorageClient.getObject(file.getBackupNamespace(), file.getBackupBucket(), file.getBackupObjectKey());
+            byte[] payload = objectStorageClient.getObject(file.getBackupNamespace(), file.getBackupBucket(), file.getBackupObjectKey());
+            logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, source, null, payload.length, "DIRECT");
+            return payload;
         }
 
-        return objectStorageClient.getObject(file.getPrimaryNamespace(), file.getPrimaryBucket(), file.getPrimaryObjectKey());
+        byte[] payload = objectStorageClient.getObject(file.getPrimaryNamespace(), file.getPrimaryBucket(), file.getPrimaryObjectKey());
+        logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, source, null, payload.length, "DIRECT");
+        return payload;
     }
 
     public String resolveDownloadFileName(Long documentId) {
@@ -890,7 +991,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         Object principal = authentication.getPrincipal();
         if (principal instanceof StorageApiKeyPrincipal storagePrincipal) {
-            return new RequesterScope(null, storagePrincipal.globalAccess());
+            return new RequesterScope(null, null, storagePrincipal.globalAccess());
         }
         return null;
     }
@@ -923,9 +1024,44 @@ public class DocumentStorageService implements DocumentDownloadService {
                 throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
             }
 
-            return new RequesterScope(currentUser.getCompany().getCompanyCode(), false);
+            return new RequesterScope(currentUser.getCompany().getCompanyCode(), currentUser.getId(), false);
         }
         return null;
+    }
+
+    private void logDownloadAuditEvent(
+            String event,
+            RequesterScope requesterScope,
+            Document document,
+            StorageSource source,
+            Integer ttlSeconds,
+            Integer contentLength,
+            String route
+    ) {
+        String userId = requesterScope.userId() == null ? "SYSTEM" : String.valueOf(requesterScope.userId());
+        String requesterCompanyCode = StringUtils.hasText(requesterScope.companyCode()) ? requesterScope.companyCode() : "GLOBAL";
+        String documentCompanyCode = StringUtils.hasText(document.getCompanyCode()) ? document.getCompanyCode() : "COMMON";
+        String traceId = resolveTraceId();
+
+        log.info(
+                "AUDIT_DOWNLOAD event={} route={} userId={} requesterCompanyCode={} documentCompanyCode={} documentId={} source={} ttlSeconds={} contentLength={} globalAccess={} traceId={}",
+                event,
+                route,
+                userId,
+                requesterCompanyCode,
+                documentCompanyCode,
+                document.getId(),
+                source.name(),
+                ttlSeconds == null ? "-" : ttlSeconds,
+                contentLength == null ? "-" : contentLength,
+                requesterScope.globalAccess(),
+                traceId
+        );
+    }
+
+    private String resolveTraceId() {
+        String traceId = MDC.get("traceId");
+        return StringUtils.hasText(traceId) ? traceId : "-";
     }
 
     private void compensatePrimaryObject(String namespace, String bucket, String objectKey, Exception rootCause) {
