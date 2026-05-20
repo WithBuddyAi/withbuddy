@@ -285,21 +285,21 @@ body {
   }
 
   .react-datepicker__day {
-    font-size: 11px !important;
-    width: 22px !important;
-    height: 20px !important;
-    line-height: 20px !important;
-    margin: 1px !important;
+    font-size: 12px !important;
+    width: 23px !important;
+    height: 21px !important;
+    line-height: 22px !important;
+    margin: 2px !important;
   }
 
   .react-datepicker__day-name {
-    font-size: 11px !important;
-    width: 22px !important;
-    margin: 1px !important;
+    font-size: 12px !important;
+    width: 23px !important;
+    margin: 2px !important;
   }
 
   .react-datepicker__current-month {
-    font-size: 12px !important;
+    font-size: 13px !important;
   }
 
   /* 이전/다음 달 이동 버튼 */
