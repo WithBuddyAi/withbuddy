@@ -7,6 +7,7 @@ ChromaDB를 로컬 디스크(./chroma_db)에 영구 저장하고 관리합니다
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Any, List, Optional
 
@@ -196,25 +197,36 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
         raw = vs.similarity_search_with_relevance_scores(query, k=k, filter=f or None)
         return _filter_by_score(raw)
 
-    # 회사 특화 문서 검색 (TEMPLATE 제외)
+    # 필터 구성
     if category:
         company_filter = {"$and": [{"company_code": company_code}, {"category": category}, {"document_type": {"$ne": "TEMPLATE"}}]}
+        common_filter  = {"$and": [{"company_code": ""},           {"category": category}, {"document_type": {"$ne": "TEMPLATE"}}]}
     else:
         company_filter = {"$and": [{"company_code": company_code}, {"document_type": {"$ne": "TEMPLATE"}}]}
-    company_raw = vs.similarity_search_with_relevance_scores(
-        query, k=k, filter=company_filter
-    )
-    company_docs = _filter_by_score(company_raw)
+        common_filter  = {"$and": [{"company_code": ""},           {"document_type": {"$ne": "TEMPLATE"}}]}
 
-    # 공통 문서 검색 (company_code 메타데이터가 없는 문서, TEMPLATE 제외)
-    if category:
-        common_filter = {"$and": [{"company_code": ""}, {"category": category}, {"document_type": {"$ne": "TEMPLATE"}}]}
-    else:
-        common_filter = {"$and": [{"company_code": ""}, {"document_type": {"$ne": "TEMPLATE"}}]}
-    common_raw = vs.similarity_search_with_relevance_scores(
-        query, k=k, filter=common_filter
-    )
-    common_docs = _filter_by_score(common_raw)
+    bm25 = get_bm25_retriever(company_code, k=k)
+
+    # 회사 벡터 / 공통 벡터 / BM25 병렬 실행
+    def _vec_company():
+        return vs.similarity_search_with_relevance_scores(query, k=k, filter=company_filter)
+
+    def _vec_common():
+        return vs.similarity_search_with_relevance_scores(query, k=k, filter=common_filter)
+
+    def _bm25_search():
+        return bm25.invoke(query) if bm25 else []
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_company = pool.submit(_vec_company)
+        f_common  = pool.submit(_vec_common)
+        f_bm25    = pool.submit(_bm25_search)
+        company_raw  = f_company.result()
+        common_raw   = f_common.result()
+        bm25_results = f_bm25.result() if bm25 else []
+
+    company_docs = _filter_by_score(company_raw)
+    common_docs  = _filter_by_score(common_raw)
 
     # 중복 제거 (page_content 기준)
     seen = set()
@@ -228,14 +240,7 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     if not merged:
         return []
 
-    # BM25 하이브리드 검색 병합 (실패 시 벡터 결과 그대로 반환)
-    if company_code:
-        try:
-            bm25 = get_bm25_retriever(company_code, k=k)
-            if bm25:
-                bm25_results = bm25.invoke(query)
-                return _rrf_merge(merged, bm25_results, k)
-        except Exception as e:
-            logger.warning("BM25 검색 실패, 벡터 결과만 사용: %s", e)
+    if bm25_results:
+        return _rrf_merge(merged, bm25_results, k)
 
     return merged[:k]
