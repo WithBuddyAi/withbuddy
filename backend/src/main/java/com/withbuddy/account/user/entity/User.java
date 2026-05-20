@@ -40,6 +40,12 @@ public class User {
     @Column(name = "name", nullable = false, length = 20)
     private String name;
 
+    @Column(name = "department", nullable = false, length = 100)
+    private String department;
+
+    @Column(name = "team_name", nullable = false, length = 100)
+    private String teamName;
+
     @Column(name = "employee_number", nullable = false, length = 20)
     private String employeeNumber;
 
@@ -58,12 +64,16 @@ public class User {
     private User(
             Company company,
             String name,
+            String department,
+            String teamName,
             String employeeNumber,
             LocalDate hireDate,
             UserRole role
     ) {
         this.company = company;
         this.name = name;
+        this.department = department;
+        this.teamName = teamName;
         this.employeeNumber = employeeNumber;
         this.hireDate = hireDate;
         this.role = role == null ? UserRole.USER : role;
@@ -72,15 +82,35 @@ public class User {
     public static User createUser(
             Company company,
             String name,
+            String department,
+            String teamName,
             String employeeNumber,
             LocalDate hireDate
     ) {
         return User.builder()
                 .company(company)
                 .name(name)
+                .department(department)
+                .teamName(teamName)
                 .employeeNumber(employeeNumber)
                 .hireDate(hireDate)
                 .role(UserRole.USER)
                 .build();
+    }
+
+    public static User createUser(
+            Company company,
+            String name,
+            String employeeNumber,
+            LocalDate hireDate
+    ) {
+        return createUser(
+                company,
+                name,
+                "-",
+                "-",
+                employeeNumber,
+                hireDate
+        );
     }
 }

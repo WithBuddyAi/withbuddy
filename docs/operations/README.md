@@ -8,6 +8,8 @@
 - [storage/README.md](./storage/README.md): 스토리지 운영 문서 인덱스
 - [storage/RUNBOOK.md](./storage/RUNBOOK.md): Storage API 운영 런북
 - [storage/OPS_LOG_2026-04-11_OBJECT_STORAGE.md](./storage/OPS_LOG_2026-04-11_OBJECT_STORAGE.md): Object Storage 작업 로그
+- [storage/AUDIT_DOWNLOAD_GRAFANA_LOKI.md](./storage/AUDIT_DOWNLOAD_GRAFANA_LOKI.md): 다운로드 감사 로그 Grafana/Loki 쿼리 및 알림 가이드
+- [storage/DOWNLOAD_ACCESS_POLICY.md](./storage/DOWNLOAD_ACCESS_POLICY.md): 다운로드 접근 차단 및 감사 로그 정책(SCRUM-366)
 
 ## 관리 원칙
 
