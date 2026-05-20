@@ -61,6 +61,13 @@ async def lifespan(_: FastAPI):
         except Exception as e:
             logger.warning("ChromaDB 웜업 실패(무시): %s", e)
         try:
+            from core.vectorstore import get_bm25_retriever
+            await asyncio.to_thread(get_bm25_retriever, "WB0001")
+            await asyncio.to_thread(get_bm25_retriever, "WB0002")
+            logger.warning("BM25 인덱스 웜업 완료")
+        except Exception as e:
+            logger.warning("BM25 웜업 실패(무시): %s", e)
+        try:
             from agents.orchestrator import _get_intent_chain
             await asyncio.to_thread(_get_intent_chain)
             logger.warning("Intent 체인 웜업 완료")

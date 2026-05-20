@@ -6,6 +6,7 @@ ChromaDB를 로컬 디스크(./chroma_db)에 영구 저장하고 관리합니다
 싱글톤 패턴(@lru_cache)으로 앱 실행 중 한 번만 연결합니다.
 """
 
+import hashlib
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
@@ -107,13 +108,15 @@ _kiwi_instance = None
 _BM25_CONTENT_TAGS = {"NNG", "NNP", "SL", "SH", "SN"}
 
 
+@lru_cache(maxsize=512)
 def _tokenize_ko(text: str) -> List[str]:
     """kiwipiepy 형태소 분석 — 명사/고유명사/외국어만 추출 (BM25 토큰화용)"""
     global _kiwi_instance
     try:
         from kiwipiepy import Kiwi
         if _kiwi_instance is None:
-            _kiwi_instance = Kiwi()
+            # sbg: skip-bigram 경량 모델 (ARM neon 비지원 환경에서도 빠름), num_workers=0: 단일 스레드
+            _kiwi_instance = Kiwi(model_type='sbg', num_workers=0)
         return [t.form for t in _kiwi_instance.tokenize(text)
                 if t.tag in _BM25_CONTENT_TAGS]
     except Exception:
@@ -169,6 +172,22 @@ def _rrf_merge(vec_docs: List[Document], bm25_docs: List[Document], k: int) -> L
     return [doc_map[key] for key in ranked[:k]]
 
 
+_SEARCH_CACHE_TTL = 1800  # 30분
+
+
+def _search_cache_key(query: str, company_code: str, category: str, k: int) -> str:
+    raw = f"{query}|{company_code}|{category}|{k}"
+    return "search:" + hashlib.md5(raw.encode()).hexdigest()
+
+
+def _docs_to_json(docs: List[Document]) -> list:
+    return [{"page_content": d.page_content, "metadata": d.metadata} for d in docs]
+
+
+def _json_to_docs(data: list) -> List[Document]:
+    return [Document(page_content=d["page_content"], metadata=d.get("metadata", {})) for d in data]
+
+
 def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.30, category: str = "") -> List[Document]:
     """
     ST-027: company_code 기준 벡터 DB 격리 검색
@@ -186,6 +205,16 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     Returns:
         List[Document]: 중복 제거 + 점수 필터링된 검색 결과
     """
+    # 캐시 체크
+    _cache_key = _search_cache_key(query, company_code, category, k)
+    try:
+        from core.be_client import cache_get, cache_set
+        cached = cache_get("search", _cache_key)
+        if cached:
+            return _json_to_docs(cached)
+    except Exception:
+        pass
+
     vs = get_vectorstore()
 
     def _filter_by_score(results: List[tuple]) -> List[Document]:
@@ -240,7 +269,12 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     if not merged:
         return []
 
-    if bm25_results:
-        return _rrf_merge(merged, bm25_results, k)
+    result = _rrf_merge(merged, bm25_results, k) if bm25_results else merged[:k]
 
-    return merged[:k]
+    try:
+        from core.be_client import cache_get, cache_set
+        cache_set("search", _cache_key, _docs_to_json(result), _SEARCH_CACHE_TTL)
+    except Exception:
+        pass
+
+    return result
