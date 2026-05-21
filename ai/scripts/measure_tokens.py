@@ -24,7 +24,7 @@ load_dotenv()
 from core.llm import get_llm
 from core.vectorstore import search_with_company_fallback
 from utils.prompts import RAG_PROMPT_CACHED
-from chains.rag_chain import _get_hr_contact, _get_it_contact, _get_company_specific_rules
+from chains.retriever import get_hr_contact as _get_hr_contact, get_it_contact as _get_it_contact, get_company_specific_rules as _get_company_specific_rules
 
 COMPANY_CODE = "WB0001"
 COMPANY_NAME = "테크주식회사"
