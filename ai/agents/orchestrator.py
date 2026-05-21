@@ -329,7 +329,7 @@ def chitchat_agent_node(state: AgentState) -> dict:
     if state.get("answer"):
         return {}
     from datetime import date as _date
-    from chains.rag_chain import _get_company_name
+    from chains.retriever import get_company_name as _get_company_name
     hire_info = ""
     hire_date = state.get("hire_date", "")
     if hire_date:
