@@ -128,10 +128,18 @@ def load_context_node(state: AgentState) -> dict:
     """사용자 프로필 + 회사 정보 + 대화 히스토리 로드."""
     from memory.chat_history import get_history_as_text, get_chat_history
     from chains.rag_chain import _detect_user_style
-    profile = get_profile(state["user_id"])
-    company_info = get_company_info()
-    chat_history = get_history_as_text(state["user_id"])
-    chat_history_msgs = get_chat_history(state["user_id"])
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        f_profile      = pool.submit(get_profile, state["user_id"])
+        f_company_info = pool.submit(get_company_info)
+        f_history_text = pool.submit(get_history_as_text, state["user_id"])
+        f_history_msgs = pool.submit(get_chat_history, state["user_id"])
+        profile         = f_profile.result()
+        company_info    = f_company_info.result()
+        chat_history    = f_history_text.result()
+        chat_history_msgs = f_history_msgs.result()
+
     user_style = _detect_user_style(chat_history_msgs, state["message"])
     return {
         "profile": profile,
@@ -156,12 +164,16 @@ _ARTICLE_PATTERN = _re.compile(r"제?\d+조")
 
 
 
+_INTENT_CACHE_TTL = 1800  # 30분
+
+
 def classify_intent_node(state: AgentState) -> dict:
     """메시지 의도 분류."""
+    import hashlib
     msg = state["message"]
     user_name = state.get("user_name", "")
 
-    # 민감 키워드 감지 → 즉시 응대 (RAG 차단)
+    # 민감 키워드 감지 → 즉시 응대 (RAG 차단, 캐시 불필요)
     action, answer = check_sensitive(msg, user_name)
     if action in ("block", "sensitive"):
         return {"intent": "chitchat", "extra_context": "", "answer": answer}
@@ -169,9 +181,22 @@ def classify_intent_node(state: AgentState) -> dict:
     if any(kw in msg for kw in _LABOR_LAW_KEYWORDS) or _ARTICLE_PATTERN.search(msg):
         intent = "rag"
     else:
-        raw = _get_intent_chain().invoke({"message": msg}).strip().lower()
-        valid = ["out_of_scope_internal", "out_of_scope_external", "communication", "preboarding", "company_info", "chitchat", "rag"]
-        intent = next((v for v in valid if v in raw), "rag")
+        cache_key = "intent:" + hashlib.md5(msg.encode()).hexdigest()
+        intent = None
+        try:
+            from core.be_client import cache_get, cache_set
+            intent = cache_get("intent", cache_key)
+        except Exception:
+            pass
+
+        if not intent:
+            raw = _get_intent_chain().invoke({"message": msg}).strip().lower()
+            valid = ["out_of_scope_internal", "out_of_scope_external", "communication", "preboarding", "company_info", "chitchat", "rag"]
+            intent = next((v for v in valid if v in raw), "rag")
+            try:
+                cache_set("intent", cache_key, intent, _INTENT_CACHE_TTL)
+            except Exception:
+                pass
 
     extra_context = ""
     if intent == "company_info":
