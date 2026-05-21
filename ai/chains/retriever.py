@@ -129,8 +129,8 @@ def check_ambiguous(question: str) -> str | None:
 
 # ── 문서 포맷팅 ────────────────────────────────────────────────
 
-_MAX_CHUNK_CHARS = 400
-_MAX_CONTEXT_CHARS = 2000
+_MAX_CHUNK_CHARS = 600
+_MAX_CONTEXT_CHARS = 3000
 
 _LEGAL_SOURCE_NAMES = {
     "index_근로기준법": "근로기준법",
