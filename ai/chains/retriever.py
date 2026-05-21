@@ -129,8 +129,8 @@ def check_ambiguous(question: str) -> str | None:
 
 # ── 문서 포맷팅 ────────────────────────────────────────────────
 
-_MAX_CHUNK_CHARS = 400
-_MAX_CONTEXT_CHARS = 2000
+_MAX_CHUNK_CHARS = 600
+_MAX_CONTEXT_CHARS = 3000
 
 _LEGAL_SOURCE_NAMES = {
     "index_근로기준법": "근로기준법",
@@ -194,11 +194,13 @@ def format_legal_answer(docs: List[Document], question: str, company_code: str =
     return result
 
 
-def format_docs(docs: List[Document]) -> str:
+def format_docs(docs: List[Document]) -> tuple[str, List[Document]]:
+    """LLM에 전달할 문서 텍스트와 실제 포함된 docs를 함께 반환."""
     if not docs:
-        return "관련 문서를 찾을 수 없습니다."
+        return "관련 문서를 찾을 수 없습니다.", []
 
     parts = []
+    included = []
     total = 0
     for doc in docs:
         content = doc.page_content[:_MAX_CHUNK_CHARS]
@@ -207,14 +209,21 @@ def format_docs(docs: List[Document]) -> str:
         if total + len(entry) > _MAX_CONTEXT_CHARS:
             break
         parts.append(entry)
+        included.append(doc)
         total += len(entry)
 
-    return "\n\n".join(parts)
+    return "\n\n".join(parts), included
 
 
-def extract_sources(docs: List[Document]) -> str:
-    sources = {doc.metadata.get("source", "알 수 없음") for doc in docs}
-    return ", ".join(sources) if sources else "알 수 없음"
+def extract_sources(docs: List[Document], max_sources: int = 2) -> str:
+    seen: list[str] = []
+    for doc in docs:
+        src = doc.metadata.get("source", "알 수 없음")
+        if src not in seen:
+            seen.append(src)
+        if len(seen) >= max_sources:
+            break
+    return ", ".join(seen) if seen else "알 수 없음"
 
 
 # ── 템플릿 문서 매칭 ───────────────────────────────────────────
@@ -328,7 +337,6 @@ def retrieve(
         )
 
     docs, _ = _do_search(question, company_code)
-    source_names = extract_sources(docs)
     template_ids, template_titles = match_template_docs(company_code, question)
     doc_ids = list(
         {int(d.metadata["doc_id"]) for d in docs
@@ -338,15 +346,15 @@ def retrieve(
 
     if is_direct_legal_question(question):
         return RetrievalResult(
-            question=question, docs=docs, source_names=source_names,
+            question=question, docs=docs, source_names=extract_sources(docs, max_sources=5),
             template_ids=template_ids, template_titles=template_titles,
             formatted_context="", doc_ids=doc_ids,
             direct_legal_answer=format_legal_answer(docs, question, company_code),
         )
 
-    formatted_context = _build_context(docs, template_titles, question)
+    formatted_context, included_docs = _build_context(docs, template_titles, question)
     return RetrievalResult(
-        question=question, docs=docs, source_names=source_names,
+        question=question, docs=docs, source_names=extract_sources(included_docs),
         template_ids=template_ids, template_titles=template_titles,
         formatted_context=formatted_context, doc_ids=doc_ids,
     )
@@ -371,7 +379,6 @@ async def async_retrieve(
 
     loop = asyncio.get_event_loop()
     docs, _ = await loop.run_in_executor(None, _do_search, question, company_code)
-    source_names = extract_sources(docs)
     template_ids, template_titles = match_template_docs(company_code, question)
     doc_ids = list(
         {int(d.metadata["doc_id"]) for d in docs
@@ -381,22 +388,22 @@ async def async_retrieve(
 
     if is_direct_legal_question(question):
         return RetrievalResult(
-            question=question, docs=docs, source_names=source_names,
+            question=question, docs=docs, source_names=extract_sources(docs, max_sources=5),
             template_ids=template_ids, template_titles=template_titles,
             formatted_context="", doc_ids=doc_ids,
             direct_legal_answer=format_legal_answer(docs, question, company_code),
         )
 
-    formatted_context = _build_context(docs, template_titles, question)
+    formatted_context, included_docs = _build_context(docs, template_titles, question)
     return RetrievalResult(
-        question=question, docs=docs, source_names=source_names,
+        question=question, docs=docs, source_names=extract_sources(included_docs),
         template_ids=template_ids, template_titles=template_titles,
         formatted_context=formatted_context, doc_ids=doc_ids,
     )
 
 
-def _build_context(docs: List[Document], template_titles: List[str], question: str) -> str:
-    ctx = format_docs(docs)
+def _build_context(docs: List[Document], template_titles: List[str], question: str) -> tuple[str, List[Document]]:
+    ctx, included = format_docs(docs)
     if template_titles:
         ctx = f"📎 이 답변 하단 카드에 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n\n" + ctx
     else:
@@ -406,4 +413,4 @@ def _build_context(docs: List[Document], template_titles: List[str], question: s
             "⚠️ 아래는 법령 원문입니다. 각 항목(1., 2., 3., 4. ...)의 문장을 절대 바꾸거나 해석하지 말고 원문 그대로 전달하세요.\n\n"
             + ctx
         )
-    return ctx
+    return ctx, included
