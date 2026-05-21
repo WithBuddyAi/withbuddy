@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Login from "./pages/Login";
 import MyBuddy from "./pages/MyBuddy";
 import Admin from "./pages/Admin";
-import { setLogoutHandler } from "./api/axiosInstance";
+import { setLogoutHandler } from "./api/handlers";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(
