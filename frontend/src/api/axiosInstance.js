@@ -1,15 +1,5 @@
 import axios from "axios";
-
-let logoutHandler = null;
-let modalHandler = null;
-
-export const setLogoutHandler = (handler) => {
-  logoutHandler = handler;
-};
-
-export const setModalHandler = (handler) => {
-  modalHandler = handler;
-};
+import { getLogoutHandler, getModalHandler } from "./handlers";
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -30,8 +20,12 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error) => {
+    const logoutHandler = getLogoutHandler();
+    const modalHandler = getModalHandler();
+
     if (error.response?.status === 401) {
       const code = error.response?.data?.code;
+
       // 세션 모달을 띄워야 하는 경우
       if (code === "SESSION_EXPIRED" || code === "SESSION_REVOKED") {
         if (modalHandler)
@@ -56,6 +50,18 @@ axiosInstance.interceptors.response.use(
         return Promise.reject(error);
       }
     }
+
+    // 권한 없음 → 로그아웃 처리
+    if (error.response?.status === 403) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("dayCount");
+      localStorage.removeItem("hireDate");
+      localStorage.removeItem("name");
+      localStorage.removeItem("role");
+      if (logoutHandler) logoutHandler();
+      return Promise.reject(error);
+    }
+
     return Promise.reject(error);
   },
 );
