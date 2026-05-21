@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
 import axiosInstance from "../../api/axiosInstance";
 
+// 키보드 허용 키 '아래 화살표 | 위 화살표 | Enter | ESC | Tab'
+const allowedKeys = ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"];
+
 function AdminCreateView({ handleViewChange, onSuccess }) {
   // 계정 생성 시 필요한 정보에 대한 State
   const [name, setName] = useState("");
@@ -24,19 +27,15 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
   const [teamSuggestions, setTeamSuggestions] = useState([]);
   const [showDeptSuggestions, setShowDeptSuggestions] = useState(false);
   const [showTeamSuggestions, setShowTeamSuggestions] = useState(false);
+  const deptBlurTimer = useRef(null);
+  const teamBlurTimer = useRef(null);
   // 부서/팀 활성 인덱스
   const [activeDeptIndex, setActiveDeptIndex] = useState(-1);
   const [activeTeamIndex, setActiveTeamIndex] = useState(-1);
 
-  // 키보드 허용 키 '아래 화살표 | 위 화살표 | Enter | ESC | Tab'
-  const allowedKeys = ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"];
-
   // 로딩 스피너
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-
-  // DatePicker ref (아이콘 클릭 시 달력 열기)
-  const datePickerRef = useRef(null);
 
   useEffect(() => {
     const fetchOrgOptions = async () => {
@@ -84,29 +83,6 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
     }
   };
 
-  // 부서 입력 핸들러
-  const handleDepartmentChange = (e) => {
-    const value = e.target.value;
-    setDepartment(value);
-    setDepartmentError("");
-    setTeamName("");
-    setTeamNameError("");
-    setTeamOptions([]);
-    setActiveDeptIndex(-1);
-
-    if (value) {
-      const filtered = orgOptions
-        .filter((d) => d.department.includes(value))
-        .map((d) => d.department);
-      setDeptSuggestions(filtered);
-      setShowDeptSuggestions(filtered.length > 0);
-    } else {
-      const all = orgOptions.map((d) => d.department);
-      setDeptSuggestions(all);
-      setShowDeptSuggestions(all.length > 0);
-    }
-  };
-
   // 부서 선택 시
   const handleDeptSelect = (dept) => {
     setDepartment(dept);
@@ -121,22 +97,6 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
       setTeamName(dept); // ← 팀 구분이 없는 부서면 부서명 자동 입력
     } else {
       setTeamName(""); // ← 팀 구분이 있는 부서면 초기화
-    }
-  };
-
-  // 팀 입력 핸들러
-  const handleTeamNameChange = (e) => {
-    const value = e.target.value;
-    setTeamName(value);
-    setTeamNameError("");
-    setActiveTeamIndex(-1);
-
-    if (value && teamOptions.length > 0) {
-      const filtered = teamOptions.filter((t) => t.includes(value));
-      setTeamSuggestions(filtered);
-      setShowTeamSuggestions(filtered.length > 0);
-    } else {
-      setShowTeamSuggestions(false);
     }
   };
 
@@ -326,10 +286,10 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
             </label>
             <div className="relative">
               <input
+                readOnly
                 className={`${inputClass(departmentError)} caret-transparent cursor-pointer`}
                 value={department}
-                onChange={handleDepartmentChange}
-                onFocus={() => {
+                onClick={() => {
                   const filtered = orgOptions.map((d) => d.department);
                   setDeptSuggestions(filtered);
                   setShowDeptSuggestions(filtered.length > 0);
@@ -362,12 +322,13 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
                       setActiveDeptIndex(-1);
                     }
                   } else if (e.key === "Escape") {
+                    clearTimeout(deptBlurTimer.current);
                     setShowDeptSuggestions(false);
                     setActiveDeptIndex(-1);
                   }
                 }}
                 onBlur={() => {
-                  setTimeout(() => {
+                  deptBlurTimer.current = setTimeout(() => {
                     setShowDeptSuggestions(false);
                     setActiveDeptIndex(-1);
                   }, 150);
@@ -407,10 +368,10 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
             </label>
             <div className="relative">
               <input
+                readOnly
                 className={`${inputClass(teamNameError)} caret-transparent cursor-pointer`}
                 value={teamName}
-                onChange={handleTeamNameChange}
-                onFocus={() => {
+                onClick={() => {
                   if (teamOptions.length > 0) {
                     setTeamSuggestions(teamOptions);
                     setShowTeamSuggestions(true);
@@ -445,12 +406,13 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
                       setActiveTeamIndex(-1);
                     }
                   } else if (e.key === "Escape") {
+                    clearTimeout(teamBlurTimer.current);
                     setShowTeamSuggestions(false);
                     setActiveTeamIndex(-1);
                   }
                 }}
                 onBlur={() => {
-                  setTimeout(() => {
+                  teamBlurTimer.current = setTimeout(() => {
                     setShowTeamSuggestions(false);
                     setActiveTeamIndex(-1);
                   }, 150);
@@ -503,7 +465,6 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
                 className="w-full focus:outline-none text-[14px] bg-transparent"
               />
               <DatePicker
-                ref={datePickerRef}
                 selected={hireDate}
                 onChange={handleHireDateChange}
                 dateFormat="yyyy-MM-dd"

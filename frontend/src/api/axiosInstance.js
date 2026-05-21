@@ -62,6 +62,10 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    if (error.response?.status === 529) {
+      console.warn("[529] 서버 과부하 상태 - 요청 경로:", error.config?.url);
+    }
+    
     return Promise.reject(error);
   },
 );
