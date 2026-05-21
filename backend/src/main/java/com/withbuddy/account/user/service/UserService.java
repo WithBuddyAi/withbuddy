@@ -11,12 +11,14 @@ import com.withbuddy.account.user.dto.response.CreateUserResponse;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.account.user.exception.DuplicateEmployeeNumberException;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserService {
+    private static final String USER_COMPANY_EMPLOYEE_UNIQUE_CONSTRAINT = "uq_users_company_employee";
 
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
@@ -70,7 +72,10 @@ public class UserService {
                     request.getHireDate()
             ));
         } catch (DataIntegrityViolationException e) {
-            throw new DuplicateEmployeeNumberException();
+            if (isDuplicateEmployeeNumberConstraint(e)) {
+                throw new DuplicateEmployeeNumberException();
+            }
+            throw e;
         }
 
         return new CreateUserResponse(
@@ -83,5 +88,27 @@ public class UserService {
                 user.getHireDate(),
                 user.getCreatedAt()
         );
+    }
+
+    private boolean isDuplicateEmployeeNumberConstraint(DataIntegrityViolationException exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException constraintViolationException
+                    && isUserCompanyEmployeeConstraint(constraintViolationException.getConstraintName())) {
+                return true;
+            }
+
+            if (isUserCompanyEmployeeConstraint(cause.getMessage())) {
+                return true;
+            }
+
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
+    private boolean isUserCompanyEmployeeConstraint(String value) {
+        return value != null
+                && value.toLowerCase().contains(USER_COMPANY_EMPLOYEE_UNIQUE_CONSTRAINT.toLowerCase());
     }
 }
