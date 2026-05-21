@@ -22,7 +22,7 @@ TEST_SET = [
     {"id": "Q05", "cat": "ONBOARDING", "q": "입사 첫날 진행 순서는 어떻게 되나요?", "kw": ["김지수", "이메일", "Slack"]},
     {"id": "Q06", "cat": "ONBOARDING", "q": "4대보험은 따로 신청해야 하나요?", "kw": ["자동", "신청"]},
     {"id": "Q07", "cat": "ONBOARDING", "q": "주차 등록은 어떻게 하나요?", "kw": ["jisoo.kim", "차량번호"]},
-    {"id": "Q08", "cat": "ONBOARDING", "q": "IT 계정이나 VPN 문제는 누구에게 물어봐야 하나요?", "kw": ["박민준", "minjun"]},
+    {"id": "Q08", "cat": "ONBOARDING", "q": "IT 계정이나 VPN 문제는 누구에게 물어봐야 하나요?", "kw": ["IT 담당자", "#help-it"]},
     {"id": "Q09", "cat": "ONBOARDING", "q": "연차나 급여, 증명서 관련 문의는 누구에게 하나요?", "kw": ["경영지원팀", "김지수"]},
     {"id": "Q10", "cat": "ONBOARDING", "q": "입사 첫날 계정 세팅은 어떤 순서로 하나요?", "kw": ["Gmail", "MFA", "Slack"]},
 
