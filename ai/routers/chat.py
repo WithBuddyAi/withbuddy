@@ -95,7 +95,8 @@ async def chat_stream(request: ChatRequest):
     """
     async def event_generator():
         try:
-            from chains.rag_chain import _resolve_selection, _fix_names
+            from chains.rag_chain import _fix_names
+            from chains.retriever import resolve_selection as _resolve_selection
             from memory.chat_history import get_chat_history as _get_history
             # 2-7: 숫자 선택("1"~"4")을 이전 ambiguous 응답과 매핑
             uid = str(request.user.userId)
@@ -479,7 +480,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
                 for m in chat_history[-6:]
             ) if chat_history else ""
-            from chains.rag_chain import _get_company_name
+            from chains.retriever import get_company_name as _get_company_name
             from datetime import date as _date
             _today_str = _date.today().strftime("%Y년 %m월 %d일")
             from agents.orchestrator import _SUPPORT_TEAM as _ST
