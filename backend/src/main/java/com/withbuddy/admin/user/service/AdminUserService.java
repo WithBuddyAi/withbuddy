@@ -13,6 +13,7 @@ import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +29,7 @@ import java.time.temporal.ChronoUnit;
 @Service
 public class AdminUserService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final String USER_COMPANY_EMPLOYEE_UNIQUE_CONSTRAINT = "uq_users_company_employee";
 
     private final AdminUserRepository adminUserRepository;
     private final CompanyRepository companyRepository;
@@ -70,7 +72,10 @@ public class AdminUserService {
                     request.getHireDate()
             ));
         } catch (DataIntegrityViolationException e) {
-            throw new DuplicateEmployeeNumberException();
+            if (isDuplicateEmployeeNumberConstraint(e)) {
+                throw new DuplicateEmployeeNumberException();
+            }
+            throw e;
         }
 
         return new CreateUserResponse(
@@ -178,5 +183,27 @@ public class AdminUserService {
 
     private long calculateHireDay(LocalDate hireDate) {
         return ChronoUnit.DAYS.between(hireDate, LocalDate.now(KST)) + 1;
+    }
+
+    private boolean isDuplicateEmployeeNumberConstraint(DataIntegrityViolationException exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException constraintViolationException
+                    && isUserCompanyEmployeeConstraint(constraintViolationException.getConstraintName())) {
+                return true;
+            }
+
+            if (isUserCompanyEmployeeConstraint(cause.getMessage())) {
+                return true;
+            }
+
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
+    private boolean isUserCompanyEmployeeConstraint(String value) {
+        return value != null
+                && value.toLowerCase().contains(USER_COMPANY_EMPLOYEE_UNIQUE_CONSTRAINT.toLowerCase());
     }
 }
