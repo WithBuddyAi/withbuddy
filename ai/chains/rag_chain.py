@@ -72,6 +72,28 @@ def pop_token_usage() -> dict:
     return result
 
 
+_last_category = ""
+
+
+def pop_category() -> str:
+    """마지막 RAG 검색의 카테고리를 반환하고 초기화."""
+    global _last_category
+    result = _last_category
+    _last_category = ""
+    return result
+
+
+def _extract_category(docs: List[Document]) -> str:
+    """검색된 문서에서 가장 많이 등장한 category 메타데이터를 반환."""
+    if not docs:
+        return ""
+    from collections import Counter
+    cats = [d.metadata.get("category", "") for d in docs if d.metadata.get("category")]
+    if not cats:
+        return ""
+    return Counter(cats).most_common(1)[0][0]
+
+
 def _fix_names(text: str) -> str:
     """'님 -' → '님:' 통일 및 어색한 문장 교체."""
     text = re.sub(r'님\s*[-–]', '님:', text)
@@ -294,6 +316,9 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
             if hr_team not in answer:
                 answer += f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
 
+    global _last_category
+    _last_category = _extract_category(result.docs)
+
     save_interaction(user_id, result.question, answer)
     related_docs = find_related_docs(result.question)
 
@@ -415,6 +440,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             yield contact_msg, None, None, None
             fixed += contact_msg
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code))
+
+    global _last_category
+    _last_category = _extract_category(result.docs)
 
     save_interaction(user_id, result.question, fixed)
     related_docs = find_related_docs(result.question)
