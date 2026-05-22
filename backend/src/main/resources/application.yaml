@@ -79,6 +79,9 @@ app:
     queue-analytics: ${RABBITMQ_QUEUE_ANALYTICS:q.analytics}
     queue-internal-tasks: ${RABBITMQ_QUEUE_INTERNAL_TASKS:q.internal.tasks}
     queue-internal-tasks-dlq: ${RABBITMQ_QUEUE_INTERNAL_TASKS_DLQ:q.internal.tasks.dlq}
+    internal-tasks-routing-key: ${RABBITMQ_INTERNAL_TASKS_ROUTING_KEY:internal.tasks.requested}
+    internal-tasks-dlq-routing-key: ${RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY:dlq.internal.tasks}
+    internal-tasks-dlq-routing-key-legacy: ${RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY_LEGACY:internal.tasks.dlq}
     nudge-ttl-ms: ${RABBITMQ_NUDGE_TTL_MS:86400000}
     analytics-ttl-ms: ${RABBITMQ_ANALYTICS_TTL_MS:30000}
     listener-prefetch: ${RABBITMQ_LISTENER_PREFETCH:10}

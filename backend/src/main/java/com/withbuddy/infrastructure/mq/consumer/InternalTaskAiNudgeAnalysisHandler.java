@@ -47,6 +47,7 @@ public class InternalTaskAiNudgeAnalysisHandler implements InternalTaskHandler {
             result.put("callbackSent", false);
             return result;
         }
+        String callbackUrl = message.callbackUrl().trim();
 
         ObjectNode callbackBody = objectMapper.createObjectNode();
         callbackBody.put("event", "TASK_COMPLETED");
@@ -58,7 +59,7 @@ public class InternalTaskAiNudgeAnalysisHandler implements InternalTaskHandler {
         try {
             String rawBody = objectMapper.writeValueAsString(callbackBody);
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(message.callbackUrl()))
+                    .uri(URI.create(callbackUrl))
                     .timeout(Duration.ofSeconds(resolveTimeoutSeconds(message.timeoutSeconds())))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(rawBody))
