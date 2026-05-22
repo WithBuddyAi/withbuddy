@@ -8,6 +8,7 @@ POST /chat/stream : SSE 스트리밍 질의응답 (토큰 단위 실시간 출�
 import asyncio
 import json
 import re
+import time
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -130,7 +131,7 @@ async def chat_stream(request: ChatRequest):
                         from routers.recommend import get_contact_for_question
                         contact = await get_contact_for_question(request.user.companyCode, request.content)
                         contacts = [contact]
-                    doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])]
+                    doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])][:2]
                     yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                     pass  # 내부 스테이지 마커는 클라이언트에 전달하지 않음
@@ -246,6 +247,8 @@ class InternalAIAnswerResponse(BaseModel):
     outputTokens: int = 0
     cacheReadTokens: int = 0
     cacheCreationTokens: int = 0
+    latencyMs: int = 0
+    category: str = ""
 
 
 def _build_documents(doc_ids: list[int], company_code: str = "") -> list[dict]:
@@ -409,6 +412,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
 @router.post("/internal/ai/answer", response_model=InternalAIAnswerResponse, tags=["internal"])
 async def internal_ai_answer(request: InternalAIAnswerRequest):
     """백엔드 서버 → AI 서버 내부 연동 엔드포인트 (10초 타임아웃)"""
+    _req_start = time.time()
     # 욕설·극단적 위기 → 전체 차단 (복합 질문 여부 무관)
     action, answer = check_global_block(request.content, request.user.name)
     if action == "block":
@@ -631,8 +635,10 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         contact = await get_contact_for_question(request.user.companyCode, request.content)
         recommended_contacts = [contact]
 
-    from chains.rag_chain import pop_token_usage
+    from chains.rag_chain import pop_token_usage, pop_category
     tok = pop_token_usage()
+    category = pop_category()
+    latency_ms = int((time.time() - _req_start) * 1000)
 
     return InternalAIAnswerResponse(
         questionId=request.questionId,
@@ -650,6 +656,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         outputTokens=tok["output_tokens"],
         cacheReadTokens=tok["cache_read"],
         cacheCreationTokens=tok["cache_creation"],
+        latencyMs=latency_ms,
+        category=category,
     )
 
 
@@ -660,10 +668,12 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
     def _delta(text: str) -> str:
         return f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': text}, ensure_ascii=False)}\n\n"
 
-    def _completed(msg_type: str, content: str, documents: list, contacts: list, tok: dict) -> str:
+    _req_start = time.time()
+
+    def _completed(msg_type: str, content: str, documents: list, contacts: list, tok: dict, latency_ms: int = 0, category: str = "") -> str:
         return (
             f"event: answer_completed\n"
-            f"data: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': content, 'documents': documents, 'recommendedContacts': contacts, 'inputTokens': tok.get('input_tokens', 0), 'outputTokens': tok.get('output_tokens', 0), 'cacheReadTokens': tok.get('cache_read', 0), 'cacheCreationTokens': tok.get('cache_creation', 0)}, ensure_ascii=False)}\n\n"
+            f"data: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': content, 'documents': documents, 'recommendedContacts': contacts, 'inputTokens': tok.get('input_tokens', 0), 'outputTokens': tok.get('output_tokens', 0), 'cacheReadTokens': tok.get('cache_read', 0), 'cacheCreationTokens': tok.get('cache_creation', 0), 'latencyMs': latency_ms, 'category': category}, ensure_ascii=False)}\n\n"
         )
 
     async def event_generator():
@@ -858,8 +868,10 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                                     None, _build_documents, rag_doc_ids or [], request.user.companyCode
                                 ))[:2]
                             )
+                            from chains.rag_chain import pop_category as _pop_cat
                             tok = _pop_tok()
-                            yield _completed(msg_type, full_answer, doc_ids_list, recommended_contacts, tok)
+                            latency_ms = int((time.time() - _req_start) * 1000)
+                            yield _completed(msg_type, full_answer, doc_ids_list, recommended_contacts, tok, latency_ms, _pop_cat())
 
                         elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                             pass
