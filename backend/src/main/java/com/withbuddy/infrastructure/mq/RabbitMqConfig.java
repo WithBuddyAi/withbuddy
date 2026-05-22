@@ -15,6 +15,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,10 +49,13 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue internalTasksQueue(AppRabbitMqProperties properties) {
-        return QueueBuilder.durable(properties.queueInternalTasks())
+        Queue queue = QueueBuilder.durable(properties.queueInternalTasks())
                 .withArgument("x-dead-letter-exchange", properties.exchange())
-                .withArgument("x-dead-letter-routing-key", "dlq.internal.tasks")
+                .withArgument("x-dead-letter-routing-key", properties.internalTasksDlqRoutingKey())
                 .build();
+        // Existing environments can have immutable queue args from older deploys.
+        queue.setIgnoreDeclarationExceptions(true);
+        return queue;
     }
 
     @Bean
@@ -79,23 +83,58 @@ public class RabbitMqConfig {
         Binding internalTasksBinding = BindingBuilder
                 .bind(internalTasksQueue)
                 .to(appExchange)
-                .with("internal.tasks.#");
+                .with(properties.internalTasksRoutingKey());
         Binding internalTasksDlqBinding = BindingBuilder
                 .bind(internalTasksDlqQueue)
                 .to(appExchange)
-                .with("dlq.internal.tasks");
+                .with(properties.internalTasksDlqRoutingKey());
+        Binding internalTasksDlqLegacyBinding = BindingBuilder
+                .bind(internalTasksDlqQueue)
+                .to(appExchange)
+                .with(properties.internalTasksDlqRoutingKeyLegacy());
 
         return new Declarables(
                 nudgeBinding,
                 analyticsBinding,
                 internalTasksBinding,
-                internalTasksDlqBinding
+                internalTasksDlqBinding,
+                internalTasksDlqLegacyBinding
         );
     }
 
     @Bean
     public MessageConverter messageConverter() {
         return new Jackson2JsonMessageConverter();
+    }
+
+    @Bean
+    public ApplicationRunner internalTasksLegacyBindingCleanup(
+            RabbitTemplate rabbitTemplate,
+            AppRabbitMqProperties properties
+    ) {
+        return args -> {
+            try {
+                rabbitTemplate.execute(channel -> {
+                    channel.queueUnbind(
+                            properties.queueInternalTasks(),
+                            properties.exchange(),
+                            "internal.tasks.#"
+                    );
+                    return null;
+                });
+                log.info(
+                        "[RMQ] legacy binding removed. queue={}, exchange={}, routingKey=internal.tasks.#",
+                        properties.queueInternalTasks(),
+                        properties.exchange()
+                );
+            } catch (Exception e) {
+                log.warn(
+                        "[RMQ] legacy binding cleanup skipped. queue={}, reason={}",
+                        properties.queueInternalTasks(),
+                        e.getMessage()
+                );
+            }
+        };
     }
 
     @Bean
