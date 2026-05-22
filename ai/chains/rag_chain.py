@@ -10,6 +10,7 @@ import asyncio
 import re
 from typing import AsyncGenerator, Tuple, List
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import StrOutputParser
@@ -23,6 +24,53 @@ from chains.retriever import (
     resolve_selection, check_ambiguous,
     get_company_name, get_hr_contact, get_it_contact, get_company_specific_rules,
 )
+
+class _TokenCounter(BaseCallbackHandler):
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.input_tokens    = 0
+        self.output_tokens   = 0
+        self.cache_read      = 0
+        self.cache_creation  = 0
+
+    def on_llm_end(self, response, **kwargs):
+        for gen_list in response.generations:
+            for gen in gen_list:
+                msg = getattr(gen, "message", None)
+                if msg and hasattr(msg, "usage_metadata") and msg.usage_metadata:
+                    u = msg.usage_metadata
+                    self.input_tokens   += u.get("input_tokens", 0)
+                    self.output_tokens  += u.get("output_tokens", 0)
+                    d = u.get("input_token_details") or {}
+                    self.cache_read     += d.get("cache_read", 0)
+                    self.cache_creation += d.get("cache_creation", 0)
+
+
+_token_counter      = _TokenCounter()
+_counter_registered = False
+
+
+def _ensure_counter():
+    global _counter_registered
+    if not _counter_registered:
+        llm = get_llm()
+        llm.callbacks = list(llm.callbacks or []) + [_token_counter]
+        _counter_registered = True
+
+
+def pop_token_usage() -> dict:
+    """마지막 run_rag_chain 호출의 토큰 사용량을 반환하고 초기화."""
+    result = {
+        "input_tokens":   _token_counter.input_tokens,
+        "output_tokens":  _token_counter.output_tokens,
+        "cache_read":     _token_counter.cache_read,
+        "cache_creation": _token_counter.cache_creation,
+    }
+    _token_counter.reset()
+    return result
+
 
 def _fix_names(text: str) -> str:
     """'님 -' → '님:' 통일 및 어색한 문장 교체."""
@@ -167,6 +215,9 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         Tuple[str, str, List[dict], List[int]]: (AI 답변, 출처 문서명, 관련 양식 목록, 문서 ID 목록)
     """
     from routers.docs import find_related_docs
+
+    _ensure_counter()
+    _token_counter.reset()
 
     chat_history = injected_history if injected_history is not None else get_chat_history(user_id)
 
