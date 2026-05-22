@@ -90,11 +90,11 @@ def run_one(item: dict, q_num: int) -> dict:
     payload = {
         "questionId": q_num,
         "user": {
-            "userId": 9999,
+            "userId": 9900000 + q_num,
             "name": "테스트",
             "companyCode": COMPANY_CODE,
             "companyName": COMPANY_NAME,
-            "hireDate": "",
+            "hireDate": "2026-03-01",
         },
         "content": item["q"],
         "conversationHistory": [],
