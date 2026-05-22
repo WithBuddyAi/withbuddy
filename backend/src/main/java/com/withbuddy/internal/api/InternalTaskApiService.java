@@ -18,6 +18,7 @@ import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,7 +45,8 @@ public class InternalTaskApiService {
 
     public TaskCreateResponse create(TaskCreateRequest request) {
         validateCallbackUrl(request.callbackUrl());
-        String normalizedType = request.type().trim();
+        String normalizedType = request.type().trim().toLowerCase(Locale.ROOT);
+        validateTaskType(normalizedType);
         String idempotencyKey = normalizeIdempotencyKey(request.idempotencyKey());
         if (idempotencyKey != null) {
             Optional<TaskCreateResponse> duplicated = getByIdempotencyKey(idempotencyKey);
@@ -130,6 +132,7 @@ public class InternalTaskApiService {
                     "터미널 상태 task만 재시도할 수 있습니다. currentStatus=" + state.status
             );
         }
+        validateTaskType(state.type);
 
         String now = nowUtc();
         String newTaskId = UUID.randomUUID().toString();
@@ -326,6 +329,12 @@ public class InternalTaskApiService {
 
     private String nowUtc() {
         return OffsetDateTime.now(ZoneOffset.UTC).toString();
+    }
+
+    private void validateTaskType(String taskType) {
+        if (!InternalTaskTypePolicy.isAllowed(taskType)) {
+            throw new IllegalArgumentException("허용되지 않은 task type 입니다. allowedTypes=" + InternalTaskTypePolicy.allowedTypes());
+        }
     }
 
     private String taskRedisKey(String taskId) {
