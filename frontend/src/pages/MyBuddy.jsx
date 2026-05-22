@@ -107,8 +107,6 @@ function MyBuddy({ setIsLoggedIn }) {
         setModalType("redis");
         return;
       }
-      const serverMessage = error.response?.data?.errors?.[0]?.message;
-      setErrorMessage(serverMessage || "에러가 발생했어요");
     }
   };
 
@@ -158,10 +156,12 @@ function MyBuddy({ setIsLoggedIn }) {
           setQuickQuestion(quickResponse.value.data.quickQuestions);
         }
       } catch (error) {
-        const serverMessage = error.response?.data?.errors?.[0]?.message;
-        setErrorMessage(
-          serverMessage || "에러가 발생했어요. 다시 시도해 주세요.",
-        );
+        if (error.response) {
+          const serverMessage = error.response?.data?.errors?.[0]?.message;
+          setErrorMessage(
+            serverMessage || "에러가 발생했어요. 다시 시도해 주세요.",
+          );
+        }
       } finally {
         setIsLoading(false);
       }
@@ -498,7 +498,11 @@ function MyBuddy({ setIsLoggedIn }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(objectUrl);
     } catch (error) {
-      setErrorMessage("파일 다운로드에 실패했어요. 다시 시도해 주세요.");
+      if (error.response?.status === 404) {
+        setErrorMessage("해당 문서를 찾을 수 없어요.");
+      } else {
+        setErrorMessage("파일 다운로드에 실패했어요. 다시 시도해 주세요.");
+      }
     }
   };
 
