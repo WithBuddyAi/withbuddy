@@ -130,7 +130,7 @@ async def chat_stream(request: ChatRequest):
                         from routers.recommend import get_contact_for_question
                         contact = await get_contact_for_question(request.user.companyCode, request.content)
                         contacts = [contact]
-                    doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])]
+                    doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])][:2]
                     yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                     pass  # 내부 스테이지 마커는 클라이언트에 전달하지 않음
