@@ -13,7 +13,8 @@ from langchain_core.documents import Document
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
-from chains.rag_chain import _format_docs, _fix_names, _detect_user_style
+from chains.rag_chain import _fix_names, _detect_user_style
+from chains.retriever import format_docs as _format_docs
 from core.llm import get_llm
 from core.vectorstore import search_legal_docs, search_with_company_fallback
 from memory.chat_history import get_chat_history, save_interaction
