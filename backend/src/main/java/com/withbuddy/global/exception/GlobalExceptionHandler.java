@@ -375,7 +375,7 @@ public class GlobalExceptionHandler {
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
                 HttpStatus.NOT_FOUND.value(),
                 HttpStatus.NOT_FOUND.getReasonPhrase(),
-                "NOT_FOUND",
+                null,
                 errors,
                 resolveMaskedPath(request)
         );
