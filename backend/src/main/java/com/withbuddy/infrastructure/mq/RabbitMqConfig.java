@@ -33,11 +33,6 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public Queue reportQueue(AppRabbitMqProperties properties) {
-        return QueueBuilder.durable(properties.queueReport()).build();
-    }
-
-    @Bean
     public Queue nudgeQueue(AppRabbitMqProperties properties) {
         return QueueBuilder.durable(properties.queueNudge())
                 .withArgument("x-message-ttl", properties.nudgeTtlMs())
@@ -53,22 +48,26 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue internalTasksQueue(AppRabbitMqProperties properties) {
-        return QueueBuilder.durable(properties.queueInternalTasks()).build();
+        return QueueBuilder.durable(properties.queueInternalTasks())
+                .withArgument("x-dead-letter-exchange", properties.exchange())
+                .withArgument("x-dead-letter-routing-key", "dlq.internal.tasks")
+                .build();
+    }
+
+    @Bean
+    public Queue internalTasksDlqQueue(AppRabbitMqProperties properties) {
+        return QueueBuilder.durable(properties.queueInternalTasksDlq()).build();
     }
 
     @Bean
     public Declarables appBindings(
             TopicExchange appExchange,
-            Queue reportQueue,
             Queue nudgeQueue,
             Queue analyticsQueue,
             Queue internalTasksQueue,
+            Queue internalTasksDlqQueue,
             AppRabbitMqProperties properties
     ) {
-        Binding reportBinding = BindingBuilder
-                .bind(reportQueue)
-                .to(appExchange)
-                .with(properties.queueReport());
         Binding nudgeBinding = BindingBuilder
                 .bind(nudgeQueue)
                 .to(appExchange)
@@ -81,12 +80,16 @@ public class RabbitMqConfig {
                 .bind(internalTasksQueue)
                 .to(appExchange)
                 .with("internal.tasks.#");
+        Binding internalTasksDlqBinding = BindingBuilder
+                .bind(internalTasksDlqQueue)
+                .to(appExchange)
+                .with("dlq.internal.tasks");
 
         return new Declarables(
-                reportBinding,
                 nudgeBinding,
                 analyticsBinding,
-                internalTasksBinding
+                internalTasksBinding,
+                internalTasksDlqBinding
         );
     }
 

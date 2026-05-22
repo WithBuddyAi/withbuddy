@@ -75,17 +75,17 @@ app:
       token: ${INTERNAL_API_TOKEN:${INTERNAL_API_KEY:${STORAGE_API_KEY_VALUE:}}}
   rabbitmq:
     exchange: ${RABBITMQ_EXCHANGE:withbuddy.events}
-    queue-report: ${RABBITMQ_QUEUE_REPORT:withbuddy.report}
     queue-nudge: ${RABBITMQ_QUEUE_NUDGE:q.nudge}
     queue-analytics: ${RABBITMQ_QUEUE_ANALYTICS:q.analytics}
     queue-internal-tasks: ${RABBITMQ_QUEUE_INTERNAL_TASKS:q.internal.tasks}
+    queue-internal-tasks-dlq: ${RABBITMQ_QUEUE_INTERNAL_TASKS_DLQ:q.internal.tasks.dlq}
     nudge-ttl-ms: ${RABBITMQ_NUDGE_TTL_MS:86400000}
     analytics-ttl-ms: ${RABBITMQ_ANALYTICS_TTL_MS:30000}
     listener-prefetch: ${RABBITMQ_LISTENER_PREFETCH:10}
     listener-max-attempts: ${RABBITMQ_LISTENER_MAX_ATTEMPTS:3}
   internal-task-consumer:
     enabled: ${INTERNAL_TASK_CONSUMER_ENABLED:false}
-    dry-run: ${INTERNAL_TASK_CONSUMER_DRY_RUN:true}
+    dry-run: ${INTERNAL_TASK_CONSUMER_DRY_RUN:false}
     concurrency: ${INTERNAL_TASK_CONSUMER_CONCURRENCY:1}
   storage:
     provider: ${STORAGE_PROVIDER:local}
