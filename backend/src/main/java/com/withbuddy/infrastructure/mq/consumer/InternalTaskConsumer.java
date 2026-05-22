@@ -82,10 +82,11 @@ public class InternalTaskConsumer {
             safeMarkFailed(message, ex);
             log.error("[INTERNAL_TASK] processing failed. deliveryTag={}", deliveryTag, ex);
             try {
-                channel.basicAck(deliveryTag, false);
-            } catch (Exception ackEx) {
-                log.error("[INTERNAL_TASK] ack failed after error. deliveryTag={}", deliveryTag, ackEx);
-                throw new IllegalStateException("[INTERNAL_TASK] ack failed after processing error", ackEx);
+                // 실패 메시지는 DLQ로 이관되도록 requeue=false로 nack 처리한다.
+                channel.basicNack(deliveryTag, false, false);
+            } catch (Exception nackEx) {
+                log.error("[INTERNAL_TASK] nack failed after error. deliveryTag={}", deliveryTag, nackEx);
+                throw new IllegalStateException("[INTERNAL_TASK] nack failed after processing error", nackEx);
             }
         }
     }

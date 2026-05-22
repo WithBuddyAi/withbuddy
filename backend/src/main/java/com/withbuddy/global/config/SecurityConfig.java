@@ -72,6 +72,9 @@ public class SecurityConfig {
                     ).permitAll();
 
                     auth.requestMatchers(request -> request.getRequestURI().startsWith("/api/v1/documents")).permitAll();
+                    auth.requestMatchers("/internal/v1/**").hasAuthority("ROLE_INTERNAL_API");
+                    auth.requestMatchers("/api/v1/messaging/**").hasAuthority("ROLE_INTERNAL_API");
+                    auth.requestMatchers("/api/v1/admin/**").authenticated();
 
                     auth.anyRequest().permitAll();
                 });
