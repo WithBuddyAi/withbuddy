@@ -49,13 +49,10 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue internalTasksQueue(AppRabbitMqProperties properties) {
-        Queue queue = QueueBuilder.durable(properties.queueInternalTasks())
+        return QueueBuilder.durable(properties.queueInternalTasks())
                 .withArgument("x-dead-letter-exchange", properties.exchange())
                 .withArgument("x-dead-letter-routing-key", properties.internalTasksDlqRoutingKey())
                 .build();
-        // Existing environments can have immutable queue args from older deploys.
-        queue.setIgnoreDeclarationExceptions(true);
-        return queue;
     }
 
     @Bean
