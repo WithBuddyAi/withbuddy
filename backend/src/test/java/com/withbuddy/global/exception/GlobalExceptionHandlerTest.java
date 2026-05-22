@@ -3,9 +3,11 @@ package com.withbuddy.global.exception;
 import com.withbuddy.global.dto.ErrorResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,5 +30,24 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getPath()).isEqualTo("/api/v1/auth/logout");
         assertThat(response.getBody().getErrors()).isNotEmpty();
         assertThat(response.getBody().getErrors().get(0).getField()).isEqualTo("server");
+    }
+
+    @Test
+    void mapsNoResourceFoundToNotFound404() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/not/exist");
+
+        ResponseEntity<ErrorResponse> response = handler.handleNotFoundException(
+                new NoResourceFoundException(HttpMethod.GET, "/not/exist"),
+                request
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getStatus()).isEqualTo(404);
+        assertThat(response.getBody().getCode()).isEqualTo("NOT_FOUND");
+        assertThat(response.getBody().getPath()).isEqualTo("/not/exist");
+        assertThat(response.getBody().getErrors()).isNotEmpty();
+        assertThat(response.getBody().getErrors().get(0).getField()).isEqualTo("path");
     }
 }
