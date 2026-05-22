@@ -307,6 +307,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     """
     from routers.docs import find_related_docs
 
+    _ensure_counter()
+    _token_counter.reset()
+
     chat_history = injected_history if injected_history is not None else get_chat_history(user_id)
 
     # 모호한 질문은 __STAGE__searching 전에 처리 (UX: 검색 중 표시 안 함)
