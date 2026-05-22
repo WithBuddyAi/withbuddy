@@ -3233,6 +3233,34 @@ Authorization: Bearer {accessToken}
 
 ---
 
+### 10-8. 관리자 API 에러 기준 (구현 기준, SCRUM-325)
+
+적용 범위:
+- `GET/POST /api/v1/admin/users/**`
+- `GET /api/v1/admin/organization-options`
+- `GET /api/v1/admin/metrics/**`
+- `GET/POST/DELETE /api/v1/admin/documents/**`
+
+| HTTP | code | 대표 발생 조건 | 구현 기준 |
+|---|---|---|---|
+| 401 | `TOKEN_MISSING` | 인증 헤더 누락 | 공통 인증 필터/문서 API 인증 스코프 검증에서 반환 |
+| 401 | `INVALID_TOKEN` | 토큰 위변조, 서명 불일치, DB에서 현재 사용자 조회 실패 | `UnauthorizedException` 처리 기준 |
+| 401 | `SESSION_EXPIRED` | 토큰 만료, 세션 만료/비활성 | JWT/세션 예외 처리 기준 |
+| 401 | `SESSION_REVOKED` | 세션 강제 무효화 | 세션 무효화 예외 처리 기준 |
+| 401 | `USER_NOT_FOUND` | JWT는 유효하지만 문서 API에서 사용자 조회 실패 | `DocumentStorageService`의 `StorageException` 기준 |
+| 403 | `ACCESS_DENIED` | 관리자 권한 부족(`ADMIN`/`SERVICE_ADMIN` 불일치) | `ForbiddenException` 처리 기준 |
+| 403 | `RESOURCE_004` | 타 회사 문서 접근/삭제 시도 | 문서 API 회사 경계 검증 기준 |
+| 404 | `NOT_FOUND` | 문서/파일 메타데이터 없음, 존재하지 않는 API 경로 호출 | `StorageException(NOT_FOUND)` + `NoResourceFoundException` 처리 기준 |
+| 409 | `DUPLICATE_EMPLOYEE_NUMBER` | 동일 회사 사번 중복 생성 | 신입 계정 생성 API UNIQUE 제약/중복 검사 기준 |
+| 500 | `INTERNAL_SERVER_ERROR` | 미분류 서버 예외 | 전역 `Exception` fallback |
+| 500 | `FILE_003` | 문서 업로드/메타데이터 저장/파일 읽기 실패 | 문서 저장소 내부 예외 처리 기준 |
+
+추가 정합성:
+- 존재하지 않는 API 경로는 `500`이 아니라 `404 NOT_FOUND`를 반환한다.
+- 관리자 API FE 에러 화면 분기 시 우선순위는 `status` -> `code` 순으로 처리한다.
+
+---
+
 ## 11. 변경 이력
 
 - **v1.0.0 (2026-03-10)**:
@@ -3296,3 +3324,6 @@ Authorization: Bearer {accessToken}
   - 신입 계정 생성 API에 `department`, `teamName` 필드를 추가. 각 필드 최대 길이 100자 검증 규칙을 반영. 관리자 계정 페이지에서 신입 사원 계정 목록을 조회할 수 있는 `GET /api/v1/admin/users` 명세를 추가.
 - **v2.1.1 (2026-05-20)**:
   - 관리자 계정 페이지에서 회사별 부서/팀명 선택 옵션을 조회할 수 있는 `GET /api/v1/admin/organization-options` 명세를 추가.
+- **v2.1.2 (2026-05-22)**:
+  - 관리자 API 에러 기준(401/403/404/409/500)과 대표 사례(계정 없음/권한 없음/문서 없음/중복)를 구현 기준으로 명시.
+  - 존재하지 않는 API 경로 호출 시 응답을 `404 NOT_FOUND`로 정리.
