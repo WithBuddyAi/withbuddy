@@ -50,7 +50,7 @@ public class RabbitMqConfig {
     public Queue internalTasksQueue(AppRabbitMqProperties properties) {
         return QueueBuilder.durable(properties.queueInternalTasks())
                 .withArgument("x-dead-letter-exchange", properties.exchange())
-                .withArgument("x-dead-letter-routing-key", "internal.tasks.dlq")
+                .withArgument("x-dead-letter-routing-key", "dlq.internal.tasks")
                 .build();
     }
 
@@ -83,7 +83,7 @@ public class RabbitMqConfig {
         Binding internalTasksDlqBinding = BindingBuilder
                 .bind(internalTasksDlqQueue)
                 .to(appExchange)
-                .with("internal.tasks.dlq");
+                .with("dlq.internal.tasks");
 
         return new Declarables(
                 nudgeBinding,
