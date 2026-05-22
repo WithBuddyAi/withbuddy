@@ -393,9 +393,9 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
     docs_list = (
         []
         if message_type in ("no_result", "out_of_scope")
-        else await asyncio.get_event_loop().run_in_executor(
+        else (await asyncio.get_event_loop().run_in_executor(
             None, _build_documents, doc_ids, company_code
-        )
+        ))[:2]
     )
     return InternalAIAnswerResponse(
         questionId=request.questionId,
@@ -641,9 +641,9 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         documents=(
             []
             if message_type in ("no_result", "out_of_scope")
-            else await asyncio.get_event_loop().run_in_executor(
+            else (await asyncio.get_event_loop().run_in_executor(
                 None, _build_documents, doc_ids, request.user.companyCode
-            )
+            ))[:2]
         ),
         recommendedContacts=recommended_contacts,
         inputTokens=tok["input_tokens"],
@@ -854,9 +854,9 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                             doc_ids_list = (
                                 []
                                 if msg_type in ("no_result", "out_of_scope")
-                                else await asyncio.get_event_loop().run_in_executor(
+                                else (await asyncio.get_event_loop().run_in_executor(
                                     None, _build_documents, rag_doc_ids or [], request.user.companyCode
-                                )
+                                ))[:2]
                             )
                             tok = _pop_tok()
                             yield _completed(msg_type, full_answer, doc_ids_list, recommended_contacts, tok)
