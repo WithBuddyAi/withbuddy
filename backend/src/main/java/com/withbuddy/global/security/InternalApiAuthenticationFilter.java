@@ -28,6 +28,7 @@ import java.util.List;
 public class InternalApiAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String INTERNAL_API_PREFIX = "/internal/v1/";
+    private static final String MESSAGING_API_PREFIX = "/api/v1/messaging/";
     private static final String INTERNAL_ROLE = "ROLE_INTERNAL_API";
 
     private final InternalApiSecurityProperties properties;
@@ -43,7 +44,8 @@ public class InternalApiAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith(INTERNAL_API_PREFIX);
+        String uri = request.getRequestURI();
+        return !uri.startsWith(INTERNAL_API_PREFIX) && !uri.startsWith(MESSAGING_API_PREFIX);
     }
 
     @Override

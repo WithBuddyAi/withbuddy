@@ -27,6 +27,8 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -358,6 +360,29 @@ public class GlobalExceptionHandler {
         RedisFailureLogSupport.logRedisFailure(log, request, e);
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNotFoundException(
+            Exception e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("path", "요청한 경로를 찾을 수 없습니다.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.NOT_FOUND.value(),
+                HttpStatus.NOT_FOUND.getReasonPhrase(),
+                null,
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        log.warn("Not found: path={}, message={}", resolveMaskedPath(request), e.getMessage());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     @ExceptionHandler(Exception.class)

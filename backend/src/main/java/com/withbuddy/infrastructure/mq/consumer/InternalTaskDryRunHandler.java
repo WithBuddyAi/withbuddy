@@ -16,7 +16,7 @@ import java.time.ZoneOffset;
 @Component
 @RequiredArgsConstructor
 @Order(Ordered.LOWEST_PRECEDENCE)
-@ConditionalOnProperty(prefix = "app.internal-task-consumer", name = "dry-run", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "app.internal-task-consumer", name = "dry-run", havingValue = "true")
 public class InternalTaskDryRunHandler implements InternalTaskHandler {
 
     private final ObjectMapper objectMapper;

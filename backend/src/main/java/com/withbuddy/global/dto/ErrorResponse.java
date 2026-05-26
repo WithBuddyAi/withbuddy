@@ -1,5 +1,6 @@
 package com.withbuddy.global.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
@@ -19,6 +20,7 @@ public class ErrorResponse {
     private final String error;
 
     @Schema(description = "에러 코드", example = "UNAUTHORIZED")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private final String code;
 
     @Schema(description = "에러 메시지", example = "입력하신 정보를 다시 확인해 주세요")
