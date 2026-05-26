@@ -103,6 +103,7 @@ function MyBuddy({ setIsLoggedIn }) {
       setMessageList([...message.messages]);
     } catch (error) {
       if (error.response?.status === 503) {
+        error.handled = true;
         setRetryBt(() => () => handleDateChange(date));
         setModalType("redis");
         return;
@@ -298,6 +299,7 @@ function MyBuddy({ setIsLoggedIn }) {
           }
         }
         if (response.status === 503) {
+          error.handled = true;
           setRetryBt(() => () => handleSubmit(null, sendText));
           setModalType("redis");
           return;

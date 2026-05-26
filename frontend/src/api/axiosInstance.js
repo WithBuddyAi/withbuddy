@@ -72,11 +72,12 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // 503 세션 저장소 장애 → 토스트
     if (error.response?.status === 503) {
-      showToast(
-        "서버에 일시적인 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
-      );
+      if (!error.handled) {
+        showToast(
+          "서버에 일시적인 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+        );
+      }
       return Promise.reject(error);
     }
 
