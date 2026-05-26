@@ -561,7 +561,6 @@ public class ChatMessageService {
         }
     }
 
-    @Transactional
     public ChatMessage saveSuggestionMessageIfNotExists(Long userId, Long suggestionId, String content) {
         return chatMessageRepository.findTopByUserIdAndSuggestionIdAndMessageTypeOrderByCreatedAtDesc(
                 userId,
@@ -591,7 +590,6 @@ public class ChatMessageService {
         ).orElse(null);
     }
 
-    @Transactional
     public ChatMessage saveNudgeMessage(Long userId, Long suggestionId, String content) {
         if (suggestionId != null) {
             return saveSuggestionMessageIfNotExists(userId, suggestionId, content);
