@@ -2,12 +2,18 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { UserRoundCog, Menu } from "lucide-react";
 import axiosInstance from "../api/axiosInstance";
+import SessionModal from "../components/SessionModal";
+import { setModalHandler } from "../api/handlers";
 import LogoutModal from "../components/LogoutModal";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminMainView from "../components/admin/AdminMainView";
 import AdminCreateView from "../components/admin/AdminCreateView";
 
 function Admin({ setIsLoggedIn }) {
+  // 세션 정책
+  const [modalType, setModalType] = useState(null);
+  const [retryBt, setRetryBt] = useState(null);
+
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
   const [isLogoutModal, setIsLogoutModal] = useState(false);
@@ -38,6 +44,10 @@ function Admin({ setIsLoggedIn }) {
     setView(newView);
   };
 
+  useEffect(() => {
+    setModalHandler((type) => setModalType(type));
+  }, []);
+
   // 계정 생성 완료 토스트
   useEffect(() => {
     if (successMessage) {
@@ -50,6 +60,13 @@ function Admin({ setIsLoggedIn }) {
 
   return (
     <div className="h-screen flex relative overflow-hidden">
+      {/* 세션 정책 */}
+      <SessionModal
+        modalType={modalType}
+        setModalType={setModalType}
+        handleRetry={retryBt}
+        setIsLoggedIn={setIsLoggedIn}
+      />
       {/* 로그아웃 모달 */}
       <LogoutModal
         isLogoutModal={isLogoutModal}
@@ -59,7 +76,7 @@ function Admin({ setIsLoggedIn }) {
 
       <div
         className="flex flex-1 relative overflow-hidden"
-        inert={isLogoutModal ? true : undefined}
+        inert={isLogoutModal || modalType !== null ? true : undefined}
       >
         {/* 배경 이미지 */}
         <div
