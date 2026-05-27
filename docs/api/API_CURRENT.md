@@ -1009,6 +1009,26 @@ Connection: keep-alive
 > SSE 응답은 일반 JSON 응답처럼 하나의 완성된 Body를 반환하지 않는다.  
 > 서버는 이벤트를 순차적으로 전송하고, 프론트엔드는 이벤트를 수신하는 즉시 화면 상태를 갱신한다.
 
+#### Error Response (403 Forbidden)
+
+`INACTIVE_USER` 권한 사용자가 질문 전송을 시도한 경우 스트림 시작 전에 아래 응답을 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-27T13:31:46.629199100Z",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "ACCESS_DENIED",
+  "errors": [
+    {
+      "field": "role",
+      "message": "비활성 사용자는 질문을 전송할 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
 #### SSE Event 목록
 
 | 이벤트명 | 발생 시점 | 설명 |
@@ -1798,7 +1818,7 @@ ALTER TABLE users
 관리자 계정 페이지에서 현재 관리자의 회사에 등록된 신입 사원 계정 목록을 조회한다.
 
 ```http
-GET /api/v1/admin/users?page=0&size=10&department=개발팀&teamName=백엔드팀&
+GET /api/v1/admin/users?page=0&size=10&department=개발팀&teamName=백엔드팀
 Authorization: Bearer {accessToken}
 ```
 
