@@ -76,7 +76,7 @@ public class User {
         this.teamName = teamName;
         this.employeeNumber = employeeNumber;
         this.hireDate = hireDate;
-        this.role = role == null ? UserRole.USER : role;
+        this.role = role == null ? UserRole.ACTIVE_USER : role;
     }
 
     public static User createUser(
@@ -94,7 +94,7 @@ public class User {
                 .teamName(teamName)
                 .employeeNumber(employeeNumber)
                 .hireDate(hireDate)
-                .role(UserRole.USER)
+                .role(UserRole.ACTIVE_USER)
                 .build();
     }
 

@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+
 @Repository
 public interface AdminUserRepository extends JpaRepository<User, Long> {
 
@@ -21,13 +23,13 @@ public interface AdminUserRepository extends JpaRepository<User, Long> {
             select u
             from User u
             where u.company.companyCode = :companyCode
-              and u.role = :role
+              and u.role in :roles
               and (:department is null or lower(u.department) like lower(concat('%', :department, '%')))
               and (:teamName is null or lower(u.teamName) like lower(concat('%', :teamName, '%')))
             """)
     Page<User> searchUsers(
             @Param("companyCode") String companyCode,
-            @Param("role") UserRole role,
+            @Param("roles") Collection<UserRole> roles,
             @Param("department") String department,
             @Param("teamName") String teamName,
             Pageable pageable

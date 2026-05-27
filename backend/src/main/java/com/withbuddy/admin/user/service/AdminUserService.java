@@ -10,6 +10,9 @@ import com.withbuddy.account.company.entity.Company;
 import com.withbuddy.account.company.repository.CompanyRepository;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.buddy.chat.entity.MessageType;
+import com.withbuddy.buddy.chat.entity.SenderType;
+import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
@@ -25,6 +28,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Service
 public class AdminUserService {
@@ -33,13 +37,16 @@ public class AdminUserService {
 
     private final AdminUserRepository adminUserRepository;
     private final CompanyRepository companyRepository;
+    private final ChatMessageRepository chatMessageRepository;
 
     public AdminUserService(
             AdminUserRepository adminUserRepository,
-            CompanyRepository companyRepository
+            CompanyRepository companyRepository,
+            ChatMessageRepository chatMessageRepository
     ) {
         this.adminUserRepository = adminUserRepository;
         this.companyRepository = companyRepository;
+        this.chatMessageRepository = chatMessageRepository;
     }
 
     @Transactional
@@ -105,10 +112,10 @@ public class AdminUserService {
 
         Page<User> userPage = adminUserRepository.searchUsers(
                 companyCode,
-                UserRole.USER,
+                List.of(UserRole.ACTIVE_USER, UserRole.INACTIVE_USER),
                 normalizeFilter(department, "department"),
                 normalizeFilter(teamName, "teamName"),
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
+                PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "hireDate"))
         );
 
         return new UserListResponse(
@@ -170,14 +177,27 @@ public class AdminUserService {
                 user.getCompany().getCompanyCode(),
                 user.getCompany().getName(),
                 user.getEmployeeNumber(),
-                user.getDepartment(),
-                user.getTeamName(),
+                formatDepartmentTeam(user.getDepartment(), user.getTeamName()),
                 user.getName(),
                 user.getRole().name(),
                 user.getHireDate(),
                 calculateHireDay(user.getHireDate()),
+                countUserQuestions(user.getId()),
+                user.getRole() == UserRole.ACTIVE_USER,
                 user.getCreatedAt(),
                 user.getUpdatedAt()
+        );
+    }
+
+    private String formatDepartmentTeam(String department, String teamName) {
+        return department + "(" + teamName + ")";
+    }
+
+    private long countUserQuestions(Long userId) {
+        return chatMessageRepository.countByUserIdAndSenderTypeAndMessageType(
+                userId,
+                SenderType.USER,
+                MessageType.user_question
         );
     }
 

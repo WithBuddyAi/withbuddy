@@ -17,7 +17,7 @@ public record CreateUserResponse(
         @Schema(description = "회사 이름", example = "테크 주식회사")
         String companyName,
 
-        @Schema(description = "사용자 역할", example = "USER")
+        @Schema(description = "사용자 역할", example = "ACTIVE_USER")
         String role,
 
         @Schema(description = "이름", example = "김지원")

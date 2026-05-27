@@ -1,5 +1,6 @@
 package com.withbuddy.admin.user.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
@@ -20,16 +21,14 @@ public record UserListItemResponse(
         @Schema(description = "사번", example = "20260001")
         String employeeNumber,
 
-        @Schema(description = "부서", example = "개발팀")
-        String department,
-
-        @Schema(description = "팀명", example = "백엔드팀")
-        String teamName,
+        @JsonProperty("부서(팀)")
+        @Schema(name = "부서(팀)", description = "신입 사용자 부서와 팀명", example = "개발팀(백엔드팀)")
+        String departmentTeam,
 
         @Schema(description = "이름", example = "김지원")
         String name,
 
-        @Schema(description = "사용자 역할", example = "USER")
+        @Schema(description = "사용자 역할", example = "ACTIVE_USER", allowableValues = {"ACTIVE_USER", "INACTIVE_USER"})
         String role,
 
         @Schema(description = "입사일", example = "2026-03-01", type = "string", format = "date")
@@ -37,6 +36,12 @@ public record UserListItemResponse(
 
         @Schema(description = "입사일차. 입사 당일은 1", example = "1")
         long hireDay,
+
+        @Schema(description = "해당 사용자가 질문한 누적 횟수", example = "7")
+        long questionCount,
+
+        @Schema(description = "활성 사용자 여부", example = "true")
+        boolean isActive,
 
         @Schema(description = "생성 시각", example = "2026-04-28T09:30:00")
         LocalDateTime createdAt,

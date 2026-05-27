@@ -22,7 +22,7 @@ public interface AdminUserControllerDocs {
             description = """
                 [목적] 현재 로그인한 사용자의 회사 범위에서 신입 사원 계정을 생성한다.
                 [동작] JWT의 companyCode를 기준으로 회사를 식별하고, users.company_code에 매핑해 저장한다.
-                생성되는 계정의 role은 항상 USER이다.
+                생성되는 계정의 role은 항상 ACTIVE_USER이다.
                 동일 회사 내 `employeeNumber`가 이미 존재하면 `409 DUPLICATE_EMPLOYEE_NUMBER`를 반환한다.
                 생성된 계정은 회사코드, 사번, 이름으로 로그인할 수 있다."""
     )
@@ -47,8 +47,9 @@ public interface AdminUserControllerDocs {
             summary = "신입 계정 조회",
             description = """
                 [목적] 현재 로그인한 관리자의 회사 범위에서 신입 사원 계정 목록을 조회한다.
-                [동작] JWT의 companyCode를 기준으로 users.company_code를 제한하고, role이 USER인 계정만 반환한다.
-                department와 teamName이 전달되면 각각 부서와 팀명에 대해 부분 검색하며, 둘 다 전달되면 두 조건을 모두 만족하는 계정만 반환한다."""
+                [동작] JWT의 companyCode를 기준으로 users.company_code를 제한하고, role이 ACTIVE_USER 또는 INACTIVE_USER인 계정만 반환한다.
+                department와 teamName이 전달되면 각각 부서와 팀명에 대해 부분 검색하며, 둘 다 전달되면 두 조건을 모두 만족하는 계정만 반환한다.
+                기본 정렬은 입사일 오름차순이며, 응답에는 질문 누적 횟수와 활성 여부를 포함한다."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "신입 계정 목록 조회 성공",
