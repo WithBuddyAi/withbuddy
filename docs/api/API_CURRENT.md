@@ -3056,7 +3056,7 @@ Authorization: Bearer {accessToken}
 
 ### 10-5. 미답변 비율
 
-전체 AI 답변 중 `no_result` 또는 `out_of_scope`로 종료된 답변 비율을 회사별로 조회한다.
+전체 AI 답변 중 `no_result`, `out_of_scope`, `sensitive`로 종료된 답변 수와 각 비율을 회사별로 조회한다.
 
 ```http
 GET /api/v1/admin/metrics/unanswered-rate
@@ -3081,8 +3081,12 @@ Authorization: Bearer {accessToken}
       "companyCode": "WB0001",
       "companyName": "테크 주식회사",
       "totalAiAnswers": 120,
-      "unansweredAnswers": 18,
-      "unansweredRate": 15.0
+      "noResultAnswers": 10,
+      "noResultRate": 8.3,
+      "outOfScopeAnswers": 8,
+      "outOfScopeRate": 6.7,
+      "sensitiveAnswers": 3,
+      "sensitiveRate": 2.5
     }
   ]
 }
@@ -3098,15 +3102,22 @@ Authorization: Bearer {accessToken}
 | `companies[].companyCode` | String | 회사 코드 |
 | `companies[].companyName` | String | 회사명 |
 | `companies[].totalAiAnswers` | Number | 전체 AI 답변 수 |
-| `companies[].unansweredAnswers` | Number | 미답변 처리된 AI 답변 수 |
-| `companies[].unansweredRate` | Number | 미답변 비율, 단위 `%` |
+| `companies[].noResultAnswers` | Number | `no_result` 답변 수 |
+| `companies[].noResultRate` | Number | `no_result` 답변 비율, 단위 `%` |
+| `companies[].outOfScopeAnswers` | Number | `out_of_scope` 답변 수 |
+| `companies[].outOfScopeRate` | Number | `out_of_scope` 답변 비율, 단위 `%` |
+| `companies[].sensitiveAnswers` | Number | `sensitive` 답변 수 |
+| `companies[].sensitiveRate` | Number | `sensitive` 답변 비율, 단위 `%` |
 
 #### 집계 기준
 
 - 전체 AI 답변은 `chat_messages.sender_type = BOT`이고 `message_type IN (rag_answer, no_result, out_of_scope, sensitive)`인 메시지 수다.
-- 미답변은 `message_type IN (no_result, out_of_scope)`인 BOT 메시지 수다.
-- `suggestion` 메시지는 온보딩 제안 메시지이므로 전체 AI 답변 수와 미답변 수에서 제외한다.
-- `user_question` 메시지는 사용자 입력이므로 전체 AI 답변 수와 미답변 수에서 제외한다.
+- `no_result` 답변 수는 `message_type = no_result`인 BOT 메시지 수다.
+- `out_of_scope` 답변 수는 `message_type = out_of_scope`인 BOT 메시지 수다.
+- `sensitive` 답변 수는 `message_type = sensitive`인 BOT 메시지 수다.
+- 각 비율은 `각 message_type별 답변 수 / 전체 AI 답변 수 * 100`으로 계산한다.
+- `suggestion` 메시지는 온보딩 제안 메시지이므로 전체 AI 답변 수와 유형별 답변 수에서 제외한다.
+- `user_question` 메시지는 사용자 입력이므로 전체 AI 답변 수와 유형별 답변 수에서 제외한다.
 
 ---
 
