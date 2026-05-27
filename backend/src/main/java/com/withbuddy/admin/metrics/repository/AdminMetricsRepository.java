@@ -128,7 +128,7 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             LEFT JOIN chat_messages ai_message
                 ON ai_message.user_id = u.id
                AND ai_message.sender_type = 'BOT'
-               AND ai_message.message_type IN ('rag_answer', 'no_result', 'out_of_scope')
+               AND ai_message.message_type IN ('rag_answer', 'no_result', 'out_of_scope', 'sensitive')
                AND ai_message.created_at < :dayAfter
             WHERE (:companyCode IS NULL OR c.company_code = :companyCode)
             GROUP BY c.company_code, c.name
