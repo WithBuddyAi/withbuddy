@@ -10,6 +10,7 @@ E2E 평가 스크립트 — 40문항 (test_e2e_20260522.md 기반)
 
 import json
 import os
+import random
 import sys
 import time
 import requests
@@ -86,11 +87,13 @@ _BY_TYPE = {
 # 실행 로직
 # ══════════════════════════════════════════════════════════════════
 
+_RUN_ID = random.randint(1000, 9999)
+
 def run_one(item: dict, q_num: int) -> dict:
     payload = {
         "questionId": q_num,
         "user": {
-            "userId": 9900000 + q_num,
+            "userId": int(f"{_RUN_ID}{q_num:02d}"),
             "name": "테스트",
             "companyCode": COMPANY_CODE,
             "companyName": COMPANY_NAME,
