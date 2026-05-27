@@ -378,8 +378,10 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
 
     final_content = "\n\n".join(b.strip() for b in blocks if b.strip())
 
-    # 5. messageType 결정
-    if any(kw in rag_answer for kw in _NO_RESULT_KW):
+    # 5. messageType 결정 (판단 우선순위: sensitive > no_result > rag_answer > out_of_scope)
+    if sensitive_answers:
+        message_type = "sensitive"
+    elif any(kw in rag_answer for kw in _NO_RESULT_KW):
         message_type = "no_result"
     elif rag_answer:
         message_type = "rag_answer"
