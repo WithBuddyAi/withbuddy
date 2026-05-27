@@ -275,7 +275,7 @@ _NO_RESULT_KW = [
     "포함되어 있지 않", "정보가 없", "찾지 못했어요",
     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
     "문서에 없어서", "안내드리기 어려워",
-    "문서에 없네요", "문서에 없어요",
+    "문서에 없네요", "문서에 없어요", "없네요", "문서에 없는 내용",
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
@@ -378,8 +378,10 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
 
     final_content = "\n\n".join(b.strip() for b in blocks if b.strip())
 
-    # 5. messageType 결정
-    if any(kw in rag_answer for kw in _NO_RESULT_KW):
+    # 5. messageType 결정 (판단 우선순위: sensitive > no_result > rag_answer > out_of_scope)
+    if sensitive_answers:
+        message_type = "sensitive"
+    elif any(kw in rag_answer for kw in _NO_RESULT_KW):
         message_type = "no_result"
     elif rag_answer:
         message_type = "rag_answer"
