@@ -53,9 +53,9 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void keepsNotFoundCodeForResourceMissing404() {
+    void keepsNotFoundCodeForDomainResourceMissing() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/documents/100");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/admin/documents/999");
 
         ResponseEntity<ErrorResponse> response = handler.handleStorageException(
                 new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."),
@@ -66,6 +66,6 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getStatus()).isEqualTo(404);
         assertThat(response.getBody().getCode()).isEqualTo("NOT_FOUND");
-        assertThat(response.getBody().getPath()).isEqualTo("/api/v1/documents/100");
+        assertThat(response.getBody().getPath()).isEqualTo("/api/v1/admin/documents/999");
     }
 }
