@@ -12,8 +12,12 @@ public record UnansweredRateResponse(
             String companyCode,
             String companyName,
             long totalAiAnswers,
-            long unansweredAnswers,
-            double unansweredRate
+            long noResultAnswers,
+            double noResultRate,
+            long outOfScopeAnswers,
+            double outOfScopeRate,
+            long sensitiveAnswers,
+            double sensitiveRate
     ) {
     }
 }
