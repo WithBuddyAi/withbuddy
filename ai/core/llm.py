@@ -27,6 +27,21 @@ def get_intent_llm() -> ChatAnthropic:
 
 
 @lru_cache(maxsize=1)
+def get_combined_llm() -> ChatAnthropic:
+    """Intent + Clarifying 통합 분류 LLM (temperature=0.0, JSON 출력)"""
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
+    return ChatAnthropic(
+        model="claude-haiku-4-5-20251001",
+        anthropic_api_key=api_key,
+        temperature=0.0,
+        max_tokens=300,
+        max_retries=4,
+    )
+
+
+@lru_cache(maxsize=1)
 def get_llm() -> ChatAnthropic:
     """
     Claude LLM 인스턴스 반환 (싱글톤)
