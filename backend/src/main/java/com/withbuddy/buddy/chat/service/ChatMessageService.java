@@ -32,6 +32,7 @@ import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -560,16 +561,24 @@ public class ChatMessageService {
         }
     }
 
-    @Transactional
     public ChatMessage saveSuggestionMessageIfNotExists(Long userId, Long suggestionId, String content) {
         return chatMessageRepository.findTopByUserIdAndSuggestionIdAndMessageTypeOrderByCreatedAtDesc(
-                        userId,
-                        suggestionId,
-                        MessageType.suggestion
-                )
-                .orElseGet(() -> chatMessageRepository.save(
-                        ChatMessage.createSuggestionMessage(userId, suggestionId, content)
-                ));
+                userId,
+                suggestionId,
+                MessageType.suggestion
+        ).orElseGet(() -> {
+            try {
+                return chatMessageRepository.save(ChatMessage.createSuggestionMessage(userId, suggestionId, content));
+            } catch (DataIntegrityViolationException e) {
+                // UNIQUE 제약 충돌 시 이미 동시 요청에서 생성된 행을 재조회해 반환한다.
+                return chatMessageRepository.findTopByUserIdAndSuggestionIdAndMessageTypeOrderByCreatedAtDesc(
+                                userId,
+                                suggestionId,
+                                MessageType.suggestion
+                        )
+                        .orElseThrow(() -> e);
+            }
+        });
     }
 
     @Transactional(readOnly = true)
@@ -581,7 +590,6 @@ public class ChatMessageService {
         ).orElse(null);
     }
 
-    @Transactional
     public ChatMessage saveNudgeMessage(Long userId, Long suggestionId, String content) {
         if (suggestionId != null) {
             return saveSuggestionMessageIfNotExists(userId, suggestionId, content);
