@@ -444,21 +444,42 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
 
     # 오케스트레이터 intent 체크 — out_of_scope/chitchat은 RAG 건너뜀
     from agents.orchestrator import (
-        _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE, _INTERPERSONAL_KEYWORDS, _OUT_OF_SCOPE_INTERPERSONAL_MESSAGE,
+        _get_intent_chain, _get_intent_clarifying_chain, _get_chitchat_chain,
+        _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN, _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
+        _INTERPERSONAL_KEYWORDS, _OUT_OF_SCOPE_INTERPERSONAL_MESSAGE,
     )
     _labor_law_matched = any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or bool(_ARTICLE_PATTERN.search(request.content))
+    _is_first_turn = not bool(request.conversationHistory)
+    _combined_clarifying_q = ""
     if not _labor_law_matched:
         from core.be_client import cache_get, cache_set
+        import json as _json_mod, re as _re_mod
         _intent_cache_key = f"{request.user.companyCode}:{request.content}"
         raw_intent = cache_get("intent_v1", _intent_cache_key) or ""
         if not raw_intent:
             try:
                 async with asyncio.timeout(3):
-                    raw_intent = await asyncio.get_event_loop().run_in_executor(
-                        None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
-                    )
+                    if _is_first_turn:
+                        # 첫 질문: intent + clarifying 통합 1회 호출
+                        _raw = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: _get_intent_clarifying_chain().invoke({"message": request.content}).strip()
+                        )
+                        _m = _re_mod.search(r'\{.*?\}', _raw, _re_mod.DOTALL)
+                        if _m:
+                            try:
+                                _data = _json_mod.loads(_m.group(0))
+                                raw_intent = _data.get("intent", "rag").strip().lower()
+                                _combined_clarifying_q = _data.get("clarifying") or ""
+                            except Exception:
+                                raw_intent = _raw.lower()
+                        else:
+                            raw_intent = _raw.lower()
+                    else:
+                        raw_intent = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+                        )
             except asyncio.TimeoutError:
-                raw_intent = "rag"  # intent 체크 지연 시 RAG로 폴백
+                raw_intent = "rag"
             cache_set("intent_v1", _intent_cache_key, raw_intent, ttl_seconds=3600)
         if "out_of_scope_internal" in raw_intent:
             from routers.recommend import get_contact_for_question
@@ -535,7 +556,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
 
     from langchain_core.messages import HumanMessage, AIMessage
     from utils.clarifying import (
-        is_post_clarifying, check_and_generate_clarifying, expand_clarifying_query,
+        is_post_clarifying, expand_clarifying_query,
         is_followup_question, expand_followup_query,
     )
 
@@ -547,20 +568,13 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         rag_query = await asyncio.get_event_loop().run_in_executor(
             None, lambda: expand_clarifying_query(last_clarifying_q, request.content)
         )
-    elif not request.conversationHistory:
-        # 대화 첫 질문일 때만 clarifying 체크 (대화 중간이면 건너뜀)
-        try:
-            async with asyncio.timeout(2):
-                clarifying_q = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
-                )
-        except asyncio.TimeoutError:
-            clarifying_q = None
-        if clarifying_q:
+    elif _is_first_turn:
+        # 첫 질문: intent 분류 시 통합 호출로 clarifying 이미 체크됨
+        if _combined_clarifying_q:
             return InternalAIAnswerResponse(
                 questionId=request.questionId,
                 messageType="clarifying",
-                content=clarifying_q,
+                content=_combined_clarifying_q,
             )
         rag_query = request.content
     else:
@@ -707,22 +721,41 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
 
             # ── 4. 오케스트레이터 intent ──────────────────────────────
             from agents.orchestrator import (
-                _get_intent_chain, _get_chitchat_chain, _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN,
+                _get_intent_chain, _get_intent_clarifying_chain, _get_chitchat_chain,
+                _LABOR_LAW_KEYWORDS, _ARTICLE_PATTERN,
                 _OUT_OF_SCOPE_MESSAGE, _OUT_OF_SCOPE_EXTERNAL_MESSAGE,
                 _INTERPERSONAL_KEYWORDS, _OUT_OF_SCOPE_INTERPERSONAL_MESSAGE,
             )
             uid = str(request.user.userId)
             _labor_law_matched = any(kw in request.content for kw in _LABOR_LAW_KEYWORDS) or bool(_ARTICLE_PATTERN.search(request.content))
+            _is_first_turn = not bool(request.conversationHistory)
+            _combined_clarifying_q = ""
             if not _labor_law_matched:
+                import json as _json_mod, re as _re_mod
                 from core.be_client import cache_get, cache_set
                 _ck = f"{request.user.companyCode}:{request.content}"
                 raw_intent = cache_get("intent_v1", _ck) or ""
                 if not raw_intent:
                     try:
                         async with asyncio.timeout(3):
-                            raw_intent = await asyncio.get_event_loop().run_in_executor(
-                                None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
-                            )
+                            if _is_first_turn:
+                                _raw = await asyncio.get_event_loop().run_in_executor(
+                                    None, lambda: _get_intent_clarifying_chain().invoke({"message": request.content}).strip()
+                                )
+                                _m = _re_mod.search(r'\{.*?\}', _raw, _re_mod.DOTALL)
+                                if _m:
+                                    try:
+                                        _data = _json_mod.loads(_m.group(0))
+                                        raw_intent = _data.get("intent", "rag").strip().lower()
+                                        _combined_clarifying_q = _data.get("clarifying") or ""
+                                    except Exception:
+                                        raw_intent = _raw.lower()
+                                else:
+                                    raw_intent = _raw.lower()
+                            else:
+                                raw_intent = await asyncio.get_event_loop().run_in_executor(
+                                    None, lambda: _get_intent_chain().invoke({"message": request.content}).strip().lower()
+                                )
                     except asyncio.TimeoutError:
                         raw_intent = "rag"
                     cache_set("intent_v1", _ck, raw_intent, ttl_seconds=3600)
@@ -779,24 +812,18 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
 
             # ── 6. Clarifying ─────────────────────────────────────────
             from utils.clarifying import (
-                is_post_clarifying, check_and_generate_clarifying,
-                expand_clarifying_query, is_followup_question, expand_followup_query,
+                is_post_clarifying, expand_clarifying_query,
+                is_followup_question, expand_followup_query,
             )
             is_clarifying_followup, last_clarifying_q = is_post_clarifying(request.conversationHistory)
             if is_clarifying_followup:
                 rag_query = await asyncio.get_event_loop().run_in_executor(
                     None, lambda: expand_clarifying_query(last_clarifying_q, request.content)
                 )
-            elif not request.conversationHistory:
-                try:
-                    async with asyncio.timeout(2):
-                        clarifying_q = await asyncio.get_event_loop().run_in_executor(
-                            None, lambda: check_and_generate_clarifying(request.content, request.user.companyCode)
-                        )
-                except asyncio.TimeoutError:
-                    clarifying_q = None
-                if clarifying_q:
-                    yield _completed("clarifying", clarifying_q, [], [], {})
+            elif _is_first_turn:
+                # 첫 질문: intent 분류 시 통합 호출로 clarifying 이미 체크됨
+                if _combined_clarifying_q:
+                    yield _completed("clarifying", _combined_clarifying_q, [], [], {})
                     return
                 rag_query = request.content
             else:
