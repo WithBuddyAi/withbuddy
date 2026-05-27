@@ -1842,7 +1842,8 @@ Authorization: Bearer {accessToken}
 - `teamName`이 전달되면 `users.team_name` 값을 대상으로 부분 검색한다.
 - `department`와 `teamName`이 모두 전달되면 두 조건을 모두 만족하는 신입 계정만 반환한다.
 - 이름(`name`)과 사번(`employee_number`)은 검색 필터 대상에 포함하지 않는다.
-- `department`, `teamName`은 각각 `users.department`, `users.team_name` 값을 반환한다.
+- 응답에서는 `users.department`와 `users.team_name` 값을 조합하여 `부서(팀)` 필드로 반환한다.
+- `부서(팀)`은 `부서명(팀명)` 형식으로 반환한다. 예: `개발팀(백엔드팀)`
 - 기본 정렬은 입사일(`users.hire_date`) 기준 오름차순이다.
 - `hireDay`는 KST 기준 오늘 날짜와 `users.hire_date`의 차이에 1을 더해 계산한다. 입사 당일은 `1`, 입사 하루 뒤는 `2`로 반환한다.
 - `questionCount`는 해당 신입 사용자가 질문한 누적 횟수를 반환한다.
@@ -1881,6 +1882,8 @@ Authorization: Bearer {accessToken}
 
 #### Response Field
 
+#### Response Field
+
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `content` | Array | 신입 계정 목록 |
@@ -1888,12 +1891,12 @@ Authorization: Bearer {accessToken}
 | `content[].companyCode` | String | 신입 사용자가 소속된 회사 코드 |
 | `content[].companyName` | String | 신입 사용자가 소속된 회사명 |
 | `content[].employeeNumber` | String | 신입 사용자 사번 |
-| `content[].부서(팀)` | String | 신입 사용자 부서와 팀명. `부서(팀)` 형식 |
+| `content[].부서(팀)` | String | 신입 사용자 부서와 팀명. `부서명(팀명)` 형식으로 반환한다. 예: `개발팀(백엔드팀)` |
 | `content[].name` | String | 신입 사용자 이름 |
 | `content[].role` | String | 사용자 역할. 신입 계정 조회에서는 `ACTIVE_USER` 또는 `INACTIVE_USER` |
-| `content[].hireDate` | String | 신입 사용자 입사일 |
-| `content[].hireDay` | Number | 입사일차. 입사 당일은 `1`, 입사 하루 뒤는 `2` |
-| `content[].questionCount` | Number | 해당 사용자가 질문한 누적 횟수 |
+| `content[].hireDate` | String | 신입 사용자 입사일. `yyyy-MM-dd` 형식 |
+| `content[].hireDay` | Number | 입사일차. KST 기준 오늘 날짜와 입사일의 차이에 1을 더해 계산한다. 입사 당일은 `1`, 입사 하루 뒤는 `2` |
+| `content[].questionCount` | Number | 해당 신입 사용자가 질문한 누적 횟수 |
 | `content[].isActive` | Boolean | 활성 사용자 여부. `role = ACTIVE_USER`이면 `true`, `role = INACTIVE_USER`이면 `false` |
 | `content[].createdAt` | String | 계정 생성 시각 |
 | `content[].updatedAt` | String | 계정 수정 시각 |
