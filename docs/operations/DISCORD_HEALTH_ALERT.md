@@ -29,7 +29,16 @@
 - `OOM_CHECK_ENABLED` (`1` 또는 `0`, 기본 `1`)
 - `OOM_LOOKBACK` (기본 `5 minutes ago`)
 
-## 3) 서버 배포 예시 (OCI Ubuntu)
+## 3) 배포 자동화 기준 (권장)
+
+`backend-deploy.yml`에서 아래를 자동으로 수행한다.
+
+- `DISCORD_WEBHOOK_URL` 시크릿 검증
+- `/etc/withbuddy-monitor.env` 설치
+- `/etc/cron.d/withbuddy-discord-health-alert` 생성
+- 배포 직후 `discord-health-alert.sh` 1회 셀프 실행
+
+## 4) 서버 수동 설정 예시 (필요 시)
 
 ```bash
 cd /home/ubuntu/withbuddy
@@ -49,7 +58,7 @@ OOM_CHECK_ENABLED=1
 OOM_LOOKBACK=5 minutes ago
 ```
 
-## 4) 수동 검증
+## 5) 수동 검증
 
 정상:
 
@@ -70,7 +79,7 @@ HEALTHCHECK_URL=http://127.0.0.1:65535/health \
   /home/ubuntu/withbuddy/scripts/discord-health-alert.sh
 ```
 
-## 5) cron 등록
+## 6) cron 등록 (수동 운영 시)
 
 매 1분 실행:
 
@@ -82,7 +91,7 @@ crontab -e
 * * * * * /bin/bash -lc 'set -a; source /home/ubuntu/.env.monitor; set +a; /home/ubuntu/withbuddy/scripts/discord-health-alert.sh >> /home/ubuntu/withbuddy/logs/discord-health-alert.log 2>&1'
 ```
 
-## 6) 운영 메모
+## 7) 운영 메모
 
 - `DOWN` 알림은 최초 장애 시 즉시 전송된다.
 - 장애 지속 중에는 `ALERT_COOLDOWN_SECONDS` 기준으로 재알림된다.
