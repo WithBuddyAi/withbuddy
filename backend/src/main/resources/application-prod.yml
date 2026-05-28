@@ -57,6 +57,12 @@ app:
       enabled: ${APP_CACHE_INVALIDATION_ENABLED:true}
       channel: ${APP_CACHE_INVALIDATION_CHANNEL:withbuddy:cache:invalidate}
       node-id: ${APP_CACHE_INVALIDATION_NODE_ID:}
+    resilience:
+      enabled: ${APP_CACHE_RESILIENCE_ENABLED:true}
+      circuit-failure-threshold: ${APP_CACHE_RESILIENCE_CIRCUIT_FAILURE_THRESHOLD:5}
+      circuit-open-seconds: ${APP_CACHE_RESILIENCE_CIRCUIT_OPEN_SECONDS:30}
+      fallback-rate-per-second: ${APP_CACHE_RESILIENCE_FALLBACK_RATE_PER_SECOND:20}
+      fallback-burst: ${APP_CACHE_RESILIENCE_FALLBACK_BURST:40}
   security:
     storage-api:
       enabled: ${STORAGE_API_AUTH_ENABLED:true}
@@ -112,6 +118,10 @@ app:
       bucket: ${STORAGE_BACKUP_BUCKET:withbuddy-backup}
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
   endpoint:
     health:
       probes:

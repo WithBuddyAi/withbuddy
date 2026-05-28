@@ -77,6 +77,12 @@ app:
       enabled: ${APP_CACHE_INVALIDATION_ENABLED:true}
       channel: ${APP_CACHE_INVALIDATION_CHANNEL:withbuddy:cache:invalidate}
       node-id: ${APP_CACHE_INVALIDATION_NODE_ID:}
+    resilience:
+      enabled: ${APP_CACHE_RESILIENCE_ENABLED:true}
+      circuit-failure-threshold: ${APP_CACHE_RESILIENCE_CIRCUIT_FAILURE_THRESHOLD:5}
+      circuit-open-seconds: ${APP_CACHE_RESILIENCE_CIRCUIT_OPEN_SECONDS:30}
+      fallback-rate-per-second: ${APP_CACHE_RESILIENCE_FALLBACK_RATE_PER_SECOND:20}
+      fallback-burst: ${APP_CACHE_RESILIENCE_FALLBACK_BURST:40}
   security:
     cors:
       allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,https://*.vercel.app,https://withbuddy.itsdev.kr}
@@ -141,3 +147,13 @@ app:
     backup:
       namespace: ${STORAGE_BACKUP_NAMESPACE:backup}
       bucket: ${STORAGE_BACKUP_BUCKET:withbuddy-backup}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
