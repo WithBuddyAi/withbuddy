@@ -1,0 +1,122 @@
+import { useState, useEffect, useRef } from "react";
+import axiosInstance from "../../../api/axiosInstance";
+import UserMobileList from "./UserMobileList";
+import UserTable from "./UserTable";
+import Pagination from "./Pagination";
+import AdminHeader from "./AdminHeader";
+
+function AdminMainView({ handleViewChange, successMessage }) {
+  const [users, setUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  // 모바일 구분용(화면 너비 감지)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // 필터 state
+  const [orgOptions, setOrgOptions] = useState([]);
+  const [selectedDept, setSelectedDept] = useState("");
+  const [showDeptFilter, setShowDeptFilter] = useState(false);
+  // const [sortOrder, setSortOrder] = useState(""); // "asc" | "desc" | ""
+  const deptFilterRef = useRef(null); // 외부 클릭 시 닫기용
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoading(true);
+      // (페이지네이션 | 모바일: 카드 5개 / 태블릿 & PC: 행 10줄)
+      try {
+        const params = {
+          page: currentPage,
+          size: isMobile ? 5 : 10,
+        };
+
+        if (selectedDept) {
+          params.department = selectedDept;
+        }
+
+        const res = await axiosInstance.get("/api/v1/admin/users", { params });
+        setUsers(res.data.content);
+        setTotalPages(res.data.totalPages);
+      } catch (error) {
+        console.error("계정 목록 조회 실패", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUsers();
+  }, [currentPage, selectedDept, isMobile]);
+
+  // 화면 너비 감지
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // organization-options API 연동
+  useEffect(() => {
+    const fetchOrgOptions = async () => {
+      try {
+        const res = await axiosInstance.get(
+          "/api/v1/admin/organization-options",
+        );
+        setOrgOptions(res.data.departments);
+      } catch (error) {
+        console.error("부서/팀 목록 조회 실패", error);
+      }
+    };
+    fetchOrgOptions();
+  }, []);
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (deptFilterRef.current && !deptFilterRef.current.contains(e.target)) {
+        setShowDeptFilter(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="flex flex-col h-full pr-[16px]">
+      {/* 토스트 메시지 */}
+      {successMessage && (
+        <div className="fixed bottom-[40px] right-[40px] flex items-center gap-[8px] bg-white border border-[#DEE2E6] rounded-[12px] px-[20px] py-[16px] shadow-md text-[14px] text-[#343A40]">
+          <CircleCheckBig /> {successMessage}
+        </div>
+      )}
+
+      {/* Admin 헤더 */}
+      <AdminHeader handleViewChange={handleViewChange} />
+
+      <div className="flex-1 overflow-auto md:pb-[12px]">
+        <UserMobileList users={users} isLoading={isLoading} />
+
+        {/* 계정 목록 */}
+        <UserTable
+          users={users}
+          isLoading={isLoading}
+          orgOptions={orgOptions}
+          selectedDept={selectedDept}
+          showDeptFilter={showDeptFilter}
+          deptFilterRef={deptFilterRef}
+          setShowDeptFilter={setShowDeptFilter}
+          setSelectedDept={setSelectedDept}
+          setCurrentPage={setCurrentPage}
+        />
+      </div>
+
+      {/* 페이지네이션 */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        setCurrentPage={setCurrentPage}
+      />
+    </div>
+  );
+}
+
+export default AdminMainView;

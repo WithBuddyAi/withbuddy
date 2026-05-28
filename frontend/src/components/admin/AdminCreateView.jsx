@@ -93,10 +93,10 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
     const teams = found ? found.teamNames : [];
     setTeamOptions(teams);
 
-    if (teams.length === 0) {
-      setTeamName(dept); // ← 팀 구분이 없는 부서면 부서명 자동 입력
+    if (teams.length === 0 || (teams.length === 1 && teams[0] === dept)) {
+      setTeamName(dept);
     } else {
-      setTeamName(""); // ← 팀 구분이 있는 부서면 초기화
+      setTeamName("");
     }
   };
 
@@ -214,7 +214,7 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
     !hireDateError;
 
   return (
-    <div>
+    <div className="flex-1 overflow-y-auto pr-[4px]">
       {/* breadcrumb */}
       <div className="flex items-center gap-[8px] text-[14px] text-[#868E96] my-[10px] md:my-[16px]">
         <span
