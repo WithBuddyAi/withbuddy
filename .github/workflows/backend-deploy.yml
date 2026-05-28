@@ -54,7 +54,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CHECKSUM="$(python3 -c "import zlib; from pathlib import Path; from functools import reduce; p=Path('backend/src/main/resources/db/migration/V19__dedupe_and_add_unique_for_suggestion_messages.sql'); lines=p.read_text(encoding='utf-8-sig').splitlines(); crc=reduce(lambda c,l: zlib.crc32(l.encode('utf-8'), c), lines, 0); print(crc - 2**32 if crc >= 2**31 else crc)")"
+          cat > /tmp/FlywayChecksumV19.java <<'JAVA'
+          import java.nio.charset.StandardCharsets;
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+          import java.util.List;
+          import java.util.zip.CRC32;
+
+          public class FlywayChecksumV19 {
+              public static void main(String[] args) throws Exception {
+                  Path path = Path.of("backend/src/main/resources/db/migration/V19__dedupe_and_add_unique_for_suggestion_messages.sql");
+                  List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+                  if (!lines.isEmpty() && !lines.get(0).isEmpty() && lines.get(0).charAt(0) == '\uFEFF') {
+                      lines.set(0, lines.get(0).substring(1));
+                  }
+                  CRC32 crc = new CRC32();
+                  for (String line : lines) {
+                      crc.update(line.getBytes(StandardCharsets.UTF_8));
+                  }
+                  System.out.println((int) crc.getValue());
+              }
+          }
+          JAVA
+          CHECKSUM="$(java /tmp/FlywayChecksumV19.java)"
           echo "value=${CHECKSUM}" >> "$GITHUB_OUTPUT"
           echo "Computed Flyway-style checksum for V19 migration: ${CHECKSUM}"
 
