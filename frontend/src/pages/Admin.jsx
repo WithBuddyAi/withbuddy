@@ -6,7 +6,7 @@ import SessionModal from "../components/SessionModal";
 import { setModalHandler } from "../api/handlers";
 import LogoutModal from "../components/LogoutModal";
 import AdminSidebar from "../components/admin/AdminSidebar";
-import AdminMainView from "../components/admin/AdminMainView";
+import AdminMainView from "../components/admin/AdminMainView/AdminMainView";
 import AdminCreateView from "../components/admin/AdminCreateView";
 
 function Admin({ setIsLoggedIn }) {
@@ -120,17 +120,14 @@ function Admin({ setIsLoggedIn }) {
               <p>계정 관리</p>
             </div>
           </div>
-
           {/* 본문 콘텐츠 */}
-          <div className="flex-1 overflow-y-auto px-[24px] pb-[16px] md:px-0 md:pb-0">
-            {/* 메인 화면 */}
+          <div className="flex-1 flex flex-col overflow-hidden px-[24px] pb-[16px] md:px-0 md:pb-0">
             {view === "main" && (
               <AdminMainView
                 handleViewChange={handleViewChange}
                 successMessage={successMessage}
               />
             )}
-            {/* 계정 생성 화면 */}
             {view === "new" && (
               <AdminCreateView
                 handleViewChange={handleViewChange}
