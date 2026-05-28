@@ -28,6 +28,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-amqp'
 	implementation 'com.github.ben-manes.caffeine:caffeine'
 	implementation 'org.msgpack:jackson-dataformat-msgpack:0.9.10'
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
 	implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
