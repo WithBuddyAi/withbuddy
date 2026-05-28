@@ -49,6 +49,37 @@ jobs:
           fi
           cp "${JAR_PATH}" app.jar
 
+      - name: Calculate Flyway checksum for V19 migration
+        id: v19_checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/FlywayChecksumV19.java <<'JAVA'
+          import java.nio.charset.StandardCharsets;
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+          import java.util.List;
+          import java.util.zip.CRC32;
+
+          public class FlywayChecksumV19 {
+              public static void main(String[] args) throws Exception {
+                  Path path = Path.of("backend/src/main/resources/db/migration/V19__dedupe_and_add_unique_for_suggestion_messages.sql");
+                  List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+                  if (!lines.isEmpty() && !lines.get(0).isEmpty() && lines.get(0).charAt(0) == '\uFEFF') {
+                      lines.set(0, lines.get(0).substring(1));
+                  }
+                  CRC32 crc = new CRC32();
+                  for (String line : lines) {
+                      crc.update(line.getBytes(StandardCharsets.UTF_8));
+                  }
+                  System.out.println((int) crc.getValue());
+              }
+          }
+          JAVA
+          CHECKSUM="$(java /tmp/FlywayChecksumV19.java)"
+          echo "value=${CHECKSUM}" >> "$GITHUB_OUTPUT"
+          echo "Computed Flyway-style checksum for V19 migration: ${CHECKSUM}"
+
       - name: Validate required environment secrets
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
@@ -69,6 +100,7 @@ jobs:
           AI_SERVER_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_READ_TIMEOUT_MS }}
           AI_SERVER_ASYNC_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_ASYNC_READ_TIMEOUT_MS }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
           RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
@@ -130,6 +162,7 @@ jobs:
             AI_SERVER_READ_TIMEOUT_MS
             AI_SERVER_ASYNC_READ_TIMEOUT_MS
             BACKEND_HEALTH_URL
+            DISCORD_WEBHOOK_URL
             REDIS_URL
             RABBITMQ_URL
             RABBITMQ_EXCHANGE
@@ -253,18 +286,21 @@ jobs:
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
+          FLYWAY_V19_CHECKSUM: ${{ steps.v19_checksum.outputs.value }}
         run: |
             set -euo pipefail
             SPRING_DB_URL_B64="$(printf '%s' "${SPRING_DB_URL}" | base64 | tr -d '\n')"
             SPRING_DB_USERNAME_B64="$(printf '%s' "${SPRING_DB_USERNAME}" | base64 | tr -d '\n')"
             SPRING_DB_PASSWORD_B64="$(printf '%s' "${SPRING_DB_PASSWORD}" | base64 | tr -d '\n')"
+            FLYWAY_V19_CHECKSUM_B64="$(printf '%s' "${FLYWAY_V19_CHECKSUM}" | base64 | tr -d '\n')"
 
             ssh "${BACKEND_ACCESS_HOST}" \
-              "SPRING_DB_URL_B64='${SPRING_DB_URL_B64}' SPRING_DB_USERNAME_B64='${SPRING_DB_USERNAME_B64}' SPRING_DB_PASSWORD_B64='${SPRING_DB_PASSWORD_B64}' bash -se" <<'REMOTE'
+              "SPRING_DB_URL_B64='${SPRING_DB_URL_B64}' SPRING_DB_USERNAME_B64='${SPRING_DB_USERNAME_B64}' SPRING_DB_PASSWORD_B64='${SPRING_DB_PASSWORD_B64}' FLYWAY_V19_CHECKSUM_B64='${FLYWAY_V19_CHECKSUM_B64}' bash -se" <<'REMOTE'
             set -euo pipefail
             SPRING_DB_URL="$(printf '%s' "${SPRING_DB_URL_B64}" | base64 -d)"
             SPRING_DB_USERNAME="$(printf '%s' "${SPRING_DB_USERNAME_B64}" | base64 -d)"
             SPRING_DB_PASSWORD="$(printf '%s' "${SPRING_DB_PASSWORD_B64}" | base64 -d)"
+            FLYWAY_V19_CHECKSUM="$(printf '%s' "${FLYWAY_V19_CHECKSUM_B64}" | base64 -d)"
 
             # Parse JDBC URL: jdbc:mysql://host:port/dbname?params
             DB_RAW="${SPRING_DB_URL#jdbc:mysql://}"
@@ -370,9 +406,37 @@ jobs:
               exit 0
             fi
 
+            if [ -n "${FLYWAY_V19_CHECKSUM}" ]; then
+              if ! echo "${FLYWAY_V19_CHECKSUM}" | grep -Eq '^-?[0-9]+$'; then
+                echo "ERROR: Invalid FLYWAY_V19_CHECKSUM format: ${FLYWAY_V19_CHECKSUM}"
+                exit 1
+              fi
+
+              V19_SUCCESS_COUNT=$(mysql_scalar "SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND version='19';")
+              if [ "${V19_SUCCESS_COUNT}" -gt 0 ]; then
+                V19_DB_CHECKSUM=$(mysql_scalar "SELECT COALESCE(checksum,0) FROM flyway_schema_history WHERE success=1 AND version='19' ORDER BY installed_rank DESC LIMIT 1;")
+                if [ "${V19_DB_CHECKSUM}" != "${FLYWAY_V19_CHECKSUM}" ]; then
+                  echo "Detected V19 checksum mismatch. db=${V19_DB_CHECKSUM}, expected=${FLYWAY_V19_CHECKSUM}. Applying auto-repair."
+                  mysql_scalar "UPDATE flyway_schema_history SET checksum=${FLYWAY_V19_CHECKSUM} WHERE success=1 AND version='19';"
+                  V19_REPAIRED_CHECKSUM=$(mysql_scalar "SELECT COALESCE(checksum,0) FROM flyway_schema_history WHERE success=1 AND version='19' ORDER BY installed_rank DESC LIMIT 1;")
+                  if [ "${V19_REPAIRED_CHECKSUM}" != "${FLYWAY_V19_CHECKSUM}" ]; then
+                    echo "ERROR: V19 checksum auto-repair verification failed. repaired=${V19_REPAIRED_CHECKSUM}, expected=${FLYWAY_V19_CHECKSUM}"
+                    exit 1
+                  fi
+                  echo "V19 checksum auto-repair completed."
+                else
+                  echo "V19 checksum already aligned."
+                fi
+              else
+                echo "No successful V19 record found in flyway_schema_history. Skipping V19 checksum repair."
+              fi
+            else
+              echo "WARN: FLYWAY_V19_CHECKSUM is empty. Skipping V19 checksum repair."
+            fi
+
             FAILED_ANY=$(mysql_scalar "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0;")
             if [ "${FAILED_ANY}" -eq 0 ]; then
-              echo "No failed migrations found. Skipping repair."
+              echo "No failed migrations found. V19 checksum repair check completed."
               exit 0
             fi
 
@@ -423,6 +487,12 @@ jobs:
           AI_SERVER_CONNECT_TIMEOUT_MS: ${{ secrets.AI_SERVER_CONNECT_TIMEOUT_MS }}
           AI_SERVER_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_READ_TIMEOUT_MS }}
           AI_SERVER_ASYNC_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_ASYNC_READ_TIMEOUT_MS }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_CHECK_NAME: ${{ secrets.DISCORD_CHECK_NAME }}
+          DISCORD_ALERT_COOLDOWN_SECONDS: ${{ secrets.DISCORD_ALERT_COOLDOWN_SECONDS }}
+          DISCORD_REQUIRED_DOWN_COUNT: ${{ secrets.DISCORD_REQUIRED_DOWN_COUNT }}
+          DISCORD_OOM_CHECK_ENABLED: ${{ secrets.DISCORD_OOM_CHECK_ENABLED }}
+          DISCORD_OOM_LOOKBACK: ${{ secrets.DISCORD_OOM_LOOKBACK }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
@@ -477,6 +547,8 @@ jobs:
           APP_DIR="${BACKEND_APP_DIR}"
           LOCAL_ENV_FILE="backend.env.tmp"
           REMOTE_ENV_FILE="${APP_DIR}/backend.env.tmp"
+          LOCAL_MONITOR_ENV_FILE="monitor.env.tmp"
+          REMOTE_MONITOR_ENV_FILE="${APP_DIR}/monitor.env.tmp"
 
           urldecode() {
             local data="${1//+/ }"
@@ -597,8 +669,23 @@ jobs:
           EOF
           chmod 600 "${LOCAL_ENV_FILE}"
 
+          cat > "${LOCAL_MONITOR_ENV_FILE}" <<EOF
+          HEALTHCHECK_URL=${BACKEND_HEALTH_URL}
+          LOCAL_HEALTHCHECK_URL=http://127.0.0.1:8080/actuator/health/liveness
+          DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+          CHECK_NAME=${DISCORD_CHECK_NAME:-withbuddy-backend}
+          ALERT_COOLDOWN_SECONDS=${DISCORD_ALERT_COOLDOWN_SECONDS:-600}
+          REQUIRED_DOWN_COUNT=${DISCORD_REQUIRED_DOWN_COUNT:-2}
+          OOM_CHECK_ENABLED=${DISCORD_OOM_CHECK_ENABLED:-1}
+          OOM_LOOKBACK=${DISCORD_OOM_LOOKBACK:-5 minutes ago}
+          STATE_DIR=/tmp/withbuddy-monitor
+          EOF
+          chmod 600 "${LOCAL_MONITOR_ENV_FILE}"
+
           scp "${LOCAL_ENV_FILE}" "${BACKEND_ACCESS_HOST}:${REMOTE_ENV_FILE}"
+          scp "${LOCAL_MONITOR_ENV_FILE}" "${BACKEND_ACCESS_HOST}:${REMOTE_MONITOR_ENV_FILE}"
           rm -f "${LOCAL_ENV_FILE}"
+          rm -f "${LOCAL_MONITOR_ENV_FILE}"
 
           printf -v APP_DIR_Q '%q' "${BACKEND_APP_DIR}"
           printf -v HEALTH_URL_Q '%q' "${BACKEND_HEALTH_URL}"
@@ -608,7 +695,11 @@ jobs:
             APP_DIR="${BACKEND_APP_DIR}"
             JAR_PATH="${APP_DIR}/app.jar"
             ENV_PATH="/etc/withbuddy-backend.env"
+            MONITOR_ENV_PATH="/etc/withbuddy-monitor.env"
             TMP_ENV_PATH="${APP_DIR}/backend.env.tmp"
+            TMP_MONITOR_ENV_PATH="${APP_DIR}/monitor.env.tmp"
+            MONITOR_CRON_FILE="/etc/cron.d/withbuddy-discord-health-alert"
+            MONITOR_LOG_PATH="${APP_DIR}/logs/discord-health-alert.log"
             SERVICE_NAME="withbuddy-backend.service"
             HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8080/actuator/health/liveness}"
             FALLBACK_HEALTH_URL=""
@@ -622,6 +713,7 @@ jobs:
             mkdir -p "${APP_DIR}" "${APP_DIR}/scripts" "${APP_DIR}/logs"
             test -f "${JAR_PATH}"
             test -f "${TMP_ENV_PATH}"
+            test -f "${TMP_MONITOR_ENV_PATH}"
             chmod +x "${APP_DIR}/scripts/discord-health-alert.sh"
 
             # Read dependency URLs from tmp env before installing the final root-only env file.
@@ -635,6 +727,15 @@ jobs:
 
             sudo install -m 600 "${TMP_ENV_PATH}" "${ENV_PATH}"
             rm -f "${TMP_ENV_PATH}"
+            sudo install -m 600 "${TMP_MONITOR_ENV_PATH}" "${MONITOR_ENV_PATH}"
+            rm -f "${TMP_MONITOR_ENV_PATH}"
+
+            sudo tee "${MONITOR_CRON_FILE}" >/dev/null <<EOF
+* * * * * root /bin/bash -lc 'set -a; source ${MONITOR_ENV_PATH}; set +a; ${APP_DIR}/scripts/discord-health-alert.sh >> ${MONITOR_LOG_PATH} 2>&1'
+EOF
+            sudo chmod 644 "${MONITOR_CRON_FILE}"
+
+            sudo /bin/bash -lc "set -a; source '${MONITOR_ENV_PATH}'; set +a; '${APP_DIR}/scripts/discord-health-alert.sh' || true"
 
             extract_host_port() {
               local url="$1"
@@ -700,7 +801,7 @@ jobs:
                 echo "2) Check Flyway history"
                 echo "   SELECT installed_rank, version, description, success"
                 echo "   FROM flyway_schema_history"
-                echo "   WHERE version IN ('7','8','9','10')"
+                echo "   WHERE version IN ('7','8','9','10','19','20')"
                 echo "   ORDER BY installed_rank;"
                 echo ""
                 echo "3) If version 7 failed and document storage tables are safe to recreate"
@@ -710,7 +811,12 @@ jobs:
                 echo "   SET FOREIGN_KEY_CHECKS=1;"
                 echo "   DELETE FROM flyway_schema_history WHERE version='7' AND success=0;"
                 echo ""
-                echo "4) Start service again"
+                echo "4) If V19 checksum mismatch is detected, align checksum manually"
+                echo "   UPDATE flyway_schema_history"
+                echo "   SET checksum=<EXPECTED_V19_CHECKSUM>"
+                echo "   WHERE version='19' AND success=1;"
+                echo ""
+                echo "5) Start service again"
                 echo "   sudo systemctl start \"${SERVICE_NAME}\""
               fi
             }
@@ -718,6 +824,12 @@ jobs:
             for i in {1..12}; do
               if curl -fsS "${HEALTH_URL}"; then
                 echo "Health check succeeded on attempt ${i}"
+                if [ -f "${MONITOR_CRON_FILE}" ] && sudo grep -q "discord-health-alert.sh" "${MONITOR_CRON_FILE}"; then
+                  echo "Discord monitor cron installed: ${MONITOR_CRON_FILE}"
+                else
+                  echo "ERROR: Discord monitor cron missing: ${MONITOR_CRON_FILE}"
+                  exit 1
+                fi
                 exit 0
               fi
               if [ -n "${FALLBACK_HEALTH_URL}" ] && curl -fsS "${FALLBACK_HEALTH_URL}"; then

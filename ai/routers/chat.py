@@ -16,7 +16,6 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from agents.orchestrator import run_orchestrator
 from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
@@ -96,12 +95,20 @@ async def chat_stream(request: ChatRequest):
     """
     async def event_generator():
         try:
-            from chains.rag_chain import _fix_names
+            from agents.orchestrator import run_orchestrator
+            from chains.rag_chain import _fix_names, pop_token_usage, pop_category
             from chains.retriever import resolve_selection as _resolve_selection
             from memory.chat_history import get_chat_history as _get_history
-            # 2-7: 숫자 선택("1"~"4")을 이전 ambiguous 응답과 매핑
+
             uid = str(request.user.userId)
             message = request.content
+
+            # 욕설·극단적 위기 전체 차단
+            action, block_answer = check_global_block(message, request.user.name)
+            if action == "block":
+                yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': 'out_of_scope', 'content': block_answer, 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
+                return
+
             resolved = _resolve_selection(message, _get_history(uid))
             if resolved:
                 message = resolved
@@ -110,8 +117,9 @@ async def chat_stream(request: ChatRequest):
             if result.intent != "rag":
                 fixed_answer = _fix_names(result.answer)
                 save_interaction(uid, message, fixed_answer)
+                msg_type = result.intent if result.intent in ("sensitive", "out_of_scope") else "out_of_scope"
                 yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': fixed_answer}, ensure_ascii=False)}\n\n"
-                yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': 'out_of_scope', 'content': fixed_answer, 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
+                yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': fixed_answer, 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
                 return
 
             accumulated_text: list[str] = []
@@ -132,9 +140,10 @@ async def chat_stream(request: ChatRequest):
                         contact = await get_contact_for_question(request.user.companyCode, request.content)
                         contacts = [contact]
                     doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])][:2]
-                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts}, ensure_ascii=False)}\n\n"
+                    tok = pop_token_usage()
+                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts, 'inputTokens': tok['input_tokens'], 'outputTokens': tok['output_tokens'], 'cacheReadTokens': tok['cache_read'], 'cacheCreationTokens': tok['cache_creation'], 'latencyMs': 0, 'category': pop_category()}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
-                    pass  # 내부 스테이지 마커는 클라이언트에 전달하지 않음
+                    pass
                 elif isinstance(chunk, str) and chunk.startswith("\x00"):
                     accumulated_text.clear()
                     accumulated_text.append(chunk[1:])
@@ -275,7 +284,7 @@ _NO_RESULT_KW = [
     "포함되어 있지 않", "정보가 없", "찾지 못했어요",
     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
     "문서에 없어서", "안내드리기 어려워",
-    "문서에 없네요", "문서에 없어요", "없네요", "문서에 없는 내용",
+    "문서에 없네요", "문서에 없어요", "없네요", "문서에 없는 내용", "없더라고", "명시되어 있지 않",
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
