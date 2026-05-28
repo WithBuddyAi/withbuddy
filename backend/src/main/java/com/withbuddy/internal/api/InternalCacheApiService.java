@@ -75,7 +75,9 @@ public class InternalCacheApiService {
         String resolvedKey = buildRedisKey(namespace, request.key());
         String encoded = cachePayloadCodec.encode(request.value());
         redisTemplate.opsForValue().set(resolvedKey, encoded, cacheTtlPolicy.resolve(request.ttlSeconds()));
-        internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(request.value()));
+        if (isL1Enabled()) {
+            internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(request.value()));
+        }
         cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
         return new CacheWriteResponse(namespace, 1);
     }
@@ -97,7 +99,9 @@ public class InternalCacheApiService {
             try {
                 String encoded = cachePayloadCodec.encode(item.value());
                 redisTemplate.opsForValue().set(resolvedKey, encoded, ttl);
-                internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(item.value()));
+                if (isL1Enabled()) {
+                    internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(item.value()));
+                }
                 cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
                 written += 1;
             } catch (RuntimeException ex) {
@@ -111,12 +115,18 @@ public class InternalCacheApiService {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
         Boolean deleted = redisTemplate.delete(resolvedKey);
-        internalApiLocalCache.invalidate(resolvedKey);
+        if (isL1Enabled()) {
+            internalApiLocalCache.invalidate(resolvedKey);
+        }
         cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
         return new CacheWriteResponse(namespace, Boolean.TRUE.equals(deleted) ? 1 : 0);
     }
 
     private InternalApiLocalCacheValue resolveLocalValue(String resolvedKey) {
+        if (!isL1Enabled()) {
+            return loadFromRedis(resolvedKey);
+        }
+
         long now = System.currentTimeMillis();
         long negativeTtlMillis = Math.max(1, cacheProperties.getL1().getNegativeTtlSeconds()) * 1000L;
 
@@ -164,6 +174,10 @@ public class InternalCacheApiService {
                 swrRefreshInFlight.remove(resolvedKey);
             }
         });
+    }
+
+    private boolean isL1Enabled() {
+        return cacheProperties.getL1().isEnabled();
     }
 
     private String normalizeNamespace(String namespace) {
