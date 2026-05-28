@@ -17,12 +17,16 @@ public class AppCacheProperties {
     private L1 l1 = new L1();
     private L2 l2 = new L2();
     private Codec codec = new Codec();
+    private Invalidation invalidation = new Invalidation();
 
     @Getter
     @Setter
     public static class L1 {
         private boolean enabled = true;
         private String spec = "maximumSize=5000,expireAfterWrite=10m,recordStats";
+        private int negativeTtlSeconds = 30;
+        private boolean swrEnabled = true;
+        private int swrRefreshAfterSeconds = 15;
     }
 
     @Getter
@@ -40,5 +44,13 @@ public class AppCacheProperties {
         private boolean compressionEnabled = true;
         private int compressionThresholdBytes = 1024;
         private String format = "msgpack";
+    }
+
+    @Getter
+    @Setter
+    public static class Invalidation {
+        private boolean enabled = true;
+        private String channel = "withbuddy:cache:invalidate";
+        private String nodeId = "";
     }
 }
