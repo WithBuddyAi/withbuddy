@@ -78,30 +78,41 @@ WithBuddy는?
 <br>
 
 ## 📁 프로젝트 구조
-
 ```
 src/
-├── App.jsx                        # 라우팅 설정, 전체 앱 진입점
+├── App.jsx                                    # 라우팅 설정, 전체 앱 진입점
 ├── api/
-│   └── axiosInstance.js           # axios 공통 설정 (토큰 자동 첨부, 401 자동 로그아웃)
+│   ├── axiosInstance.js                       # axios 공통 설정 (토큰 자동 첨부, 401 자동 로그아웃)
+│   └── handlers.js                            # API 에러 핸들러
 ├── contexts/
-│   └── UserContext.jsx            # 사용자 정보 전역 상태 관리 (hireDate, dayOffset)
+│   └── UserContext.jsx                        # 사용자 정보 전역 상태 관리 (hireDate, dayOffset)
 ├── components/
-│   ├── Tooltip.jsx                # 툴팁 공통 컴포넌트
-│   ├── Sidebar.jsx                # 사이드바 (사용자 정보, 메뉴, 대화기록 달력)
-│   ├── LogoutModal.jsx            # 로그아웃 확인 모달
-│   ├── ErrorToast.jsx             # 에러 토스트 메시지
-│   ├── MessageList.jsx            # 채팅 메시지 목록
-│   ├── QuickQuestions.jsx         # 빠른 질문 버튼 목록
-│   ├── ChatInput.jsx              # 채팅 입력창
+│   ├── Tooltip.jsx                            # 툴팁 공통 컴포넌트
+│   ├── Sidebar.jsx                            # 사이드바 (사용자 정보, 메뉴, 대화기록 달력)
+│   ├── LogoutModal.jsx                        # 로그아웃 확인 모달
+│   ├── ErrorToast.jsx                         # 에러 토스트 메시지
+│   ├── MessageList.jsx                        # 채팅 메시지 목록
+│   ├── QuickQuestions.jsx                     # 빠른 질문 버튼 목록
+│   ├── ChatInput.jsx                          # 채팅 입력창
+│   ├── SessionModal.jsx                       # 세션 만료 모달
 │   └── admin/
-│       ├── AdminSidebar.jsx       # 관리자 사이드바
-│       ├── AdminMainView.jsx      # 관리자 메인 화면
-│       └── AdminCreateView.jsx    # 신입 계정 생성 화면 (폼 + 유효성 검사 + API 호출)
+│       ├── AdminSidebar.jsx                   # 관리자 사이드바
+│       ├── AdminCreateView.jsx                # 신입 계정 생성 화면 (폼 + 유효성 검사 + API 호출)
+│       ├── AdminForm.jsx                      # 계정 생성 폼
+│       └── AdminMainView/
+│           ├── AdminMainView.jsx              # 계정 관리 메인 화면 (상태 관리, API 호출 담당)
+│           ├── AdminHeader.jsx                # 계정 관리 상단 헤더
+│           ├── UserMobileList.jsx             # 모바일 계정 목록
+│           ├── UserMobileCard.jsx             # 모바일 계정 카드
+│           ├── UserTable.jsx                  # PC / 태블릿 계정 테이블
+│           ├── UserRow.jsx                    # 계정 테이블 행
+│           ├── Pagination.jsx                 # 페이지네이션
+│           ├── LoadingState.jsx               # 로딩 상태 UI
+│           └── EmptyState.jsx                 # 빈 상태 UI
 └── pages/
-    ├── Login.jsx                  # 로그인 페이지
-    ├── MyBuddy.jsx                # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
-    └── Admin.jsx                  # 관리자 페이지 (뷰 전환 · 레이아웃 담당)
+    ├── Login.jsx                              # 로그인 페이지
+    ├── MyBuddy.jsx                            # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
+    └── Admin.jsx                              # 관리자 페이지 (뷰 전환 · 레이아웃 담당)
 ```
 
 > 💡 **axiosInstance란?**  
@@ -115,6 +126,7 @@ src/
 > 💡 **admin/ 폴더란?**  
 > 관리자 페이지 관련 컴포넌트를 모아둔 폴더.  
 > `AdminCreateView`는 계정 생성에 필요한 state, 유효성 검사, API 호출을 직접 관리함
+> `AdminMainView/`는 계정 관리 화면을 담당하며, 하위 컴포넌트(UserTable, UserRow, UserMobileCard)로 역할을 분리함
 
 <br>
 
@@ -188,3 +200,5 @@ git commit -m "ㅇㅇ"
 - 2026-04-27: `contexts/UserContext.jsx` 추가 (hireDate·dayOffset 전역 상태 관리), dayOffset 계산 로직 개선, SSoT 인증 상태 통합.
 - 2026-04-28: `ProtectedRoute.jsx`, `Layout.jsx` 제거, `components/` 폴더에 Sidebar, LogoutModal, ErrorToast, MessageList, QuickQuestions, ChatInput 컴포넌트 분리 추가.
 - 2026-05-11: 서비스명 WithBuddy로 수정, 관리자 페이지(신입 계정 생성) 추가, `components/admin/` 폴더 구조 반영 (AdminSidebar, AdminMainView, AdminCreateView 분리).
+- 2026-05-28: `AdminMainView`를 폴더 구조로 리팩토링하고 관리자 메인 화면 컴포넌트를 역할별로 분리.
+  (`AdminHeader`, `UserTable`, `UserRow`, `UserMobileList`, `UserMobileCard`, `Pagination`, `LoadingState`, `EmptyState`)
