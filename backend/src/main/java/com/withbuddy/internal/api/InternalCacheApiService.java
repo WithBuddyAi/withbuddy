@@ -78,12 +78,6 @@ public class InternalCacheApiService {
     public CacheWriteResponse set(CacheSetRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
-<<<<<<< Updated upstream
-        String encoded = cachePayloadCodec.encode(request.value());
-        redisTemplate.opsForValue().set(resolvedKey, encoded, cacheTtlPolicy.resolve(request.ttlSeconds()));
-        if (isL1Enabled()) {
-            internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(request.value()));
-=======
         var ttl = cacheTtlPolicy.resolve(request.ttlSeconds());
 
         cacheResilienceGuard.execute(
@@ -98,7 +92,6 @@ public class InternalCacheApiService {
 
         if (isL1Enabled()) {
             internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(request.value(), ttl.toMillis()));
->>>>>>> Stashed changes
         }
         cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
         return new CacheWriteResponse(namespace, 1);
@@ -119,12 +112,6 @@ public class InternalCacheApiService {
             }
             seenKeys.add(resolvedKey);
             try {
-<<<<<<< Updated upstream
-                String encoded = cachePayloadCodec.encode(item.value());
-                redisTemplate.opsForValue().set(resolvedKey, encoded, ttl);
-                if (isL1Enabled()) {
-                    internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(item.value()));
-=======
                 cacheResilienceGuard.execute(
                         "set_multi",
                         () -> {
@@ -137,7 +124,6 @@ public class InternalCacheApiService {
 
                 if (isL1Enabled()) {
                     internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(item.value(), ttl.toMillis()));
->>>>>>> Stashed changes
                 }
                 cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
                 written += 1;
@@ -151,15 +137,11 @@ public class InternalCacheApiService {
     public CacheWriteResponse delete(CacheDeleteRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
-<<<<<<< Updated upstream
-        Boolean deleted = redisTemplate.delete(resolvedKey);
-=======
         Boolean deleted = cacheResilienceGuard.execute(
                 "delete",
                 () -> redisTemplate.delete(resolvedKey),
                 () -> Boolean.FALSE
         );
->>>>>>> Stashed changes
         if (isL1Enabled()) {
             internalApiLocalCache.invalidate(resolvedKey);
         }
@@ -229,10 +211,6 @@ public class InternalCacheApiService {
                 swrRefreshInFlight.remove(resolvedKey);
             }
         });
-    }
-
-    private boolean isL1Enabled() {
-        return cacheProperties.getL1().isEnabled();
     }
 
     private String normalizeNamespace(String namespace) {
