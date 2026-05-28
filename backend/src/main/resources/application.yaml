@@ -54,6 +54,22 @@ ai:
     base-url: ${AI_SERVER_BASE_URL}
 
 app:
+  cache:
+    env: ${APP_ENV:prod}
+    key-prefix: ${APP_CACHE_KEY_PREFIX:ai}
+    key-version: ${APP_CACHE_KEY_VERSION:v1}
+    l1:
+      enabled: ${APP_CACHE_L1_ENABLED:true}
+      spec: ${APP_CACHE_L1_SPEC:maximumSize=5000,expireAfterWrite=10m,recordStats}
+    l2:
+      default-ttl-seconds: ${APP_CACHE_L2_DEFAULT_TTL_SECONDS:300}
+      min-ttl-seconds: ${APP_CACHE_L2_MIN_TTL_SECONDS:5}
+      max-ttl-seconds: ${APP_CACHE_L2_MAX_TTL_SECONDS:86400}
+      jitter-ratio: ${APP_CACHE_L2_JITTER_RATIO:0.2}
+    codec:
+      compression-enabled: ${APP_CACHE_CODEC_COMPRESSION_ENABLED:true}
+      compression-threshold-bytes: ${APP_CACHE_CODEC_COMPRESSION_THRESHOLD_BYTES:1024}
+      format: ${APP_CACHE_CODEC_FORMAT:msgpack}
   security:
     cors:
       allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,https://*.vercel.app,https://withbuddy.itsdev.kr}
