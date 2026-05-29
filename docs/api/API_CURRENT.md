@@ -1900,6 +1900,15 @@ ALTER TABLE users
 
 관리자 계정 페이지에서 현재 관리자의 회사에 등록된 신입 사원 계정 목록을 조회한다.
 
+기본 조회 시에는 `page`, `size`만 전달한다.
+
+```http
+GET /api/v1/admin/users?page=0&size=10
+Authorization: Bearer {accessToken}
+```
+
+부서/팀명 검색이 필요한 경우 `department`, `teamName`을 함께 전달한다.
+
 ```http
 GET /api/v1/admin/users?page=0&size=10&department=개발팀&teamName=백엔드팀
 Authorization: Bearer {accessToken}
@@ -1962,8 +1971,6 @@ Authorization: Bearer {accessToken}
   "last": true
 }
 ```
-
-#### Response Field
 
 #### Response Field
 
