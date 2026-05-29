@@ -61,6 +61,9 @@ app:
     l1:
       enabled: ${APP_CACHE_L1_ENABLED:true}
       spec: ${APP_CACHE_L1_SPEC:maximumSize=5000,expireAfterWrite=10m,recordStats}
+      negative-ttl-seconds: ${APP_CACHE_L1_NEGATIVE_TTL_SECONDS:30}
+      swr-enabled: ${APP_CACHE_L1_SWR_ENABLED:true}
+      swr-refresh-after-seconds: ${APP_CACHE_L1_SWR_REFRESH_AFTER_SECONDS:15}
     l2:
       default-ttl-seconds: ${APP_CACHE_L2_DEFAULT_TTL_SECONDS:300}
       min-ttl-seconds: ${APP_CACHE_L2_MIN_TTL_SECONDS:5}
@@ -70,6 +73,10 @@ app:
       compression-enabled: ${APP_CACHE_CODEC_COMPRESSION_ENABLED:true}
       compression-threshold-bytes: ${APP_CACHE_CODEC_COMPRESSION_THRESHOLD_BYTES:1024}
       format: ${APP_CACHE_CODEC_FORMAT:msgpack}
+    invalidation:
+      enabled: ${APP_CACHE_INVALIDATION_ENABLED:true}
+      channel: ${APP_CACHE_INVALIDATION_CHANNEL:withbuddy:cache:invalidate}
+      node-id: ${APP_CACHE_INVALIDATION_NODE_ID:}
   security:
     cors:
       allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,https://*.vercel.app,https://withbuddy.itsdev.kr}
