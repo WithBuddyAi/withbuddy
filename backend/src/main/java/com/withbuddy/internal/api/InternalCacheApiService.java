@@ -1,17 +1,26 @@
 package com.withbuddy.internal.api;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.withbuddy.infrastructure.cache.AppCacheProperties;
+import com.withbuddy.infrastructure.cache.CacheInvalidationPublisher;
+import com.withbuddy.infrastructure.cache.CacheKeyBuilder;
+import com.withbuddy.infrastructure.cache.CachePayloadCodec;
+import com.withbuddy.infrastructure.cache.CacheResilienceGuard;
+import com.withbuddy.infrastructure.cache.CacheTtlPolicy;
+import com.withbuddy.infrastructure.cache.InternalApiLocalCacheValue;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import static com.withbuddy.internal.api.InternalApiModels.CacheDeleteRequest;
 import static com.withbuddy.internal.api.InternalApiModels.CacheGetMultiRequest;
@@ -28,20 +37,26 @@ import static com.withbuddy.internal.api.InternalApiModels.CacheWriteResponse;
 @RequiredArgsConstructor
 public class InternalCacheApiService {
 
-    private static final String KEY_PREFIX = "ai";
     private static final String DEFAULT_NAMESPACE = "default";
-    private static final int DEFAULT_TTL_SECONDS = 300;
 
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final AppCacheProperties cacheProperties;
+    private final CacheKeyBuilder cacheKeyBuilder;
+    private final CachePayloadCodec cachePayloadCodec;
+    private final CacheTtlPolicy cacheTtlPolicy;
+    private final CacheResilienceGuard cacheResilienceGuard;
+    private final CacheInvalidationPublisher cacheInvalidationPublisher;
+
+    @Qualifier("internalApiLocalCache")
+    private final Cache<String, InternalApiLocalCacheValue> internalApiLocalCache;
+
+    private final Set<String> swrRefreshInFlight = ConcurrentHashMap.newKeySet();
 
     public CacheGetResponse get(CacheGetRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
-        String raw = redisTemplate.opsForValue().get(resolvedKey);
-        boolean found = raw != null;
-        JsonNode value = found ? deserializeJson(raw) : null;
-        return new CacheGetResponse(request.key(), namespace, found, value);
+        InternalApiLocalCacheValue cached = resolveLocalValue(resolvedKey);
+        return new CacheGetResponse(request.key(), namespace, cached.found(), cached.value());
     }
 
     public CacheGetMultiResponse getMulti(CacheGetMultiRequest request) {
@@ -50,14 +65,12 @@ public class InternalCacheApiService {
         List<String> resolvedKeys = originalKeys.stream()
                 .map(key -> buildRedisKey(namespace, key))
                 .toList();
-        List<String> values = redisTemplate.opsForValue().multiGet(resolvedKeys);
 
         List<CacheGetResponse> items = new ArrayList<>();
         for (int i = 0; i < originalKeys.size(); i++) {
-            String raw = values != null && i < values.size() ? values.get(i) : null;
-            boolean found = raw != null;
-            JsonNode value = found ? deserializeJson(raw) : null;
-            items.add(new CacheGetResponse(originalKeys.get(i), namespace, found, value));
+            String resolvedKey = resolvedKeys.get(i);
+            InternalApiLocalCacheValue cached = resolveLocalValue(resolvedKey);
+            items.add(new CacheGetResponse(originalKeys.get(i), namespace, cached.found(), cached.value()));
         }
         return new CacheGetMultiResponse(namespace, items);
     }
@@ -65,14 +78,28 @@ public class InternalCacheApiService {
     public CacheWriteResponse set(CacheSetRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
-        String serialized = serializeJson(request.value());
-        redisTemplate.opsForValue().set(resolvedKey, serialized, resolveTtl(request.ttlSeconds()));
+        var ttl = cacheTtlPolicy.resolve(request.ttlSeconds());
+
+        cacheResilienceGuard.execute(
+                "set",
+                () -> {
+                    String encoded = cachePayloadCodec.encode(request.value());
+                    redisTemplate.opsForValue().set(resolvedKey, encoded, ttl);
+                    return null;
+                },
+                () -> null
+        );
+
+        if (isL1Enabled()) {
+            internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(request.value(), ttl.toMillis()));
+        }
+        cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
         return new CacheWriteResponse(namespace, 1);
     }
 
     public CacheSetMultiResponse setMulti(CacheSetMultiRequest request) {
         String namespace = normalizeNamespace(request.namespace());
-        Duration ttl = resolveTtl(request.ttlSeconds());
+        var ttl = cacheTtlPolicy.resolve(request.ttlSeconds());
         List<CacheSetMultiError> errors = new ArrayList<>();
         List<String> seenKeys = new ArrayList<>();
         int written = 0;
@@ -85,8 +112,20 @@ public class InternalCacheApiService {
             }
             seenKeys.add(resolvedKey);
             try {
-                String serialized = serializeJson(item.value());
-                redisTemplate.opsForValue().set(resolvedKey, serialized, ttl);
+                cacheResilienceGuard.execute(
+                        "set_multi",
+                        () -> {
+                            String encoded = cachePayloadCodec.encode(item.value());
+                            redisTemplate.opsForValue().set(resolvedKey, encoded, ttl);
+                            return null;
+                        },
+                        () -> null
+                );
+
+                if (isL1Enabled()) {
+                    internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(item.value(), ttl.toMillis()));
+                }
+                cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
                 written += 1;
             } catch (RuntimeException ex) {
                 errors.add(new CacheSetMultiError(item.key(), ex.getMessage()));
@@ -98,8 +137,80 @@ public class InternalCacheApiService {
     public CacheWriteResponse delete(CacheDeleteRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
-        Boolean deleted = redisTemplate.delete(resolvedKey);
+        Boolean deleted = cacheResilienceGuard.execute(
+                "delete",
+                () -> redisTemplate.delete(resolvedKey),
+                () -> Boolean.FALSE
+        );
+        if (isL1Enabled()) {
+            internalApiLocalCache.invalidate(resolvedKey);
+        }
+        cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
         return new CacheWriteResponse(namespace, Boolean.TRUE.equals(deleted) ? 1 : 0);
+    }
+
+    private InternalApiLocalCacheValue resolveLocalValue(String resolvedKey) {
+        if (!isL1Enabled()) {
+            return loadFromRedis(resolvedKey);
+        }
+
+        long now = System.currentTimeMillis();
+        long negativeTtlMillis = Math.max(1, cacheProperties.getL1().getNegativeTtlSeconds()) * 1000L;
+
+        InternalApiLocalCacheValue cached = internalApiLocalCache.getIfPresent(resolvedKey);
+        if (cached != null
+                && !cached.isNegativeExpired(now, negativeTtlMillis)
+                && !cached.isPositiveExpired(now)) {
+            triggerSWRIfNeeded(resolvedKey, cached, now);
+            return cached;
+        }
+        if (cached != null) {
+            internalApiLocalCache.invalidate(resolvedKey);
+        }
+        return internalApiLocalCache.get(resolvedKey, this::loadFromRedis);
+    }
+
+    private InternalApiLocalCacheValue loadFromRedis(String resolvedKey) {
+        return cacheResilienceGuard.execute(
+                "get",
+                () -> {
+                    String raw = redisTemplate.opsForValue().get(resolvedKey);
+                    if (raw == null) {
+                        return InternalApiLocalCacheValue.miss();
+                    }
+                    JsonNode decoded = cachePayloadCodec.decode(raw);
+                    Long ttlMillis = redisTemplate.getExpire(resolvedKey, TimeUnit.MILLISECONDS);
+                    long normalizedTtl = ttlMillis == null || ttlMillis < 0 ? -1L : ttlMillis;
+                    return InternalApiLocalCacheValue.hit(decoded, normalizedTtl);
+                },
+                InternalApiLocalCacheValue::miss
+        );
+    }
+
+    private void triggerSWRIfNeeded(String resolvedKey, InternalApiLocalCacheValue cached, long now) {
+        if (!cached.found() || !cacheProperties.getL1().isSwrEnabled()) {
+            return;
+        }
+
+        long refreshAfterMillis = Math.max(1, cacheProperties.getL1().getSwrRefreshAfterSeconds()) * 1000L;
+        if (now - cached.loadedAtEpochMillis() < refreshAfterMillis) {
+            return;
+        }
+
+        if (!swrRefreshInFlight.add(resolvedKey)) {
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                InternalApiLocalCacheValue refreshed = loadFromRedis(resolvedKey);
+                internalApiLocalCache.put(resolvedKey, refreshed);
+            } catch (RuntimeException ignored) {
+                // SWR refresh 실패는 요청 흐름에 영향 주지 않는다.
+            } finally {
+                swrRefreshInFlight.remove(resolvedKey);
+            }
+        });
     }
 
     private String normalizeNamespace(String namespace) {
@@ -127,27 +238,10 @@ public class InternalCacheApiService {
         if (!normalizedKey.matches("^[a-zA-Z0-9:_.-]+$")) {
             throw new IllegalArgumentException("cache key는 영문/숫자/:/_/./- 문자만 사용할 수 있습니다.");
         }
-        return KEY_PREFIX + ":" + namespace + ":" + normalizedKey;
+        return cacheKeyBuilder.build(namespace, normalizedKey);
     }
 
-    private Duration resolveTtl(Integer ttlSeconds) {
-        int value = Objects.requireNonNullElse(ttlSeconds, DEFAULT_TTL_SECONDS);
-        return Duration.ofSeconds(value);
-    }
-
-    private String serializeJson(JsonNode value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("cache value를 JSON 문자열로 변환할 수 없습니다.", e);
-        }
-    }
-
-    private JsonNode deserializeJson(String raw) {
-        try {
-            return objectMapper.readTree(raw);
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("cache value를 JSON으로 해석할 수 없습니다.", e);
-        }
+    private boolean isL1Enabled() {
+        return cacheProperties.getL1().isEnabled();
     }
 }

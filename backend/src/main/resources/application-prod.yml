@@ -34,6 +34,35 @@ ai:
     async-read-timeout-ms: ${AI_SERVER_ASYNC_READ_TIMEOUT_MS:15000}
 
 app:
+  cache:
+    env: ${APP_ENV:prod}
+    key-prefix: ${APP_CACHE_KEY_PREFIX:ai}
+    key-version: ${APP_CACHE_KEY_VERSION:v1}
+    l1:
+      enabled: ${APP_CACHE_L1_ENABLED:true}
+      spec: ${APP_CACHE_L1_SPEC:maximumSize=10000,expireAfterWrite=15m,recordStats}
+      negative-ttl-seconds: ${APP_CACHE_L1_NEGATIVE_TTL_SECONDS:30}
+      swr-enabled: ${APP_CACHE_L1_SWR_ENABLED:true}
+      swr-refresh-after-seconds: ${APP_CACHE_L1_SWR_REFRESH_AFTER_SECONDS:15}
+    l2:
+      default-ttl-seconds: ${APP_CACHE_L2_DEFAULT_TTL_SECONDS:300}
+      min-ttl-seconds: ${APP_CACHE_L2_MIN_TTL_SECONDS:5}
+      max-ttl-seconds: ${APP_CACHE_L2_MAX_TTL_SECONDS:86400}
+      jitter-ratio: ${APP_CACHE_L2_JITTER_RATIO:0.2}
+    codec:
+      compression-enabled: ${APP_CACHE_CODEC_COMPRESSION_ENABLED:true}
+      compression-threshold-bytes: ${APP_CACHE_CODEC_COMPRESSION_THRESHOLD_BYTES:1024}
+      format: ${APP_CACHE_CODEC_FORMAT:msgpack}
+    invalidation:
+      enabled: ${APP_CACHE_INVALIDATION_ENABLED:true}
+      channel: ${APP_CACHE_INVALIDATION_CHANNEL:withbuddy:cache:invalidate}
+      node-id: ${APP_CACHE_INVALIDATION_NODE_ID:}
+    resilience:
+      enabled: ${APP_CACHE_RESILIENCE_ENABLED:true}
+      circuit-failure-threshold: ${APP_CACHE_RESILIENCE_CIRCUIT_FAILURE_THRESHOLD:5}
+      circuit-open-seconds: ${APP_CACHE_RESILIENCE_CIRCUIT_OPEN_SECONDS:30}
+      fallback-rate-per-second: ${APP_CACHE_RESILIENCE_FALLBACK_RATE_PER_SECOND:20}
+      fallback-burst: ${APP_CACHE_RESILIENCE_FALLBACK_BURST:40}
   security:
     storage-api:
       enabled: ${STORAGE_API_AUTH_ENABLED:true}
@@ -86,6 +115,10 @@ app:
       bucket: ${STORAGE_BACKUP_BUCKET:withbuddy-backup}
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
