@@ -3,6 +3,9 @@ package com.withbuddy.buddy.chat.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageListResponse;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageResponse;
 import com.withbuddy.buddy.chat.dto.response.QuickQuestionResponse;
@@ -21,6 +24,8 @@ import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import com.withbuddy.storage.service.DocumentDownloadService;
+import com.withbuddy.global.exception.ForbiddenException;
+import com.withbuddy.global.exception.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -50,8 +55,10 @@ public class ChatMessageQueryService {
     private final ObjectMapper objectMapper;
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
+    private final UserRepository userRepository;
 
     public ChatMessageListResponse getMessages(Long userId, LocalDate date) {
+        requireMessageQueryAllowed(userId);
         List<ChatMessage> chatMessages = findChatMessages(userId, date);
         if (chatMessages.isEmpty()) {
             return new ChatMessageListResponse(Collections.emptyList());
@@ -193,11 +200,33 @@ public class ChatMessageQueryService {
     }
 
     public DocumentDownloadResponse getDocumentDownloadUrl(Long userId, Long documentId) {
+        requireChatDocumentDownloadAllowed(userId);
         if (!chatMessageDocumentRepository.existsByUserIdAndDocumentId(userId, documentId)) {
             throw new StorageException(HttpStatus.FORBIDDEN, "FORBIDDEN", "documentId", "채팅에서 수신하지 않은 문서입니다.");
         }
 
         return documentDownloadService.getDownloadUrl(documentId);
+    }
+
+    private void requireMessageQueryAllowed(Long userId) {
+        User user = findUser(userId);
+        if (user.getRole() != UserRole.ACTIVE
+                && user.getRole() != UserRole.READ_ONLY
+                && user.getRole() != UserRole.SERVICE_ADMIN) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 채팅 메시지를 조회할 수 없습니다.");
+        }
+    }
+
+    private void requireChatDocumentDownloadAllowed(Long userId) {
+        User user = findUser(userId);
+        if (user.getRole() == UserRole.INACTIVE) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 문서를 다운로드할 수 없습니다.");
+        }
+    }
+
+    private User findUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
     }
 
     private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {

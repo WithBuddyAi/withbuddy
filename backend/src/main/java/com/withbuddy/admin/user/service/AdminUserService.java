@@ -1,5 +1,7 @@
 package com.withbuddy.admin.user.service;
 
+import com.withbuddy.admin.activity.entity.EventTarget;
+import com.withbuddy.admin.activity.repository.UserActivityLogRepository;
 import com.withbuddy.admin.user.dto.request.CreateUserRequest;
 import com.withbuddy.admin.user.dto.response.CreateUserResponse;
 import com.withbuddy.admin.user.dto.response.UserListItemResponse;
@@ -20,7 +22,6 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -29,6 +30,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class AdminUserService {
@@ -38,15 +41,18 @@ public class AdminUserService {
     private final AdminUserRepository adminUserRepository;
     private final CompanyRepository companyRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final UserActivityLogRepository userActivityLogRepository;
 
     public AdminUserService(
             AdminUserRepository adminUserRepository,
             CompanyRepository companyRepository,
-            ChatMessageRepository chatMessageRepository
+            ChatMessageRepository chatMessageRepository,
+            UserActivityLogRepository userActivityLogRepository
     ) {
         this.adminUserRepository = adminUserRepository;
         this.companyRepository = companyRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.userActivityLogRepository = userActivityLogRepository;
     }
 
     @Transactional
@@ -112,15 +118,20 @@ public class AdminUserService {
 
         Page<User> userPage = adminUserRepository.searchUsers(
                 companyCode,
-                List.of(UserRole.ACTIVE_USER, UserRole.INACTIVE_USER),
+                List.of(UserRole.ACTIVE, UserRole.READ_ONLY, UserRole.INACTIVE),
+                List.of(UserRole.ACTIVE),
+                List.of(UserRole.READ_ONLY),
+                List.of(UserRole.INACTIVE),
                 normalizeFilter(department, "department"),
                 normalizeFilter(teamName, "teamName"),
-                PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "hireDate"))
+                PageRequest.of(page, size)
         );
+
+        Map<Long, LocalDate> lastLoginDateByUserId = resolveLastLoginDateByUserId(userPage.getContent());
 
         return new UserListResponse(
                 userPage.getContent().stream()
-                        .map(this::toListItem)
+                        .map(user -> toListItem(user, lastLoginDateByUserId.get(user.getId())))
                         .toList(),
                 userPage.getNumber(),
                 userPage.getSize(),
@@ -171,7 +182,7 @@ public class AdminUserService {
         return value.trim();
     }
 
-    private UserListItemResponse toListItem(User user) {
+    private UserListItemResponse toListItem(User user, LocalDate lastLoginDate) {
         return new UserListItemResponse(
                 user.getId(),
                 user.getCompany().getCompanyCode(),
@@ -183,10 +194,27 @@ public class AdminUserService {
                 user.getHireDate(),
                 calculateHireDay(user.getHireDate()),
                 countUserQuestions(user.getId()),
-                user.getRole() == UserRole.ACTIVE_USER,
+                lastLoginDate,
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );
+    }
+
+    private Map<Long, LocalDate> resolveLastLoginDateByUserId(List<User> users) {
+        List<Long> userIds = users.stream()
+                .map(User::getId)
+                .toList();
+
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return userActivityLogRepository.findLastLoginLogsByUserIdIn(userIds, EventTarget.LOGIN).stream()
+                .collect(Collectors.toMap(
+                        UserActivityLogRepository.LastLoginLogProjection::getUserId,
+                        projection -> projection.getLastLoginAt().toLocalDate(),
+                        (existing, replacement) -> existing
+                ));
     }
 
     private String formatDepartmentTeam(String department, String teamName) {

@@ -26,10 +26,21 @@ public interface AdminUserRepository extends JpaRepository<User, Long> {
               and u.role in :roles
               and (:department is null or lower(u.department) like lower(concat('%', :department, '%')))
               and (:teamName is null or lower(u.teamName) like lower(concat('%', :teamName, '%')))
+            order by
+              case
+                when u.role in :activeRoles then 0
+                when u.role in :readOnlyRoles then 1
+                when u.role in :inactiveRoles then 2
+                else 3
+              end,
+              u.employeeNumber asc
             """)
     Page<User> searchUsers(
             @Param("companyCode") String companyCode,
             @Param("roles") Collection<UserRole> roles,
+            @Param("activeRoles") Collection<UserRole> activeRoles,
+            @Param("readOnlyRoles") Collection<UserRole> readOnlyRoles,
+            @Param("inactiveRoles") Collection<UserRole> inactiveRoles,
             @Param("department") String department,
             @Param("teamName") String teamName,
             Pageable pageable

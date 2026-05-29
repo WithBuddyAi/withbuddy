@@ -1,8 +1,9 @@
 package com.withbuddy.account.user.entity;
 
 public enum UserRole {
-    ACTIVE_USER,
-    INACTIVE_USER,
+    ACTIVE,
+    READ_ONLY,
+    INACTIVE,
     ADMIN,
     SERVICE_ADMIN
 }

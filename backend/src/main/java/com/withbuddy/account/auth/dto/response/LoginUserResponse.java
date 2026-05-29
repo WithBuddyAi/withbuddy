@@ -18,7 +18,7 @@ public class LoginUserResponse {
     @Schema(description = "회사 코드", example = "WB0001")
     private String companyCode;
 
-    @Schema(description = "사용자 역할", example = "ACTIVE_USER", allowableValues = {"ACTIVE_USER", "INACTIVE_USER", "ADMIN", "SERVICE_ADMIN"})
+    @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE", "ADMIN", "SERVICE_ADMIN"})
     private UserRole role;
 
     @Schema(description = "회사명", example = "테크 주식회사")

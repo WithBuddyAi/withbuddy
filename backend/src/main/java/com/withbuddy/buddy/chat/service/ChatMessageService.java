@@ -187,10 +187,10 @@ public class ChatMessageService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
-        if (user.getRole() == UserRole.INACTIVE_USER) {
+        if (user.getRole() == UserRole.INACTIVE) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "비활성 사용자는 질문을 전송할 수 없습니다.");
         }
-        if (user.getRole() != UserRole.ACTIVE_USER && user.getRole() != UserRole.SERVICE_ADMIN) {
+        if (user.getRole() != UserRole.ACTIVE && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "질문 전송 권한이 없습니다.");
         }
     }
@@ -652,6 +652,7 @@ public class ChatMessageService {
     }
 
     public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
+        requireQuestionSendAllowed(userId);
         return Map.of("quickQuestions", quickQuestionCatalog.getRandomQuickQuestions(5));
     }
 

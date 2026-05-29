@@ -28,7 +28,7 @@ public record UserListItemResponse(
         @Schema(description = "이름", example = "김지원")
         String name,
 
-        @Schema(description = "사용자 역할", example = "ACTIVE_USER", allowableValues = {"ACTIVE_USER", "INACTIVE_USER"})
+        @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
         String role,
 
         @Schema(description = "입사일", example = "2026-03-01", type = "string", format = "date")
@@ -40,8 +40,8 @@ public record UserListItemResponse(
         @Schema(description = "해당 사용자가 질문한 누적 횟수", example = "7")
         long questionCount,
 
-        @Schema(description = "활성 사용자 여부", example = "true")
-        boolean isActive,
+        @Schema(description = "마지막 로그인 날짜", example = "2026-05-19", type = "string", format = "date")
+        LocalDate lastLoginDate,
 
         @Schema(description = "생성 시각", example = "2026-04-28T09:30:00")
         LocalDateTime createdAt,

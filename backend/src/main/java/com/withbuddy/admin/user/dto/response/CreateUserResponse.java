@@ -17,7 +17,7 @@ public record CreateUserResponse(
         @Schema(description = "회사 이름", example = "테크 주식회사")
         String companyName,
 
-        @Schema(description = "사용자 역할", example = "ACTIVE_USER")
+        @Schema(description = "사용자 역할", example = "ACTIVE")
         String role,
 
         @Schema(description = "이름", example = "김지원")
@@ -37,6 +37,5 @@ public record CreateUserResponse(
 
         @Schema(description = "생성 시각", example = "2026-04-28T09:30:00")
         LocalDateTime createdAt
-
 ) {
 }

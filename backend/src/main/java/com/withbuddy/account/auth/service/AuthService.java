@@ -17,9 +17,13 @@ import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Locale;
 
 @Service
@@ -34,6 +38,7 @@ public class AuthService {
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
 
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         String normalizedCompanyCode = normalizeCompanyCode(request.getCompanyCode());
         String normalizedEmployeeNumber = normalizeValue(request.getEmployeeNumber());
@@ -44,6 +49,11 @@ public class AuthService {
                 normalizedName,
                 normalizedEmployeeNumber
         ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."));
+
+        UserRole currentRole = resolveLifecycleRole(user);
+        if (user.getRole() != currentRole) {
+            user.updateRole(currentRole);
+        }
 
         redisCacheService.get(RedisCacheKeys.userSession(user.getId()))
                 .ifPresent(oldToken -> redisCacheService.delete(RedisCacheKeys.sessionToken(oldToken)));
@@ -67,7 +77,7 @@ public class AuthService {
         LoginUserResponse userResponse = new LoginUserResponse(
                 user.getId(),
                 user.getCompany().getCompanyCode(),
-                user.getRole(),
+                currentRole,
                 user.getCompany().getName(),
                 user.getEmployeeNumber(),
                 user.getName(),
@@ -105,5 +115,28 @@ public class AuthService {
 
     private String normalizeValue(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private UserRole resolveLifecycleRole(User user) {
+        if (user.getRole() == UserRole.ADMIN
+                || user.getRole() == UserRole.SERVICE_ADMIN
+                || user.getRole() == UserRole.INACTIVE) {
+            return user.getRole();
+        }
+
+        int probationPeriod = user.getCompany().getProbationPeriod() == null
+                ? 90
+                : user.getCompany().getProbationPeriod();
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate readOnlyStartDate = user.getHireDate().plusDays(probationPeriod);
+        LocalDate inactiveStartDate = readOnlyStartDate.plusDays(30);
+
+        if (!today.isBefore(inactiveStartDate)) {
+            return UserRole.INACTIVE;
+        }
+        if (!today.isBefore(readOnlyStartDate)) {
+            return UserRole.READ_ONLY;
+        }
+        return UserRole.ACTIVE;
     }
 }
