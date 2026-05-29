@@ -52,6 +52,7 @@ function MyBuddy({ setIsLoggedIn }) {
   const charQueueRef = useRef([]);
   const isTypingRef = useRef(false);
   const streamDoneRef = useRef(null);
+  const submitLockRef = useRef(false);
   const processQueue = useCallback(() => {
     if (charQueueRef.current.length === 0) {
       isTypingRef.current = false;
@@ -240,13 +241,37 @@ function MyBuddy({ setIsLoggedIn }) {
   }, [isLoading]);
 
   // 사용자 질문 전송
-  const handleSubmit = async (e, submitText) => {
+  const handleSubmit = async (e, submitText, eventTarget) => {
     e?.preventDefault();
-    const sendText = submitText;
-    if (!sendText.trim()) return;
-    if (isLoading) return;
+    const sendText = submitText?.trim();
+    if (!sendText) return;
+
+    // 중복 요청 완전 차단
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
+
+    // 클릭 로그 기록
+    if (eventTarget) {
+      try {
+        await axiosInstance.post("/api/v1/chat/quick-questions/click", {
+          eventTarget,
+        });
+      } catch (error) {
+        console.error("클릭 로그 기록 실패:", error);
+      }
+    }
+
+    // 이전 스트림 상태 초기화
+    charQueueRef.current = [];
+    isTypingRef.current = false;
+    streamDoneRef.current = null;
+
     setIsLoading(true);
     setHasSubmitted(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (!submitLockRef.current) return;
+
     setMessageList((prev) => [
       ...prev,
       {
@@ -275,15 +300,19 @@ function MyBuddy({ setIsLoggedIn }) {
         const message = errorData?.errors?.[0]?.message;
         const code = errorData?.code;
 
+        setIsLoading(false);
+
         if (response.status === 401) {
           if (code === "SESSION_EXPIRED") {
             setModalType("sessionExpired");
             return;
           }
+
           if (code === "SESSION_REVOKED") {
             setModalType("duplicateLogin");
             return;
           }
+
           if (
             code === "TOKEN_MISSING" ||
             code === "INVALID_TOKEN" ||
@@ -294,16 +323,18 @@ function MyBuddy({ setIsLoggedIn }) {
             localStorage.removeItem("hireDate");
             localStorage.removeItem("name");
             localStorage.removeItem("role");
+
             navigate("/login");
             return;
           }
         }
+
         if (response.status === 503) {
-          error.handled = true;
           setRetryBt(() => () => handleSubmit(null, sendText));
           setModalType("redis");
           return;
         }
+
         if (response.status === 504) {
           setMessageList((prev) => [
             ...prev,
@@ -320,29 +351,33 @@ function MyBuddy({ setIsLoggedIn }) {
         } else {
           setErrorMessage(message || "메시지 전송에 실패했어요.");
         }
+
         return;
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+
       let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
+
         if (done) break;
 
-        // 버퍼에 누적
         buffer += decoder.decode(value, { stream: true });
 
-        // \n\n 기준으로 이벤트 단위 분리
         let delimiterIndex;
+
         while ((delimiterIndex = buffer.indexOf("\n\n")) !== -1) {
           const rawEvent = buffer.slice(0, delimiterIndex).trim();
+
           buffer = buffer.slice(delimiterIndex + 2);
 
           if (!rawEvent) continue;
 
           const lines = rawEvent.split("\n");
+
           let eventName = "";
 
           for (const line of lines) {
@@ -355,16 +390,16 @@ function MyBuddy({ setIsLoggedIn }) {
 
               if (eventName === "question_saved") {
                 setMessageList((prev) => {
-                  // 이미 같은 ID가 있으면 교체
                   const exists = prev.some(
                     (msg) => msg.id === parsed.question.id,
                   );
+
                   if (exists) {
                     return prev.map((msg) =>
                       msg.id === parsed.question.id ? parsed.question : msg,
                     );
                   }
-                  // 가장 마지막 temp- 메시지만 교체
+
                   const lastTempIndex = [...prev]
                     .map((msg, i) => ({ msg, i }))
                     .reverse()
@@ -380,11 +415,13 @@ function MyBuddy({ setIsLoggedIn }) {
                 });
               } else if (eventName === "answer_delta") {
                 const words = parsed.content.split(" ");
+
                 words.forEach((word, i) => {
                   charQueueRef.current.push(
                     i < words.length - 1 ? word + " " : word,
                   );
                 });
+
                 if (!isTypingRef.current) {
                   isTypingRef.current = true;
                   setTimeout(processQueue, 110);
@@ -396,9 +433,11 @@ function MyBuddy({ setIsLoggedIn }) {
                       msg.messageType === "streaming" ? parsed.answer : msg,
                     ),
                   );
+
                   setActiveDates((prev) =>
                     prev.includes(today) ? prev : [...prev, today],
                   );
+
                   setIsLoading(false);
                 } else {
                   streamDoneRef.current = parsed.answer;
@@ -416,6 +455,7 @@ function MyBuddy({ setIsLoggedIn }) {
                     createdAt: new Date().toISOString(),
                   },
                 ]);
+
                 setIsLoading(false);
               }
             }
@@ -424,8 +464,10 @@ function MyBuddy({ setIsLoggedIn }) {
       }
     } catch (error) {
       setIsLoading(false);
+
       const isNetworkError =
         error.message === "Failed to fetch" || !navigator.onLine;
+
       setMessageList((prev) => [
         ...prev,
         {
@@ -438,6 +480,8 @@ function MyBuddy({ setIsLoggedIn }) {
           createdAt: new Date().toISOString(),
         },
       ]);
+    } finally {
+      submitLockRef.current = false;
     }
   };
 
