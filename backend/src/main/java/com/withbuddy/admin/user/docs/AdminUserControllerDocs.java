@@ -66,6 +66,8 @@ public interface AdminUserControllerDocs {
             @Parameter(description = "조회 페이지. 기본값 0", example = "0") int page,
             @Parameter(description = "페이지 크기. 기본값 10", example = "10") int size,
             @Parameter(description = "부서 검색어", example = "개발팀") String department,
-            @Parameter(description = "팀명 검색어", example = "백엔드팀") String teamName
+            @Parameter(description = "팀명 검색어", example = "백엔드팀") String teamName,
+            @Parameter(description = "정렬 기준. name, employeeNumber, hireDate 중 하나", example = "name") String sortBy,
+            @Parameter(description = "정렬 방향. asc 또는 desc", example = "asc") String sortDirection
     );
 }

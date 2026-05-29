@@ -2083,7 +2083,56 @@ Authorization: Bearer {accessToken}
 - 이 API의 권한 검증은 `users.role = ADMIN` 기준으로 수행한다.
 - 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
 
-### 7-4. 문서 업로드
+### 7-4. 신입 계정 필터 정렬
+
+관리자 계정 페이지의 신입 계정 목록을 이름, 사번, 입사일 기준으로 정렬하여 조회한다.
+이 기능은 `GET /api/v1/admin/users` 조회 API의 정렬 쿼리 파라미터로 제공한다.
+
+```http
+GET /api/v1/admin/users?page=0&size=10&sortBy=name&sortDirection=asc
+Authorization: Bearer {accessToken}
+```
+
+부서/팀명 필터와 함께 사용할 수 있다.
+
+```http
+GET /api/v1/admin/users?page=0&size=10&department=개발팀&teamName=백엔드팀&sortBy=hireDate&sortDirection=desc
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `page` | Number | N | 조회 페이지. 기본값 `0` |
+| `size` | Number | N | 페이지 크기. 기본값 `10` |
+| `department` | String | N | 부서 검색어 |
+| `teamName` | String | N | 팀명 검색어 |
+| `sortBy` | String | N | 정렬 기준. `name`, `employeeNumber`, `hireDate` 중 하나 |
+| `sortDirection` | String | N | 정렬 방향. `asc`는 오름차순, `desc`는 내림차순 |
+
+#### 정렬 옵션
+
+| 정렬 기준 | `sortBy` 값 | 오름차순 예시 | 내림차순 예시 |
+|---|---|---|---|
+| 이름순 | `name` | `sortBy=name&sortDirection=asc` | `sortBy=name&sortDirection=desc` |
+| 사번순 | `employeeNumber` | `sortBy=employeeNumber&sortDirection=asc` | `sortBy=employeeNumber&sortDirection=desc` |
+| 입사일순 | `hireDate` | `sortBy=hireDate&sortDirection=asc` | `sortBy=hireDate&sortDirection=desc` |
+
+#### 동작 규칙
+
+- 이 API는 관리자(`users.role = ADMIN`)만 호출할 수 있다.
+- 정렬 대상은 현재 로그인한 관리자의 회사(`company_code`)에 속한 신입 계정이다.
+- `department`, `teamName` 필터가 함께 전달되면 필터 적용 후 정렬한다.
+- `sortBy`가 전달되지 않으면 기본 정렬을 적용한다. 기본 정렬은 역할 우선순위(`ACTIVE` → `READ_ONLY` → `INACTIVE`) 기준이며, 같은 역할 안에서는 사번(`users.employee_number`) 오름차순이다.
+- `sortDirection`이 전달되지 않으면 `asc`를 기본값으로 사용한다.
+- `sortBy`가 `name`이면 `users.name` 기준으로 정렬한다.
+- `sortBy`가 `employeeNumber`이면 `users.employee_number` 기준으로 정렬한다.
+- `sortBy`가 `hireDate`이면 `users.hire_date` 기준으로 정렬한다.
+- 지원하지 않는 `sortBy` 또는 `sortDirection` 값이 전달되면 `400 Bad Request`를 반환한다.
+- 응답 형식은 **7-2. 신입 계정 조회**의 응답 형식과 동일하다.
+
+### 7-5. 문서 업로드
 
 관리자 계정 페이지에서 회사별 또는 공통 문서를 업로드한다.
 
@@ -2136,7 +2185,7 @@ Content-Type: multipart/form-data
 - 지원하지 않는 파일 확장자이면 `400 Bad Request`, `FILE_002`를 반환한다.
 - 응답은 `201 Created`와 `DocumentUploadResponse` 형식을 따른다.
 
-### 7-5. 문서 확인
+### 7-6. 문서 확인
 
 현재 업로드된 문서에는 어떤 것이 있는지 조회할 수 있는 기능이다.
 
@@ -2171,7 +2220,7 @@ X-API-Key: {storageAdminApiKey}
 - 예를 들어 현재 업로드된 문서가 43개라면 `page=0&size=300` 요청 시 43개만 반환된다.
 - 회사당 문서 수 상한이 300개이므로, `page=0&size=300` 호출로 전체 문서를 확인할 수 있다.
 
-### 7-6. 문서 삭제
+### 7-7. 문서 삭제
 
 관리자가 문서 확인 화면에서 조회된 특정 문서의 삭제 버튼을 클릭하면 해당 문서 ID를 삭제 대상에 포함해 선택 삭제 API를 호출한다.
 

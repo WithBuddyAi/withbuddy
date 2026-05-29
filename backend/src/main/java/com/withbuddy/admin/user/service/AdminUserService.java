@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 public class AdminUserService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final String USER_COMPANY_EMPLOYEE_UNIQUE_CONSTRAINT = "uq_users_company_employee";
+    private static final List<String> USER_SORT_FIELDS = List.of("name", "employeeNumber", "hireDate");
+    private static final List<String> SORT_DIRECTIONS = List.of("asc", "desc");
 
     private final AdminUserRepository adminUserRepository;
     private final CompanyRepository companyRepository;
@@ -111,10 +113,14 @@ public class AdminUserService {
             int page,
             int size,
             String department,
-            String teamName
+            String teamName,
+            String sortBy,
+            String sortDirection
     ) {
         String companyCode = requireAdminCompanyCode(principal);
         validatePageParameters(page, size);
+        String normalizedSortBy = normalizeSortBy(sortBy);
+        String normalizedSortDirection = normalizeSortDirection(sortDirection);
 
         Page<User> userPage = adminUserRepository.searchUsers(
                 companyCode,
@@ -124,6 +130,8 @@ public class AdminUserService {
                 List.of(UserRole.INACTIVE),
                 normalizeFilter(department, "department"),
                 normalizeFilter(teamName, "teamName"),
+                normalizedSortBy,
+                normalizedSortDirection,
                 PageRequest.of(page, size)
         );
 
@@ -180,6 +188,34 @@ public class AdminUserService {
             throw new IllegalArgumentException(fieldName + "은 공백만 입력할 수 없습니다.");
         }
         return value.trim();
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null) {
+            return null;
+        }
+        String normalizedSortBy = sortBy.trim();
+        if (!StringUtils.hasText(normalizedSortBy)) {
+            throw new IllegalArgumentException("sortBy는 공백만 입력할 수 없습니다.");
+        }
+        if (!USER_SORT_FIELDS.contains(normalizedSortBy)) {
+            throw new IllegalArgumentException("sortBy는 name, employeeNumber, hireDate 중 하나여야 합니다.");
+        }
+        return normalizedSortBy;
+    }
+
+    private String normalizeSortDirection(String sortDirection) {
+        if (sortDirection == null) {
+            return "asc";
+        }
+        String normalizedSortDirection = sortDirection.trim().toLowerCase();
+        if (!StringUtils.hasText(normalizedSortDirection)) {
+            throw new IllegalArgumentException("sortDirection은 공백만 입력할 수 없습니다.");
+        }
+        if (!SORT_DIRECTIONS.contains(normalizedSortDirection)) {
+            throw new IllegalArgumentException("sortDirection은 asc 또는 desc여야 합니다.");
+        }
+        return normalizedSortDirection;
     }
 
     private UserListItemResponse toListItem(User user, LocalDate lastLoginDate) {
