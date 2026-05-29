@@ -1,5 +1,3 @@
-import axiosInstance from "../api/axiosInstance";
-
 function QuickQuestions({ quickQuestion, handleSubmit, isLoading }) {
   return (
     <div className="flex items-center gap-[10px] pb-[10px] whitespace-nowrap my-[16px] mx-[16px] overflow-x-auto">
@@ -10,16 +8,8 @@ function QuickQuestions({ quickQuestion, handleSubmit, isLoading }) {
         <button
           key={index}
           type="button"
-          onClick={async () => {
-            if (isLoading) return;
-            try {
-              await axiosInstance.post("/api/v1/chat/quick-questions/click", {
-                eventTarget: q.eventTarget,
-              });
-            } catch (error) {
-              console.error("클릭 로그 기록 실패:", error);
-            }
-            handleSubmit(null, q.content);
+          onClick={() => {
+            handleSubmit(null, q.content, q.eventTarget);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.preventDefault();
