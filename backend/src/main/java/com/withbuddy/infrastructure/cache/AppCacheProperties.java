@@ -18,6 +18,7 @@ public class AppCacheProperties {
     private L2 l2 = new L2();
     private Codec codec = new Codec();
     private Invalidation invalidation = new Invalidation();
+    private Resilience resilience = new Resilience();
 
     @Getter
     @Setter
@@ -52,5 +53,15 @@ public class AppCacheProperties {
         private boolean enabled = true;
         private String channel = "withbuddy:cache:invalidate";
         private String nodeId = "";
+    }
+
+    @Getter
+    @Setter
+    public static class Resilience {
+        private boolean enabled = true;
+        private int circuitFailureThreshold = 5;
+        private int circuitOpenSeconds = 30;
+        private int fallbackRatePerSecond = 20;
+        private int fallbackBurst = 40;
     }
 }
