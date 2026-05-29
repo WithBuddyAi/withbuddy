@@ -1552,9 +1552,9 @@ Content-Type: application/json
 | `ACTIVE` → `READ_ONLY` | `users.hire_date + companies.probation_period` 도달 시 |
 | `READ_ONLY` → `INACTIVE` | READ_ONLY 시작일로부터 30일 경과 시 |
 
-`companies.probation_period`는 회사별 수습 기간이며 기본값은 30일이다. 회사 정책에 따라 다른 값으로 설정할 수 있다.
+`companies.probation_period`는 회사별 수습 기간이며 기본값은 90일이다. 회사 정책에 따라 다른 값으로 설정할 수 있다.
 
-예를 들어 `hire_date = 2026-03-01`, `companies.probation_period = 30`이면 `2026-03-31`부터 `READ_ONLY`가 되고, `2026-04-30`부터 `INACTIVE`가 된다.
+예를 들어 `hire_date = 2026-03-01`, `companies.probation_period = 90`이면 `2026-05-30`부터 `READ_ONLY`가 되고, `2026-06-29`부터 `INACTIVE`가 된다.
 
 ##### ACTIVE
 
@@ -1927,10 +1927,10 @@ Authorization: Bearer {accessToken}
 - 이름(`name`)과 사번(`employee_number`)은 검색 필터 대상에 포함하지 않는다.
 - 응답에서는 `users.department`와 `users.team_name` 값을 조합하여 `부서(팀)` 필드로 반환한다.
 - `부서(팀)`은 `부서명(팀명)` 형식으로 반환한다. 예: `개발팀(백엔드팀)`
-- 기본 정렬은 입사일(`users.hire_date`) 기준 오름차순이다.
+- 기본 정렬은 역할 우선순위(`ACTIVE` → `READ_ONLY` → `INACTIVE`) 기준이며, 같은 역할 안에서는 사번(`users.employee_number`) 오름차순이다.
 - `hireDay`는 KST 기준 오늘 날짜와 `users.hire_date`의 차이에 1을 더해 계산한다. 입사 당일은 `1`, 입사 하루 뒤는 `2`로 반환한다.
 - `questionCount`는 해당 신입 사용자가 질문한 누적 횟수를 반환한다.
-- `isActive`는 신입 사용자의 활성 상태를 반환한다. `role = ACTIVE`이면 `true`, `role = READ_ONLY` 또는 `INACTIVE`이면 `false`이다.
+- `lastLoginDate`는 `user_activity_logs.event_target = LOGIN`인 로그 중 가장 최신 `created_at`의 날짜를 반환한다. 로그인 기록이 없으면 `null`이다.
 - 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
 
 #### Response (200 OK)
@@ -1949,7 +1949,7 @@ Authorization: Bearer {accessToken}
       "hireDate": "2026-03-01",
       "hireDay": 80,
       "questionCount": 7,
-      "isActive": true,
+      "lastLoginDate": "2026-05-19",
       "createdAt": "2026-04-28T09:30:00",
       "updatedAt": "2026-05-19T10:00:00"
     }
@@ -1980,7 +1980,7 @@ Authorization: Bearer {accessToken}
 | `content[].hireDate` | String | 신입 사용자 입사일. `yyyy-MM-dd` 형식 |
 | `content[].hireDay` | Number | 입사일차. KST 기준 오늘 날짜와 입사일의 차이에 1을 더해 계산한다. 입사 당일은 `1`, 입사 하루 뒤는 `2` |
 | `content[].questionCount` | Number | 해당 신입 사용자가 질문한 누적 횟수 |
-| `content[].isActive` | Boolean | 활성 사용자 여부. `role = ACTIVE`이면 `true`, `role = READ_ONLY` 또는 `INACTIVE`이면 `false` |
+| `content[].lastLoginDate` | String 또는 null | 마지막 로그인 날짜. `user_activity_logs.event_target = LOGIN` 기준 최신 `created_at`의 날짜를 `yyyy-MM-dd` 형식으로 반환한다. 로그인 기록이 없으면 `null` |
 | `content[].createdAt` | String | 계정 생성 시각 |
 | `content[].updatedAt` | String | 계정 수정 시각 |
 | `page` | Number | 현재 페이지 |

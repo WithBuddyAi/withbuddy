@@ -9,3 +9,7 @@ AFTER name;
 UPDATE users
 SET role = 'ACTIVE'
 WHERE role = 'ACTIVE_USER';
+
+UPDATE users
+SET role = 'INACTIVE'
+WHERE role = 'INACTIVE_USER';
