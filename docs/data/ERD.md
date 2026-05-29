@@ -1,7 +1,7 @@
 # ERD
 
-**현재 버전: v2.2**
-**최종 수정일: 2026-05-27**
+**현재 버전: v2.3**
+**최종 수정일: 2026-05-28**
 
 ## 개요
 **ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
@@ -18,6 +18,7 @@
 - `id` : PK, bigint
 - `company_code` : 회사코드, varchar, UNIQUE
 - `name` : 회사명, varchar
+- `probation_period` : 수습기간, int, 기본값 `30`, NOT NULL
 - `created_at` : 생성 일시, datetime
 - `updated_at` : 수정 일시, datetime
 
@@ -339,6 +340,7 @@
 - v2.0 (2026-05-19): `users.department`, `users.team_name` 컬럼 추가 및 각 컬럼 최대 길이 100자 기준 반영
 - v2.1 (2026-05-20): 회사별 부서/팀 기준정보 관리를 위한 `company_organization_units` 테이블 추가, `users.team_name` nullable 반영, `users(company_code, department, team_name)`와 `company_organization_units(company_code, department, team_name)` 간 복합 외래키 관계 반영
 - v2.2 (2026-05-27): `chat_messages.answer_to_message_id`, `chat_messages.latency_ms` 컬럼 추가, 질문-답변 직접 연결을 위한 자기참조 외래키 및 답변 생성 소요 시간 저장 구조 반영
+- v2.3 (2026-05-28): `companies` 테이블에 `probation_period` 컬럼 추가
 
 ---
 
