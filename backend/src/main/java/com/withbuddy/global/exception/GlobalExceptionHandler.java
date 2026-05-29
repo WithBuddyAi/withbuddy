@@ -10,6 +10,7 @@ import com.withbuddy.global.jwt.SessionRevokedException;
 import com.withbuddy.global.jwt.TokenMissingException;
 import com.withbuddy.global.logging.RedisFailureLogSupport;
 import com.withbuddy.global.logging.RequestUrlMaskingSupport;
+import com.withbuddy.infrastructure.cache.CacheFallbackRateLimitException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.admin.user.exception.DuplicateEmployeeNumberException;
@@ -360,6 +361,27 @@ public class GlobalExceptionHandler {
         RedisFailureLogSupport.logRedisFailure(log, request, e);
 
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+    }
+
+    @ExceptionHandler(CacheFallbackRateLimitException.class)
+    public ResponseEntity<ErrorResponse> handleCacheFallbackRateLimitException(
+            CacheFallbackRateLimitException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("cache", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                "CACHE_FALLBACK_RATE_LIMITED",
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response);
     }
 
     @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
