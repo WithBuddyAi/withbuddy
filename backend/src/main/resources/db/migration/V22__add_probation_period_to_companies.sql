@@ -3,3 +3,9 @@
 ALTER TABLE companies
 ADD COLUMN probation_period INT NOT NULL DEFAULT 90
 AFTER name;
+
+-- 2. 'ACTIVE_USER`를 'ACTIVE`로 수정
+
+UPDATE users
+SET role = 'ACTIVE'
+WHERE role = 'ACTIVE_USER';
