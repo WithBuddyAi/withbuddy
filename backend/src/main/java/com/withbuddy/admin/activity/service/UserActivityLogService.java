@@ -115,12 +115,12 @@ public class UserActivityLogService {
 
     private void requireChatSessionLogAllowed(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UnauthorizedException("?몄쬆???ъ슜?먮? 李얠쓣 ???놁뒿?덈떎."));
+                .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
         if (user.getRole() != UserRole.ACTIVE
                 && user.getRole() != UserRole.READ_ONLY
                 && user.getRole() != UserRole.SERVICE_ADMIN) {
-            throw new ForbiddenException("ACCESS_DENIED", "role", "?꾩옱 ??븷?먯꽌?????숈옉???섑뻾?????놁뒿?덈떎.");
+            throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 이 동작을 수행할 수 없습니다.");
         }
     }
 }

@@ -70,9 +70,11 @@ public class AuthService {
                 RedisCacheTtl.SESSION_TOKEN
         );
 
-        userActivityLogService.saveLoginSessionStart(user.getId());
-        redisActivityLogService.append(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
-        rmqActivityLogService.publish(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
+        if (currentRole != UserRole.INACTIVE) {
+            userActivityLogService.saveLoginSessionStart(user.getId());
+            redisActivityLogService.append(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
+            rmqActivityLogService.publish(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
+        }
 
         LoginUserResponse userResponse = new LoginUserResponse(
                 user.getId(),
