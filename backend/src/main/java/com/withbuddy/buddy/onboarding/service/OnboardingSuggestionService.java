@@ -7,6 +7,8 @@ import com.withbuddy.buddy.onboarding.dto.response.OnboardingSuggestionExposureR
 import com.withbuddy.buddy.onboarding.entity.OnboardingSuggestion;
 import com.withbuddy.buddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.global.exception.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,10 @@ public class OnboardingSuggestionService {
     public OnboardingSuggestionExposureResponse exposeMyOnboardingSuggestion(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        if (user.getRole() != UserRole.ACTIVE && user.getRole() != UserRole.SERVICE_ADMIN) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 온보딩 제안을 노출할 수 없습니다.");
+        }
 
         int dayOffset = calculateDayOffset(user.getHireDate());
         OnboardingSuggestion suggestion = onboardingSuggestionRepository.findTopByDayOffset(
