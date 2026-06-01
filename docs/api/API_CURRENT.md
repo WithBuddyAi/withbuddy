@@ -723,6 +723,7 @@ MyBuddy 화면에서 사용하는 주요 기능은 다음과 같다.
 - 화면에 표시할 채팅 데이터는 `GET /api/v1/chat/messages` 응답의 `messages` 배열만 사용한다.
 - 온보딩 제안 메시지도 최종적으로는 `chat_messages`에 저장된 `messageType = suggestion` 메시지로 렌더링한다.
 - `messageType = suggestion`인 경우, 해당 메시지 하단에 `quickTaps` 버튼을 노출할 수 있다.
+- 단, `READ_ONLY` 사용자의 `GET /api/v1/chat/messages` 응답에서는 suggestion 메시지라도 `quickTaps`가 빈 배열(`[]`)로 반환되므로 Quick Tap 버튼을 노출하지 않는다.
 - 사용자가 `quickTaps` 버튼을 클릭하면 해당 항목의 `content` 값을 질문 내용으로 사용하여 `POST /api/v1/chat/messages/stream`를 호출한다.
 - 빠른 질문 클릭 로그가 필요한 경우, 프론트엔드는 `quickTaps[].eventTarget` 값을 사용하여 `POST /api/v1/chat/quick-questions/click`을 별도로 호출한다.
 
@@ -980,6 +981,7 @@ Authorization: Bearer {accessToken}
 - 실제 파일 데이터는 채팅 메시지 응답 JSON에 직접 포함하지 않고, 별도 파일 API를 통해 반환한다.
 - `user_question`, `suggestion`, `no_result`, `out_of_scope`, `sensitive` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
 - `messageType = suggestion`인 경우, 백엔드는 해당 온보딩 제안에 연결된 빠른 질문 목록을 `quickTaps`에 포함하여 반환한다.
+- 단, 현재 사용자 역할이 `READ_ONLY`이면 `messageType = suggestion`이어도 `quickTaps`는 빈 배열(`[]`)을 반환한다.
 - `messageType = suggestion`이 아닌 경우 `quickTaps`는 빈 배열(`[]`)을 반환한다.
 - `messageType = no_result`, `sensitive`이고 추천 담당자 정보가 존재하는 경우에는 `recommendedContacts`가 채워질 수 있다.
 - `messageType = no_result`, `sensitive`인 BOT 메시지의 추천 담당자 정보는 `chat_messages.recommended_contacts_json` 컬럼에 JSON 형태로 저장된 값을 기준으로 반환한다.
@@ -1429,7 +1431,7 @@ Content-Type: application/json
 | `senderType` | String | 메시지 발신자 타입                                   |
 | `messageType` | String | 메시지 유형                                       |
 | `content` | String | 메시지 본문                                       |
-| `quickTaps` | Array | suggestion 메시지 하단에 노출할 빠른 질문 버튼 목록           |
+| `quickTaps` | Array | suggestion 메시지 하단에 노출할 빠른 질문 버튼 목록. `READ_ONLY` 사용자는 suggestion 메시지에서도 빈 배열(`[]`) |
 | `recommendedContacts` | Array | `no_result`, `sensitive` 메시지에서 노출할 담당자 추천 목록 |
 | `createdAt` | String | 메시지 생성 시각                                    |
 
