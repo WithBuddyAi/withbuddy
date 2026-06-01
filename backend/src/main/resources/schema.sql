@@ -106,12 +106,15 @@ CREATE TABLE IF NOT EXISTS `chat_messages` (
     message_type VARCHAR(30) NOT NULL,
     content TEXT NOT NULL,
     recommended_contacts_json TEXT NULL,
+    answer_to_message_id BIGINT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_chat_messages PRIMARY KEY (id),
     CONSTRAINT fk_chat_messages_user
         FOREIGN KEY (user_id) REFERENCES `users`(id),
     CONSTRAINT fk_chat_messages_suggestion
-        FOREIGN KEY (suggestion_id) REFERENCES onboarding_suggestions(id)
+        FOREIGN KEY (suggestion_id) REFERENCES onboarding_suggestions(id),
+    CONSTRAINT fk_chat_messages_answer_to_message
+        FOREIGN KEY (answer_to_message_id) REFERENCES `chat_messages`(id)
 );
 
 CREATE TABLE IF NOT EXISTS `chat_message_documents` (
