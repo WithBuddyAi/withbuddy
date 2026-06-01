@@ -5,7 +5,12 @@ import com.withbuddy.admin.activity.entity.EventTarget;
 import com.withbuddy.admin.activity.entity.EventType;
 import com.withbuddy.admin.activity.entity.UserActivityLog;
 import com.withbuddy.admin.activity.repository.UserActivityLogRepository;
+import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.buddy.chat.service.QuickQuestionCatalog;
+import com.withbuddy.global.exception.ForbiddenException;
+import com.withbuddy.global.exception.UnauthorizedException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +24,7 @@ public class UserActivityLogService {
 
     private final UserActivityLogRepository userActivityLogRepository;
     private final QuickQuestionCatalog quickQuestionCatalog;
+    private final UserRepository userRepository;
 
     @Transactional
     public void saveLoginSessionStart(Long userId) {
@@ -34,6 +40,7 @@ public class UserActivityLogService {
 
     @Transactional
     public LogResponse saveChatSessionStart(Long userId) {
+        requireChatSessionLogAllowed(userId);
         LocalDateTime thirtyMinutesAgo = LocalDateTime.now().minusMinutes(30);
 
         Optional<UserActivityLog> recentLog =
@@ -75,6 +82,7 @@ public class UserActivityLogService {
 
     @Transactional
     public LogResponse saveQuickQuestionClick(Long userId, String eventTarget) {
+        requireActiveUser(userId);
         EventTarget resolvedTarget = quickQuestionCatalog.resolveEventTarget(eventTarget)
             .orElseThrow(() -> new IllegalArgumentException("지원하지 않는 eventTarget입니다."));
 
@@ -94,5 +102,25 @@ public class UserActivityLogService {
             null,
             savedLog.getCreatedAt().toString()
         );
+    }
+
+    private void requireActiveUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+
+        if (user.getRole() != UserRole.ACTIVE && user.getRole() != UserRole.SERVICE_ADMIN) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 이 동작을 수행할 수 없습니다.");
+        }
+    }
+
+    private void requireChatSessionLogAllowed(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+
+        if (user.getRole() != UserRole.ACTIVE
+                && user.getRole() != UserRole.READ_ONLY
+                && user.getRole() != UserRole.SERVICE_ADMIN) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 이 동작을 수행할 수 없습니다.");
+        }
     }
 }
