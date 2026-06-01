@@ -322,6 +322,7 @@ Content-Type: application/json
 - 동일 사용자가 다시 로그인하면 서버는 기존 활성 세션을 무효화하고 새 `accessToken`을 기준으로 세션을 갱신할 수 있다.
 - 이때 기존 `accessToken`으로 인증이 필요한 API를 호출하면 `401 Unauthorized`와 `SESSION_REVOKED` 코드를 반환한다.
 - 로그인에 성공하면 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = LOGIN` 로그를 기록한다.
+- 단, `INACTIVE` 사용자는 로그인에 성공해도 `LOGIN` activity log를 기록하지 않는다.
 - 로그인 성공 시의 `SESSION_START` 로그는 재로그인 시점 추적 용도로 사용한다.
 
 #### Response (200 OK)
@@ -699,23 +700,25 @@ MyBuddy 화면에서 사용하는 주요 기능은 다음과 같다.
 
 ### 6-1. MyBuddy 화면 진입 시 권장 호출 흐름
 
-프론트엔드는 `ACTIVE` 또는 `SERVICE_ADMIN` 사용자가 MyBuddy 화면에 진입할 때 다음 순서로 API를 호출한다.
+프론트엔드는 `ACTIVE`, `READ_ONLY` 또는 `SERVICE_ADMIN` 사용자가 MyBuddy 화면에 진입할 때 다음 순서로 API를 호출한다.
 
 ```text
 1. POST /api/v1/chat/session-start
    - 채팅 화면 진입 로그를 기록한다.
    - 동일 사용자가 30분 이내 재진입한 경우 중복 기록하지 않는다.
+   - READ_ONLY 사용자도 호출할 수 있다.
 
 2. POST /api/v1/onboarding-suggestions/me/exposure
    - 오늘 노출 대상 온보딩 제안이 있으면 chat_messages에 suggestion 메시지로 생성한다.
    - 이미 동일한 온보딩 제안 메시지가 있으면 중복 생성하지 않는다.
+   - READ_ONLY 사용자는 호출하지 않는다.
 
 3. GET /api/v1/chat/messages
    - 실제 화면 렌더링은 이 API 응답만 사용한다.
    - user_question, rag_answer, no_result, out_of_scope, suggestion, sensitive 메시지를 모두 포함할 수 있다.
 ```
 
-`READ_ONLY` 사용자는 `GET /api/v1/chat/messages`와 기존 답변 출처 확인에 필요한 문서 다운로드 API만 호출해 기존 기록을 렌더링한다. `POST /api/v1/chat/session-start`, `POST /api/v1/chat/messages/stream`, `GET /api/v1/chat/quick-questions`, `POST /api/v1/chat/quick-questions/click`, `POST /api/v1/onboarding-suggestions/me/exposure`는 호출하지 않는다.
+`READ_ONLY` 사용자는 `POST /api/v1/chat/session-start`, `GET /api/v1/chat/messages`와 기존 답변 출처 확인에 필요한 문서 다운로드 API를 호출해 기존 기록을 렌더링한다. `POST /api/v1/chat/messages/stream`, `GET /api/v1/chat/quick-questions`, `POST /api/v1/chat/quick-questions/click`, `POST /api/v1/onboarding-suggestions/me/exposure`는 호출하지 않는다.
 
 #### 메시지 렌더링 기준
 
@@ -1432,7 +1435,7 @@ Content-Type: application/json
 | `senderType` | String | 메시지 발신자 타입                                   |
 | `messageType` | String | 메시지 유형                                       |
 | `content` | String | 메시지 본문                                       |
-| `quickTaps` | Array | suggestion 메시지 하단에 노출할 빠른 질문 버튼 목록           |
+| `quickTaps` | Array | suggestion 메시지 하단에 노출할 빠른 질문 버튼 목록. `READ_ONLY` 사용자는 suggestion 메시지에서도 빈 배열(`[]`) |
 | `recommendedContacts` | Array | `no_result`, `sensitive` 메시지에서 노출할 담당자 추천 목록 |
 | `createdAt` | String | 메시지 생성 시각                                    |
 
@@ -3494,3 +3497,3506 @@ Authorization: Bearer {accessToken}
   - `companies.probation_period` 기준의 회사별 수습 기간 정책을 추가. `ACTIVE`는 `hire_date + probation_period`까지 유지하고, 이후 30일간 `READ_ONLY`, 그 이후 `INACTIVE`로 자동 전환되는 생애주기 규칙을 명세에 반영
 - **v2.2.1 (2026-06-1)**:
   - AI 답변 최종 유형이 `no_result`인 경우 BOT 답변 메시지의 `answer_to_message_id`에 사용자 질문 메시지 ID를 저장하도록 질문 스트리밍 및 내부 AI 연동 저장 규칙을 명세에 반영
+  - `READ_ONLY` 사용자의 suggestion 메시지에서도 `quickTaps`를 빈 배열(`[]`)로 반환하도록 채팅 메시지 조회 및 응답 필드 설명을 정리
+  - `INACTIVE` 사용자는 로그인 성공 시에도 `LOGIN` activity log를 기록하지 않는 예외 규칙을 명세에 반영
+# WithBuddy API 명세서
+
+> WithBuddy REST API 문서
+>
+**버전**: 2.2.1
+**최종 업데이트**: 2026-06-01
+
+---
+
+## 1. 문서 범위
+
+이 문서는 현재 구현되어 운영 또는 개발 기준으로 관리되는 WithBuddy API를 다룬다.
+
+### 포함 범위
+- 로그인
+- 로그아웃
+- 관리자 계정 페이지 내 신입 계정 생성, 신입 계정 조회, 회사별 부서/팀명 조회, 문서 업로드, 문서 확인, 문서 삭제
+- 채팅 메시지 목록 조회
+- 질문 전송 및 AI 답변 스트리밍
+- 온보딩 제안 조회
+- 빠른 질문 목록 조회
+- 내부 AI 스트리밍 연동 규격
+- 세션 만료/무효화 처리 규격
+- 스토리지 문서 API
+- 관리자 지표 집계 API
+
+### 제외 범위
+- 내 정보 조회
+- 관리자 화면 UI
+- 체크리스트
+- 기타 미구현 기능
+
+---
+
+## 2. ERD 기준 정리
+
+현재 API 설계는 아래 ERD를 기준으로 한다.
+
+- `companies`
+- `users`
+- `company_organization_units`
+- `documents`
+- `document_files`
+- `document_backup_jobs`
+- `onboarding_suggestions`
+- `chat_messages`
+- `chat_message_documents`
+- `user_activity_logs`
+
+---
+
+## 3. API 개요
+
+### Backend Base URL
+
+```text
+Development: http://localhost:8080
+Production:  https://api-wb.itsdev.kr
+```
+
+### Frontend Development Server
+```text
+Frontend Development: http://localhost:5173
+```
+
+### Prefix
+
+모든 **공개 API**는 아래 prefix를 사용한다.
+
+```text
+/api/v1
+```
+
+백엔드 공개 API는 `/api/v1` prefix를 사용한다.
+AI 서버 연동은 별도 AI 서버 base URL을 사용하며, 현재 스트리밍 endpoint는 `/chat/stream`이다.
+
+### 공개 API 경로 그룹
+
+| 경로 | 용도 | 호출 권한 |
+|---|---|---|
+| `/api/v1/auth/*` | 로그인, 로그아웃 및 인증 | 로그인: 비로그인 / 로그아웃: 인증 사용자 |
+| `/api/v1/chat/messages/stream` | 질문 전송 및 AI 답변 스트리밍 | `ACTIVE`, `SERVICE_ADMIN` |
+| `/api/v1/chat/messages` | 기존 채팅 메시지 목록 조회 | `ACTIVE`, `READ_ONLY`, `SERVICE_ADMIN` |
+| `/api/v1/chat/session-start` | MyBuddy 화면 진입 로그 기록 | `ACTIVE`, `READ_ONLY`, `SERVICE_ADMIN`          |
+| `/api/v1/chat/quick-questions` | 빠른 질문 목록 조회 | `ACTIVE`, `SERVICE_ADMIN` |
+| `/api/v1/chat/quick-questions/click` | 빠른 질문 클릭 로그 기록 | `ACTIVE`, `SERVICE_ADMIN` |
+| `/api/v1/onboarding-suggestions/*` | 온보딩 제안 노출 처리 | `ACTIVE`, `SERVICE_ADMIN` |
+| `/api/v1/documents/upload` | 문서 업로드 | `ADMIN` |
+| `/api/v1/documents` | 문서 목록 조회·전체 삭제 등 문서 관리 | `ADMIN` |
+| `/api/v1/documents/{documentId}` | 문서 상세 조회·삭제 등 문서 관리 | `ADMIN` |
+| `/api/v1/chat/documents/{documentId}/download` | 채팅 답변으로 수신한 TEMPLATE 문서만 다운로드 URL 발급 | `ACTIVE`, `READ_ONLY`, `SERVICE_ADMIN`, `ADMIN` |
+| `/api/v1/documents/{documentId}/download` | 회사/공통 TEMPLATE 문서 ID 기준 다운로드 URL 발급 | `ACTIVE`, `READ_ONLY`, `SERVICE_ADMIN`, `ADMIN` |
+| `/api/v1/documents/{documentId}/file` | TEMPLATE 문서 다운로드 302 리다이렉트 (Location=외부 pre-signed URL) | `ACTIVE`, `READ_ONLY`, `SERVICE_ADMIN`, `ADMIN` |
+| `/api/v1/admin/users` | 고객사 관리자 계정 페이지의 신입 계정 생성 및 목록 조회 | `ADMIN` |
+| `/api/v1/admin/organization-options` | 고객사 관리자 계정 페이지의 회사별 부서/팀명 목록 조회 | `ADMIN` |
+| `/api/v1/admin/metrics/*` | 제품 내부 관리자용 지표 조회 | `SERVICE_ADMIN` |
+
+`/api/v1/admin` 하위 경로는 관리자 성격의 API를 모아둔다.
+
+- `ACTIVE`는 회사별 수습 기간 내 정상 사용 상태의 신입 사용자다. 수습 기간은 `companies.probation_period` 기준이며 기본값은 90일이다.
+- `READ_ONLY`는 수습 기간 종료 후 30일간 조회 전용 상태다. 질문 전송 API(`POST /api/v1/chat/messages/stream`), 빠른 질문, Buddy Nudge 질문 유도는 사용할 수 없지만 기존 대화 기록과 기존 답변 출처는 조회할 수 있다.
+- `INACTIVE`는 READ_ONLY 기간 종료 또는 관리자 수동 비활성화 상태다. 로그인은 허용하되 이용 기간 종료 안내 화면을 표시하며 MyBuddy 조회·질문 기능은 사용할 수 없다.
+- `ADMIN`은 고객사 관리자 계정으로, 관리자 계정 페이지에서 신입 계정 생성·조회 및 문서 관리 API를 호출할 수 있다.
+- `SERVICE_ADMIN`은 제품 내부 지표 조회용 계정이다. `ACTIVE`와 동일하게 MyBuddy 기능을 사용할 수 있으며, 추가로 Swagger, Postman, 내부 운영 도구 등을 통해 관리자 지표 API(`/api/v1/admin/metrics/*`)를 호출할 수 있다.
+- `SERVICE_ADMIN`은 고객사 관리자 계정 페이지 API(`/api/v1/admin/users`, `/api/v1/admin/organization-options`)와 문서 관리 API(`/api/v1/documents/*`)를 호출하지 않는다.
+
+### 데이터 범위
+
+모든 데이터 조회 및 저장은 로그인한 사용자의 회사 기준으로 처리한다.  
+문서 기반 Q&A는 로그인한 사용자의 회사 문서와 공통 문서(`company_code = null`)를 함께 대상으로 처리한다.
+단, 제품 내부 관리자(`SERVICE_ADMIN`) 전용 관리자 지표 API는 `companyCode` 파라미터 기준으로 특정 회사를 조회하거나, 파라미터 생략 시 회사별 전체 집계 결과를 반환할 수 있다.
+
+### 회사별 수습 기간
+
+`companies.probation_period`는 회사별 수습 기간을 일 단위로 저장한다.
+
+| 컬럼 | 타입 | 기본값  | 설명 |
+|---|---|------|---|
+| `companies.probation_period` | Number | `90` | 신입 사용자가 `ACTIVE` 상태로 사용할 수 있는 회사별 수습 기간. 회사 정책에 따라 유동적으로 설정할 수 있다. |
+
+신입 사용자 역할 전환은 `users.hire_date`와 소속 회사의 `companies.probation_period`를 기준으로 계산한다. 수습 기간 종료 후에는 30일간 `READ_ONLY` 상태를 유지하고, 그 이후에는 `INACTIVE` 상태로 전환한다.
+
+### 공통 헤더
+
+```http
+Content-Type: application/json
+Authorization: Bearer {accessToken}
+```
+
+로그인 API는 `Authorization` 헤더가 필요하지 않다.
+로그아웃 API는 현재 세션을 종료해야 하므로 `Authorization: Bearer {accessToken}` 헤더가 필요하다.
+
+### Swagger (OpenAPI)
+
+본 프로젝트의 REST API는 Swagger(OpenAPI) 기반으로 확인할 수 있다.  
+실행 중인 백엔드 서버에서 Swagger UI를 통해 요청/응답 스키마와 엔드포인트를 확인한다.
+
+```text
+Local Swagger UI: http://localhost:8080/swagger-ui/index.html
+OpenAPI Docs:     http://localhost:8080/v3/api-docs
+```
+
+AI Server Swagger UI는 아래 경로를 기준으로 확인한다.
+
+```text
+AI Swagger UI: https://ai.itsdev.kr/docs
+```
+
+- Swagger UI는 현재 구현된 API 기준으로 동작한다.
+- 본 문서는 API 범위, 정책, 동작 규칙, 내부 연동 기준을 함께 설명하기 위한 문서다.
+- 상세 요청/응답 스키마 및 테스트는 Swagger UI를 우선 확인한다.
+
+---
+
+## 4. 표준 응답 형식
+
+### 성공 응답
+성공 응답은 각 API 목적에 맞는 JSON 데이터를 반환한다.
+
+단, `POST /api/v1/chat/messages/stream`은 SSE 스트리밍 API이므로 `text/event-stream` 형식으로 이벤트를 순차 반환한다.
+
+### 에러 응답
+
+```json
+{
+  "timestamp": "2026-03-25T10:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사 코드는 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+### 에러 응답 필드 설명
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `timestamp` | `String` | 에러 발생 시각 |
+| `status` | `Number` | HTTP 상태 코드 |
+| `error` | `String` | HTTP 상태 이름 |
+| `code` | `String` | 서비스 에러 코드 |
+| `errors` | `Array<Object>` | 상세 에러 목록 |
+| `errors[].field` | `String` | 오류가 발생한 필드명 또는 오류 대상 |
+| `errors[].message` | `String` | 상세 오류 메시지 |
+| `path` | `String` | 요청 경로 |
+
+### HTTP 상태 코드
+
+- `200 OK`: 성공
+- `201 Created`: 리소스 생성 성공
+- `400 Bad Request`: 잘못된 요청
+- `401 Unauthorized`: 인증 실패, 세션 만료 또는 세션 무효화
+- `403 Forbidden`: 요청 권한 없음
+- `404 Not Found`: 리소스 없음
+- `409 Conflict`: 중복 리소스 또는 제약조건 충돌
+- `500 Internal Server Error`: 서버 오류
+- `503 Service Unavailable`: 세션 저장소 등 외부 의존성 일시 장애
+- `504 Gateway Timeout` : AI 서버 응답 시간 초과
+
+#### 로그인 API (`POST /api/v1/auth/login`) 상태 코드
+
+- `200 OK`: 로그인 성공
+- `400 Bad Request`: 요청값 검증 실패
+- `401 Unauthorized`: 로그인 실패(회사코드/사번/이름 불일치)
+
+#### 로그아웃 API (`POST /api/v1/auth/logout`) 상태 코드
+
+- `204 No Content`: 로그아웃 성공
+- `401 Unauthorized`: 인증 실패, 세션 만료 또는 세션 무효화
+- `503 Service Unavailable`: 세션 저장소 연결 실패 또는 조회 지연
+
+#### 신입 계정 생성 API (`POST /api/v1/admin/users`) 상태 코드
+
+- `201 Created`: 계정 생성 성공
+- `400 Bad Request`: 요청값 검증 실패
+- `401 Unauthorized`: 인증 실패, 세션 만료 또는 세션 무효화
+- `403 Forbidden`: 관리자 권한 없음
+- `409 Conflict`: 동일 회사 내 중복 사원번호
+
+#### 신입 계정 조회 API (`GET /api/v1/admin/users`) 상태 코드
+
+- `200 OK`: 목록 조회 성공
+- `400 Bad Request`: 쿼리 파라미터 검증 실패
+- `401 Unauthorized`: 인증 실패, 세션 만료 또는 세션 무효화
+- `403 Forbidden`: 관리자 권한 없음
+
+### 공통 에러 코드
+- `BAD_REQUEST`: 잘못된 요청
+- `UNAUTHORIZED`: 인증 실패
+- `SESSION_EXPIRED`: 로그인 세션 또는 액세스 토큰 만료
+- `SESSION_REVOKED`: 중복 로그인
+- `TOKEN_MISSING`: 인증 토큰 누락
+- `INVALID_TOKEN`: 유효하지 않은 인증 정보
+- `SESSION_STORE_UNAVAILABLE`: 세션 저장소 연결 실패 또는 조회 지연
+- `USER_NOT_FOUND`: 사용자 정보를 찾을 수 없음
+- `ACCESS_DENIED`: 요청 권한 없음
+- `NOT_FOUND`: 리소스 없음
+- `DUPLICATE_EMPLOYEE_NUMBER`: 동일 회사 내 중복 사원번호
+- `INTERNAL_SERVER_ERROR`: 서버 내부 오류
+- `AI_TIMEOUT`: AI 답변 생성 시간 초과
+- `AI_STREAM_FAILED`: SSE 스트리밍 중 AI 답변 생성 실패
+- `FORBIDDEN`: 채팅에서 수신하지 않은 문서 다운로드 요청
+- `FILE_001`: 업로드 파일이 비어 있거나 단일 파일 크기 또는 회사별 총 업로드 용량 제한을 초과함
+- `FILE_002`: 지원하지 않는 파일 형식
+- `FILE_003`: 파일 읽기 또는 스토리지 처리 실패
+- `RESOURCE_004`: 다른 회사 문서 접근
+
+---
+
+## 5. 인증 (Authentication)
+
+로그인 성공 시 `accessToken`을 발급한다.  
+인증이 필요한 API는 `Authorization: Bearer {accessToken}` 헤더를 사용한다.
+
+### 세션 정책
+
+| 항목 | 값 | 비고 |
+|---|---|---|
+| JWT 유효기간 | 7일 (`604800000ms`) | `jwt.access-expiration` 기본값 |
+| Redis `SESSION_TOKEN` TTL | 9시간 | 마지막 인증 성공 시 `session:user:{userId}` TTL을 다시 9시간으로 갱신 |
+| 단일 기기 세션 | 지원 | 동일 사용자가 다시 로그인하면 기존 활성 세션을 새 토큰으로 대체 |
+| Redis 세션 키 | `session:user:{userId}`, `session:token:{token}` | 로그인 시 둘 다 저장, 로그아웃/재로그인 시 정리 |
+| 사용자 프로필 캐시 | `user:profile:{userId}` | 로그인 성공 시 30분 TTL로 저장, 로그아웃 시 삭제 |
+
+#### JWT 및 Redis 세션 동작 규칙
+
+- `accessToken`은 JWT이며 payload에는 `sub`(userId), `employeeNumber`, `name`, `companyCode`, `companyName`, `hireDate`, `iat`, `exp`가 포함된다.
+- 인증 성공 조건은 JWT 서명과 만료 시간이 유효하고, Redis의 `session:user:{userId}` 값이 현재 요청 토큰과 일치하는 것이다.
+- JWT 자체가 7일 동안 유효하더라도 Redis 세션 TTL 9시간이 만료되면 인증에 실패한다. 이 경우 다시 로그인해야 한다.
+- 동일 사용자가 새로 로그인하면 기존 `session:token:{oldToken}`을 삭제하고 `session:user:{userId}`를 새 토큰으로 갱신한다.
+- 기존 토큰으로 인증 API를 호출하면 Redis 활성 세션 기준과 일치하지 않으므로 `SESSION_REVOKED`를 반환한다.
+- Redis 세션 저장소에 연결할 수 없으면 인증 처리 중 `503 Service Unavailable`, `SESSION_STORE_UNAVAILABLE`을 반환할 수 있다.
+
+### 5-1. 로그인
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+```
+
+#### Request Body
+
+```json
+{
+  "companyCode": "WB0001",
+  "employeeNumber": "20260001",
+  "name": "김지원"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값          | 설명 | 상세 규칙                                           |
+|------|------|------|--------------|------|-------------------------------------------------|
+| `companyCode` | `String` | Y | `"WB0001"`   | 회사 식별 코드 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가    |
+| `employeeNumber` | `String` | Y | `"20260001"` | 사용자 사번 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가    |
+| `name` | `String` | Y | `"김지원"`      | 사용자 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
+
+#### 동작 규칙
+- 사용자는 로그인 시 회사코드, 사번, 이름을 입력한다.
+- 서버는 입력된 `companyCode`로 `companies`를 조회한다.
+- 서버는 조회된 `company_code`와 사용자 이름, 사번을 기준으로 `users`에서 사용자를 확인한다.
+- 서버는 사용자의 `hireDate`와 회사의 `companies.probation_period`를 기준으로 현재 생애주기 역할(`ACTIVE`, `READ_ONLY`, `INACTIVE`)을 계산하거나 갱신한다.
+- 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
+- 로그인 성공 응답의 `user.role`에는 로그인 시점 기준으로 확정된 사용자 역할을 반환한다.
+- 프론트엔드는 `user.role` 값을 기준으로 `ACTIVE`, `READ_ONLY`, `SERVICE_ADMIN`은 MyBuddy 화면으로, `INACTIVE`는 이용 기간 종료 안내 화면으로, `ADMIN`은 관리자 계정 페이지로 분기할 수 있다.
+- 권한 검증의 최종 기준은 프론트엔드 판단이 아니라 백엔드의 인증 토큰 검증 및 `users.role` 확인 결과다.
+- 동일 사용자가 다시 로그인하면 서버는 기존 활성 세션을 무효화하고 새 `accessToken`을 기준으로 세션을 갱신할 수 있다.
+- 이때 기존 `accessToken`으로 인증이 필요한 API를 호출하면 `401 Unauthorized`와 `SESSION_REVOKED` 코드를 반환한다.
+- 로그인에 성공하면 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = LOGIN` 로그를 기록한다.
+- 단, `INACTIVE` 사용자는 로그인에 성공해도 `LOGIN` activity log를 기록하지 않는다.
+- 로그인 성공 시의 `SESSION_START` 로그는 재로그인 시점 추적 용도로 사용한다.
+
+#### Response (200 OK)
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {
+    "id": 1,
+    "companyCode": "WB0001",
+    "companyName": "테크 주식회사",
+    "employeeNumber": "20260001",
+    "name": "김지원",
+    "role": "ACTIVE",
+    "hireDate": "2026-03-01"
+  }
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `accessToken` | String | Y | 인증이 필요한 API 호출 시 사용할 액세스 토큰 |
+| `user` | Object | Y | 로그인한 사용자 정보 |
+| `user.id` | Number | Y | 사용자 ID |
+| `user.companyCode` | String | Y | 사용자 소속 회사 코드 |
+| `user.companyName` | String | Y | 사용자 소속 회사명 |
+| `user.employeeNumber` | String | Y | 사용자 사번 |
+| `user.name` | String | Y | 사용자 이름 |
+| `user.role` | String | Y | 사용자 역할. `ACTIVE`, `READ_ONLY`, `INACTIVE`, `ADMIN`, `SERVICE_ADMIN` 중 하나 |
+| `user.hireDate` | String | Y | 사용자 입사일 |
+
+#### 프론트엔드 role 분기 기준
+
+| `user.role` | 설명                                                                                         | 권장 진입 화면 또는 처리 |
+|---|--------------------------------------------------------------------------------------------|---|
+| `ACTIVE` | 회사별 수습 기간 내 정상 사용 상태. 수습 기간은 `companies.probation_period` 기준이며 기본값은 90일                    | MyBuddy 채팅 화면(`/mybuddy`) |
+| `READ_ONLY` | 수습 기간 종료 후 30일간 조회 전용 상태. 질문 입력·Quick Tap·Buddy Nudge 질문 유도는 비활성화하고 기존 대화 기록과 답변 출처 조회는 유지 | MyBuddy 채팅 화면(`/mybuddy`) |
+| `INACTIVE` | READ_ONLY 기간 종료 또는 관리자 수동 비활성화 상태. 로그인 후 이용 기간 종료 안내를 표시하고 MyBuddy 조회·질문 기능은 제공하지 않음       | 이용 기간 종료 안내 화면 |
+| `ADMIN` | 고객사 관리자. 신입 계정 생성 등 고객사 관리자 페이지 접근 가능                                                      | 관리자 계정 페이지(`/admin`) |
+| `SERVICE_ADMIN` | 제품 내부 지표 조회용 계정. `ACTIVE`와 동일하게 MyBuddy 기능 사용 가능                                           | MyBuddy 채팅 화면(`/mybuddy`). 지표 조회는 별도 프론트 화면 없이 Swagger, Postman, 내부 운영 도구 등을 통해 API 직접 호출 |
+
+프론트엔드는 로그인 성공 직후 `user.role`을 저장해 화면 라우팅에 사용할 수 있다.  
+다만 API 권한 검증은 항상 백엔드에서 수행한다.
+
+#### Error Response (400 Bad Request)
+
+```json
+{
+  "timestamp": "2026-04-03T10:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "companyCode",
+      "message": "회사 코드는 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+#### 검증 규칙
+- `companyCode`, `employeeNumber`, `name`은 필수값이다.
+- 각 필드는 공백만 입력할 수 없다.
+- 길이 제한을 초과하면 `400 Bad Request`를 반환한다.
+- 입력값 검증 실패 시 각 필드별 오류 메시지는 `errors` 배열에 담아 반환한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
+
+#### Error Response (401 Unauthorized)
+
+```json
+{
+  "timestamp": "2026-03-25T10:30:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "UNAUTHORIZED",
+  "errors": [
+    {
+      "field": "login",
+      "message": "회사코드, 사번 또는 이름이 올바르지 않습니다."
+    }
+  ],
+  "path": "/api/v1/auth/login"
+}
+```
+
+### 5-2. 로그아웃
+
+현재 로그인 세션을 종료하고 Redis에 저장된 활성 세션 및 사용자 프로필 캐시를 삭제한다.
+
+```http
+POST /api/v1/auth/logout
+Host: api-wb.itsdev.kr
+Authorization: Bearer {accessToken}
+```
+
+#### Request Header
+
+| 헤더 | 필수 | 설명 |
+|---|---|---|
+| `Authorization` | Y | `Bearer {accessToken}` |
+
+#### Request Body
+
+없음
+
+#### Response (204 No Content)
+
+```http
+HTTP/1.1 204 No Content
+```
+
+#### 동작 규칙
+
+- 서버는 `Authorization` 헤더에서 Bearer 토큰을 추출한다.
+- `JwtAuthenticationFilter`가 JWT 서명, JWT 만료 시간, Redis 활성 세션을 검증한다.
+- 로그아웃 요청도 현재 구현 기준으로 Redis 활성 세션 검증을 통과해야 한다.
+- 인증에 성공하면 `AuthService.logout(userId)`를 실행한다.
+- 로그아웃은 아래 Redis 키를 삭제한다.
+
+| Redis 키 | 설명 | 처리 |
+|---|---|---|
+| `session:user:{userId}` | userId → 현재 활성 accessToken 매핑 | 즉시 삭제 |
+| `session:token:{token}` | accessToken → userId 매핑 | 현재 활성 토큰이 있으면 즉시 삭제 |
+| `user:profile:{userId}` | 로그인 사용자 프로필 캐시 | 즉시 삭제 |
+| `sse:session:{userId}` | SSE 연결 세션 | 로그아웃에서 직접 삭제하지 않음. TTL 기준 자연 만료 |
+| `conversation:{sessionId}` | 대화 히스토리 캐시 | 로그아웃에서 직접 삭제하지 않음. TTL 기준 자연 만료 |
+
+- 로그아웃 성공 후 같은 `accessToken`으로 인증 API를 호출하면 Redis 활성 세션이 없으므로 `401 Unauthorized`, `SESSION_EXPIRED`를 반환한다.
+- 동일 사용자가 다른 기기 또는 브라우저에서 다시 로그인해 기존 토큰이 대체된 경우, 기존 토큰으로 로그아웃을 호출하면 `SESSION_REVOKED`를 반환한다.
+- 이미 로그아웃되어 Redis 활성 세션이 없는 토큰으로 다시 로그아웃을 호출하면 현재 구현 기준 `SESSION_EXPIRED`를 반환한다.
+- 프론트엔드는 로그아웃 API 응답이 `204` 또는 `401`인 경우 모두 로컬 `accessToken`을 삭제하고 로그인 화면으로 이동한다.
+
+#### Error Response (401 Unauthorized - Token Missing)
+
+```json
+{
+  "timestamp": "2026-05-12T10:35:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "TOKEN_MISSING",
+  "errors": [
+    {
+      "field": "auth",
+      "message": "인증 토큰이 없습니다."
+    }
+  ],
+  "path": "/api/v1/auth/logout"
+}
+```
+
+#### Error Response (401 Unauthorized - Invalid Token)
+
+```json
+{
+  "timestamp": "2026-05-12T10:35:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "INVALID_TOKEN",
+  "errors": [
+    {
+      "field": "token",
+      "message": "Authorization 헤더 형식이 올바르지 않습니다."
+    }
+  ],
+  "path": "/api/v1/auth/logout"
+}
+```
+
+#### Error Response (401 Unauthorized - Session Expired)
+
+```json
+{
+  "timestamp": "2026-05-12T10:35:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "SESSION_EXPIRED",
+  "errors": [
+    {
+      "field": "session",
+      "message": "로그인 세션 또는 액세스 토큰이 만료되었습니다. 다시 로그인해 주세요."
+    }
+  ],
+  "path": "/api/v1/auth/logout"
+}
+```
+
+#### Error Response (401 Unauthorized - Session Revoked)
+
+```json
+{
+  "timestamp": "2026-05-12T10:35:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "SESSION_REVOKED",
+  "errors": [
+    {
+      "field": "session",
+      "message": "다른 기기 또는 브라우저에서 다시 로그인되어 현재 세션이 종료되었습니다. 다시 로그인해 주세요."
+    }
+  ],
+  "path": "/api/v1/auth/logout"
+}
+```
+
+#### 클라이언트 처리 가이드
+
+```javascript
+async function logout() {
+  try {
+    await fetch('/api/v1/auth/logout', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('accessToken')}`
+      }
+    });
+  } finally {
+    localStorage.removeItem('accessToken');
+    window.location.href = '/login';
+  }
+}
+```
+
+### 5-3. 인증 오류 및 세션 만료/무효화 처리
+
+인증이 필요한 API에서 인증 정보가 없거나 올바르지 않거나, 세션이 만료 또는 무효화된 경우 `401 Unauthorized`를 반환한다.  
+프론트엔드는 HTTP 상태 코드뿐 아니라 `code` 값을 기준으로 사용자 안내 문구를 구분한다.
+
+#### Error Response (401 Unauthorized - Token Missing)
+
+`Authorization` 헤더가 없거나 Bearer 토큰이 전달되지 않은 경우 아래와 같이 응답한다.
+
+```json
+{
+  "timestamp": "2026-05-07T10:35:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "TOKEN_MISSING",
+  "errors": [
+    {
+      "field": "auth",
+      "message": "인증 토큰이 필요합니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### Error Response (401 Unauthorized - Invalid Token)
+
+토큰 형식이 올바르지 않거나, 서명 검증에 실패했거나, 서버가 해석할 수 없는 인증 토큰인 경우 아래와 같이 응답한다.
+
+```json
+{
+  "timestamp": "2026-05-07T10:35:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "INVALID_TOKEN",
+  "errors": [
+    {
+      "field": "token",
+      "message": "인증 정보가 유효하지 않습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### Error Response (401 Unauthorized - Session Expired)
+
+로그인 세션 또는 액세스 토큰이 만료된 경우 아래와 같이 응답한다.
+
+```json
+{
+  "timestamp": "2026-05-07T10:35:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "SESSION_EXPIRED",
+  "errors": [
+    {
+      "field": "session",
+      "message": "로그인 세션이 만료되었습니다. 다시 로그인해 주세요."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### Error Response (401 Unauthorized - Session Revoked)
+
+동일 사용자의 중복 로그인 등으로 기존 세션이 무효화된 경우 아래와 같이 응답한다.
+
+```json
+{
+  "timestamp": "2026-05-07T10:35:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "SESSION_REVOKED",
+  "errors": [
+    {
+      "field": "session",
+      "message": "다른 기기 또는 브라우저에서 로그인되어 현재 세션이 종료되었습니다. 다시 로그인해 주세요."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### Error Response (503 Service Unavailable - Session Store Unavailable)
+
+Redis 세션 저장소 연결 실패 또는 조회 지연으로 인증 상태를 확인할 수 없는 경우 아래와 같이 응답한다.
+
+```json
+{
+  "timestamp": "2026-05-12T10:35:00",
+  "status": 503,
+  "error": "Service Unavailable",
+  "code": "SESSION_STORE_UNAVAILABLE",
+  "errors": [
+    {
+      "field": "server",
+      "message": "세션 저장소 연결에 실패했습니다. 잠시 후 다시 시도해 주세요."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### 처리 규칙
+
+- `INVALID_TOKEN`은 토큰 형식 오류, 서명 검증 실패 등 인증 토큰 자체가 유효하지 않은 경우에만 사용한다.
+- 세션 또는 액세스 토큰의 유효 시간이 지난 경우 `SESSION_EXPIRED`를 반환한다.
+- 중복 로그인 등으로 서버의 활성 세션 기준에서 기존 토큰이 더 이상 유효하지 않은 경우 `SESSION_REVOKED`를 반환한다.
+- Redis 세션 저장소 장애로 인증 상태를 확인할 수 없는 경우 `SESSION_STORE_UNAVAILABLE`을 반환한다.
+- 사용자를 찾을 수 없는 경우 `USER_NOT_FOUND`를 반환할 수 있다.
+- 프론트엔드는 401 응답과 함께 아래 코드 중 하나를 받으면 로그인 페이지로 리다이렉트 처리한다.
+  - `TOKEN_MISSING`
+  - `INVALID_TOKEN`
+  - `SESSION_EXPIRED`
+  - `SESSION_REVOKED`
+  - `USER_NOT_FOUND`
+- 프론트엔드는 `SESSION_EXPIRED`와 `SESSION_REVOKED`를 구분해 사용자 안내 문구를 다르게 표시할 수 있다.
+
+## 6. MyBuddy
+
+MyBuddy는 신입 사용자가 회사 생활과 온보딩 과정에서 궁금한 내용을 질문하고, AI 기반 답변과 온보딩 제안 메시지를 채팅 형태로 확인하는 기능이다.
+
+MyBuddy 화면에서 사용하는 주요 기능은 다음과 같다.
+
+| 구분 | API | 설명 |
+|---|---|---|
+| 채팅 화면 진입 로그 기록 | `POST /api/v1/chat/session-start` | 사용자가 MyBuddy 화면에 진입했음을 기록한다. |
+| 온보딩 제안 노출 처리 | `POST /api/v1/onboarding-suggestions/me/exposure` | 오늘 노출 대상 온보딩 제안이 있으면 `chat_messages`에 suggestion 메시지로 생성한다. |
+| 채팅 메시지 목록 조회 | `GET /api/v1/chat/messages` | 현재 로그인한 사용자의 채팅 메시지 목록을 조회한다. |
+| 질문 전송 | `POST /api/v1/chat/messages/stream` | 사용자 질문을 저장하고 AI 답변을 생성한다. |
+| 빠른 질문 목록 조회 | `GET /api/v1/chat/quick-questions` | 일반 빠른 질문 후보 중 랜덤으로 5개를 조회한다. |
+| 빠른 질문 클릭 로그 기록 | `POST /api/v1/chat/quick-questions/click` | 사용자가 빠른 질문 버튼을 클릭한 이력을 기록한다. |
+
+`READ_ONLY` 사용자는 기존 대화 기록과 답변 출처 조회만 가능하다. 프론트엔드는 입력창, Quick Tap, Buddy Nudge 질문 유도를 비활성화하고, 백엔드는 질문 API와 조회 API 권한을 분리해 검증한다.
+
+`INACTIVE` 사용자는 로그인 후 이용 기간 종료 안내 화면으로 이동한다. MyBuddy 조회 API와 질문 API는 모두 호출하지 않는다.
+
+---
+
+### 6-1. MyBuddy 화면 진입 시 권장 호출 흐름
+
+프론트엔드는 `ACTIVE`, `READ_ONLY` 또는 `SERVICE_ADMIN` 사용자가 MyBuddy 화면에 진입할 때 다음 순서로 API를 호출한다.
+
+```text
+1. POST /api/v1/chat/session-start
+   - 채팅 화면 진입 로그를 기록한다.
+   - 동일 사용자가 30분 이내 재진입한 경우 중복 기록하지 않는다.
+   - READ_ONLY 사용자도 호출할 수 있다.
+
+2. POST /api/v1/onboarding-suggestions/me/exposure
+   - 오늘 노출 대상 온보딩 제안이 있으면 chat_messages에 suggestion 메시지로 생성한다.
+   - 이미 동일한 온보딩 제안 메시지가 있으면 중복 생성하지 않는다.
+   - READ_ONLY 사용자는 호출하지 않는다.
+
+3. GET /api/v1/chat/messages
+   - 실제 화면 렌더링은 이 API 응답만 사용한다.
+   - user_question, rag_answer, no_result, out_of_scope, suggestion, sensitive 메시지를 모두 포함할 수 있다.
+```
+
+`READ_ONLY` 사용자는 `POST /api/v1/chat/session-start`, `GET /api/v1/chat/messages`와 기존 답변 출처 확인에 필요한 문서 다운로드 API를 호출해 기존 기록을 렌더링한다. `POST /api/v1/chat/messages/stream`, `GET /api/v1/chat/quick-questions`, `POST /api/v1/chat/quick-questions/click`, `POST /api/v1/onboarding-suggestions/me/exposure`는 호출하지 않는다.
+
+#### 메시지 렌더링 기준
+
+- 프론트엔드는 별도의 온보딩 제안 배열을 화면에 합치지 않는다.
+- 화면에 표시할 채팅 데이터는 `GET /api/v1/chat/messages` 응답의 `messages` 배열만 사용한다.
+- 온보딩 제안 메시지도 최종적으로는 `chat_messages`에 저장된 `messageType = suggestion` 메시지로 렌더링한다.
+- `messageType = suggestion`인 경우, 해당 메시지 하단에 `quickTaps` 버튼을 노출할 수 있다.
+- 사용자가 `quickTaps` 버튼을 클릭하면 해당 항목의 `content` 값을 질문 내용으로 사용하여 `POST /api/v1/chat/messages/stream`를 호출한다.
+- 빠른 질문 클릭 로그가 필요한 경우, 프론트엔드는 `quickTaps[].eventTarget` 값을 사용하여 `POST /api/v1/chat/quick-questions/click`을 별도로 호출한다.
+
+---
+
+### 6-2. 채팅 화면 진입 로그 기록
+
+사용자가 MyBuddy 채팅 화면에 진입하면 `user_activity_logs`에 `SESSION_START` 이벤트를 기록한다.
+
+동일 사용자가 30분 이내에 다시 채팅 화면에 진입한 경우에는 중복 기록하지 않는다.
+
+```http
+POST /api/v1/chat/session-start
+Authorization: Bearer {accessToken}
+```
+
+#### Response (201 Created)
+
+```json
+{
+  "logged": true,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "message": null,
+  "createdAt": "2026-04-13T09:00:00"
+}
+```
+
+#### Response (200 OK, 중복 기록 제외)
+
+```json
+{
+  "logged": false,
+  "eventType": "SESSION_START",
+  "eventTarget": "CHAT",
+  "message": "30분 이내 동일 사용자 채팅 진입 기록이 이미 존재합니다.",
+  "createdAt": null
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `logged` | Boolean | 이번 요청에서 로그가 새로 저장되었는지 여부 |
+| `eventType` | String | 기록된 이벤트 타입 |
+| `eventTarget` | String | 이벤트 대상 |
+| `message` | String 또는 null | 처리 결과 메시지 |
+| `createdAt` | String 또는 null | 로그 생성 시각 |
+
+#### 동작 규칙
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 채팅 화면 진입 시 `user_activity_logs`에 `event_type = SESSION_START`, `event_target = CHAT`으로 기록한다.
+- 저장 항목에는 최소한 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 동일 사용자가 최근 30분 이내에 이미 `event_type = SESSION_START`, `event_target = CHAT` 이벤트를 기록한 경우 새로 저장하지 않는다.
+- 프론트엔드는 MyBuddy 화면 최초 진입 시 이 API를 1회 호출한다.
+- 채팅 메시지 목록 조회 API(`GET /api/v1/chat/messages`) 호출만으로는 `SESSION_START` 로그를 자동 기록하지 않는다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+---
+
+### 6-3. 온보딩 제안 노출 처리
+
+현재 로그인한 사용자의 `hireDate`를 기준으로 오늘 노출 대상 온보딩 제안이 있는지 확인한다.
+
+노출 대상 온보딩 제안이 존재하면 해당 제안을 `chat_messages`에 `message_type = suggestion` 메시지로 생성한다.
+
+이미 동일한 온보딩 제안 메시지가 생성되어 있는 경우에는 중복 생성하지 않는다.
+
+```http
+POST /api/v1/onboarding-suggestions/me/exposure
+Authorization: Bearer {accessToken}
+```
+
+#### Response (200 OK, 새 suggestion 메시지 생성)
+
+```json
+{
+  "created": true,
+  "messageId": 301,
+  "suggestionId": 5,
+  "message": "온보딩 제안 메시지가 생성되었습니다."
+}
+```
+
+#### Response (200 OK, 이미 생성된 suggestion 메시지 존재)
+
+```json
+{
+  "created": false,
+  "messageId": 301,
+  "suggestionId": 5,
+  "message": "이미 생성된 온보딩 제안 메시지가 있습니다."
+}
+```
+
+#### Response (200 OK, 오늘 노출 대상 없음)
+
+```json
+{
+  "created": false,
+  "messageId": null,
+  "suggestionId": null,
+  "message": "오늘 노출할 온보딩 제안이 없습니다."
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `created` | Boolean | 이번 요청에서 새 suggestion 메시지가 생성되었는지 여부 |
+| `messageId` | Number 또는 null | 생성되었거나 이미 존재하는 `chat_messages.id` |
+| `suggestionId` | Number 또는 null | 생성 대상 또는 기존 메시지에 연결된 `onboarding_suggestions.id` |
+| `message` | String | 처리 결과 메시지 |
+
+#### 동작 기준
+
+- 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
+- `dayOffset = KST 기준 오늘 날짜 - users.hire_date` 로 계산한다.
+- `dayOffset` 값에 따라 노출 대상 온보딩 제안을 결정한다.
+- 현재 `onboarding_suggestions`는 회사 구분 없이 공통으로 사용한다.
+- 노출 대상 온보딩 제안이 존재하면 백엔드는 해당 제안을 `chat_messages`에 저장한다.
+- 저장되는 메시지는 `sender_type = BOT`, `message_type = suggestion`을 사용한다.
+- `suggestion_id`에는 저장 대상 온보딩 제안의 ID를 저장한다.
+- `content`에는 온보딩 제안 본문을 저장한다.
+- `{이름}`, `{회사명}`, `{N}`과 같은 플레이스홀더가 있는 경우, 백엔드는 로그인 사용자 정보를 기준으로 치환하여 저장한다.
+- 이미 동일한 사용자의 동일한 온보딩 제안 메시지가 저장되어 있으면 중복 저장하지 않는다.
+- 중복 판단 기준은 `user_id`, `suggestion_id`, `message_type` 조합이다.
+- DB 차원에서도 `user_id`, `suggestion_id`, `message_type` 조합의 유니크 제약을 두어 중복 저장을 최종 방지하는 것을 권장한다.
+- 노출 대상 온보딩 제안이 없으면 `chat_messages`에 아무 메시지도 저장하지 않는다.
+- 이 API 응답은 화면 렌더링에 직접 사용하지 않는다.
+- 실제 화면 렌더링은 이후 호출하는 `GET /api/v1/chat/messages` 응답만 사용한다.
+- `messageType = suggestion` 메시지의 `quickTaps`는 `GET /api/v1/chat/messages` 응답에서 제공한다.
+- `quickTaps` 목록은 suggestion 메시지 자체에 저장하지 않고, `suggestionId`를 기준으로 응답 DTO 조립 시 포함한다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+---
+
+### 6-4. 채팅 메시지 목록 조회
+
+현재 로그인한 사용자의 채팅 메시지를 `createdAt` 오름차순으로 조회한다.
+
+`date`가 없으면 전체 메시지를 조회하고, `date`가 있으면 해당 날짜의 메시지만 조회한다.
+
+```http
+GET /api/v1/chat/messages?date=2026-03-24
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `date` | String (`yyyy-MM-dd`) | N | 조회할 날짜. 지정하지 않으면 전체 메시지를 조회한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "messages": [
+    {
+      "id": 101,
+      "suggestionId": null,
+      "documents": [],
+      "senderType": "USER",
+      "messageType": "user_question",
+      "content": "복지카드 신청 양식은 어디서 받나요?",
+      "quickTaps": [],
+      "recommendedContacts": [],
+      "createdAt": "2026-03-24T10:00:00"
+    },
+    {
+      "id": 102,
+      "suggestionId": null,
+      "documents": [
+        {
+          "documentId": 10,
+          "title": "복지카드 신청 안내",
+          "documentType": "GUIDE",
+          "file": null
+        },
+        {
+          "documentId": 11,
+          "title": "복지카드 신청서",
+          "documentType": "TEMPLATE",
+          "file": {
+            "fileName": "welfare-card-application.docx",
+            "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "downloadUrl": "/api/v1/chat/documents/11/download"
+          }
+        }
+      ],
+      "senderType": "BOT",
+      "messageType": "rag_answer",
+      "content": "복지카드 신청은 안내 문서를 참고하고, 신청서는 바로 내려받아 작성할 수 있습니다.",
+      "quickTaps": [],
+      "recommendedContacts": [],
+      "createdAt": "2026-03-24T10:00:02"
+    },
+    {
+      "id": 301,
+      "suggestionId": 5,
+      "documents": [],
+      "senderType": "BOT",
+      "messageType": "suggestion",
+      "content": "3일째, 위드버디에 조금 익숙해졌나요? 🌱 이쯤 되면 이런 게 궁금해지더라고요.",
+      "quickTaps": [
+        {
+          "buttonText": "⏰ 출퇴근 시간",
+          "content": "출근 시간과 퇴근 시간은 어떻게 되나요?",
+          "eventTarget": "QUICK_TAP_WORK_HOUR"
+        },
+        {
+          "buttonText": "📅 연차 사용",
+          "content": "연차는 언제부터 사용할 수 있나요?",
+          "eventTarget": "QUICK_TAP_LEAVE_START"
+        },
+        {
+          "buttonText": "📦 장비 신청",
+          "content": "업무 장비는 어떻게 신청하나요?",
+          "eventTarget": "QUICK_TAP_EQUIPMENT"
+        }
+      ],
+      "recommendedContacts": [],
+      "createdAt": "2026-04-30T09:00:00"
+    }
+  ]
+}
+```
+
+#### Response (200 OK, 빈 결과)
+
+```json
+{
+  "messages": []
+}
+```
+
+#### 동작 규칙
+
+- 현재 로그인한 사용자 기준으로 `chat_messages`를 조회한다.
+- 모든 메시지는 `createdAt` 오름차순으로 정렬한다.
+- `date`가 지정된 경우 해당 날짜의 00:00:00 이상, 다음 날 00:00:00 미만 범위의 메시지만 조회한다.
+- 온보딩 제안 메시지인 경우 `suggestionId`가 포함될 수 있다.
+- `senderType`은 `USER`, `BOT` 값을 사용한다.
+- `messageType`은 `user_question`, `rag_answer`, `no_result`, `out_of_scope`, `suggestion`, `sensitive` 값을 사용한다.
+- `rag_answer` 메시지인 경우, 근거 문서는 `chat_message_documents`를 기준으로 조회한다.
+- `documents[].documentId`는 답변 메시지와 연결된 문서 ID를 의미한다.
+- `documents[].title`은 `documents.title` 값을 의미하며, 프론트엔드에서 근거 문서명 표시용으로 사용한다.
+- `documents[].documentType = TEMPLATE`인 경우 `documents[].file` 객체를 포함한다.
+- 프론트엔드는 `documents[].file.downloadUrl`을 통해 채팅 근거 문서 다운로드 URL 발급 API를 호출할 수 있다.
+- `documents[].documentType != TEMPLATE`인 경우 `documents[].file`은 `null`일 수 있다.
+- 실제 파일 데이터는 채팅 메시지 응답 JSON에 직접 포함하지 않고, 별도 파일 API를 통해 반환한다.
+- `user_question`, `suggestion`, `no_result`, `out_of_scope`, `sensitive` 메시지는 일반적으로 근거 문서를 포함하지 않으므로 `documents`는 빈 배열(`[]`)이다.
+- `messageType = suggestion`인 경우, 백엔드는 해당 온보딩 제안에 연결된 빠른 질문 목록을 `quickTaps`에 포함하여 반환한다.
+- `messageType = suggestion`이 아닌 경우 `quickTaps`는 빈 배열(`[]`)을 반환한다.
+- `messageType = no_result`, `sensitive`이고 추천 담당자 정보가 존재하는 경우에는 `recommendedContacts`가 채워질 수 있다.
+- `messageType = no_result`, `sensitive`인 BOT 메시지의 추천 담당자 정보는 `chat_messages.recommended_contacts_json` 컬럼에 JSON 형태로 저장된 값을 기준으로 반환한다.
+- `recommended_contacts_json` 값이 `null`이거나 빈 배열인 경우 `recommendedContacts`는 빈 배열(`[]`)로 반환한다.
+- `messageType = user_question`, `rag_answer`, `out_of_scope`, `suggestion`인 경우 `recommendedContacts`는 빈 배열(`[]`)을 반환한다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+---
+
+### 6-5. 질문 전송 및 AI 답변 스트리밍
+
+사용자가 질문을 보내면 사용자 질문 메시지를 저장하고, 내부 AI 서버에 답변 생성을 요청한다.
+AI 서버가 스트리밍 방식으로 반환하는 답변 조각을 백엔드는 SSE 형식으로 프론트엔드에 전달한다.
+AI 서버의 최종 답변 유형이 `messageType = no_result`인 경우, 백엔드는 최종 BOT 답변 메시지 저장 시 사용자가 보낸 질문 메시지의 `chat_messages.id`를 `chat_messages.answer_to_message_id`에 저장한다. 이를 통해 `no_result` 답변이 어떤 사용자 질문에 대한 답변인지 DB에서 직접 연결할 수 있다.
+
+프론트엔드는 `answer_delta` 이벤트를 받을 때마다 `content` 값을 기존 답변 뒤에 이어 붙여 화면에 표시한다.  
+최종 답변 저장, 근거 문서 연결 저장, 추천 담당자 정보 전달은 `answer_completed` 이벤트를 기준으로 처리한다.
+
+```http
+POST /api/v1/chat/messages/stream
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+Accept: text/event-stream
+```
+
+#### Request Body
+
+```json
+{
+  "content": "복지카드는 어떻게 신청하나요?"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 설명 | 상세 규칙 |
+|---|---|---|---|---|
+| `content` | String | Y | 사용자가 입력한 질문 내용 | 길이 1~500자 / 공백만 입력 불가 / 일반 문장 입력 가능 / 특수문자 허용 |
+
+#### Response
+
+스트림 시작 전 인증, 권한, 요청값 검증이 성공하면 아래와 같이 SSE 응답을 시작한다.
+
+```http
+200 OK
+Content-Type: text/event-stream;charset=UTF-8
+Cache-Control: no-cache
+Connection: keep-alive
+```
+
+> SSE 응답은 일반 JSON 응답처럼 하나의 완성된 Body를 반환하지 않는다.  
+> 서버는 이벤트를 순차적으로 전송하고, 프론트엔드는 이벤트를 수신하는 즉시 화면 상태를 갱신한다.
+
+#### Error Response (403 Forbidden)
+
+`READ_ONLY` 또는 `INACTIVE` 권한 사용자가 질문 전송을 시도한 경우 스트림 시작 전에 아래 응답을 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-27T13:31:46.629199100Z",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "ACCESS_DENIED",
+  "errors": [
+    {
+      "field": "role",
+      "message": "현재 상태에서는 질문을 전송할 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### SSE Event 목록
+
+| 이벤트명 | 발생 시점 | 설명 |
+|---|---|---|
+| `question_saved` | 사용자 질문 저장 직후 | 사용자 질문 메시지가 DB에 저장되었음을 알린다. |
+| `answer_delta` | AI 서버의 토큰 조각 수신 시 | AI 서버에서 받은 답변 조각을 프론트엔드에 전달한다. |
+| `answer_completed` | AI 스트림 정상 종료 및 BOT 메시지 저장 후 | 최종 BOT 메시지 저장 결과를 전달한다. |
+| `error` | 스트리밍 중 오류 발생 시 | AI 호출 실패, 스트림 중단, 저장 실패 등의 오류를 전달한다. |
+
+---
+
+#### Event: `question_saved`
+
+사용자 질문 메시지가 저장되었음을 알린다.  
+프론트엔드는 이 이벤트를 받으면 사용자 질문 말풍선을 확정 상태로 표시할 수 있다.
+
+```sse
+event: question_saved
+data: {"question":{"id":201,"suggestionId":null,"documents":[],"senderType":"USER","messageType":"user_question","content":"복지카드는 어떻게 신청하나요?","quickTaps":[],"recommendedContacts":[],"createdAt":"2026-05-04T09:30:00"}}
+```
+
+##### Data Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `question` | Object | Y | 저장된 사용자 질문 메시지 |
+| `question.id` | Number | Y | `chat_messages.id` |
+| `question.senderType` | String | Y | `USER` |
+| `question.messageType` | String | Y | `user_question` |
+| `question.content` | String | Y | 사용자가 입력한 질문 내용 |
+| `question.createdAt` | String | Y | 질문 메시지 저장 시각 |
+
+---
+
+#### Event: `answer_delta`
+
+AI 서버에서 받은 답변 조각을 전달한다.  
+프론트엔드는 `answer_delta.content`를 현재 출력 중인 임시 BOT 답변 문자열 뒤에 append한다.
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"복지카드는 "}
+
+```
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"관련 안내 문서를 기준으로 "}
+
+```
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"신청할 수 있습니다."}
+
+```
+
+##### Data Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `questionId` | Number | Y | 사용자 질문 메시지 ID |
+| `content` | String | Y | AI 서버에서 수신한 답변 조각 |
+
+##### 처리 규칙
+
+- `answer_delta.content`는 누적된 전체 답변이 아니라 새로 수신한 조각이다.
+- `answer_delta`는 한 요청에서 여러 번 발생할 수 있다.
+- 백엔드는 AI 서버에서 받은 토큰 문자열을 문장 단위로 재가공하지 않는다.
+- 백엔드는 프론트엔드에 전달하는 동시에 전체 답변 문자열을 누적한다.
+- 프론트엔드는 `answer_delta`를 받을 때마다 현재 출력 중인 임시 BOT 메시지에 `content`를 이어 붙인다.
+- `answer_delta`는 DB 저장 완료를 의미하지 않는다.
+
+#### Event: `answer_completed`
+
+AI 서버 스트림이 정상 종료되고, 백엔드가 최종 BOT 답변 메시지를 저장한 뒤 전달한다.  
+프론트엔드는 이 이벤트를 받으면 임시 BOT 답변을 저장 완료된 BOT 메시지로 교체하거나 확정한다.
+
+```sse
+event: answer_completed
+data: {"questionId":201,"answer":{"id":202,"suggestionId":null,"documents":[{"documentId":10,"title":"복지카드 신청 안내","documentType":"GUIDE","file":null},{"documentId":11,"title":"복지카드 신청서","documentType":"TEMPLATE","file":{"fileName":"welfare-card-application.docx","contentType":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","downloadUrl":"/api/v1/chat/documents/11/download"}}],"senderType":"BOT","messageType":"rag_answer","content":"복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.","quickTaps":[],"recommendedContacts":[],"createdAt":"2026-05-04T09:30:03"}}
+```
+
+##### Data Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `questionId` | Number | Y | 사용자 질문 메시지 ID |
+| `answer` | Object | Y | 저장 완료된 BOT 답변 메시지 |
+| `answer.id` | Number | Y | 저장된 BOT 답변 메시지 ID |
+| `answer.senderType` | String | Y | `BOT` |
+| `answer.messageType` | String | Y | AI 답변 유형 |
+| `answer.content` | String | Y | 최종 AI 답변 전문 |
+| `answer.documents` | Array | Y | 답변 메시지에 연결된 근거 문서 목록 |
+| `answer.quickTaps` | Array | Y | 일반 AI 답변에서는 빈 배열 `[]` |
+| `answer.recommendedContacts` | Array | Y | 담당자 추천 목록. 추천 대상이 없으면 빈 배열 `[]` |
+| `answer.createdAt` | String | Y | BOT 답변 메시지 저장 시각 |
+
+##### 처리 규칙
+
+- `answer_completed.answer.content`는 최종 답변 전문이다.
+- 프론트엔드는 이미 `answer_delta`로 출력한 문자열에 `answer_completed.answer.content`를 추가로 append하지 않는다.
+- 프론트엔드는 누락 방지를 위해 임시 출력 문자열을 `answer_completed.answer.content`로 덮어쓸 수 있다.
+- `answer_completed`는 한 요청당 한 번만 전송한다.
+- `answer_completed` 이후에는 추가 `answer_delta`를 전송하지 않는다.
+- `answer_completed` 수신 시 프론트엔드는 로딩 상태를 종료하고 전송 버튼을 다시 활성화한다.
+- `documents`와 `recommendedContacts`는 `GET /api/v1/chat/messages`의 `ChatMessageResponse`와 동일한 구조를 사용한다.
+
+##### AI 서버 `/chat/stream` 기준 메타데이터 처리
+
+AI 서버는 답변 조각을 `answer_delta` 이벤트로 여러 번 전송하고, 답변 생성이 완료되면 `answer_completed` 이벤트를 반드시 한 번 전송한다.
+
+`answer_completed`에는 백엔드가 BOT 메시지 저장 및 후속 데이터 저장에 필요한 아래 값을 모두 포함해야 한다.
+
+- 최종 답변 유형 `messageType`
+- 최종 답변 전문 `content`
+- 근거 문서 목록 `documents`
+- 추천 담당자 목록 `recommendedContacts`
+
+`messageType = no_result`인 경우, 백엔드는 최종 BOT 답변 메시지의 `chat_messages.answer_to_message_id`에 사용자 질문 메시지 ID(`question_saved.question.id`, AI 서버 요청/응답의 `questionId`)를 저장한다.
+`messageType = no_result` 또는 `sensitive`이고 `recommendedContacts`가 존재하는 경우, 백엔드는 해당 값을 `chat_messages.recommended_contacts_json` 컬럼에 JSON 형태로 저장한다. 이후 `GET /api/v1/chat/messages` 조회 시 이 값을 역직렬화하여 `recommendedContacts` 응답 필드로 반환한다.
+AI 서버가 `answer_completed`를 전송하지 못하고 연결이 종료되면 백엔드는 해당 AI 답변 생성을 실패로 처리하고 BOT 메시지를 저장하지 않는다.
+
+---
+
+#### Event: `error`
+
+SSE 연결이 시작된 뒤 오류가 발생한 경우 전달한다.
+
+```sse
+event: error
+data: {"code":"AI_STREAM_FAILED","message":"AI 답변 생성 중 오류가 발생했습니다."}
+```
+
+##### Data Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `code` | String | Y | 오류 코드 |
+| `message` | String | Y | 사용자에게 표시 가능한 오류 메시지 |
+| `questionId` | Number | N | 사용자 질문 메시지 ID. 식별 가능한 경우 포함 |
+
+##### 오류 처리 규칙
+
+- 인증 실패, 세션 만료/무효화, 권한 없음, 요청값 검증 실패처럼 스트림 시작 전에 판별 가능한 오류는 기존 JSON 에러 응답 형식을 사용한다.
+- SSE 연결이 시작된 뒤 발생한 오류는 `error` 이벤트로 전달한다.
+- `error` 이벤트 전달 후 백엔드는 SSE 연결을 종료한다.
+- AI 서버 연결이 중간에 끊기고 최종 답변을 확정할 수 없는 경우 백엔드는 BOT 답변 메시지를 저장하지 않는다.
+- 이미 사용자 질문 메시지가 저장된 상태에서 AI 답변 생성에 실패할 수 있다. 이 경우 프론트엔드는 오류 안내를 표시하고 사용자가 같은 질문을 재시도할 수 있게 한다.
+- 타임아웃/오류 직후 동일 질문 재시도 시, 백엔드는 최근 미응답 질문(`sender_type = USER`, `message_type = user_question`)을 재사용할 수 있다.
+- 질문 재사용 조건이 충족되면 `chat_messages`에 USER 질문을 추가 저장하지 않고, 기존 질문 ID를 `question_saved.question.id`로 다시 내려준다.
+
+##### 재시도 연동 체크포인트
+
+- 질문 재사용은 아래 조건을 **모두** 만족할 때만 동작한다.
+- 동일 사용자 기준 요청일 것
+- 질문 본문이 동일할 것 (`trim` 기준 비교, 앞/뒤 공백 차이는 동일로 간주)
+- 최근 `10분` 이내 질문일 것
+- 해당 질문 생성 시각 이후 `BOT` 메시지가 아직 저장되지 않았을 것
+- 재사용이 동작하면 `question_saved.question.id`는 이전 실패 요청의 `questionId`와 동일할 수 있다.
+- 재사용이 동작하지 않으면 새 USER 질문이 저장되고 새 `questionId`가 발급된다.
+- 프론트엔드는 재시도 요청에서도 `question_saved.question.id` 기준으로 메시지를 식별해야 하며, 단순 append만 가정하지 않는다.
+- 서버는 재사용 경로에서 Redis 대화 이력이 비어 있으면 USER 질문 turn을 보강 저장한 뒤 AI 호출을 진행한다.
+
+#### 공개 API 동작 규칙
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 백엔드는 JWT를 검증한 뒤 사용자 ID와 회사 코드를 확인한다.
+- 질문 메시지는 `chat_messages`에 `sender_type = USER`, `message_type = user_question`으로 먼저 저장한다.
+- 백엔드는 질문 저장 후 생성된 질문 메시지의 `id`를 `questionId`로 사용한다.
+- 백엔드는 AI 서버의 `POST /chat/stream`을 호출한다.
+- 백엔드는 AI 서버에서 받은 토큰 조각을 프론트엔드에 `answer_delta` 이벤트로 전달한다.
+- 백엔드는 전달한 토큰 조각을 동시에 누적한다.
+- AI 서버가 `answer_completed` 이벤트를 전송하면 백엔드는 해당 이벤트의 `content`, `messageType`, `documents`, `recommendedContacts`를 기준으로 최종 답변을 확정한다.
+- 백엔드는 `answer_completed.content`를 `chat_messages`에 `sender_type = BOT`으로 저장한다.
+- `answer_completed.messageType = no_result`인 경우, 백엔드는 저장되는 BOT 답변 메시지의 `answer_to_message_id`에 사용자 질문 메시지 ID를 저장한다.
+- 백엔드는 `answer_completed.documents[].documentId` 목록을 기준으로 `chat_message_documents`에 답변 메시지와 문서 ID를 연결 저장한다.
+- `messageType = no_result`,`sensitive`이고 `answer_completed.recommendedContacts`가 존재하는 경우, 백엔드는 해당 값을 `chat_messages.recommended_contacts_json` 컬럼에 JSON 형태로 저장한다.
+- 이후 `GET /api/v1/chat/messages` 조회 시 백엔드는 `chat_messages.recommended_contacts_json` 값을 역직렬화하여 `recommendedContacts` 응답 필드로 반환한다.
+- `messageType = rag_answer`, `out_of_scope`인 경우 `recommended_contacts_json`은 `null` 또는 빈 배열(`[]`)로 저장할 수 있으며, 응답에서는 `recommendedContacts: []`를 반환한다.
+- 백엔드는 BOT 답변 메시지 저장 및 문서 연결 저장이 완료된 뒤 프론트엔드에 `answer_completed` 이벤트를 전송한다.
+- 온보딩 제안 메시지는 이 API에서 생성하지 않는다.
+- 온보딩 제안 메시지는 `POST /api/v1/onboarding-suggestions/me/exposure` 흐름에서 생성되며, `message_type = suggestion`을 사용한다.
+- 사용자가 재시도를 선택한 경우, 프론트엔드는 동일한 질문 내용을 다시 `POST /api/v1/chat/messages/stream`으로 전송한다.
+- 동일 질문 재시도에서 질문 재사용 조건이 맞으면 `question_saved`의 `question.id`는 직전 실패 요청과 동일할 수 있다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+#### Error Response (400 Bad Request)
+
+스트림 시작 전 요청값 검증에 실패한 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-04T09:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "content",
+      "message": "질문 내용은 비어 있을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### Error Response (504 Gateway Timeout)
+
+스트림 시작 전 AI 서버 연결에 실패하거나, AI 서버가 제한 시간 내 스트림을 시작하지 못한 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-04T09:30:00",
+  "status": 504,
+  "error": "Gateway Timeout",
+  "code": "AI_TIMEOUT",
+  "errors": [
+    {
+      "field": "ai",
+      "message": "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+---
+
+### 6-6. 빠른 질문 목록 조회
+
+현재 로그인한 사용자에게 노출할 빠른 질문 목록을 조회한다.
+
+전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
+
+```http
+GET /api/v1/chat/quick-questions
+Authorization: Bearer {accessToken}
+```
+
+#### Response (200 OK)
+
+```json
+{
+  "quickQuestions": [
+    {
+      "buttonText": "🏢 출근 장소·입장 방법",
+      "content": "첫 출근 장소와 입장 방법이 어떻게 되나요?",
+      "eventTarget": "QUICK_TAP_LOCATION"
+    },
+    {
+      "buttonText": "🕘 출근 시간·근무 형태",
+      "content": "출근 시간과 근무 형태가 어떻게 되나요?",
+      "eventTarget": "QUICK_TAP_WORK_HOUR"
+    },
+    {
+      "buttonText": "👔 복장 규정",
+      "content": "회사 복장 규정이 있나요?",
+      "eventTarget": "QUICK_TAP_DRESSCODE"
+    },
+    {
+      "buttonText": "📋 제출 서류",
+      "content": "입사 첫날 제출해야 하는 서류는 무엇인가요?",
+      "eventTarget": "QUICK_TAP_DOCS"
+    },
+    {
+      "buttonText": "💻 이메일·계정 세팅",
+      "content": "회사 이메일 계정은 어떻게 세팅하나요?",
+      "eventTarget": "QUICK_TAP_IT_SETUP"
+    }
+  ]
+}
+```
+
+#### Response (200 OK, 빈 결과)
+
+```json
+{
+  "quickQuestions": []
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `quickQuestions` | Array | 현재 사용자에게 노출할 빠른 질문 목록 |
+| `quickQuestions[].buttonText` | String | 화면에 표시할 버튼 텍스트 |
+| `quickQuestions[].content` | String | 사용자가 버튼을 클릭했을 때 실제 질문으로 전송할 문장 |
+| `quickQuestions[].eventTarget` | String | 빠른 질문 클릭 로그 저장 시 사용할 eventTarget 값 |
+
+#### 동작 규칙
+
+- 빠른 질문은 사용자가 자주 묻는 질문을 버튼 형태로 제공하기 위한 추천 질문 목록이다.
+- 현재 빠른 질문 목록은 회사 구분 없이 공통으로 제공한다.
+- 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
+- 이 API는 빠른 질문 버튼 목록만 조회한다.
+- 이 API는 클릭 로그 저장이나 채팅 메시지 생성을 수행하지 않는다.
+- 사용자가 빠른 질문을 클릭하면, 프론트엔드는 해당 항목의 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages/stream`로 전송한다.
+- 빠른 질문 클릭 로그를 남기려면 프론트엔드가 별도로 `POST /api/v1/chat/quick-questions/click`을 호출한다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+---
+
+### 6-7. 빠른 질문 클릭 로그 기록
+
+사용자가 빠른 질문 버튼을 클릭하면 `user_activity_logs`에 `BUTTON_CLICK` 이벤트를 기록한다.
+
+이때 `eventTarget`은 사용자가 클릭한 빠른 질문 항목의 `eventTarget` 값을 저장한다.
+
+```http
+POST /api/v1/chat/quick-questions/click
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### Request Body
+
+```json
+{
+  "eventTarget": "QUICK_TAP_LOCATION"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `eventTarget` | String | Y | 사용자가 클릭한 빠른 질문 버튼의 eventTarget 값 |
+
+#### Response (201 Created)
+
+```json
+{
+  "logged": true,
+  "eventType": "BUTTON_CLICK",
+  "eventTarget": "QUICK_TAP_LOCATION",
+  "message": null,
+  "createdAt": "2026-04-24T09:30:00"
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `logged` | Boolean | 이번 요청에서 로그가 저장되었는지 여부 |
+| `eventType` | String | 기록된 이벤트 타입 |
+| `eventTarget` | String | 클릭한 빠른 질문 버튼의 eventTarget |
+| `message` | String 또는 null | 처리 결과 메시지 |
+| `createdAt` | String | 로그 생성 시각 |
+
+#### 동작 규칙
+
+- 현재 로그인한 사용자 기준으로 동작한다.
+- 빠른 질문 버튼 클릭 시 `user_activity_logs`에 `event_type = BUTTON_CLICK`으로 기록한다.
+- `event_target`에는 사용자가 클릭한 버튼의 실제 `eventTarget` 값을 저장한다.
+- 저장 항목에는 `user_id`, `event_type`, `event_target`, `created_at`이 포함된다.
+- 이 API는 클릭 로그만 저장한다.
+- 이 API는 채팅 메시지 생성이나 AI 답변 생성을 수행하지 않는다.
+- 빠른 질문을 실제 질문으로 전송하려면 프론트엔드가 별도로 `POST /api/v1/chat/messages/stream`를 호출한다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+---
+
+### 6-8. 공통 응답 객체
+
+#### ChatMessageResponse
+
+`GET /api/v1/chat/messages`의 `messages[]`, `POST /api/v1/chat/messages/stream`의 `question_saved.question`, `answer_completed.answer`는 모두 아래 구조를 기준으로 한다.
+
+| 필드 | 타입 | 설명                                           |
+|---|---|----------------------------------------------|
+| `id` | Number | `chat_messages.id`                           |
+| `suggestionId` | Number 또는 null | 온보딩 제안 메시지와 연결된 `onboarding_suggestions.id`  |
+| `documents` | Array | 답변 메시지와 연결된 근거 문서 목록                         |
+| `senderType` | String | 메시지 발신자 타입                                   |
+| `messageType` | String | 메시지 유형                                       |
+| `content` | String | 메시지 본문                                       |
+| `quickTaps` | Array | suggestion 메시지 하단에 노출할 빠른 질문 버튼 목록. `READ_ONLY` 사용자는 suggestion 메시지에서도 빈 배열(`[]`) |
+| `recommendedContacts` | Array | `no_result`, `sensitive` 메시지에서 노출할 담당자 추천 목록 |
+| `createdAt` | String | 메시지 생성 시각                                    |
+
+#### DocumentResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `documentId` | Number | 문서 ID |
+| `title` | String | 문서 제목 |
+| `documentType` | String | 문서 유형 |
+| `file` | Object 또는 null | 다운로드 가능한 파일 정보 |
+
+#### FileResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `fileName` | String | 원본 파일명 |
+| `contentType` | String | 파일 MIME 타입 |
+| `downloadUrl` | String | 파일 다운로드 API URL |
+
+#### QuickTapResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `buttonText` | String | 화면에 표시할 버튼 텍스트 |
+| `content` | String | 사용자가 버튼을 클릭했을 때 실제 질문으로 전송할 문장 |
+| `eventTarget` | String | 빠른 질문 클릭 로그 저장 시 사용할 eventTarget 값 |
+
+#### RecommendedContactResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `department` | String | 담당 부서명 |
+| `name` | String | 담당자 이름 |
+| `position` | String | 담당자 직급 |
+| `connects` | Array | 연락 수단 목록 |
+
+#### ContactMethodResponse
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `type` | String | 연락 수단 유형 |
+| `value` | String | 실제 연락 값 |
+
+
+#### ChatStreamQuestionSavedEvent
+
+`POST /api/v1/chat/messages/stream`의 `question_saved` 이벤트 data 구조다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `question` | ChatMessageResponse | 저장된 사용자 질문 메시지 |
+
+#### ChatStreamAnswerDeltaEvent
+
+`POST /api/v1/chat/messages/stream`의 `answer_delta` 이벤트 data 구조다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `questionId` | Number | 사용자 질문 메시지 ID |
+| `content` | String | AI 서버에서 수신한 답변 조각 |
+
+#### ChatStreamAnswerCompletedEvent
+
+`POST /api/v1/chat/messages/stream`의 `answer_completed` 이벤트 data 구조다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `questionId` | Number | 사용자 질문 메시지 ID |
+| `answer` | ChatMessageResponse | 저장 완료된 BOT 답변 메시지 |
+
+#### ChatStreamErrorEvent
+
+`POST /api/v1/chat/messages/stream`의 `error` 이벤트 data 구조다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `code` | String | 오류 코드 |
+| `message` | String | 사용자에게 표시 가능한 오류 메시지 |
+| `questionId` | Number 또는 null | 사용자 질문 메시지 ID. 식별 가능한 경우 포함 |
+
+---
+
+### 6-9. 공통 값 설명
+
+#### senderType
+
+| 값 | 설명 |
+|---|---|
+| `USER` | 사용자 |
+| `BOT` | 챗봇 |
+
+#### messageType
+
+| 값 | 설명 |
+|---|---|
+| `user_question` | 사용자가 입력한 질문 메시지 |
+| `rag_answer` | 문서 기반으로 답변이 생성된 메시지 |
+| `no_result` | 질문 범위는 맞지만 근거 문서나 정보가 부족해 답변하지 못한 메시지 |
+| `out_of_scope` | 서비스 범위를 벗어난 질문에 대한 안내 메시지 |
+| `suggestion` | 온보딩 제안 메시지 |
+| `sensitive` | 민감·위험 주제 포함 메시지 |
+
+#### UserRole
+
+| 값 | 설명 |
+|---|---|
+| `ACTIVE` | 활성 신입 사용자. 회사별 수습 기간 내 MyBuddy 채팅 기능을 사용한다. |
+| `READ_ONLY` | 비활성 신입 사용자. 수습 기간 종료 후 30일간 `ACTIVE`와 동일한 조회 기능을 사용할 수 있으나 질문 전송 API(`POST /api/v1/chat/messages/stream`), 빠른 질문, Buddy Nudge 질문 유도는 사용할 수 없다. |
+| `INACTIVE` | 비활성 사용자. 이용 제한 상태. 로그인은 가능하지만 이용 기간 종료 안내 화면을 표시하며 MyBuddy 조회·질문 기능은 사용할 수 없다. |
+| `ADMIN` | 고객사 관리자. 관리자 계정 페이지에서 신입 계정 생성 및 문서 관리 API를 호출할 수 있다. |
+| `SERVICE_ADMIN` | 제품 내부 지표 조회용 계정. 일반 `ACTIVE`와 동일하게 MyBuddy 기능을 사용할 수 있으며, 추가로 관리자 지표 API(`/api/v1/admin/metrics/*`)를 호출할 수 있다. 고객사 관리자 계정 페이지 API와 문서 관리 API는 호출할 수 없다. |
+
+##### 역할 자동 전환
+
+신입 사용자 역할은 KST 날짜 기준으로 자동 전환된다.
+
+| 전환 | 기준 |
+|---|---|
+| `ACTIVE` → `READ_ONLY` | `users.hire_date + companies.probation_period` 도달 시 |
+| `READ_ONLY` → `INACTIVE` | READ_ONLY 시작일로부터 30일 경과 시 |
+
+`companies.probation_period`는 회사별 수습 기간이며 기본값은 90일이다. 회사 정책에 따라 다른 값으로 설정할 수 있다.
+
+예를 들어 `hire_date = 2026-03-01`, `companies.probation_period = 90`이면 `2026-05-30`부터 `READ_ONLY`가 되고, `2026-06-29`부터 `INACTIVE`가 된다.
+
+##### ACTIVE
+
+소속 회사의 `companies.probation_period` 기간 내 정상 사용 상태다.
+
+| 기능 | 가능 여부 |
+| --- | --- |
+| 로그인 | 가능 |
+| 새 질문 입력 | 가능 |
+| Quick Tap | 가능 |
+| Buddy Nudge 질문 유도 | 가능 |
+| RAG 답변 수신 | 가능 |
+| 기존 대화 기록 조회 | 가능 |
+| 기존 답변 출처 조회 | 가능 |
+
+##### READ_ONLY
+
+수습 기간 종료 후 30일간 조회 전용 상태다.
+
+| 기능 | 가능 여부 |
+| --- | --- |
+| 로그인 | 가능 |
+| 새 질문 입력 | 불가 |
+| Quick Tap | 불가 |
+| Buddy Nudge 질문 유도 | 불가 |
+| RAG 답변 수신 | 불가 |
+| 기존 대화 기록 조회 | 가능 |
+| 기존 답변 출처 조회 | 가능 |
+
+> READ_ONLY의 핵심은 "질문 API 차단 + 조회 API 허용"이다. BE는 질문 API와 조회 API 권한을 분리하여 구현한다. FE는 입력창·Quick Tap만 비활성화하고 기록 조회는 유지한다.
+
+##### INACTIVE
+
+READ_ONLY 30일 기간 종료 또는 관리자 수동 비활성화 상태다.
+
+| 기능 | 가능 여부 |
+| --- | --- |
+| 로그인 | 가능. 로그인 후 이용 기간 종료 안내 화면 표시 |
+| 새 질문 입력 | 불가 |
+| Quick Tap | 불가 |
+| Buddy Nudge 질문 유도 | 불가 |
+| RAG 답변 수신 | 불가 |
+| 기존 대화 기록 조회 | 불가 |
+| 기존 답변 출처 조회 | 불가 |
+
+> INACTIVE는 오류가 아니라 정상 생애주기 종료다. 로그인 자체를 차단하면 계정 정보 오류로 오해할 수 있으므로 로그인 후 안내 화면을 표시한다.
+
+#### ContactType
+
+| 값 | 설명 |
+|---|---|
+| `slack` | Slack 사용자 또는 채널 연결 정보 |
+| `email` | 이메일 주소 |
+| `phone` | 일반 전화번호 또는 휴대전화번호 |
+| `extension` | 사내 내선 번호 |
+
+#### eventTarget 허용값
+
+빠른 질문 클릭 로그 기록 시 `eventTarget`에는 사용자가 클릭한 빠른 질문 버튼의 `eventTarget` 값을 전달한다.
+
+| 버튼 텍스트 | 전송 질문 (`content`) | eventTarget |
+|---|---|---|
+| 🏢 출근 장소·입장 방법 | 첫 출근 장소와 입장 방법이 어떻게 되나요? | `QUICK_TAP_LOCATION` |
+| 🕘 출근 시간 | 출근 시간이 어떻게 되나요? | `QUICK_TAP_WORK_HOUR` |
+| 👔 복장 규정 | 회사 복장 규정이 있나요? | `QUICK_TAP_DRESSCODE` |
+| 📍 첫날 누구를 찾아요? | 첫 출근 시 어디로 가야 하고 누구를 찾으면 되나요? | `QUICK_TAP_FIRST_DAY` |
+| 🔑 출입카드 받는 법 | 출입카드는 어떻게 받나요? | `QUICK_TAP_ACCESS` |
+| 📋 제출 서류 | 입사 첫날 제출해야 하는 서류는 무엇인가요? | `QUICK_TAP_DOCS` |
+| 💻 이메일·계정 세팅 | 회사 이메일 계정은 어떻게 세팅하나요? | `QUICK_TAP_IT_SETUP` |
+| 📦 비품 신청하기 | 업무에 필요한 비품은 어떻게 신청하나요? | `QUICK_TAP_EQUIPMENT` |
+| 📅 연차 언제부터? | 연차는 입사 후 언제부터 쓸 수 있나요? | `QUICK_TAP_LEAVE_START` |
+| 🖨️ 프린터·사무기기 사용법 | 프린터나 사무기기는 어떻게 사용하나요? | `QUICK_TAP_PRINTER` |
+| 🗓️ 회의실 예약 방법 | 회의실은 어떻게 예약하나요? | `QUICK_TAP_MEETING_ROOM` |
+| 🍱 점심 식대 지원 | 점심 식대 지원은 어떻게 되나요? | `QUICK_TAP_MEAL` |
+| 💳 복지 혜택 적용 시점 | 복지카드·자기계발비는 입사 후 언제부터 사용할 수 있나요? | `QUICK_TAP_WELFARE` |
+| 🧾 Slack 채널 어떻게 써요? | 사내 Slack 채널 종류와 각 채널 용도가 어떻게 되나요? | `QUICK_TAP_SLACK_GUIDE` |
+| 🔐 보안·파일 저장 규칙 | 회사 보안 규정이나 업무 파일 저장 규칙이 어떻게 되나요? | `QUICK_TAP_SECURITY` |
+| 🕘 지각·조퇴 처리 방법 | 지각이나 조퇴가 생기면 어떻게 처리하나요? | `QUICK_TAP_LATE` |
+| 📅 반차 사용 방법 | 반차는 어떻게 신청하나요? | `QUICK_TAP_HALF_DAY` |
+| 💊 병가 규정 | 몸이 아플 때 병가는 며칠까지 쓸 수 있나요? | `QUICK_TAP_SICK` |
+| 📝 결재는 어떻게 해요? | 업무 결재나 승인은 어디서, 어떻게 하나요? | `QUICK_TAP_APPROVAL` |
+| 🖥️ 업무 시스템 권한 신청 | 추가로 필요한 업무 시스템 권한은 어떻게 신청하나요? | `QUICK_TAP_SYSTEM_AUTH` |
+| 🏠 재택근무 신청 | 재택근무는 어떻게 신청하나요? | `QUICK_TAP_REMOTE` |
+| 💳 외근 보고 방법 | 외근이 생기면 어떻게 보고하나요? | `QUICK_TAP_WORKING_OUTSIDE` |
+| 🧾 법인카드 사용 후 처리 | 법인카드 사용 후 어떻게 처리하나요? | `QUICK_TAP_CORP_CARD` |
+| 💬 버디 제도란? | 버디 제도가 어떻게 운영되나요? | `QUICK_TAP_BUDDY` |
+| 💳 복지 혜택 신청하기 | 복지 혜택은 어떻게 신청하나요? | `QUICK_TAP_WELFARE_APPLY` |
+| 💰 급여명세서 확인 | 급여명세서는 어디서 확인하나요? | `QUICK_TAP_SALARY` |
+| 📊 수습 평가 기준 | 수습 기간 평가는 어떤 기준으로 이루어지나요? | `QUICK_TAP_PROBATION` |
+| 🏖️ 연차 신청 방법 | 연차 신청은 어떻게 하나요? | `QUICK_TAP_LEAVE_REQ` |
+| 🏥 건강검진 언제부터? | 건강검진 지원은 언제부터 받을 수 있나요? | `QUICK_TAP_HEALTH` |
+| 📚 교육·자기계발 지원 | 업무 관련 강의나 책 구입 비용을 지원받을 수 있나요? | `QUICK_TAP_EDUCATION` |
+| 📋 정규직 전환 절차 | 수습 기간 종료 후 정규직 전환 절차가 어떻게 되나요? | `QUICK_TAP_CONVERT` |
+| 📊 급여 공제 항목이 뭔가요? | 급여에서 공제되는 항목이 어떻게 되나요? | `QUICK_TAP_SALARY_DEDUCTION` |
+| 🎯 전환 후 평가 방식 | 정규직 전환 후 목표나 평가 방식은 어떻게 되나요? | `QUICK_TAP_KPI` |
+
+---
+
+### 6-10. 공통 에러 처리
+
+인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+#### Error Response (400 Bad Request)
+
+요청 값이 유효하지 않은 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-03-25T10:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "content",
+      "message": "질문 내용은 비어 있을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### Error Response (401 Unauthorized)
+
+인증 헤더가 없거나, 토큰이 유효하지 않거나, 세션이 만료 또는 무효화된 경우 반환한다.
+세부 에러 코드는 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+```json
+{
+  "timestamp": "2026-03-25T10:30:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "INVALID_TOKEN",
+  "errors": [
+    {
+      "field": "token",
+      "message": "인증 정보가 유효하지 않습니다."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+#### Error Response (504 Gateway Timeout)
+
+AI 답변 생성 시간이 초과된 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-04-16T11:30:00",
+  "status": 504,
+  "error": "Gateway Timeout",
+  "code": "AI_TIMEOUT",
+  "errors": [
+    {
+      "field": "ai",
+      "message": "AI 답변 생성 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."
+    }
+  ],
+  "path": "/api/v1/chat/messages/stream"
+}
+```
+
+---
+
+## 7. 관리자 계정
+
+관리자 계정 페이지는 고객사 관리자(`ADMIN`)가 신입 계정을 생성·조회하고, 회사별 문서를 업로드·조회·삭제하는 기능을 제공한다.
+
+### 7-1. 신입 계정 생성
+
+관리자 계정 페이지에서 신입 사원의 계정을 직접 생성한다.
+계정 생성 후 사용자는 등록된 회사코드, 사원번호, 이름으로 로그인할 수 있다.
+
+```http
+POST /api/v1/admin/users
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### Request Body
+
+```json
+{
+  "name": "김지원",
+  "employeeNumber": "20260001",
+  "department": "개발팀",
+  "teamName": "백엔드팀",
+  "hireDate": "2026-03-01"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값            | 설명 | 상세 규칙 |
+|------|------|------|----------------|------|-----------|
+| `name` | `String` | Y | `"김지원"`        | 신입 사원 이름 | 길이: 1~20자 / 허용 문자: 한글 + 영문 대소문자 / 특수문자·공백·숫자 불가 |
+| `employeeNumber` | `String` | Y | `"20260001"`   | 신입 사원 사번 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| `department` | `String` | Y | `"개발팀"`        | 신입 사원 부서 | 길이: 1~100자 / 공백만 입력 불가 |
+| `teamName` | `String` | Y | `"백엔드팀"`       | 신입 사원 팀명 | 길이: 1~100자 / 공백만 입력 불가 |
+| `hireDate` | `LocalDate` | Y | `"2026-03-01"` | 입사일 | `yyyy-MM-dd` 형식 |
+
+#### 동작 규칙
+
+- 이 API는 고객사 관리자(`users.role = ADMIN`)만 호출할 수 있다.
+- 신입 사용자(`ACTIVE`, `READ_ONLY`, `INACTIVE`)와 제품 내부 관리자(`SERVICE_ADMIN`)가 호출하면 `403 Forbidden`과 `ACCESS_DENIED` 에러 코드를 반환한다.
+- `ADMIN`은 자신의 회사 기준으로 신입 계정을 생성한다.
+- 서버는 인증 토큰에서 현재 관리자의 `companyCode`를 확인한다.
+- 서버는 현재 로그인한 관리자 사용자의 `companyCode`를 기준으로 신입 계정의 `users.company_code`를 저장한다.
+- 입력받은 `name`, `employeeNumber`, `department`, `teamName`, `hireDate`를 `users` 테이블에 저장한다.
+- 생성되는 신입 계정의 `role`은 항상 `ACTIVE`로 저장한다.
+- 동일 회사 내에서 같은 사원번호로 계정을 중복 생성할 수 없다.
+- DB에는 `company_code + employee_number` 복합 UNIQUE 제약조건을 둔다.
+- 동일 `company_code + employee_number` 조합이 이미 존재하는 경우 `409 Conflict`와 `DUPLICATE_EMPLOYEE_NUMBER` 에러 코드를 반환한다.
+- 계정 생성이 완료되면 해당 사용자는 `POST /api/v1/auth/login`에서 회사코드, 사원번호, 이름을 입력해 로그인할 수 있다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+
+#### DB 제약조건
+
+```sql
+ALTER TABLE users
+  ADD CONSTRAINT uq_users_company_employee_number
+    UNIQUE (company_code, employee_number);
+```
+
+> 실제 마이그레이션 파일에서는 기존 제약조건명 및 컬럼명과 충돌하지 않도록 현재 스키마를 확인한 뒤 적용한다.
+
+#### Response (201 Created)
+
+```json
+{
+  "id": 10,
+  "companyCode": "WB0001",
+  "companyName": "테크 주식회사",
+  "employeeNumber": "20260001",
+  "department": "개발팀",
+  "teamName": "백엔드팀",
+  "name": "김지원",
+  "role": "ACTIVE",
+  "hireDate": "2026-03-01",
+  "createdAt": "2026-04-28T09:30:00"
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | Number | 생성된 신입 사용자 ID |
+| `companyCode` | String | 신입 사용자가 소속된 회사 코드 |
+| `companyName` | String | 신입 사용자가 소속된 회사명 |
+| `employeeNumber` | String | 신입 사용자 사번 |
+| `department` | String | 신입 사용자 부서 |
+| `teamName` | String | 신입 사용자 팀명 |
+| `name` | String | 신입 사용자 이름 |
+| `role` | String | 생성된 사용자 역할. 신입 계정 생성 API에서는 항상 `ACTIVE` |
+| `hireDate` | String | 신입 사용자 입사일 |
+| `createdAt` | String | 계정 생성 시각 |
+
+#### Error Response (400 Bad Request)
+
+```json
+{
+  "timestamp": "2026-04-28T09:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "name",
+      "message": "이름은 필수입니다."
+    },
+    {
+      "field": "employeeNumber",
+      "message": "사번은 필수입니다."
+    },
+    {
+      "field": "department",
+      "message": "부서는 필수입니다."
+    },
+    {
+      "field": "teamName",
+      "message": "팀명은 필수입니다."
+    },
+    {
+      "field": "hireDate",
+      "message": "입사일은 필수입니다."
+    }
+  ],
+  "path": "/api/v1/admin/users"
+}
+```
+
+#### Error Response (403 Forbidden)
+
+```json
+{
+  "timestamp": "2026-04-28T09:30:00",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "ACCESS_DENIED",
+  "errors": [
+    {
+      "field": "role",
+      "message": "관리자 권한이 필요한 API입니다."
+    }
+  ],
+  "path": "/api/v1/admin/users"
+}
+```
+
+#### Error Response (409 Conflict)
+
+```json
+{
+  "timestamp": "2026-04-28T09:30:00",
+  "status": 409,
+  "error": "Conflict",
+  "code": "DUPLICATE_EMPLOYEE_NUMBER",
+  "errors": [
+    {
+      "field": "employeeNumber",
+      "message": "이미 등록된 사번입니다."
+    }
+  ],
+  "path": "/api/v1/admin/users"
+}
+```
+
+#### 검증 규칙
+
+- `name`, `employeeNumber`, `department`, `teamName`, `hireDate`는 필수값이다.
+- `name`, `employeeNumber`, `department`, `teamName`은 공백만 입력할 수 없다.
+- `department`, `teamName`은 각각 최대 100자까지 입력할 수 있다.
+- `hireDate`는 `yyyy-MM-dd` 형식이어야 한다.
+- 길이 제한 또는 형식 검증에 실패하면 `400 Bad Request`를 반환한다.
+- 중복 사번 검증은 현재 로그인한 관리자 사용자의 회사 범위 안에서 수행한다.
+- 이 API의 권한 검증은 `users.role = ADMIN` 기준으로 수행한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
+
+### 7-2. 신입 계정 조회
+
+관리자 계정 페이지에서 현재 관리자의 회사에 등록된 신입 사원 계정 목록을 조회한다.
+
+기본 조회 시에는 `page`, `size`만 전달한다.
+
+```http
+GET /api/v1/admin/users?page=0&size=10
+Authorization: Bearer {accessToken}
+```
+
+부서/팀명 검색이 필요한 경우 `department`, `teamName`을 함께 전달한다.
+
+```http
+GET /api/v1/admin/users?page=0&size=10&department=개발팀&teamName=백엔드팀
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명                 |
+|---|---|---|--------------------|
+| `page` | Number | N | 조회 페이지. 기본값 `0`    |
+| `size` | Number | N | 페이지 크기. 기본값 `10`   |
+| `department` | String | N | 부서 검색어 |
+| `teamName` | String | N | 팀명 검색어 |
+
+#### 동작 규칙
+
+- 이 API는 관리자(`users.role = ADMIN`)만 호출할 수 있다.
+- 신입 사용자(`ACTIVE`, `READ_ONLY`, `INACTIVE`)와 제품 내부 관리자(`SERVICE_ADMIN`)가 호출하면 `403 Forbidden`과 `ACCESS_DENIED` 에러 코드를 반환한다.
+- 서버는 인증 토큰에서 현재 관리자의 `companyCode`를 확인한다.
+- 현재 로그인한 관리자와 동일한 회사(`company_code`)에 속한 신입 계정만 반환한다.
+- 목록 조회 대상은 `users.role`이 `ACTIVE`, `READ_ONLY`, `INACTIVE`인 신입 사용자 계정이다.
+- `department`가 전달되면 `users.department` 값을 대상으로 부분 검색한다.
+- `teamName`이 전달되면 `users.team_name` 값을 대상으로 부분 검색한다.
+- `department`와 `teamName`이 모두 전달되면 두 조건을 모두 만족하는 신입 계정만 반환한다.
+- 이름(`name`)과 사번(`employee_number`)은 검색 필터 대상에 포함하지 않는다.
+- 응답에서는 `users.department`와 `users.team_name` 값을 조합하여 `부서(팀)` 필드로 반환한다.
+- `부서(팀)`은 `부서명(팀명)` 형식으로 반환한다. 예: `개발팀(백엔드팀)`
+- 기본 정렬은 역할 우선순위(`ACTIVE` → `READ_ONLY` → `INACTIVE`) 기준이며, 같은 역할 안에서는 사번(`users.employee_number`) 오름차순이다.
+- `hireDay`는 KST 기준 오늘 날짜와 `users.hire_date`의 차이에 1을 더해 계산한다. 입사 당일은 `1`, 입사 하루 뒤는 `2`로 반환한다.
+- `questionCount`는 해당 신입 사용자가 질문한 누적 횟수를 반환한다.
+- `lastLoginDate`는 `user_activity_logs.event_target = LOGIN`인 로그 중 가장 최신 `created_at`의 날짜를 반환한다. 로그인 기록이 없으면 `null`이다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+#### Response (200 OK)
+
+```json
+{
+  "content": [
+    {
+      "id": 10,
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "employeeNumber": "20260001",
+      "부서(팀)": "개발팀(백엔드팀)",
+      "name": "김지원",
+      "role": "ACTIVE",
+      "hireDate": "2026-03-01",
+      "hireDay": 80,
+      "questionCount": 7,
+      "lastLoginDate": "2026-05-19",
+      "createdAt": "2026-04-28T09:30:00",
+      "updatedAt": "2026-05-19T10:00:00"
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 1,
+  "totalPages": 1,
+  "first": true,
+  "last": true
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `content` | Array | 신입 계정 목록 |
+| `content[].id` | Number | 신입 사용자 ID |
+| `content[].companyCode` | String | 신입 사용자가 소속된 회사 코드 |
+| `content[].companyName` | String | 신입 사용자가 소속된 회사명 |
+| `content[].employeeNumber` | String | 신입 사용자 사번 |
+| `content[].부서(팀)` | String | 신입 사용자 부서와 팀명. `부서명(팀명)` 형식으로 반환한다. 예: `개발팀(백엔드팀)` |
+| `content[].name` | String | 신입 사용자 이름 |
+| `content[].role` | String | 사용자 역할. 신입 계정 조회에서는 `ACTIVE`, `READ_ONLY`, `INACTIVE` |
+| `content[].hireDate` | String | 신입 사용자 입사일. `yyyy-MM-dd` 형식 |
+| `content[].hireDay` | Number | 입사일차. KST 기준 오늘 날짜와 입사일의 차이에 1을 더해 계산한다. 입사 당일은 `1`, 입사 하루 뒤는 `2` |
+| `content[].questionCount` | Number | 해당 신입 사용자가 질문한 누적 횟수 |
+| `content[].lastLoginDate` | String 또는 null | 마지막 로그인 날짜. `user_activity_logs.event_target = LOGIN` 기준 최신 `created_at`의 날짜를 `yyyy-MM-dd` 형식으로 반환한다. 로그인 기록이 없으면 `null` |
+| `content[].createdAt` | String | 계정 생성 시각 |
+| `content[].updatedAt` | String | 계정 수정 시각 |
+| `page` | Number | 현재 페이지 |
+| `size` | Number | 페이지 크기 |
+| `totalElements` | Number | 전체 데이터 수 |
+| `totalPages` | Number | 전체 페이지 수 |
+| `first` | Boolean | 첫 페이지 여부 |
+| `last` | Boolean | 마지막 페이지 여부 |
+
+#### 검증 규칙
+
+- `page`는 0 이상의 정수여야 한다.
+- `size`는 1 이상의 정수여야 한다.
+- `department`, `teamName`은 공백만 입력할 수 없다.
+- 쿼리 파라미터 검증에 실패하면 `400 Bad Request`를 반환한다.
+- 이 API의 권한 검증은 `users.role = ADMIN` 기준으로 수행한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
+
+### 7-3. 회사별 부서/팀명 조회 및 정렬
+
+관리자 계정 페이지에서 현재 관리자의 회사에 등록된 부서/팀 기준정보 목록을 조회한다.
+신입 계정 생성 및 조회 필터에서 사용할 부서/팀 선택 옵션을 제공하기 위한 전용 API이다.
+
+```http
+GET /api/v1/admin/organization-options
+Authorization: Bearer {accessToken}
+```
+
+#### 동작 규칙
+
+- 이 API는 관리자(`users.role = ADMIN`)만 호출할 수 있다.
+- 신입 사용자(`ACTIVE`, `READ_ONLY`, `INACTIVE`)와 제품 내부 관리자(`SERVICE_ADMIN`)가 호출하면 `403 Forbidden`과 `ACCESS_DENIED` 에러 코드를 반환한다.
+- 서버는 인증 토큰에서 현재 관리자의 `companyCode`를 확인한다.
+- 현재 로그인한 관리자와 동일한 회사(`company_code`)에 등록된 부서/팀 기준정보만 반환한다.
+- 조회 기준 테이블은 `company_organization_units`이다.
+- 응답은 부서(`department`) 단위로 묶어서 반환한다.
+- `teamNames`는 해당 부서에 등록된 팀명 목록이다.
+- 팀 구분이 없는 부서의 경우 `teamNames`는 빈 배열(`[]`)로 반환한다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+#### Response (200 OK)
+
+```json
+{
+  "departments": [
+    {
+      "department": "개발팀",
+      "teamNames": [
+        "백엔드팀",
+        "프론트엔드팀"
+      ]
+    },
+    {
+      "department": "프로덕트팀",
+      "teamNames": [
+        "PM",
+        "디자인"
+      ]
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `departments` | Array | 부서별 팀명 옵션 목록 |
+| `departments[].department` | String | 부서명 |
+| `departments[].teamNames` | Array | 해당 부서에 속한 팀명 목록 |
+
+#### Error Response (403 Forbidden)
+
+```json
+{
+  "timestamp": "2026-05-20T09:30:00",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "ACCESS_DENIED",
+  "errors": [
+    {
+      "field": "role",
+      "message": "관리자 권한이 필요한 API입니다."
+    }
+  ],
+  "path": "/api/v1/admin/organization-options"
+}
+```
+
+#### 검증 규칙
+
+- 요청 쿼리 파라미터와 요청 본문은 사용하지 않는다.
+- 이 API의 권한 검증은 `users.role = ADMIN` 기준으로 수행한다.
+- 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
+
+### 7-4. 신입 계정 필터 정렬
+
+관리자 계정 페이지의 신입 계정 목록을 이름, 사번, 입사일 기준으로 정렬하여 조회한다.
+이 기능은 `GET /api/v1/admin/users` 조회 API의 정렬 쿼리 파라미터로 제공한다.
+
+```http
+GET /api/v1/admin/users?page=0&size=10&sortBy=name&sortDirection=asc
+Authorization: Bearer {accessToken}
+```
+
+부서/팀명 필터와 함께 사용할 수 있다.
+
+```http
+GET /api/v1/admin/users?page=0&size=10&department=개발팀&teamName=백엔드팀&sortBy=hireDate&sortDirection=desc
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `page` | Number | N | 조회 페이지. 기본값 `0` |
+| `size` | Number | N | 페이지 크기. 기본값 `10` |
+| `department` | String | N | 부서 검색어 |
+| `teamName` | String | N | 팀명 검색어 |
+| `sortBy` | String | N | 정렬 기준. `name`, `employeeNumber`, `hireDate` 중 하나 |
+| `sortDirection` | String | N | 정렬 방향. `asc`는 오름차순, `desc`는 내림차순 |
+
+#### 정렬 옵션
+
+| 정렬 기준 | `sortBy` 값 | 오름차순 예시 | 내림차순 예시 |
+|---|---|---|---|
+| 이름순 | `name` | `sortBy=name&sortDirection=asc` | `sortBy=name&sortDirection=desc` |
+| 사번순 | `employeeNumber` | `sortBy=employeeNumber&sortDirection=asc` | `sortBy=employeeNumber&sortDirection=desc` |
+| 입사일순 | `hireDate` | `sortBy=hireDate&sortDirection=asc` | `sortBy=hireDate&sortDirection=desc` |
+
+#### 동작 규칙
+
+- 이 API는 관리자(`users.role = ADMIN`)만 호출할 수 있다.
+- 정렬 대상은 현재 로그인한 관리자의 회사(`company_code`)에 속한 신입 계정이다.
+- `department`, `teamName` 필터가 함께 전달되면 필터 적용 후 정렬한다.
+- `sortBy`가 전달되지 않으면 기본 정렬을 적용한다. 기본 정렬은 역할 우선순위(`ACTIVE` → `READ_ONLY` → `INACTIVE`) 기준이며, 같은 역할 안에서는 사번(`users.employee_number`) 오름차순이다.
+- `sortDirection`이 전달되지 않으면 `asc`를 기본값으로 사용한다.
+- `sortBy`가 `name`이면 `users.name` 기준으로 정렬한다.
+- `sortBy`가 `employeeNumber`이면 `users.employee_number` 기준으로 정렬한다.
+- `sortBy`가 `hireDate`이면 `users.hire_date` 기준으로 정렬한다.
+- 지원하지 않는 `sortBy` 또는 `sortDirection` 값이 전달되면 `400 Bad Request`를 반환한다.
+- 응답 형식은 **7-2. 신입 계정 조회**의 응답 형식과 동일하다.
+
+### 7-5. 문서 업로드
+
+관리자 계정 페이지에서 회사별 또는 공통 문서를 업로드한다.
+
+```http
+POST /api/v1/documents/upload
+X-API-Key: {storageAdminApiKey}
+Content-Type: multipart/form-data
+```
+
+#### 업로드 가능한 파일 형식 및 용량 제한
+
+업로드 가능한 파일 형식은 다음 확장자로 제한됩니다.
+
+| 구분 | 확장자 | 단일 파일 최대 크기 |
+|---|---|---:|
+| 문서 파일 | `.pdf`, `.docx`, `.pptx`, `.txt` | 20MB |
+| 스프레드시트 파일 | `.xls`, `.xlsx` | 20MB |
+| 이미지 파일 | `.png`, `.jpg`, `.jpeg` | 5MB |
+
+#### Request Field (`form-data`)
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `file` | File | Y | 업로드할 문서 파일 |
+| `title` | String | Y | 문서 제목 |
+| `documentType` | String | Y | 문서 유형. 예: `LEGAL`, `GUIDE`, `TEMPLATE` |
+| `department` | String | Y | 문서 담당 부서 |
+| `companyCode` | String | N | 특정 회사 전용 문서로 업로드할 회사 코드. 생략 시 공통 문서 |
+
+요청 예시(Postman, 특정 회사 문서 업로드):
+- Method: `POST`
+- URL: `{{baseUrl}}/api/v1/documents/upload`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
+- Body (`form-data`):
+  - `file`: `/path/to/company-guide.pdf` (File)
+  - `title`: `회사 전용 안내 문서`
+  - `documentType`: `LEGAL`
+  - `department`: `HR`
+  - `companyCode`: `WB0001`
+
+#### 참고
+
+- 회사당 최대 문서 수는 300개로 제한한다.
+- 문서 파일과 스프레드시트 파일은 최대 20MB, 이미지 파일은 최대 5MB까지 업로드할 수 있다.
+- 회사별 총 업로드 용량은 2GB로 제한한다.
+- 서버는 업로드 요청 시 `기존 업로드 총 용량 + 신규 파일 크기`가 회사별 총 업로드 용량 2GB를 초과하는지 검증한다.
+- 회사별 총 업로드 용량 검증은 업로드 대상 회사 코드(`companyCode`) 기준으로 수행한다.
+- 파일이 비어 있거나, 단일 파일 크기 제한을 초과하거나, 회사별 총 업로드 용량 2GB를 초과하면 `400 Bad Request`, `FILE_001`을 반환한다.
+- 지원하지 않는 파일 확장자이면 `400 Bad Request`, `FILE_002`를 반환한다.
+- 응답은 `201 Created`와 `DocumentUploadResponse` 형식을 따른다.
+
+### 7-6. 문서 확인
+
+현재 업로드된 문서에는 어떤 것이 있는지 조회할 수 있는 기능이다.
+
+```http
+GET /api/v1/documents?page=0&size=300
+X-API-Key: {storageAdminApiKey}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명                |
+|---|---|---|-------------------|
+| `page` | Number | N | 조회 페이지. 기본값 `0`   |
+| `size` | Number | N | 페이지 크기. 기본값 `300` |
+| `documentType` | String | N | 문서 유형 필터          |
+| `search` | String | N | 문서 제목 또는 검색어      |
+
+요청 예시(Postman):
+- Method: `GET`
+- URL: `{{baseUrl}}/api/v1/documents?page=0&size=300`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
+
+응답: `200 OK` (`DocumentListResponse`)
+
+#### 조회 규칙
+
+- 회사당 저장 가능한 문서 수는 최대 300개로 제한한다.
+- 관리자 문서 확인 화면은 페이지네이션 UI를 제공하지 않고, 전체 문서 확인을 위해 `page=0&size=300`으로 고정 호출한다.
+- `size=300`은 현재 문서 개수를 의미하지 않고, 한 번에 조회할 수 있는 최대 개수를 의미한다.
+- 백엔드는 요청된 `size` 범위 내에서 현재 존재하는 문서만 반환한다.
+- 예를 들어 현재 업로드된 문서가 43개라면 `page=0&size=300` 요청 시 43개만 반환된다.
+- 회사당 문서 수 상한이 300개이므로, `page=0&size=300` 호출로 전체 문서를 확인할 수 있다.
+
+### 7-7. 문서 삭제
+
+관리자가 문서 확인 화면에서 조회된 특정 문서의 삭제 버튼을 클릭하면 해당 문서 ID를 삭제 대상에 포함해 선택 삭제 API를 호출한다.
+
+```http
+POST /api/v1/documents/bulk-delete?confirm=true
+X-API-Key: {storageAdminApiKey}
+Content-Type: application/json
+```
+
+#### Request Body
+
+단건 휴지통 삭제도 선택 삭제 API를 사용하며, `documentIds`에 삭제할 문서 ID 1개를 전달한다.
+
+```json
+{
+  "documentIds": [101]
+}
+```
+
+요청 예시(Postman):
+- Method: `POST`
+- URL: `{{baseUrl}}/api/v1/documents/bulk-delete?confirm=true`
+- Headers:
+  - `X-API-Key: {{storageAdminApiKey}}`
+  - `Content-Type: application/json`
+- Body (`raw`, JSON):
+```json
+{
+  "documentIds": [101]
+}
+```
+
+#### Response (200 OK)
+
+```json
+{
+  "confirmAccepted": true,
+  "message": "완료 1/1건, 실패 0/1건",
+  "requestedCount": 1,
+  "deletedCount": 1,
+  "deletedDocumentIds": [101],
+  "notFoundDocumentIds": [],
+  "forbiddenDocumentIds": []
+}
+```
+
+#### 삭제 규칙
+
+- 삭제 요청은 `confirm=true`가 필수다.
+- 삭제 전 확인이 필요한 경우 `POST /api/v1/documents/bulk-delete/delete-check`를 먼저 호출해 삭제 가능 여부를 확인할 수 있다.
+- 삭제 대상 문서가 존재하지 않으면 해당 ID는 `notFoundDocumentIds`에 포함된다.
+- 권한상 삭제할 수 없는 문서는 `forbiddenDocumentIds`에 포함된다.
+- 응답의 `deletedCount`, `notFoundDocumentIds`, `forbiddenDocumentIds`를 기준으로 관리자 페이지의 삭제 성공/실패 안내를 표시한다.
+
+---
+
+## 8. 내부 AI 연동 규격
+
+이 항목은 백엔드 서버와 생성형 AI 서버 간 내부 통신 규격이다.
+프론트엔드가 직접 호출하지 않는다.
+
+현재 AI 서버 Swagger 기준 스트리밍 endpoint는 `POST /chat/stream`이다.  
+해당 API는 오케스트레이터 기반 멀티에이전트 질의응답을 수행하고, SSE 스트리밍 방식으로 토큰 단위 응답을 전달한다.
+
+### 8-1. 연동 흐름
+
+```text
+프론트엔드
+  → POST /api/v1/chat/messages/stream
+백엔드
+  → USER 질문 메시지 저장
+백엔드
+  → POST {AI_SERVER_BASE_URL}/chat/stream 호출
+AI 서버
+  → answer_delta 이벤트로 답변 조각 반환
+AI 서버
+  → answer_completed 이벤트로 최종 답변·문서·담당자 메타데이터 반환
+백엔드
+  → answer_delta 이벤트로 프론트엔드에 중계
+백엔드
+  → AI answer_completed 기준으로 BOT 메시지와 문서 연결 정보 저장
+백엔드
+  → answer_completed 이벤트 전송 후 SSE 연결 종료
+```
+
+#### 상세 흐름
+
+- 사용자가 질문을 전송한다.
+- 백엔드가 `/api/v1/chat/messages/stream` 요청을 받는다.
+- 백엔드는 JWT를 검증한 뒤 현재 사용자 ID와 회사 코드를 확인하고, 사용자 정보에서 이름과 입사일(`hireDate`)을 조회한다.
+- 백엔드가 사용자 질문 메시지를 `chat_messages`에 저장한다.
+- 백엔드가 생성된 질문 메시지의 `id`를 `questionId`로 사용한다.
+- 백엔드가 AI 서버의 `/chat/stream`을 호출한다.
+- AI 서버가 `content`, `user.companyCode`, `user.hireDate`를 기준으로 회사 문서 범위와 입사일 기반 온보딩 맥락을 반영해 답변을 생성한다.
+- AI 서버가 답변 조각을 `answer_delta` 이벤트로 스트리밍 반환한다.
+- 백엔드는 AI 서버에서 받은 답변 조각을 프론트엔드에 `answer_delta` 이벤트로 전달한다.
+- AI 서버는 답변 생성이 완료되면 `answer_completed` 이벤트를 반드시 한 번 전송한다.
+- AI 서버의 `answer_completed`에는 `questionId`, `messageType`, `content`, `documents`, `recommendedContacts`가 포함되어야 한다.
+- 백엔드는 AI 서버의 `answer_completed`를 기준으로 BOT 메시지와 문서 연결 정보를 저장한다.
+- 백엔드는 저장 완료된 BOT 메시지를 공개 SSE의 `answer_completed` 이벤트로 프론트엔드에 전달한다.
+
+---
+
+### 8-2. AI 답변 생성 스트리밍 요청
+
+```http
+POST {AI_SERVER_BASE_URL}/chat/stream
+Content-Type: application/json
+Accept: text/event-stream
+```
+
+#### AI Server Base URL
+
+```text
+Development/External Swagger: https://ai.itsdev.kr
+```
+
+> 실제 백엔드 설정에서는 환경변수 또는 설정 파일의 AI 서버 base URL을 사용한다.
+
+#### Request Body
+
+AI 서버 Swagger의 `/chat/stream` 요청 예시 기준으로 작성한다.
+
+```json
+{
+  "questionId": 201,
+  "user": {
+    "userId": 1,
+    "name": "김지원",
+    "companyCode": "WB0001",
+    "hireDate": "2026-05-01"
+  },
+  "content": "연차 신청 방법이 뭐야?"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|---|---|---|---|---|---|
+| `questionId` | Long | Y | `201` | 백엔드가 저장한 사용자 질문 메시지 ID | 양의 정수 |
+| `user` | Object | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001", "hireDate": "2026-05-01" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별, 개인화, 회사 문서 범위 판별, 입사일 기준 온보딩 맥락 판단에 사용 |
+| `content` | String | Y | `"연차 신청 방법이 뭐야?"` | 사용자가 입력한 질문 내용 | 길이 1~500자 / 공백만 입력 불가 |
+
+#### Request Field (`user`)
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
+|---|---|---|---|---|---|
+| `user.userId` | Long | Y | `1` | 로그인한 사용자 ID | 양의 정수 |
+| `user.name` | String | Y | `"김지원"` | 로그인한 사용자 이름 | 길이 1~100자 |
+| `user.companyCode` | String | Y | `"WB0001"` | 로그인한 사용자의 회사 코드 | 길이 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
+| `user.hireDate` | String | Y | `"2026-05-01"` | 로그인한 사용자의 입사일 | ISO-8601 날짜 형식(`yyyy-MM-dd`) / 답변 개인화 및 입사일 기준 온보딩 맥락 판단에 사용 |
+
+#### 기존 내부 AI 요청과의 차이
+
+기존 명세의 내부 AI 요청은 `POST /internal/ai/answer`에 아래 값을 전달하는 구조였다.
+
+- `questionId`
+- `user`
+- `content`
+- `conversationHistory`
+- 선택적으로 `companyName`
+
+SSE 적용 후 AI 서버 Swagger의 `/chat/stream` 기준 요청에는 `conversationHistory`와 `companyName`이 정의되어 있지 않다.  
+따라서 본 명세에서는 AI 서버로 전달하는 필드를 아래 세 가지로 제한한다.
+
+- `questionId`
+- `user.userId`, `user.name`, `user.companyCode`, `user.hireDate`
+- `content`
+
+향후 AI 서버가 `conversationHistory` 또는 `companyName`을 스트림 요청 스키마에 추가하면, 백엔드 내부 요청 DTO를 확장한다.
+
+---
+
+### 8-3. AI 답변 생성 스트리밍 응답
+
+AI 서버는 답변 생성 중에는 `answer_delta` 이벤트로 답변 조각을 전송하고, 답변 생성이 완료되면 `answer_completed` 이벤트를 반드시 한 번 전송한다.
+
+```http
+200 OK
+Content-Type: text/event-stream;charset=UTF-8
+Cache-Control: no-cache
+```
+
+AI Swagger의 200 응답 스키마는 문자열(`string`)로 표시될 수 있으나, 백엔드 저장을 위해 실제 스트림 응답은 아래 이벤트 규격을 따른다.
+
+#### Event: `answer_delta`
+
+AI가 생성한 답변 조각을 전달한다.
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"복지카드는 "}
+
+```
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"관련 안내 문서를 기준으로 "}
+
+```
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"신청할 수 있습니다."}
+
+```
+
+##### Data Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `questionId` | Long | Y | 사용자 질문 메시지 ID |
+| `content` | String | Y | AI가 생성한 답변 조각 |
+
+##### 처리 규칙
+
+- `answer_delta.content`는 누적된 전체 답변이 아니라 새로 생성된 조각이다.
+- `answer_delta`는 한 요청에서 여러 번 발생할 수 있다.
+- 빈 문자열 또는 공백만 포함된 `answer_delta`는 전송하지 않는다.
+- `answer_delta`는 최종 저장 가능 상태를 의미하지 않는다.
+
+#### Event: `answer_completed`
+
+AI 답변 생성이 완료되었음을 알리고, 백엔드 저장에 필요한 최종 결과와 메타데이터를 전달한다.
+
+##### 문서 기반 답변 예시
+
+```sse
+event: answer_completed
+data: {"questionId":201,"messageType":"rag_answer","content":"복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.","documents":[{"documentId":10},{"documentId":11}],"recommendedContacts":[]}
+```
+
+##### 답변 불가 및 담당자 추천 예시
+
+```sse
+event: answer_completed
+data: {"questionId":201,"messageType":"no_result","content":"관련 문서를 찾지 못했습니다. 담당자에게 문의해 주세요.","documents":[],"recommendedContacts":[{"department":"경영지원팀","name":"김지수","position":"매니저","connects":[{"type":"email","value":"jisoo.kim@withbuddy.ai"},{"type":"extension","value":"635"}]}]}
+```
+
+##### Data Field
+
+| 필드 | 타입 | 필수 | 설명                                                         |
+|---|---|---|------------------------------------------------------------|
+| `questionId` | Long | Y | 사용자 질문 메시지 ID                                              |
+| `messageType` | String | Y | AI 답변 유형. `rag_answer`, `no_result`, `out_of_scope`, `sensitive` 중 하나 |
+| `content` | String | Y | AI가 생성한 최종 답변 전문                                           |
+| `documents` | Array | Y | 답변 생성의 근거로 사용된 문서 목록. 없으면 빈 배열 `[]`                        |
+| `documents[].documentId` | Long | Y | 근거 문서 ID                                                   |
+| `recommendedContacts` | Array | Y | 추천 담당자 목록. 추천 대상이 없으면 빈 배열 `[]`                            |
+
+##### Data Field (`recommendedContacts[]`)
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `recommendedContacts[].department` | String | Y | 담당 부서명 |
+| `recommendedContacts[].name` | String | Y | 담당자 이름 |
+| `recommendedContacts[].position` | String | Y | 담당자 직급 |
+| `recommendedContacts[].connects` | Array | Y | 연락 수단 목록 |
+| `recommendedContacts[].connects[].type` | String | Y | 연락 수단 유형. `slack`, `email`, `phone`, `extension` 중 하나 |
+| `recommendedContacts[].connects[].value` | String | Y | 실제 연락 값 |
+
+##### 처리 규칙
+
+- AI 서버는 `answer_completed`를 한 요청당 반드시 한 번만 전송한다.
+- `answer_completed` 이후에는 추가 `answer_delta`를 전송하지 않는다.
+- `answer_completed.content`는 이전에 전송한 `answer_delta.content`를 모두 이어 붙인 최종 답변과 의미상 동일해야 한다.
+- 백엔드는 최종 BOT 메시지를 저장할 때 `answer_completed.content`를 우선 사용한다.
+- 백엔드는 `answer_completed.messageType`을 BOT 메시지의 `message_type`으로 저장한다.
+- `answer_completed.messageType = no_result`인 경우, 백엔드는 BOT 메시지의 `answer_to_message_id`에 사용자 질문 메시지 ID(`answer_completed.questionId`)를 저장한다.
+- 백엔드는 `answer_completed.documents[].documentId`를 기준으로 문서 정보를 조회하고, `chat_message_documents`에 답변 메시지와 문서 ID를 연결 저장한다.
+- `messageType = rag_answer`인 경우 `documents`는 근거 문서 목록을 포함할 수 있다.
+- `messageType = no_result` 또는 `out_of_scope` 또는 `sensitive`인 경우 `documents`는 빈 배열 `[]`을 반환한다.
+- `messageType = no_result`, `sensitive` 인 경우 추천 가능한 담당자가 있으면 `recommendedContacts`를 함께 반환한다.
+- 추천 담당자가 없는 경우 `recommendedContacts`는 빈 배열 `[]`을 반환한다.
+- AI 서버가 `answer_completed`를 전송하지 못하고 연결이 종료되면 백엔드는 해당 요청을 실패로 처리하고 BOT 메시지를 저장하지 않는다.
+
+---
+
+### 8-4. AI 스트림 응답과 프론트엔드 SSE 이벤트 매핑
+
+AI 서버의 `/chat/stream` 응답은 백엔드가 프론트엔드 공개 SSE 이벤트로 변환한다.
+
+| AI 서버 응답 | 백엔드 공개 SSE 이벤트 | 설명 |
+|---|---|---|
+| `answer_delta` | `answer_delta` | AI 답변 조각을 `content`에 담아 프론트엔드로 즉시 전달 |
+| `answer_completed` | `answer_completed` | AI 최종 결과를 기준으로 BOT 메시지와 문서 연결 정보를 저장한 뒤 저장 완료 메시지 전달 |
+| `error` 또는 연결 실패 | `error` | 프론트엔드에 오류 이벤트 전달 |
+
+#### 변환 예시
+
+AI 서버 응답:
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"복지카드는 "}
+
+```
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"관련 안내 문서를 기준으로 신청할 수 있습니다."}
+
+```
+
+```sse
+event: answer_completed
+data: {"questionId":201,"messageType":"rag_answer","content":"복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.","documents":[{"documentId":10},{"documentId":11}],"recommendedContacts":[]}
+```
+
+프론트엔드로 전달하는 백엔드 SSE 응답:
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"복지카드는 "}
+
+```
+
+```sse
+event: answer_delta
+data: {"questionId":201,"content":"관련 안내 문서를 기준으로 신청할 수 있습니다."}
+
+```
+
+```sse
+event: answer_completed
+data: {"questionId":201,"answer":{"id":202,"suggestionId":null,"documents":[{"documentId":10,"title":"복지카드 신청 안내","documentType":"GUIDE","file":null},{"documentId":11,"title":"복지카드 신청서","documentType":"TEMPLATE","file":{"fileName":"welfare-card-application.docx","contentType":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","downloadUrl":"/api/v1/chat/documents/11/download"}}],"senderType":"BOT","messageType":"rag_answer","content":"복지카드는 관련 안내 문서를 기준으로 신청할 수 있습니다.","quickTaps":[],"recommendedContacts":[],"createdAt":"2026-05-04T09:30:03"}}
+```
+
+#### 변환 규칙
+
+- AI 서버의 `answer_delta.content`는 백엔드가 문장 가공 없이 프론트엔드의 `answer_delta.content`로 전달한다.
+- AI 서버의 `answer_completed.content`는 백엔드가 BOT 메시지 저장에 사용하는 최종 답변 전문이다.
+- AI 서버의 `answer_completed.messageType`은 백엔드가 BOT 메시지의 `message_type`으로 저장한다.
+- AI 서버의 `answer_completed.documents[].documentId`는 백엔드가 `chat_message_documents` 저장 및 `DocumentResponse` 조립에 사용한다.
+- AI 서버의 `answer_completed.recommendedContacts`는 백엔드가 담당자 추천 응답 구성에 사용한다.
+- 백엔드가 프론트엔드에 전달하는 `answer_completed.answer.documents`는 AI 서버가 준 `documentId`만 그대로 전달하지 않고, 백엔드 DB의 문서 정보(`title`, `documentType`, `file`)를 조회해 보강한 값이다.
+
+---
+
+### 8-5. 메타데이터 처리 기준
+
+AI 서버는 `/chat/stream`의 최종 완료 이벤트인 `answer_completed`에 백엔드 저장용 메타데이터를 반드시 포함한다.
+
+| 항목 | 처리 기준 |
+|---|---|
+| `content` | AI가 생성한 최종 답변 전문. 백엔드는 이 값을 BOT 메시지 본문으로 저장한다. |
+| `messageType` | AI 답변 유형. 백엔드는 이 값을 BOT 메시지의 `message_type`으로 저장한다. |
+| `questionId` | 사용자 질문 메시지 ID. `messageType = no_result`인 경우 백엔드는 이 값을 BOT 메시지의 `answer_to_message_id`로 저장한다. |
+| `documents` | 답변 근거 문서 ID 목록. 백엔드는 이 값을 `chat_message_documents` 저장에 사용한다. |
+| `recommendedContacts` | 담당자 추천 목록. 백엔드는 이 값을 담당자 추천 응답 구성 또는 저장에 사용한다. |
+
+#### 필수 반환 규칙
+
+- AI 서버는 `answer_completed.messageType`을 반드시 반환한다.
+- AI 서버는 `answer_completed.content`를 반드시 반환한다.
+- AI 서버는 `answer_completed.documents`를 반드시 반환한다. 근거 문서가 없으면 빈 배열 `[]`을 반환한다.
+- AI 서버는 `answer_completed.recommendedContacts`를 반드시 반환한다. 추천 담당자가 없으면 빈 배열 `[]`을 반환한다.
+- 백엔드는 `documents[].documentId`가 현재 사용자 회사 문서 또는 공통 문서 범위에 속하는지 검증한 뒤 저장한다.
+- 백엔드는 존재하지 않거나 접근 권한이 없는 `documentId`가 포함된 경우 해당 문서를 제외하거나 내부 오류로 처리할 수 있다.
+
+#### 값 설명
+
+##### `messageType`
+
+| 값 | 설명 |
+|---|---|
+| `rag_answer` | 문서 기반 답변 생성 |
+| `no_result` | 질문 범위는 맞지만 문서 또는 정보 부족으로 답변 불가 |
+| `out_of_scope` | 서비스 범위를 벗어난 질문 |
+| `sensitive` | 민감·위험 주제 포함 메시지 |
+
+##### `recommendedContacts[].connects[].type`
+
+| 값 | 설명 |
+|---|---|
+| `slack` | Slack 사용자 또는 채널 연결 정보 |
+| `email` | 이메일 주소 |
+| `phone` | 일반 전화번호 또는 휴대전화번호 |
+| `extension` | 사내 내선 번호 |
+
+#### 저장 규칙
+
+- 백엔드는 `answer_completed.content`를 `chat_messages.content`로 저장한다.
+- 백엔드는 `answer_completed.messageType`을 `chat_messages.message_type`으로 저장한다.
+- `messageType = no_result`인 경우, 백엔드는 해당 BOT 답변 메시지의 `chat_messages.answer_to_message_id`에 사용자 질문 메시지 ID(`answer_completed.questionId`)를 저장한다.
+- 백엔드는 `answer_completed.documents[].documentId`를 답변 메시지 ID와 함께 `chat_message_documents`에 저장한다.
+- `messageType = no_result`, `sensitive`이고 `recommendedContacts`가 빈 배열이 아닌 경우, 백엔드는 해당 값을 `chat_messages.recommended_contacts_json` 컬럼에 JSON 형태로 저장한다.
+- `messageType = no_result`, `sensitive`이지만 `recommendedContacts`가 빈 배열인 경우, `recommended_contacts_json`은 `null` 또는 빈 배열(`[]`)로 저장한다.
+- `recommended_contacts_json`은 담당자 추천 카드 재조회용 저장 필드다.
+- 이후 `GET /api/v1/chat/messages` 조회 시 백엔드는 `recommended_contacts_json` 값을 `RecommendedContactResponse[]`로 변환하여 `recommendedContacts`에 담아 반환한다.
+- `messageType = rag_answer` 또는 `out_of_scope`인 경우 `recommendedContacts`는 빈 배열(`[]`)을 사용하며, `recommended_contacts_json`은 `null` 또는 빈 배열(`[]`)로 저장할 수 있다.
+
+---
+
+### 8-6. 내부 AI 오류 처리
+
+#### AI 서버 Validation Error
+
+AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수 있다.
+
+```json
+{
+  "detail": [
+    {
+      "loc": [
+        "body",
+        "content"
+      ],
+      "msg": "string",
+      "type": "string",
+      "input": "string",
+      "ctx": {}
+    }
+  ]
+}
+```
+
+#### 백엔드 처리 규칙
+
+- 백엔드가 AI 서버 호출 전에 공개 API 요청값을 먼저 검증한다.
+- 공개 API 요청값 검증 실패는 `400 Bad Request`로 처리한다.
+- AI 서버가 422를 반환하면 백엔드는 내부 AI 요청 DTO 구성 또는 AI 서버 스키마 불일치로 간주한다.
+- 스트림 시작 전 AI 서버 오류가 발생하면 공개 API는 기존 JSON 에러 응답으로 `500 Internal Server Error` 또는 `504 Gateway Timeout`을 반환한다.
+- 스트림 시작 후 AI 서버 오류가 발생하면 프론트엔드에 `error` 이벤트를 전달하고 SSE 연결을 종료한다.
+- AI 서버 연결 타임아웃은 `AI_TIMEOUT`으로 처리한다.
+- AI 서버가 `answer_completed`를 전송하지 못하고 연결이 종료된 경우 백엔드는 BOT 답변 메시지를 저장하지 않는다.
+- AI 서버의 `answer_completed`에 `messageType`, `content`, `documents`, `recommendedContacts` 중 필수 값이 누락된 경우 백엔드는 AI 응답 형식 오류로 처리한다.
+
+---
+
+### 8-7. 내부 AI 동작 규칙
+
+- 백엔드는 질문 메시지를 먼저 저장한 뒤 AI 서버를 호출한다.
+- AI 서버 호출 endpoint는 `POST /chat/stream`을 사용한다.
+- 내부 AI 요청에는 질문 저장 결과 전체 객체를 전달하지 않고, 답변 생성에 필요한 값만 전달한다.
+- 내부 AI 요청에 포함되는 값은 `questionId`, `user`, `content`이다.
+- `user.userId`는 사용자별 대화 맥락 식별에 사용할 수 있다.
+- `user.name`은 개인화된 답변 생성에 사용할 수 있다.
+- `user.companyCode`는 회사별 문서 범위 판별에 사용한다.
+- `user.hireDate`는 입사일 기준 온보딩 맥락 판단 및 개인화 답변 생성에 사용한다.
+- AI 서버는 `user.companyCode`를 기준으로 해당 회사 문서와 공통 문서만 조회 대상으로 사용해야 한다.
+- AI 서버는 `user.hireDate`를 기준으로 입사 후 경과일, 온보딩 단계, 신입 사용자 상황을 답변 맥락에 반영할 수 있다.
+- AI 서버는 질문 내용에 대해 답변 조각을 `answer_delta` 이벤트로 반환한다.
+- 백엔드는 AI 서버의 `answer_delta`를 프론트엔드에 `answer_delta`로 중계한다.
+- AI 서버는 답변 생성 완료 시 `answer_completed` 이벤트를 반드시 전송한다.
+- AI 서버의 `answer_completed`에는 `questionId`, `messageType`, `content`, `documents`, `recommendedContacts`가 포함되어야 한다.
+- 백엔드는 `answer_completed.content`를 기준으로 최종 BOT 답변 메시지를 저장한다.
+- 백엔드는 `answer_completed.messageType`을 기준으로 답변 메시지 유형을 저장한다.
+- `answer_completed.messageType = no_result`인 경우, 백엔드는 최종 BOT 답변 메시지의 `answer_to_message_id`에 사용자 질문 메시지 ID(`answer_completed.questionId`)를 저장한다.
+- 백엔드는 `answer_completed.documents[].documentId`를 기준으로 `chat_message_documents`에 답변 메시지와 근거 문서를 연결 저장한다.
+- 백엔드는 `answer_completed.recommendedContacts`를 담당자 추천 응답 구성 또는 저장에 사용한다.
+- AI 서버가 `answer_completed`를 전송하지 못하거나 필수 메타데이터가 누락된 경우 해당 요청은 실패로 처리한다.
+- `suggestion`은 온보딩 가이드 기반 메시지 유형이므로 내부 AI 답변 응답값으로 사용하지 않는다.
+
+---
+
+## 9. Documents
+
+이 항목은 문서 업로드, 조회, 다운로드, 삭제, 백업 재시도 등 스토리지 문서 관리 기능에 대한 API를 설명한다.
+이 섹션의 엔드포인트는 현재 Swagger UI 기준으로 확인된 항목을 정리한 것이며, 요청/응답의 상세 스키마는 실제 Swagger UI 정의를 우선 기준으로 한다.
+
+문서 관리 API는 고객사 관리자(`ADMIN`)만 호출할 수 있다.
+신입 사용자(`ACTIVE`, `READ_ONLY`, `INACTIVE`)와 제품 내부 관리자(`SERVICE_ADMIN`)는 문서 관리 API를 호출할 수 없다.
+
+#### 문서 API 에러 코드
+
+문서 API는 공통 에러 응답 형식을 사용하며, 실제 backend 구현 기준으로 아래 코드가 추가로 반환될 수 있다.
+
+| 코드 | HTTP 상태 | 발생 조건 |
+|---|---:|---|
+| `FILE_001` | 400 | 업로드 파일이 비어 있거나 단일 파일 크기 또는 회사별 총 업로드 용량 제한을 초과한 경우 |
+| `FILE_002` | 400 | 지원하지 않는 파일 확장자인 경우 |
+| `FILE_003` | 500 | 파일 읽기, 원본 스토리지 업로드, DB 저장 등 스토리지 처리에 실패한 경우 |
+| `RESOURCE_004` | 403 | 다른 회사 문서에 접근하려는 경우 |
+| `USER_NOT_FOUND` | 401 | JWT 인증은 통과했지만 사용자 정보를 DB에서 찾을 수 없는 경우 |
+
+### 9-1. 문서 업로드
+
+```http
+POST /api/v1/documents/upload
+Authorization: Bearer {accessToken}
+Content-Type: multipart/form-data
+```
+
+#### 설명
+- 문서를 업로드한다.
+- 업로드된 문서는 `documents`, `document_files`를 기준으로 저장 및 관리한다.
+- 파일 저장 후 백업 스토리지 연동 정책에 따라 백업 작업이 수행될 수 있다.
+- 단일 파일 크기 제한은 파일 형식별로 적용한다. 문서 파일(`.pdf`, `.docx`, `.pptx`, `.txt`)과 스프레드시트 파일(`.xls`, `.xlsx`)은 최대 20MB, 이미지 파일(`.png`, `.jpg`, `.jpeg`)은 최대 5MB다.
+- 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
+
+### 9-2. 문서 목록 조회
+
+```http
+GET /api/v1/documents
+Authorization: Bearer {accessToken}
+```
+#### 설명
+- 현재 사용자가 접근 가능한 문서 목록을 조회한다.
+- 회사 문서와 공통 문서 기준으로 조회될 수 있다.
+- 상세 검색 조건, 정렬, 필터링 여부는 Swagger UI의 실제 파라미터 정의를 따른다.
+
+### 9-3. 문서 상세 조회
+```http
+GET /api/v1/documents/{documentId}
+Authorization: Bearer {accessToken}
+```
+
+| 필드           | 타입     | 필수 | 설명        |
+| ------------ | ------ | -- | --------- |
+| `documentId` | `Long` | Y  | 조회할 문서 ID |
+
+#### 설명
+- 특정 문서의 상세 정보를 조회한다.
+- 문서 기본 정보와 파일 메타데이터를 함께 포함한다.
+
+### 9-4. 문서 파일 다운로드 (302 Redirect)
+```http
+GET /api/v1/documents/{documentId}/file?source=PRIMARY|BACKUP
+Authorization: Bearer {accessToken}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `documentId` | `Long` | Y | 다운로드 대상 문서 ID |
+| `source` | `String` | N | 다운로드 소스 (`PRIMARY` 기본값, `BACKUP` 선택 가능) |
+
+#### 동작 규칙
+- `documents.id = {documentId}`인 문서를 조회한다.
+- 해당 문서가 현재 로그인한 사용자의 회사 문서이거나 공통 문서인 경우만 접근 가능하다.
+- 활성 신입 사용자 권한(`global-access=false`)은 `document_type = TEMPLATE` 문서만 다운로드 가능하다.
+- 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
+- 서버는 요청마다 OCI pre-signed URL을 신규 발급한다(재사용 캐시 비활성화).
+- pre-signed URL 유효시간은 현재 기본값 30초(`app.storage.oci-cli.preauth-ttl-seconds`)다.
+- 응답은 파일 바이트가 아니라 `302 Found` + `Location` 헤더(외부 Object Storage URL)다.
+- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
+
+#### Response (302 Found)
+```http
+HTTP/1.1 302 Found
+Location: https://objectstorage.ap-osaka-1.oraclecloud.com/p/.../n/.../b/.../o/...
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+Referrer-Policy: no-referrer
+X-Content-Type-Options: nosniff
+Content-Length: 0
+```
+
+#### 설명
+- 프론트엔드는 `/file` 호출 시 브라우저 리다이렉트를 통해 외부 스토리지에서 직접 파일을 다운로드한다.
+- 백엔드가 파일 바이트를 프록시하지 않으므로 API 서버 부하(대역폭/스트리밍 처리)를 줄일 수 있다.
+- `Location` 값은 pre-signed URL이며 네트워크 탭에서 확인될 수 있다.
+
+#### Error Response (404 Not Found)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00",
+  "status": 404,
+  "error": "Not Found",
+  "code": "NOT_FOUND",
+  "errors": [
+    {
+      "field": "documentId",
+      "message": "해당 문서를 찾을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/file"
+}
+```
+
+#### Error Response (400 Bad Request)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "documentType",
+      "message": "파일 직접 반환은 TEMPLATE 문서에만 허용됩니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/file"
+}
+```
+
+#### Error Response (502 Bad Gateway)
+```json
+{
+  "timestamp": "2026-05-17T00:00:00",
+  "status": 502,
+  "error": "Bad Gateway",
+  "code": "DOWNLOAD_URL_UNAVAILABLE",
+  "errors": [
+    {
+      "field": "documentId",
+      "message": "다운로드 URL 생성에 실패했습니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/file"
+}
+```
+
+### 9-5. 다운로드 URL 발급
+```http
+GET /api/v1/documents/{documentId}/download
+Authorization: Bearer {accessToken}
+```
+
+채팅 메시지 응답의 `documents[].file.downloadUrl`은 현재 구현 기준 아래 경로를 사용한다.
+
+```http
+GET /api/v1/chat/documents/{documentId}/download
+Authorization: Bearer {accessToken}
+```
+
+| 필드           | 타입     | 필수 | 설명                   |
+| ------------ | ------ | -- | -------------------- |
+| `documentId` | `Long` | Y  | 다운로드 URL 발급 대상 문서 ID |
+
+#### 동작 규칙
+
+- `documents.id = {documentId}`인 문서를 조회한다.
+- 해당 문서가 현재 로그인한 사용자의 회사 문서이거나 공통 문서인 경우만 접근 가능하다.
+- `/api/v1/chat/documents/{documentId}/download` 경로는 현재 로그인한 사용자의 채팅 답변에 연결된 문서만 접근 가능하다.
+- 채팅 문서 다운로드 경로에서 `chat_message_documents` 연결 이력이 없으면 `403 Forbidden`, `FORBIDDEN`을 반환한다.
+- `document_type = TEMPLATE`인 경우에만 다운로드 URL 또는 접근 경로를 반환한다.
+- 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
+- 응답 `downloadUrl`에는 내부 경로(`/api/v1/documents/{documentId}/file?source=...`)만 반환한다.
+- pre-signed URL은 `/file` 호출 시점에만 생성되어 `302 Location`으로 전달된다.
+- 다운로드 감사 로그는 `AUDIT_DOWNLOAD` 구조화 로그로 기록되며, pre-signed URL 원문은 로그에 남기지 않는다.
+- Grafana/Loki 운영 쿼리는 `docs/operations/storage/AUDIT_DOWNLOAD_GRAFANA_LOKI.md`를 따른다.
+- 응답의 `expiresIn`은 현재 pre-signed URL 유효시간(기본 30초)을 의미한다.
+- 응답의 `source`는 실제 다운로드에 사용할 스토리지 소스(`PRIMARY` 또는 `BACKUP`)다.
+- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
+
+#### Response (200 OK)
+```json
+{
+  "downloadUrl": "/api/v1/documents/11/file?source=PRIMARY",
+  "expiresIn": 30,
+  "source": "PRIMARY"
+}
+```
+#### 설명
+- 프론트엔드는 TEMPLATE 문서 다운로드 시 이 API를 우선 호출한다.
+- 응답의 `downloadUrl` 값을 그대로 호출하면 `/file`에서 302 리다이렉트가 발생하고, 최종 다운로드는 외부 스토리지에서 수행된다.
+- 채팅 메시지 응답 `documents[].file.downloadUrl`에는 채팅 전용 경로(`/api/v1/chat/documents/{documentId}/download`)가 제공된다.
+- 채팅 전용 경로 응답도 동일하게 내부 `/api/v1/documents/{documentId}/file?source=...` 형식을 반환한다.
+
+#### Error Response (404 Not Found)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00",
+  "status": 404,
+  "error": "Not Found",
+  "code": "NOT_FOUND",
+  "errors": [
+    {
+      "field": "documentId",
+      "message": "해당 문서를 찾을 수 없습니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/download"
+}
+```
+
+#### Error Response (400 Bad Request)
+```json
+{
+  "timestamp": "2026-04-14T15:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "documentType",
+      "message": "다운로드 URL 발급은 TEMPLATE 문서에만 허용됩니다."
+    }
+  ],
+  "path": "/api/v1/documents/11/download"
+}
+```
+
+#### Error Response (403 Forbidden)
+```json
+{
+  "timestamp": "2026-05-13T10:30:00Z",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "FORBIDDEN",
+  "errors": [
+    {
+      "field": "documentId",
+      "message": "채팅에서 수신하지 않은 문서입니다."
+    }
+  ],
+  "path": "/api/v1/chat/documents/11/download"
+}
+```
+
+### 9-6. 문서 삭제 전 검증
+```http
+GET /api/v1/documents/{documentId}/delete-check
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 특정 문서를 삭제하기 전에 삭제 가능 여부를 검증한다.
+- 연관 데이터, 백업 상태, 권한 조건 등을 확인한다.
+
+### 9-7. 문서 삭제
+```http
+DELETE /api/v1/documents/{documentId}
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 특정 문서를 삭제한다.
+- 실제 삭제 방식은 물리 삭제 또는 논리 삭제 정책을 따른다.
+- 파일 및 백업 데이터 처리 방식은 서버 정책에 따른다.
+
+### 9-8. 문서 전체 삭제 전 검증
+```http
+GET /api/v1/documents/delete-check
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 전체 문서 삭제 전에 삭제 가능 여부를 검증한다.
+- 삭제 대상 수, 삭제 불가 사유, 확인 필요 항목 등을 반환한다.
+
+### 9-9. 문서 전체 삭제
+```http
+DELETE /api/v1/documents
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 전체 문서를 삭제한다.
+- confirm 필요 정책이 적용된다.
+- 실제 요청 규격은 Swagger UI 정의를 따른다.
+
+### 9-10. 문서 선택 삭제 전 검증
+```http
+POST /api/v1/documents/bulk-delete/delete-check
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### 설명
+- 선택한 문서들을 삭제하기 전에 삭제 가능 여부를 검증한다.
+- 삭제 대상 목록 기준으로 검증 결과를 반환한다.
+
+### 9-11. 문서 선택 삭제
+```http
+POST /api/v1/documents/bulk-delete
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+#### 설명
+- 선택한 문서들을 일괄 삭제한다.
+- confirm 필요 정책이 적용될 수 있다.
+- 실제 요청 바디 구조는 Swagger UI 정의를 따른다.
+
+### 9-12. 백업 재시도
+```http
+POST /api/v1/documents/{documentId}/backup/retry
+Authorization: Bearer {accessToken}
+```
+
+#### 설명
+- 특정 문서의 백업 작업을 재시도한다.
+- `document_files`, `document_backup_jobs` 기준으로 백업 상태를 갱신하거나 새 작업을 생성한다.
+
+---
+
+## 10. 관리 지표
+
+이 항목은 회사별 핵심 지표 집계 API를 설명한다.  
+`users`, `chat_messages`, `user_activity_logs` 데이터를 기준으로 계산하며, 집계 쿼리와 조회 API만 구현한다.
+
+### 10-1. 관리자 지표 개요
+
+| 구분 | 지표                  |
+|---|---------------------|
+| 북극성 | D+6 RAG 답변 수신 경험률   |
+| 보조 1 | D+0 첫 인터랙션 발생률      |
+| 보조 2 | D+6 재방문률            |
+| 가드레일 | 미답변 비율              |
+| 가드레일 | TTA, 최초 로그인 → 첫 RAG |
+
+| API | 설명                               |
+|---|----------------------------------|
+| `GET /api/v1/admin/metrics/rag-experience-rate` | 회사별 D+6 RAG 답변 수신 경험률            |
+| `GET /api/v1/admin/metrics/first-interaction-rate` | 회사별 D+0 첫 인터랙션 발생률               |
+| `GET /api/v1/admin/metrics/revisit-rate` | 회사별 D+6 재방문률                     |
+| `GET /api/v1/admin/metrics/unanswered-rate` | 회사별 미답변 비율                       |
+| `GET /api/v1/admin/metrics/tta` | 회사별 평균 TTA, 최초 로그인 → 첫 RAG 소요 시간 |
+
+#### 공통 인증 및 권한 규칙
+
+- 이 API는 제품 지표 확인을 위해 사용하는 내부 관리자(`SERVICE_ADMIN`) API다.
+- 고객사 관리자 계정 페이지 API(`/api/v1/admin/users`)와 권한 목적이 다르다.
+- 신입 사용자(`ACTIVE`, `READ_ONLY`, `INACTIVE`)와 고객사 관리자(`ADMIN`)는 호출할 수 없다.
+- 권한이 없는 사용자가 호출하면 `403 Forbidden`을 반환한다.
+- 인증 오류와 세션 만료/무효화 처리 방식은 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+#### 공통 Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. 생략하면 회사별 전체 집계 결과를 반환한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### 공통 산정 규칙
+
+- 날짜 계산 기준은 **Asia/Seoul(KST)** 로 한다.
+- `D+0`은 `DATEDIFF(이벤트 발생일, users.hire_date) = 0`인 경우를 의미한다.
+- `D+6` 지표는 입사일을 포함한 7일 관찰 기간을 기준으로 하며, 세부 포함 범위는 각 지표의 집계 기준을 따른다.
+- 비율은 `numerator / denominator * 100`으로 계산한다.
+- 소수점은 기본적으로 소수점 첫째 자리까지 반올림한다.
+- 분모가 0인 경우 비율은 `0.0`으로 반환한다.
+- 회사별 집계 결과는 `companies` 배열로 반환한다.
+- 집계 대상 사용자는 기본적으로 `users.role`이 `ACTIVE`, `READ_ONLY`, `INACTIVE`인 신입 사용자로 한정한다.
+
+---
+
+### 10-2. 북극성: D+6 RAG 답변 수신 경험률
+
+입사 후 7일 이내에 `rag_answer` 메시지를 1건 이상 수신한 신입 사용자 비율을 회사별로 조회한다.
+
+```http
+GET /api/v1/admin/metrics/rag-experience-rate
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "rag_experience_rate",
+  "asOfDate": "2026-05-06",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "targetUsers": 20,
+      "ragReceivedUsers": 15,
+      "ragExperienceRate": 75.0
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명                                       |
+|---|---|------------------------------------------|
+| `metric` | String | 지표 식별자. `rag_experience_rate`            |
+| `asOfDate` | String | 집계 기준일                                   |
+| `companies` | Array | 회사별 집계 결과                                |
+| `companies[].companyCode` | String | 회사 코드                                    |
+| `companies[].companyName` | String | 회사명                                      |
+| `companies[].targetUsers` | Number | D+6 RAG 경험률 산정 대상 사용자 수                  |
+| `companies[].ragReceivedUsers` | Number | 입사 후 7일 이내 `rag_answer`를 1건 이상 수신한 사용자 수 |
+| `companies[].ragExperienceRate` | Number | D+6 RAG 답변 수신 경험률, 단위 `%`                |
+
+#### 집계 기준
+
+- `chat_messages.message_type = rag_answer`인 BOT 메시지를 기준으로 계산한다.
+- `chat_messages.sender_type = BOT`인 메시지만 AI 답변으로 본다.
+- `DATEDIFF(chat_messages.created_at, users.hire_date) BETWEEN 0 AND 6` 조건을 만족하는 `rag_answer`가 1건 이상 있으면 RAG 답변 수신 경험 사용자로 계산한다.
+- `asOfDate` 기준으로 D+6 산정 기간이 완료된 사용자만 기본 분모에 포함한다.
+- 즉 `DATEDIFF(:asOfDate, users.hire_date) >= 6`인 사용자만 기본 산정 대상이다.
+- 회사별로 `companies.company_code` 또는 `users.company_code` 기준으로 그룹화한다.
+
+---
+
+### 10-3. D+0 첫 인터랙션 발생률
+
+입사 당일에 빠른 질문 버튼 클릭 또는 직접 질문을 1회 이상 수행한 신입 사용자 비율을 회사별로 조회한다.
+
+```http
+GET /api/v1/admin/metrics/first-interaction-rate
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "first_interaction_rate",
+  "asOfDate": "2026-05-06",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "targetUsers": 20,
+      "firstInteractionUsers": 16,
+      "firstInteractionRate": 80.0
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 지표 식별자. `first_interaction_rate` |
+| `asOfDate` | String | 집계 기준일 |
+| `companies` | Array | 회사별 집계 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].companyName` | String | 회사명 |
+| `companies[].targetUsers` | Number | 첫 인터랙션 발생률 산정 대상 사용자 수 |
+| `companies[].firstInteractionUsers` | Number | D+0에 첫 인터랙션이 발생한 사용자 수 |
+| `companies[].firstInteractionRate` | Number | D+0 첫 인터랙션 발생률, 단위 `%` |
+
+#### 집계 기준
+
+- 첫 인터랙션은 아래 둘 중 하나가 D+0에 1회 이상 발생한 경우로 본다.
+  - `user_activity_logs.event_type = BUTTON_CLICK`
+  - `chat_messages.message_type = user_question`
+- `BUTTON_CLICK`은 `user_activity_logs`를 기준으로 확인한다.
+- 직접 질문은 `chat_messages.sender_type = USER`, `chat_messages.message_type = user_question`을 기준으로 확인한다.
+- `DATEDIFF(이벤트 발생일, users.hire_date) = 0`인 이벤트만 D+0 첫 인터랙션으로 계산한다.
+- 동일 사용자가 D+0에 여러 번 클릭하거나 여러 번 질문해도 사용자 수는 1명으로 계산한다.
+
+---
+
+### 10-4. D+6 재방문률
+
+D+0에 MyBuddy 채팅 화면에 진입한 신입 중, D+1부터 D+6 사이에 1회 이상 다시 진입한 사용자 비율을 회사별로 조회한다.
+
+```http
+GET /api/v1/admin/metrics/revisit-rate
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "revisit_rate",
+  "asOfDate": "2026-05-06",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "d0Users": 18,
+      "revisitUsers": 12,
+      "revisitRate": 66.7
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명                            |
+|---|---|-------------------------------|
+| `metric` | String | 지표 식별자. `revisit_rate`        |
+| `asOfDate` | String | 집계 기준일                        |
+| `companies` | Array | 회사별 집계 결과                     |
+| `companies[].companyCode` | String | 회사 코드                         |
+| `companies[].companyName` | String | 회사명                           |
+| `companies[].d0Users` | Number | D+0에 MyBuddy 채팅 화면에 진입한 사용자 수 |
+| `companies[].revisitUsers` | Number | D+1~D+6 사이에 1회 이상 재진입한 사용자 수  |
+| `companies[].revisitRate` | Number | D+6 재방문률, 단위 `%`              |
+
+#### 집계 기준
+
+- 화면 진입은 `user_activity_logs.event_type = SESSION_START`, `event_target = CHAT` 로그를 기준으로 계산한다.
+- 분모는 D+0에 MyBuddy 채팅 화면에 진입한 사용자 수다.
+- 분자는 분모 사용자 중 D+1~D+6 사이에 `SESSION_START + CHAT` 로그가 1건 이상 있는 사용자 수다.
+- `asOfDate` 기준으로 D+6 산정 기간이 완료된 사용자만 분모에 포함한다.
+- 즉 `DATEDIFF(:asOfDate, users.hire_date) >= 6`인 사용자만 기본 산정 대상이다.
+- D+0에 접속하지 않고 D+1 이후 처음 접속한 사용자는 재방문률 분모에 포함하지 않는다.
+- `POST /api/v1/chat/session-start`의 30분 중복 제외 정책 때문에 동일 사용자의 짧은 시간 내 반복 진입은 중복 집계되지 않는다.
+- 별도 `session_id` 없이 기존 `user_activity_logs` 데이터만으로 집계한다.
+
+---
+
+### 10-5. 미답변 비율
+
+전체 AI 답변 중 `no_result`, `out_of_scope`, `sensitive`로 종료된 답변 수와 각 비율을 회사별로 조회한다.
+
+```http
+GET /api/v1/admin/metrics/unanswered-rate
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "unanswered_rate",
+  "asOfDate": "2026-05-06",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "totalAiAnswers": 120,
+      "noResultAnswers": 10,
+      "noResultRate": 8.3,
+      "outOfScopeAnswers": 8,
+      "outOfScopeRate": 6.7,
+      "sensitiveAnswers": 3,
+      "sensitiveRate": 2.5
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 지표 식별자. `unanswered_rate` |
+| `asOfDate` | String | 집계 기준일 |
+| `companies` | Array | 회사별 집계 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].companyName` | String | 회사명 |
+| `companies[].totalAiAnswers` | Number | 전체 AI 답변 수 |
+| `companies[].noResultAnswers` | Number | `no_result` 답변 수 |
+| `companies[].noResultRate` | Number | `no_result` 답변 비율, 단위 `%` |
+| `companies[].outOfScopeAnswers` | Number | `out_of_scope` 답변 수 |
+| `companies[].outOfScopeRate` | Number | `out_of_scope` 답변 비율, 단위 `%` |
+| `companies[].sensitiveAnswers` | Number | `sensitive` 답변 수 |
+| `companies[].sensitiveRate` | Number | `sensitive` 답변 비율, 단위 `%` |
+
+#### 집계 기준
+
+- 전체 AI 답변은 `chat_messages.sender_type = BOT`이고 `message_type IN (rag_answer, no_result, out_of_scope, sensitive)`인 메시지 수다.
+- `no_result` 답변 수는 `message_type = no_result`인 BOT 메시지 수다.
+- `out_of_scope` 답변 수는 `message_type = out_of_scope`인 BOT 메시지 수다.
+- `sensitive` 답변 수는 `message_type = sensitive`인 BOT 메시지 수다.
+- 각 비율은 `각 message_type별 답변 수 / 전체 AI 답변 수 * 100`으로 계산한다.
+- `suggestion` 메시지는 온보딩 제안 메시지이므로 전체 AI 답변 수와 유형별 답변 수에서 제외한다.
+- `user_question` 메시지는 사용자 입력이므로 전체 AI 답변 수와 유형별 답변 수에서 제외한다.
+
+---
+
+### 10-6. 평균 TTA, 최초 로그인 → 첫 RAG
+
+사용자가 최초 로그인한 시점부터 첫 `rag_answer`를 수신하기까지 걸린 평균 시간을 분 단위로 회사별 조회한다.
+
+```http
+GET /api/v1/admin/metrics/tta
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "tta",
+  "asOfDate": "2026-05-06",
+  "unit": "minutes",
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "companyName": "테크 주식회사",
+      "loggedInUsers": 20,
+      "measuredUsers": 15,
+      "averageTtaMinutes": 42.6
+    }
+  ]
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 지표 식별자. `tta` |
+| `asOfDate` | String | 집계 기준일 |
+| `unit` | String | 측정 단위. `minutes` |
+| `companies` | Array | 회사별 집계 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].companyName` | String | 회사명 |
+| `companies[].loggedInUsers` | Number | 최초 로그인 기록이 있는 사용자 수 |
+| `companies[].measuredUsers` | Number | 최초 로그인과 첫 RAG 답변 수신 기록이 모두 있는 사용자 수 |
+| `companies[].averageTtaMinutes` | Number 또는 null | 회사별 평균 TTA. 측정 대상이 없으면 `null` |
+
+#### 집계 기준
+
+- 최초 로그인은 `user_activity_logs.event_type = SESSION_START`, `event_target = LOGIN`의 최소 `created_at`으로 계산한다.
+- 첫 RAG 답변 수신은 `chat_messages.sender_type = BOT`, `message_type = rag_answer`의 최소 `created_at`으로 계산한다.
+- 사용자별 TTA는 `TIMESTAMPDIFF(MINUTE, 최초 로그인 시각, 첫 RAG 답변 시각)`으로 계산한다.
+- 평균 TTA는 최초 로그인과 첫 RAG 답변이 모두 존재하는 사용자만 대상으로 계산한다.
+- 첫 RAG 답변이 없는 사용자는 `measuredUsers`와 평균 계산에서 제외한다.
+- 첫 RAG 답변 시각이 최초 로그인 시각보다 빠른 비정상 데이터는 평균 계산에서 제외한다.
+
+---
+
+### 10-7. 관리자 지표 API 공통 에러 처리
+
+#### Error Response (401 Unauthorized)
+
+인증 헤더가 없거나, 토큰이 유효하지 않거나, 세션이 만료 또는 무효화된 경우 반환한다.
+세부 에러 코드는 **5-3. 인증 오류 및 세션 만료/무효화 처리**를 따른다.
+
+```json
+{
+  "timestamp": "2026-05-06T09:30:00",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "INVALID_TOKEN",
+  "errors": [
+    {
+      "field": "token",
+      "message": "인증 정보가 유효하지 않습니다."
+    }
+  ],
+  "path": "/api/v1/admin/metrics/rag-experience-rate"
+}
+```
+
+#### Error Response (403 Forbidden)
+
+`SERVICE_ADMIN` 권한이 없는 사용자가 호출한 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-06T09:30:00",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "ACCESS_DENIED",
+  "errors": [
+    {
+      "field": "role",
+      "message": "관리자 권한이 필요한 API입니다."
+    }
+  ],
+  "path": "/api/v1/admin/metrics/rag-experience-rate"
+}
+```
+
+#### Error Response (400 Bad Request)
+
+쿼리 파라미터 형식이 올바르지 않은 경우 반환한다.
+
+```json
+{
+  "timestamp": "2026-05-06T09:30:00",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "BAD_REQUEST",
+  "errors": [
+    {
+      "field": "asOfDate",
+      "message": "집계 기준일은 yyyy-MM-dd 형식이어야 합니다."
+    }
+  ],
+  "path": "/api/v1/admin/metrics/rag-experience-rate"
+}
+```
+
+---
+
+## 11. 변경 이력
+
+- **v1.0.0 (2026-03-10)**:
+  - 초기 버전 작성
+- **v1.1.0 (2026-03-17)**:
+  - 멀티 테넌시 구조 적용, 로그인 API 변경, 회사 식별 정보 응답 구조 추가, 회사 관리 API 추가, 데이터 격리 설명 추가, JWT 페이로드 구조 업데이트, 비밀번호 제거
+- **v1.2.0 (2026-03-17)**:
+  - 구현 범위 중심으로 문서 범위 재정리, 미구현·변경 가능성이 큰 API를 별도 관리 대상으로 분리, 커스텀 에러코드·Rate Limiting·페이지네이션 공통 정책을 계획 문서로 이동
+- **v1.3.0 (2026-03-24)**:
+  - API 명세 단순화, `companyId` 기준으로 응답 예시 수정, `auth/refresh`·`users/me`·체크리스트 API 제거, `conversationId` 제거, `MyBuddy` 기준으로 채팅/온보딩 API 재정리, 내부 AI 연동 규격 최소화
+- **v1.4.0 (2026-03-26)**:
+  - 로그인 기준과 인증 흐름을 수정된 ERD에 맞게 정리, `companyCode` 반영, 토큰 만료 처리, 프론트 개발 서버 주소 추가, 백엔드 서버와 생성형 AI 서버 간 연동 흐름 추가
+- **v1.5.0 (2026-03-26)**:
+  - 빠른 질문 목록 조회 API 추가, 문서 양식 및 정합성 정리
+- **v1.6.0 (2026-04-02)**:
+  - `company_id` 제거, 로그인/내부 AI 연동 관련 요청·응답 예시 및 동작 규칙 수정, Swagger(OpenAPI) 기반 API 문서 확인 경로 추가
+- **v1.7.0 (2026-04-03)**:
+  - 로그인 API 입력값 검증 적용에 따라 `400 Bad Request` 의미를 구체화, `POST /api/v1/auth/login`의 `200/400/401` 상태 코드 기준 정리, 예외 응답 형식 변경
+- **v1.7.1 (2026-04-06)**:
+  - `company_code` 예시값 수정
+- **v1.7.2 (2026-04-08)**:
+  - 내부 AI 요청을 `questionId`, `companyCode`, `content` 기반 구조로 단순화, 내부 AI 응답을 `questionId`, `messageType`, `content` 중심으로 수정
+- **v1.7.3 (2026-04-13)**:
+  - 채팅 메시지 목록 조회 응답 형식 수정
+- **v1.7.4 (2026-04-13)**:
+  - `user_activity_logs`의 `SESSION_START` 이벤트 기록 규칙 정리, 로그인 성공 시 `event_target = LOGIN` 로그 기록 규칙 추가, `chat_message_documents` 기반 근거 문서 다중 연결 구조 반영, 채팅 메시지 응답 예시에 `documentIds` 추가, 내부 AI 응답의 근거 문서 저장 규칙 보강
+  - 스토리지 문서 API 엔드포인트 목록 추가, `document_files` 및 `document_backup_jobs` 기반 문서 관리/백업 기능 설명 보강
+- **v1.7.5 (2026-04-16)**:
+  - `documents` 오타 수정, 내부 AI 응답 시간 초과 처리 규칙 추가, `504 Gateway Timeout`, `AI_TIMEOUT` 에러 코드 추가
+- **v1.7.6 (2026-04-20)**:
+  - 온보딩 제안 조회 API의 `dayOffset` 기준을 입사일 당일 `D+0` 기준으로 수정하고, 응답 필드 및 노출 규칙을 최신 구현 기준으로 정리
+- **v1.7.7 (2026-04-23)**:
+  - `no_result` 메시지에 대한 담당자 추천 카드 응답 구조 추가, 채팅 메시지 목록 조회 및 질문 전송 응답 예시에 추천 담당자 정보 반영, 내부 AI 응답 규격에 추천 담당자 정보 반영
+- **v1.7.8 (2026-04-27)**:
+  - 내부 AI 답변 생성 요청(`/internal/ai/answer`)에 이전 대화 이력 `conversationHistory` 전달 규칙 추가
+- **v1.7.9 (2026-04-28)**:
+  - 신입 계정 생성 API(`POST /api/v1/users`) 추가, 동일 회사 내 사원번호 중복 방지를 위한 `company_id + employee_number` 복합 UNIQUE 제약조건 및 `409 Conflict`, `DUPLICATE_EMPLOYEE_NUMBER` 에러 응답 규격 추가
+- **v1.8.0 (2026-04-29)**:
+  - 온보딩 제안 조회 응답에 D-day별 빠른 질문 버튼(`quickTaps`) 추가, 빠른 질문 목록 및 클릭 로그 응답 형식 수정
+- **v1.9.0 (2026-05-05)**:
+  - 질문 전송 API를 SSE 스트리밍 방식으로 변경하고, 백엔드가 AI 서버 `/chat/stream` 응답을 중계하도록 내부 연동 규격을 수정했다. AI 답변 조각은 `answer_delta`로 실시간 전달하며, 최종 답변 저장 및 문서/담당자 정보는 `answer_completed` 기준으로 처리한다.
+  - AI 서버 `/chat/stream` 요청 body의 `user` 객체에 `hireDate`를 추가
+- **v1.9.1 (2026-05-06)**:
+  - 관리자용 서비스 측정 지표 조회 API 추가
+- **v1.9.2 (2026-05-07)**:
+  - 인증 에러 코드 규격을 수정
+- **v1.9.3 (2026-05-08)**:
+  - 관리자 계정 경로 설정 및 로그인 응답에 `role` 추가, 내부 지표 API의 경로·권한 규격을 분리 정리
+- **v1.9.4 (2026-05-12)**:
+  - 로그아웃 API(`POST /api/v1/auth/logout`) 명세 추가, JWT/Redis 세션 정책과 Redis 삭제 키 목록 정리, 세션 저장소 장애(`SESSION_STORE_UNAVAILABLE`) 응답 규격 추가
+- **v1.9.5 (2026-05-13)**:
+  - 기존 `questionId` 재사용 방식을 적용해, 타임아웃 후 재시도 시 동일 질문이 `chat_messages`에 중복 저장되지 않도록 서버 로직을 구현함.
+  - 재시도 시 조건 충족 시 `question_saved.question.id`를 기존 질문 ID로 재사용하도록 API 동작 규칙을 문서에 반영함.
+  - 재사용 경로에서 Redis 대화 이력이 누락된 경우 사용자 질문 turn을 보강 저장하도록 엣지 케이스 복구 로직을 추가함.
+- **v1.9.6 (2026-05-17)**:
+  - 문서 다운로드 흐름을 302 Redirect 기반으로 정리하고, 다운로드 URL 발급 응답의 `downloadUrl`, `expiresIn`, `source` 필드를 명시함.
+- **v2.0.0 (2026-05-18)**:
+  - 신입 계정 생성, 문서 업로드, 문서 확인, 문서 삭제 기능을 관리자 페이지 기준으로 정리함.
+  - 문서 업로드 가능 확장자, 회사당 문서 수 300개, 2GB 제한
+- **v2.1.0 (2026-05-19)**:
+  - 신입 계정 생성 API에 `department`, `teamName` 필드를 추가. 각 필드 최대 길이 100자 검증 규칙을 반영. 관리자 계정 페이지에서 신입 사원 계정 목록을 조회할 수 있는 `GET /api/v1/admin/users` 명세를 추가.
+- **v2.1.1 (2026-05-20)**:
+  - 관리자 계정 페이지에서 회사별 부서/팀명 선택 옵션을 조회할 수 있는 `GET /api/v1/admin/organization-options` 명세를 추가.
+- **v2.1.2 (2026-05-27)**:
+  - message_type(`sensitive`) 추가, ROLE(`USER`) 분할 및 관리자 신입 계정 조회 수정
+- **v2.2.0 (2026-05-29)**:
+  - 사용자 역할을 `ACTIVE`, `READ_ONLY`, `INACTIVE`, `ADMIN`, `SERVICE_ADMIN` 기준으로 정리. `READ_ONLY`는 질문 API 차단과 조회 API 허용으로 분리하고, `INACTIVE`는 로그인 후 이용 기간 종료 안내 화면으로 처리하도록 명세 반영
+  - `companies.probation_period` 기준의 회사별 수습 기간 정책을 추가. `ACTIVE`는 `hire_date + probation_period`까지 유지하고, 이후 30일간 `READ_ONLY`, 그 이후 `INACTIVE`로 자동 전환되는 생애주기 규칙을 명세에 반영
+- **v2.2.1 (2026-06-1)**:
+  - AI 답변 최종 유형이 `no_result`인 경우 BOT 답변 메시지의 `answer_to_message_id`에 사용자 질문 메시지 ID를 저장하도록 질문 스트리밍 및 내부 AI 연동 저장 규칙을 명세에 반영
+  - `READ_ONLY` 사용자의 suggestion 메시지에서도 `quickTaps`를 빈 배열(`[]`)로 반환하도록 채팅 메시지 조회 및 응답 필드 설명을 정리
+  - `INACTIVE` 사용자는 로그인 성공 시에도 `LOGIN` activity log를 기록하지 않는 예외 규칙을 명세에 반영
