@@ -5,7 +5,7 @@ JOIN chat_messages keep_row
   ON dup.user_id = keep_row.user_id
  AND dup.suggestion_id = keep_row.suggestion_id
  AND dup.message_type = keep_row.message_type
- AND dup.id > keep_row.id
+ AND dup.id < keep_row.id
 WHERE dup.suggestion_id IS NOT NULL;
 
 SET @uq_exists = (
