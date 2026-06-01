@@ -46,11 +46,13 @@ public class ChatMessage {
     @Column(name = "recommended_contacts_json", columnDefinition = "TEXT")
     private String recommendedContactsJson;
 
+    @Column(name = "answer_to_message_id")
+    private Long answerToMessageId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Builder
     public ChatMessage(
             Long userId,
             Long suggestionId,
@@ -59,12 +61,26 @@ public class ChatMessage {
             String content,
             String recommendedContactsJson
     ) {
+        this(userId, suggestionId, senderType, messageType, content, recommendedContactsJson, null);
+    }
+
+    @Builder
+    public ChatMessage(
+            Long userId,
+            Long suggestionId,
+            SenderType senderType,
+            MessageType messageType,
+            String content,
+            String recommendedContactsJson,
+            Long answerToMessageId
+    ) {
         this.userId = userId;
         this.suggestionId = suggestionId;
         this.senderType = senderType;
         this.messageType = messageType;
         this.content = content;
         this.recommendedContactsJson = recommendedContactsJson;
+        this.answerToMessageId = answerToMessageId;
     }
 
     public static ChatMessage createSuggestionMessage(Long userId, Long suggestionId, String content) {
@@ -75,6 +91,7 @@ public class ChatMessage {
         message.messageType = MessageType.suggestion;
         message.content = content;
         message.recommendedContactsJson = null;
+        message.answerToMessageId = null;
         return message;
     }
 }

@@ -32,7 +32,10 @@ public class CacheLayerConfig {
 
     @Bean("internalApiLocalCache")
     public Cache<String, InternalApiLocalCacheValue> internalApiLocalCache(AppCacheProperties properties) {
-        return Caffeine.from(properties.getL1().getSpec()).build();
+        if (properties.getL1().isEnabled()) {
+            return Caffeine.from(properties.getL1().getSpec()).build();
+        }
+        return Caffeine.newBuilder().maximumSize(1).build();
     }
 
     @Bean
@@ -45,7 +48,7 @@ public class CacheLayerConfig {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
 
-        if (!properties.getInvalidation().isEnabled()) {
+        if (!properties.getInvalidation().isEnabled() || !properties.getL1().isEnabled()) {
             return container;
         }
 

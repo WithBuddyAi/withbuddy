@@ -132,10 +132,12 @@ public class ChatMessageService {
                 List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
                         toRecommendedContactResponses(aiResponse.getRecommendedContacts());
                 String recommendedContactsJson = serializeRecommendedContacts(recommendedContacts);
+                Long savedQuestionId = questionId;
 
                 ChatMessage savedAnswerMessage = transactionTemplate.execute(
                         status -> saveAnswerMessage(
                                 loginUserId,
+                                resolveAnswerToMessageId(answerMessageType, savedQuestionId),
                                 answerMessageType,
                                 aiResponse.getContent(),
                                 answerDocumentIds,
@@ -237,6 +239,7 @@ public class ChatMessageService {
 
     private ChatMessage saveAnswerMessage(
             Long userId,
+            Long answerToMessageId,
             MessageType answerMessageType,
             String answerContent,
             List<Long> answerDocumentIds,
@@ -248,11 +251,19 @@ public class ChatMessageService {
                 SenderType.BOT,
                 answerMessageType,
                 answerContent,
-                recommendedContactsJson
+                recommendedContactsJson,
+                answerToMessageId
         );
         ChatMessage savedAnswerMessage = chatMessageRepository.save(answerMessage);
         saveDocumentMappings(savedAnswerMessage.getId(), answerDocumentIds);
         return savedAnswerMessage;
+    }
+
+    Long resolveAnswerToMessageId(MessageType answerMessageType, Long savedQuestionId) {
+        if (answerMessageType != MessageType.no_result) {
+            return null;
+        }
+        return savedQuestionId;
     }
 
     private ChatMessageResponse toResponse(

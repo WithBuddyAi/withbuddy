@@ -92,4 +92,18 @@ class ChatMessageServiceTest {
                         userId, suggestionId, MessageType.suggestion
                 );
     }
+
+    @Test
+    void resolvesAnswerToMessageIdOnlyForNoResult() {
+        Long result = chatMessageService.resolveAnswerToMessageId(MessageType.no_result, 201L);
+
+        assertThat(result).isEqualTo(201L);
+    }
+
+    @Test
+    void doesNotResolveAnswerToMessageIdForOtherMessageTypes() {
+        Long result = chatMessageService.resolveAnswerToMessageId(MessageType.rag_answer, 201L);
+
+        assertThat(result).isNull();
+    }
 }
