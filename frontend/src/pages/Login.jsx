@@ -80,9 +80,15 @@ function Login({ setIsLoggedIn }) {
       localStorage.setItem("dayCount", dayOffset);
       setDayOffset(dayOffset);
 
-      if (data.user.role === "USER") {
+      if (
+        data.user.role === "ACTIVE" ||
+        data.user.role === "READ_ONLY" ||
+        data.user.role === "SERVICE_ADMIN"
+      ) {
         navigate("/mybuddy");
-      } else {
+      } else if (data.user.role === "INACTIVE") {
+        navigate("/inactive");
+      } else if (data.user.role === "ADMIN") {
         navigate("/admin");
       }
     } catch (error) {
