@@ -214,7 +214,7 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
     !hireDateError;
 
   return (
-    <div>
+    <div className="flex-1 overflow-y-auto pr-[4px]">
       {/* breadcrumb */}
       <div className="flex items-center gap-[8px] text-[14px] text-[#868E96] my-[10px] md:my-[16px]">
         <span
