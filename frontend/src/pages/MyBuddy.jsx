@@ -21,7 +21,7 @@ function MyBuddy({ setIsLoggedIn }) {
   // 재시도 기능
   const [retryBt, setRetryBt] = useState(null);
 
-  const { dayOffset } = useUser();
+  const { dayOffset, role } = useUser();
   const dayCount =
     dayOffset !== undefined && dayOffset !== null
       ? dayOffset
@@ -138,7 +138,9 @@ function MyBuddy({ setIsLoggedIn }) {
       try {
         const [messageResponse, quickResponse] = await Promise.allSettled([
           axiosInstance.get("/api/v1/chat/messages", {}),
-          axiosInstance.get("/api/v1/chat/quick-questions", {}),
+          role !== "READ_ONLY"
+            ? axiosInstance.get("/api/v1/chat/quick-questions", {})
+            : Promise.resolve(null),
         ]);
         if (messageResponse.status === "fulfilled") {
           const messages = messageResponse.value.data.messages;
@@ -153,7 +155,10 @@ function MyBuddy({ setIsLoggedIn }) {
           const error = messageResponse.reason;
           throw error;
         }
-        if (quickResponse.status === "fulfilled") {
+        if (
+          quickResponse.status === "fulfilled" &&
+          quickResponse.value !== null
+        ) {
           setQuickQuestion(quickResponse.value.data.quickQuestions);
         }
       } catch (error) {
@@ -185,8 +190,10 @@ function MyBuddy({ setIsLoggedIn }) {
     };
 
     const init = async () => {
-      await sessionStart();
-      await exposure();
+      if (role !== "READ_ONLY") {
+        await sessionStart();
+        await exposure();
+      }
       fetchData();
     };
     init();
@@ -659,14 +666,18 @@ function MyBuddy({ setIsLoggedIn }) {
           </div>
 
           {/* 빠른 질문 */}
-          <QuickQuestions
-            quickQuestion={quickQuestion}
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-          />
+          {role !== "READ_ONLY" && (
+            <QuickQuestions
+              quickQuestion={quickQuestion}
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+            />
+          )}
 
           {/* 입력 창 */}
-          <ChatInput handleSubmit={handleSubmit} isLoading={isLoading} />
+          {role !== "READ_ONLY" && (
+            <ChatInput handleSubmit={handleSubmit} isLoading={isLoading} />
+          )}
         </div>
       </div>
     </div>
