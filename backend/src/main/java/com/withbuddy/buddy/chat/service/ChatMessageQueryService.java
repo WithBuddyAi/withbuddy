@@ -58,7 +58,7 @@ public class ChatMessageQueryService {
     private final UserRepository userRepository;
 
     public ChatMessageListResponse getMessages(Long userId, LocalDate date) {
-        requireMessageQueryAllowed(userId);
+        User user = requireMessageQueryAllowed(userId);
         List<ChatMessage> chatMessages = findChatMessages(userId, date);
         if (chatMessages.isEmpty()) {
             return new ChatMessageListResponse(Collections.emptyList());
@@ -78,7 +78,8 @@ public class ChatMessageQueryService {
                         message,
                         documentIdsByMessageId.getOrDefault(message.getId(), Collections.emptyList()),
                         documentMap,
-                        documentFileMap
+                        documentFileMap,
+                        canExposeQuickTaps(user)
                 ))
                 .toList();
 
@@ -143,7 +144,8 @@ public class ChatMessageQueryService {
             ChatMessage message,
             List<Long> documentIds,
             Map<Long, Document> documentMap,
-            Map<Long, DocumentFile> documentFileMap
+            Map<Long, DocumentFile> documentFileMap,
+            boolean exposeQuickTaps
     ) {
         List<ChatMessageResponse.DocumentResponse> documents = documentIds.stream()
                 .map(documentId -> toDocumentResponse(documentId, documentMap, documentFileMap))
@@ -157,7 +159,7 @@ public class ChatMessageQueryService {
                 message.getSenderType().name(),
                 message.getMessageType().getValue(),
                 message.getContent(),
-                resolveQuickTaps(message),
+                resolveQuickTaps(message, exposeQuickTaps),
                 resolveRecommendedContacts(message),
                 message.getCreatedAt().toString()
         );
@@ -208,13 +210,18 @@ public class ChatMessageQueryService {
         return documentDownloadService.getDownloadUrl(documentId);
     }
 
-    private void requireMessageQueryAllowed(Long userId) {
+    private User requireMessageQueryAllowed(Long userId) {
         User user = findUser(userId);
         if (user.getRole() != UserRole.ACTIVE
                 && user.getRole() != UserRole.READ_ONLY
                 && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 채팅 메시지를 조회할 수 없습니다.");
         }
+        return user;
+    }
+
+    private boolean canExposeQuickTaps(User user) {
+        return user.getRole() == UserRole.ACTIVE || user.getRole() == UserRole.SERVICE_ADMIN;
     }
 
     private void requireChatDocumentDownloadAllowed(Long userId) {
@@ -229,7 +236,10 @@ public class ChatMessageQueryService {
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
     }
 
-    private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message) {
+    private List<QuickQuestionResponse> resolveQuickTaps(ChatMessage message, boolean exposeQuickTaps) {
+        if (!exposeQuickTaps) {
+            return List.of();
+        }
         if (message.getMessageType() != MessageType.suggestion || message.getSuggestionId() == null) {
             return List.of();
         }
