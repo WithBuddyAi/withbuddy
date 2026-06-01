@@ -150,6 +150,10 @@ public class InternalCacheApiService {
     }
 
     private InternalApiLocalCacheValue resolveLocalValue(String resolvedKey) {
+        if (!isL1Enabled()) {
+            return loadFromRedis(resolvedKey);
+        }
+
         long now = System.currentTimeMillis();
         long negativeTtlMillis = Math.max(1, cacheProperties.getL1().getNegativeTtlSeconds()) * 1000L;
 
