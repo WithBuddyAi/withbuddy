@@ -25,6 +25,9 @@ public class Company {
     @Column(name = "name", nullable = false, length = 20)
     private String name;
 
+    @Column(name = "probation_period", nullable = false)
+    private Integer probationPeriod = 90;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Login from "./pages/Login";
 import MyBuddy from "./pages/MyBuddy";
 import Admin from "./pages/Admin";
+import Inactive from "./pages/Inactive";
 import { setLogoutHandler, setToastHandler } from "./api/handlers";
 import ErrorToast from "./components/ErrorToast";
 
@@ -27,13 +28,19 @@ function App() {
     <div>
       <ErrorToast errorMessage={toastMessage} />
       <Routes>
-        {/* 로그인 여부에 따른 페이지 이동 | 로그인(USER) -> My Buddy 페이지, 로그인(ADMIN) -> Admin 페이지, 미로그인 -> Login 페이지 */}
+        {/* 로그인 여부에 따른 페이지 이동
+        로그인(ACTIVE) -> My Buddy 페이지
+        로그인(INACTIVE) -> 이용 종료 안내 페이지
+        로그인(ADMIN) -> Admin 페이지
+        미로그인 -> Login 페이지 */}
         <Route
           path="/"
           element={
             isLoggedIn ? (
               role === "ADMIN" ? (
                 <Navigate to="/admin" />
+              ) : role === "INACTIVE" ? (
+                <Navigate to="/inactive" />
               ) : (
                 <Navigate to="/mybuddy" />
               )
@@ -49,6 +56,8 @@ function App() {
             isLoggedIn ? (
               role === "ADMIN" ? (
                 <Navigate to="/admin" />
+              ) : role === "INACTIVE" ? (
+                <Navigate to="/inactive" />
               ) : (
                 <Navigate to="/mybuddy" />
               )
@@ -66,6 +75,21 @@ function App() {
                 <Navigate to="/admin" />
               ) : (
                 <MyBuddy setIsLoggedIn={setIsLoggedIn} />
+              )
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        <Route
+          path="/inactive"
+          element={
+            isLoggedIn ? (
+              role === "INACTIVE" ? (
+                <Inactive setIsLoggedIn={setIsLoggedIn} />
+              ) : (
+                <Navigate to="/mybuddy" />
               )
             ) : (
               <Navigate to="/login" />
