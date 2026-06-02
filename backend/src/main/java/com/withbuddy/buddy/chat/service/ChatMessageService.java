@@ -3,6 +3,9 @@ package com.withbuddy.buddy.chat.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.buddy.chat.dto.request.ChatMessageRequest;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageResponse;
 import com.withbuddy.buddy.chat.dto.response.ChatStreamAnswerCompletedResponse;
@@ -16,6 +19,8 @@ import com.withbuddy.buddy.chat.entity.MessageType;
 import com.withbuddy.buddy.chat.entity.SenderType;
 import com.withbuddy.buddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
+import com.withbuddy.global.exception.ForbiddenException;
+import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.infrastructure.ai.client.AiStreamClient;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
@@ -82,8 +87,11 @@ public class ChatMessageService {
     private final Executor aiCallExecutor;
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
+    private final UserRepository userRepository;
 
     public SseEmitter streamUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
+        requireQuestionSendAllowed(principal.userId());
+
         SseEmitter emitter = new SseEmitter(0L);
 
         aiCallExecutor.execute(() -> {
@@ -132,10 +140,12 @@ public class ChatMessageService {
                 List<ChatMessageResponse.RecommendedContactResponse> recommendedContacts =
                         toRecommendedContactResponses(aiResponse.getRecommendedContacts());
                 String recommendedContactsJson = serializeRecommendedContacts(recommendedContacts);
+                Long savedQuestionId = questionId;
 
                 ChatMessage savedAnswerMessage = transactionTemplate.execute(
                         status -> saveAnswerMessage(
                                 loginUserId,
+                                resolveAnswerToMessageId(answerMessageType, savedQuestionId),
                                 answerMessageType,
                                 aiResponse.getContent(),
                                 answerDocumentIds,
@@ -173,6 +183,18 @@ public class ChatMessageService {
         });
 
         return emitter;
+    }
+
+    private void requireQuestionSendAllowed(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+
+        if (user.getRole() == UserRole.INACTIVE) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "비활성 사용자는 질문을 전송할 수 없습니다.");
+        }
+        if (user.getRole() != UserRole.ACTIVE && user.getRole() != UserRole.SERVICE_ADMIN) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "질문 전송 권한이 없습니다.");
+        }
     }
 
     private void forwardDelta(SseEmitter emitter, ChatStreamAnswerDeltaResponse delta) {
@@ -237,6 +259,7 @@ public class ChatMessageService {
 
     private ChatMessage saveAnswerMessage(
             Long userId,
+            Long answerToMessageId,
             MessageType answerMessageType,
             String answerContent,
             List<Long> answerDocumentIds,
@@ -248,11 +271,19 @@ public class ChatMessageService {
                 SenderType.BOT,
                 answerMessageType,
                 answerContent,
-                recommendedContactsJson
+                recommendedContactsJson,
+                answerToMessageId
         );
         ChatMessage savedAnswerMessage = chatMessageRepository.save(answerMessage);
         saveDocumentMappings(savedAnswerMessage.getId(), answerDocumentIds);
         return savedAnswerMessage;
+    }
+
+    Long resolveAnswerToMessageId(MessageType answerMessageType, Long savedQuestionId) {
+        if (answerMessageType != MessageType.no_result) {
+            return null;
+        }
+        return savedQuestionId;
     }
 
     private ChatMessageResponse toResponse(
@@ -632,6 +663,7 @@ public class ChatMessageService {
     }
 
     public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
+        requireQuestionSendAllowed(userId);
         return Map.of("quickQuestions", quickQuestionCatalog.getRandomQuickQuestions(5));
     }
 

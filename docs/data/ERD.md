@@ -1,7 +1,7 @@
 # ERD
 
-**현재 버전: v2.1**
-**최종 수정일: 2026-05-20**
+**현재 버전: v2.3**
+**최종 수정일: 2026-05-28**
 
 ## 개요
 **ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
@@ -18,6 +18,7 @@
 - `id` : PK, bigint
 - `company_code` : 회사코드, varchar, UNIQUE
 - `name` : 회사명, varchar
+- `probation_period` : 수습기간, int, 기본값 `30`, NOT NULL
 - `created_at` : 생성 일시, datetime
 - `updated_at` : 수정 일시, datetime
 
@@ -205,11 +206,20 @@
 - `id` : PK, bigint
 - `user_id` : FK → `users.id`
 - `suggestion_id` : FK → `onboarding_suggestions.id`, nullable
+- `answer_to_message_id` : FK → `chat_messages.id`, nullable
 - `sender_type` : 발신 주체 구분값, varchar
 - `message_type` : 메시지 유형 구분값, varchar
 - `content` : 메시지 내용, text
 - `recommended_contacts_json` : 추천 담당자 카드 재구성을 위한 JSON 문자열 스냅샷, text, nullable
+- `latency_ms` : 사용자 질문부터 봇 답변 생성 완료까지 걸린 시간, bigint, nullable
 - `created_at` : 메시지 생성 일시, datetime
+
+### 제약조건
+- `user_id`는 `users.id`를 참조한다.
+- `suggestion_id`는 `onboarding_suggestions.id`를 참조하며, 온보딩 제안 메시지가 아닌 경우 `null`을 허용한다.
+- `answer_to_message_id`는 같은 테이블의 `chat_messages.id`를 참조한다.
+- `answer_to_message_id`가 참조하는 질문 메시지가 삭제되는 경우 `ON DELETE SET NULL` 정책에 따라 답변 메시지의 연결값은 `null`로 변경된다.
+- `answer_to_message_id` 조회 성능을 위해 `idx_chat_messages_answer_to_message_id` 인덱스를 둔다.
 
 ### 설명
 - 사용자의 질문, 챗봇의 답변, 챗봇의 선제 제안 메시지를 모두 저장한다.
@@ -223,9 +233,15 @@
 - `rag_answer`는 답변이 생성된 경우로 간주한다.
 - `no_result`는 질문 범위는 맞지만 답변 가능한 정보가 없는 경우로 간주한다.
 - 온보딩 가이드 기반 제안인 경우 어떤 온보딩 가이드를 참조했는지 `suggestion_id`로 연결할 수 있다.
+- 봇 답변 메시지는 `answer_to_message_id`를 통해 어떤 사용자 질문에 대한 답변인지 직접 연결할 수 있다.
+- 여러 사용자가 동시에 질문하더라도 단순히 직전 메시지 기준으로 답변을 추론하지 않고, `answer_to_message_id`를 통해 USER 질문과 BOT 답변의 관계를 명확하게 관리한다.
+- `answer_to_message_id`는 주로 `sender_type = BOT`이고 `message_type`이 `rag_answer`, `no_result`, `out_of_scope`인 메시지에서 사용한다.
+- `suggestion` 메시지처럼 특정 사용자 질문에 대한 답변이 아닌 메시지는 `answer_to_message_id`를 `null`로 둘 수 있다.
 - 채팅형 UI에서 시간순 메시지 조회 및 대화 이력 관리에 활용할 수 있다.
 - `recommended_contacts_json`은 `message_type = no_result`인 답변에서 추천 담당자 목록을 저장할 때 사용한다.
 - `recommended_contacts_json`은 과거 채팅 조회 시 추천 담당자 카드를 동일하게 재구성하기 위한 메시지 시점의 스냅샷이다.
+- `latency_ms`는 사용자 질문 저장 이후 봇 답변 생성이 완료되기까지 걸린 시간을 밀리초 단위로 저장한다.
+- `latency_ms`는 봇 답변 메시지 기준으로 저장하는 것을 권장하며, 사용자 질문 메시지나 온보딩 제안 메시지에서는 `null`을 허용한다.
 
 ---
 
@@ -285,6 +301,7 @@
 - `document_files` 1 : N `document_backup_jobs`
 - `users` 1 : N `chat_messages`
 - `onboarding_suggestions` 1 : N `chat_messages` (선택적 연결)
+- `chat_messages` 1 : N `chat_messages` (답변 메시지의 `answer_to_message_id`가 질문 메시지를 참조하는 자기참조 관계)
 - `chat_messages` 1 : N `chat_message_documents`
 - `documents` 1 : N `chat_message_documents`
 - `users` 1 : N `user_activity_logs`
@@ -302,6 +319,8 @@
 - 채팅 메시지 1개는 여러 개의 근거 문서와 연결될 수 있다.
 - 문서 1개는 여러 개의 채팅 메시지의 근거 문서로 연결될 수 있다.
 - 사용자 1명은 여러 개의 활동 로그를 가질 수 있다.
+- 채팅 메시지는 자기참조 관계를 통해 BOT 답변 메시지가 어떤 USER 질문 메시지에 대한 답변인지 직접 연결할 수 있다.
+- 질문 메시지가 삭제되더라도 답변 메시지 자체는 유지되며, `answer_to_message_id`만 `null`로 변경된다.
 
 ---
 
@@ -320,6 +339,8 @@
 - v1.8 (2026-04-30): `chat_messages` 테이블에 `recommended_contacts_json` 컬럼 추가
 - v2.0 (2026-05-19): `users.department`, `users.team_name` 컬럼 추가 및 각 컬럼 최대 길이 100자 기준 반영
 - v2.1 (2026-05-20): 회사별 부서/팀 기준정보 관리를 위한 `company_organization_units` 테이블 추가, `users.team_name` nullable 반영, `users(company_code, department, team_name)`와 `company_organization_units(company_code, department, team_name)` 간 복합 외래키 관계 반영
+- v2.2 (2026-05-27): `chat_messages.answer_to_message_id`, `chat_messages.latency_ms` 컬럼 추가, 질문-답변 직접 연결을 위한 자기참조 외래키 및 답변 생성 소요 시간 저장 구조 반영
+- v2.3 (2026-05-28): `companies` 테이블에 `probation_period` 컬럼 추가
 
 ---
 

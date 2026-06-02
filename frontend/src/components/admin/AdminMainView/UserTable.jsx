@@ -2,6 +2,27 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import UserRow from "./UserRow";
 import LoadingState from "./LoadingState";
 import EmptyState from "./EmptyState";
+import triangleDown from "../../../assets/triangle_down.svg";
+
+function SortHeader({ label, sortKey, sortBy, sortDirection, handleSort }) {
+  return (
+    <span className="px-[2px] flex items-center justify-center gap-[6px]">
+      <span>{label}</span>
+      <div className="flex flex-col gap-[2px]">
+        <img
+          src={triangleDown}
+          onClick={() => handleSort(sortKey, "asc")}
+          className={`cursor-pointer rotate-180 w-[10px] ${sortBy === sortKey && sortDirection === "asc" ? "opacity-100" : "opacity-30"}`}
+        />
+        <img
+          src={triangleDown}
+          onClick={() => handleSort(sortKey, "desc")}
+          className={`cursor-pointer w-[10px] ${sortBy === sortKey && sortDirection === "desc" ? "opacity-100" : "opacity-30"}`}
+        />
+      </div>
+    </span>
+  );
+}
 
 function UserTable({
   users,
@@ -13,13 +34,39 @@ function UserTable({
   setSelectedDept,
   setCurrentPage,
   orgOptions,
+  sortBy,
+  sortDirection,
+  setSortBy,
+  setSortDirection,
 }) {
+  // 외부 클릭 시 정렬 드롭다운 닫기
+    const handleSort = (by, direction) => {
+    setSortBy(by);
+    setSortDirection(direction);
+    setCurrentPage(0);
+  };
+
   return (
     <div className="hidden md:flex md:flex-col">
       {/* 테이블 헤더 */}
       <div className="min-w-[900px] grid grid-cols-8 bg-[#336B9714] rounded-[8px] md:px-0 lg:px-[24px] py-[12px] md:text-[12px] lg:text-[16px] text-center font-medium">
-        <span className="px-[24px]">이름</span>
-        <span className="px-[24px]">사번</span>
+        {/* 이름 정렬 */}
+        <SortHeader
+          label="이름"
+          sortKey="name"
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          handleSort={handleSort}
+        />
+
+        {/* 사번 정렬 */}
+        <SortHeader
+          label="사번"
+          sortKey="employeeNumber"
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          handleSort={handleSort}
+        />
         {/* 부서(팀) 헤더 */}
         <span
           ref={deptFilterRef}
@@ -75,7 +122,14 @@ function UserTable({
             </ul>
           )}
         </span>
-        <span className="px-[20px]">입사일</span>
+        {/* 입사일 정렬 */}
+        <SortHeader
+          label="입사일"
+          sortKey="hireDate"
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          handleSort={handleSort}
+        />
         <span className="px-[24px]">입사일차</span>
         <span className="px-[24px]">마지막 접속</span>
         <span className="px-[24px]">질문 횟수</span>

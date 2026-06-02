@@ -7,6 +7,7 @@ ChromaDB에 즉시 추가되어 이후 AI 응답에 활용됩니다.
 """
 
 from pathlib import Path
+from typing import List
 
 from fastapi import APIRouter, HTTPException
 from langchain_core.documents import Document
@@ -20,6 +21,90 @@ from core.vectorstore import get_vectorstore
 from memory.unanswered_store import answer_question, delete_question, get_all
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+# ── no_result 요약 엔드포인트 ────────────────────────────────────
+
+_SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """당신은 기업 온보딩 문서 보강을 돕는 AI입니다.
+신입 직원들이 반복적으로 질문했지만 회사 문서에서 답을 찾지 못한 질문 목록을 분석하여,
+관리자가 어떤 문서를 보강해야 하는지 파악할 수 있도록 요약과 액션을 제안합니다.
+
+중요한 규칙:
+- 회사 정책을 임의로 확정하지 않습니다.
+- 문서 보강이 필요한 가능성만 제안합니다.
+- 요약은 2-3문장으로 간결하게 작성합니다.
+- 액션은 2-3개로 제한합니다.
+- 마크다운 볼드(**) 등 특수 기호 사용 금지. 일반 텍스트로만 출력합니다."""),
+    ("human", """다음은 신입 직원들이 반복적으로 질문했지만 회사 문서에서 답변 근거를 찾지 못한 질문 목록입니다.
+
+질문 목록:
+{questions}
+
+이 질문들을 분석하여 아래 형식으로 답변해주세요:
+
+요약: (공통 주제와 어떤 문서가 부족한지 2-3문장)
+액션:
+1. (구체적인 문서 보강 행동)
+2. (구체적인 문서 보강 행동)
+3. (필요시 추가)"""),
+])
+
+
+class NoResultSummaryRequest(BaseModel):
+    companyCode: str = Field(..., description="회사 코드")
+    questions: List[str] = Field(..., description="no_result 질문 목록")
+
+
+class NoResultSummaryResponse(BaseModel):
+    companyCode: str
+    questionCount: int
+    summary: str
+    actions: List[str]
+
+
+@router.post("/no-result/summary", response_model=NoResultSummaryResponse, tags=["internal"])
+async def summarize_no_result(req: NoResultSummaryRequest):
+    """
+    no_result 질문 목록을 받아 AI가 요약 + 문서 보강 액션을 반환합니다.
+    관리자 대시보드에서 문서 보강 후보 항목 클릭 시 호출합니다.
+    """
+    if not req.questions:
+        raise HTTPException(status_code=400, detail="질문 목록이 비어있습니다.")
+
+    questions_text = "\n".join(f"- {q}" for q in req.questions)
+
+    try:
+        chain = _SUMMARY_PROMPT | get_llm() | StrOutputParser()
+        result = chain.invoke({"questions": questions_text})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"요약 생성 실패: {str(e)}")
+
+    # 요약과 액션 파싱 (**마크다운 볼드** 포함 대응)
+    summary = ""
+    actions = []
+    lines = result.strip().split("\n")
+    in_actions = False
+    for line in lines:
+        clean = line.strip().lstrip("*").rstrip("*").strip()
+        if clean.startswith("요약:"):
+            summary = clean.replace("요약:", "").strip()
+            in_actions = False
+        elif "액션:" in clean:
+            in_actions = True
+        elif in_actions and clean and clean[0].isdigit() and "." in clean:
+            action = clean.split(".", 1)[1].strip()
+            if action:
+                actions.append(action.lstrip("*").rstrip("*").strip())
+
+    if not summary:
+        summary = result.strip()
+
+    return NoResultSummaryResponse(
+        companyCode=req.companyCode,
+        questionCount=len(req.questions),
+        summary=summary,
+        actions=actions,
+    )
 
 _QA_DOC_PATH = Path(__file__).parent.parent / "docs" / "qa_knowledge.md"
 
