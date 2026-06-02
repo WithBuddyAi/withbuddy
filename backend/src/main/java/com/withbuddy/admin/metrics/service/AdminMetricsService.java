@@ -120,8 +120,12 @@ public class AdminMetricsService {
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
                                 defaultLong(metric.getTotalAiAnswers()),
-                                defaultLong(metric.getUnansweredAnswers()),
-                                calculateRate(metric.getUnansweredAnswers(), metric.getTotalAiAnswers())
+                                defaultLong(metric.getNoResultAnswers()),
+                                calculateRate(metric.getNoResultAnswers(), metric.getTotalAiAnswers()),
+                                defaultLong(metric.getOutOfScopeAnswers()),
+                                calculateRate(metric.getOutOfScopeAnswers(), metric.getTotalAiAnswers()),
+                                defaultLong(metric.getSensitiveAnswers()),
+                                calculateRate(metric.getSensitiveAnswers(), metric.getTotalAiAnswers())
                         ))
                         .toList();
 

@@ -44,9 +44,19 @@ public class AdminUserController implements AdminUserControllerDocs {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String department,
-            @RequestParam(required = false) String teamName
+            @RequestParam(required = false) String teamName,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String sortDirection
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
-        return ResponseEntity.ok(adminUserService.getUsers(principal, page, size, department, teamName));
+        return ResponseEntity.ok(adminUserService.getUsers(
+                principal,
+                page,
+                size,
+                department,
+                teamName,
+                sortBy,
+                sortDirection
+        ));
     }
 }

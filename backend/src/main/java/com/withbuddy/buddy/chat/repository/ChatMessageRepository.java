@@ -57,4 +57,10 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             SenderType senderType,
             LocalDateTime createdAt
     );
+
+    long countByUserIdAndSenderTypeAndMessageType(
+            Long userId,
+            SenderType senderType,
+            MessageType messageType
+    );
 }

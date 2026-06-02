@@ -1,3 +1,4 @@
+import { CircleCheckBig } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import axiosInstance from "../../../api/axiosInstance";
 import UserMobileList from "./UserMobileList";
@@ -18,7 +19,8 @@ function AdminMainView({ handleViewChange, successMessage }) {
   const [orgOptions, setOrgOptions] = useState([]);
   const [selectedDept, setSelectedDept] = useState("");
   const [showDeptFilter, setShowDeptFilter] = useState(false);
-  // const [sortOrder, setSortOrder] = useState(""); // "asc" | "desc" | ""
+  const [sortBy, setSortBy] = useState("");
+  const [sortDirection, setSortDirection] = useState("asc");
   const deptFilterRef = useRef(null); // 외부 클릭 시 닫기용
 
   useEffect(() => {
@@ -31,8 +33,15 @@ function AdminMainView({ handleViewChange, successMessage }) {
           size: isMobile ? 5 : 10,
         };
 
+        // 부서 필터
         if (selectedDept) {
           params.department = selectedDept;
+        }
+
+        // 정렬(이름, 사번, 입사일)
+        if (sortBy) {
+          params.sortBy = sortBy;
+          params.sortDirection = sortDirection;
         }
 
         const res = await axiosInstance.get("/api/v1/admin/users", { params });
@@ -45,7 +54,7 @@ function AdminMainView({ handleViewChange, successMessage }) {
       }
     };
     fetchUsers();
-  }, [currentPage, selectedDept, isMobile]);
+  }, [currentPage, selectedDept, isMobile, sortBy, sortDirection]);
 
   // 화면 너비 감지
   useEffect(() => {
@@ -106,6 +115,10 @@ function AdminMainView({ handleViewChange, successMessage }) {
           setShowDeptFilter={setShowDeptFilter}
           setSelectedDept={setSelectedDept}
           setCurrentPage={setCurrentPage}
+          sortBy={sortBy}
+          sortDirection={sortDirection}
+          setSortBy={setSortBy}
+          setSortDirection={setSortDirection}
         />
       </div>
 

@@ -6,6 +6,7 @@ import com.withbuddy.infrastructure.cache.AppCacheProperties;
 import com.withbuddy.infrastructure.cache.CacheInvalidationPublisher;
 import com.withbuddy.infrastructure.cache.CacheKeyBuilder;
 import com.withbuddy.infrastructure.cache.CachePayloadCodec;
+import com.withbuddy.infrastructure.cache.CacheResilienceGuard;
 import com.withbuddy.infrastructure.cache.CacheTtlPolicy;
 import com.withbuddy.infrastructure.cache.InternalApiLocalCacheValue;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import static com.withbuddy.internal.api.InternalApiModels.CacheDeleteRequest;
 import static com.withbuddy.internal.api.InternalApiModels.CacheGetMultiRequest;
@@ -42,9 +44,12 @@ public class InternalCacheApiService {
     private final CacheKeyBuilder cacheKeyBuilder;
     private final CachePayloadCodec cachePayloadCodec;
     private final CacheTtlPolicy cacheTtlPolicy;
+    private final CacheResilienceGuard cacheResilienceGuard;
     private final CacheInvalidationPublisher cacheInvalidationPublisher;
+
     @Qualifier("internalApiLocalCache")
     private final Cache<String, InternalApiLocalCacheValue> internalApiLocalCache;
+
     private final Set<String> swrRefreshInFlight = ConcurrentHashMap.newKeySet();
 
     public CacheGetResponse get(CacheGetRequest request) {
@@ -73,9 +78,21 @@ public class InternalCacheApiService {
     public CacheWriteResponse set(CacheSetRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
-        String encoded = cachePayloadCodec.encode(request.value());
-        redisTemplate.opsForValue().set(resolvedKey, encoded, cacheTtlPolicy.resolve(request.ttlSeconds()));
-        internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(request.value()));
+        var ttl = cacheTtlPolicy.resolve(request.ttlSeconds());
+
+        cacheResilienceGuard.execute(
+                "set",
+                () -> {
+                    String encoded = cachePayloadCodec.encode(request.value());
+                    redisTemplate.opsForValue().set(resolvedKey, encoded, ttl);
+                    return null;
+                },
+                () -> null
+        );
+
+        if (isL1Enabled()) {
+            internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(request.value(), ttl.toMillis()));
+        }
         cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
         return new CacheWriteResponse(namespace, 1);
     }
@@ -95,9 +112,19 @@ public class InternalCacheApiService {
             }
             seenKeys.add(resolvedKey);
             try {
-                String encoded = cachePayloadCodec.encode(item.value());
-                redisTemplate.opsForValue().set(resolvedKey, encoded, ttl);
-                internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(item.value()));
+                cacheResilienceGuard.execute(
+                        "set_multi",
+                        () -> {
+                            String encoded = cachePayloadCodec.encode(item.value());
+                            redisTemplate.opsForValue().set(resolvedKey, encoded, ttl);
+                            return null;
+                        },
+                        () -> null
+                );
+
+                if (isL1Enabled()) {
+                    internalApiLocalCache.put(resolvedKey, InternalApiLocalCacheValue.hit(item.value(), ttl.toMillis()));
+                }
                 cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
                 written += 1;
             } catch (RuntimeException ex) {
@@ -110,18 +137,30 @@ public class InternalCacheApiService {
     public CacheWriteResponse delete(CacheDeleteRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
-        Boolean deleted = redisTemplate.delete(resolvedKey);
-        internalApiLocalCache.invalidate(resolvedKey);
+        Boolean deleted = cacheResilienceGuard.execute(
+                "delete",
+                () -> redisTemplate.delete(resolvedKey),
+                () -> Boolean.FALSE
+        );
+        if (isL1Enabled()) {
+            internalApiLocalCache.invalidate(resolvedKey);
+        }
         cacheInvalidationPublisher.publishKeyInvalidation(resolvedKey);
         return new CacheWriteResponse(namespace, Boolean.TRUE.equals(deleted) ? 1 : 0);
     }
 
     private InternalApiLocalCacheValue resolveLocalValue(String resolvedKey) {
+        if (!isL1Enabled()) {
+            return loadFromRedis(resolvedKey);
+        }
+
         long now = System.currentTimeMillis();
         long negativeTtlMillis = Math.max(1, cacheProperties.getL1().getNegativeTtlSeconds()) * 1000L;
 
         InternalApiLocalCacheValue cached = internalApiLocalCache.getIfPresent(resolvedKey);
-        if (cached != null && !cached.isNegativeExpired(now, negativeTtlMillis)) {
+        if (cached != null
+                && !cached.isNegativeExpired(now, negativeTtlMillis)
+                && !cached.isPositiveExpired(now)) {
             triggerSWRIfNeeded(resolvedKey, cached, now);
             return cached;
         }
@@ -132,12 +171,20 @@ public class InternalCacheApiService {
     }
 
     private InternalApiLocalCacheValue loadFromRedis(String resolvedKey) {
-        String raw = redisTemplate.opsForValue().get(resolvedKey);
-        if (raw == null) {
-            return InternalApiLocalCacheValue.miss();
-        }
-        JsonNode decoded = cachePayloadCodec.decode(raw);
-        return InternalApiLocalCacheValue.hit(decoded);
+        return cacheResilienceGuard.execute(
+                "get",
+                () -> {
+                    String raw = redisTemplate.opsForValue().get(resolvedKey);
+                    if (raw == null) {
+                        return InternalApiLocalCacheValue.miss();
+                    }
+                    JsonNode decoded = cachePayloadCodec.decode(raw);
+                    Long ttlMillis = redisTemplate.getExpire(resolvedKey, TimeUnit.MILLISECONDS);
+                    long normalizedTtl = ttlMillis == null || ttlMillis < 0 ? -1L : ttlMillis;
+                    return InternalApiLocalCacheValue.hit(decoded, normalizedTtl);
+                },
+                InternalApiLocalCacheValue::miss
+        );
     }
 
     private void triggerSWRIfNeeded(String resolvedKey, InternalApiLocalCacheValue cached, long now) {
@@ -192,5 +239,9 @@ public class InternalCacheApiService {
             throw new IllegalArgumentException("cache key는 영문/숫자/:/_/./- 문자만 사용할 수 있습니다.");
         }
         return cacheKeyBuilder.build(namespace, normalizedKey);
+    }
+
+    private boolean isL1Enabled() {
+        return cacheProperties.getL1().isEnabled();
     }
 }

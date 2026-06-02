@@ -20,7 +20,7 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role = 'USER'
+               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= DATE_SUB(:asOfDate, INTERVAL 6 DAY)
             LEFT JOIN chat_messages rag_message
                 ON rag_message.user_id = u.id
@@ -50,7 +50,7 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role = 'USER'
+               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= :asOfDate
             LEFT JOIN user_activity_logs d0_click
                 ON d0_click.user_id = u.id
@@ -86,7 +86,7 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role = 'USER'
+               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= DATE_SUB(:asOfDate, INTERVAL 6 DAY)
             LEFT JOIN user_activity_logs d0_chat
                 ON d0_chat.user_id = u.id
@@ -118,17 +118,23 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
                 c.name AS companyName,
                 COUNT(ai_message.id) AS totalAiAnswers,
                 COUNT(CASE
-                    WHEN ai_message.message_type IN ('no_result', 'out_of_scope') THEN 1
-                END) AS unansweredAnswers
+                    WHEN ai_message.message_type = 'no_result' THEN 1
+                END) AS noResultAnswers,
+                COUNT(CASE
+                    WHEN ai_message.message_type = 'out_of_scope' THEN 1
+                END) AS outOfScopeAnswers,
+                COUNT(CASE
+                    WHEN ai_message.message_type = 'sensitive' THEN 1
+                END) AS sensitiveAnswers
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role = 'USER'
+               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= :asOfDate
             LEFT JOIN chat_messages ai_message
                 ON ai_message.user_id = u.id
                AND ai_message.sender_type = 'BOT'
-               AND ai_message.message_type IN ('rag_answer', 'no_result', 'out_of_scope')
+               AND ai_message.message_type IN ('rag_answer', 'no_result', 'out_of_scope', 'sensitive')
                AND ai_message.created_at < :dayAfter
             WHERE (:companyCode IS NULL OR c.company_code = :companyCode)
             GROUP BY c.company_code, c.name
@@ -163,7 +169,7 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role = 'USER'
+               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= :asOfDate
             LEFT JOIN (
                 SELECT
@@ -222,7 +228,9 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
         String getCompanyCode();
         String getCompanyName();
         Long getTotalAiAnswers();
-        Long getUnansweredAnswers();
+        Long getNoResultAnswers();
+        Long getOutOfScopeAnswers();
+        Long getSensitiveAnswers();
     }
 
     interface TtaMetricProjection {

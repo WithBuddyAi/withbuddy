@@ -57,6 +57,12 @@ app:
       enabled: ${APP_CACHE_INVALIDATION_ENABLED:true}
       channel: ${APP_CACHE_INVALIDATION_CHANNEL:withbuddy:cache:invalidate}
       node-id: ${APP_CACHE_INVALIDATION_NODE_ID:}
+    resilience:
+      enabled: ${APP_CACHE_RESILIENCE_ENABLED:true}
+      circuit-failure-threshold: ${APP_CACHE_RESILIENCE_CIRCUIT_FAILURE_THRESHOLD:5}
+      circuit-open-seconds: ${APP_CACHE_RESILIENCE_CIRCUIT_OPEN_SECONDS:30}
+      fallback-rate-per-second: ${APP_CACHE_RESILIENCE_FALLBACK_RATE_PER_SECOND:20}
+      fallback-burst: ${APP_CACHE_RESILIENCE_FALLBACK_BURST:40}
   security:
     storage-api:
       enabled: ${STORAGE_API_AUTH_ENABLED:true}
@@ -71,9 +77,6 @@ app:
     queue-analytics: ${RABBITMQ_QUEUE_ANALYTICS:q.analytics}
     queue-internal-tasks: ${RABBITMQ_QUEUE_INTERNAL_TASKS:q.internal.tasks}
     queue-internal-tasks-dlq: ${RABBITMQ_QUEUE_INTERNAL_TASKS_DLQ:q.internal.tasks.dlq}
-    internal-tasks-routing-key: ${RABBITMQ_INTERNAL_TASKS_ROUTING_KEY:internal.tasks.requested}
-    internal-tasks-dlq-routing-key: ${RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY:dlq.internal.tasks}
-    internal-tasks-dlq-routing-key-legacy: ${RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY_LEGACY:internal.tasks.dlq}
     nudge-ttl-ms: ${RABBITMQ_NUDGE_TTL_MS:86400000}
     analytics-ttl-ms: ${RABBITMQ_ANALYTICS_TTL_MS:30000}
     listener-prefetch: ${RABBITMQ_LISTENER_PREFETCH:10}
@@ -112,6 +115,10 @@ app:
       bucket: ${STORAGE_BACKUP_BUCKET:withbuddy-backup}
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
