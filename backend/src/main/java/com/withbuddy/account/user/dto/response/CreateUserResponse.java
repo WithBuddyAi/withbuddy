@@ -13,7 +13,7 @@ public record CreateUserResponse(
         @Schema(description = "회사 코드", example = "WB0001")
         String companyCode,
 
-        @Schema(description = "회사 이름", example = "WithBuddy Inc.")
+        @Schema(description = "회사 이름", example = "테크 주식회사")
         String companyName,
 
         @Schema(description = "사용자", example = "USER")
