@@ -1,5 +1,6 @@
 package com.withbuddy.account.auth.dto.response;
 
+import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -9,27 +10,30 @@ import java.time.LocalDate;
 
 @Getter
 @AllArgsConstructor
-@Schema(description = "로그인 사용자 정보")
+@Schema(description = "Login user information")
 public class LoginUserResponse {
 
-    @Schema(description = "사용자 식별자", example = "1")
+    @Schema(description = "User ID", example = "1")
     private Long id;
 
-    @Schema(description = "회사 코드", example = "WB0001")
+    @Schema(description = "Company code", example = "WB0001")
     private String companyCode;
 
-    @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE", "ADMIN", "SERVICE_ADMIN"})
+    @Schema(description = "User role", example = "USER", allowableValues = {"USER", "ADMIN", "SERVICE_ADMIN"})
     private UserRole role;
 
-    @Schema(description = "회사명", example = "테크 주식회사")
+    @Schema(description = "User account status", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
+    private UserAccountStatus accountStatus;
+
+    @Schema(description = "Company name", example = "WithBuddy Inc.")
     private String companyName;
 
-    @Schema(description = "사번", example = "20260001")
+    @Schema(description = "Employee number", example = "20260001")
     private String employeeNumber;
 
-    @Schema(description = "이름", example = "김지원")
+    @Schema(description = "User name", example = "Kim Jiwon")
     private String name;
 
-    @Schema(description = "입사일", example = "2026-03-01")
+    @Schema(description = "Hire date", example = "2026-03-01")
     private LocalDate hireDate;
 }
