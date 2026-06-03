@@ -25,7 +25,7 @@ public record CreateUserResponse(
         @Schema(description = "사번", example = "20260001")
         String employeeNumber,
 
-        @Schema(description = "이름", example = "Kim Jiwon")
+        @Schema(description = "이름", example = "김지원")
         String name,
 
         @Schema(description = "입사일", example = "2026-03-01", type = "string", format = "date")
