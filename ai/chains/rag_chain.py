@@ -6,6 +6,7 @@ retriever.py(검색)와 generator.py(생성)를 조합하는 오케스트레이�
 """
 
 import asyncio
+import re
 from typing import AsyncGenerator, Tuple, List
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -241,7 +242,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     yield "__STAGE__generating", None, None, None
 
     full_answer = ""
-    async for chunk in stream_answer(
+    _buf = ""
+    async for _raw in stream_answer(
         question=result.question,
         context=formatted_context,
         chat_history=chat_history,
@@ -254,8 +256,30 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         today_date=_date.today().strftime("%Y년 %m월 %d일"),
         hire_info=_build_hire_info(hire_date),
     ):
-        full_answer += chunk
-        yield chunk, None, None, None
+        _buf += _raw
+        while True:
+            idx = _buf.find('\n\n')
+            if idx == -1:
+                break
+            after = idx + 2
+            if after >= len(_buf):
+                break  # \n\n이 버퍼 끝 — 다음 청크 기다림
+            if _buf[after:after + 2] == '**':
+                out = _buf[:after]  # ** 앞 \n\n은 섹션 구분으로 유지
+            else:
+                out = _buf[:idx] + '\n'  # 나머지 \n\n → \n으로 교체
+            full_answer += out
+            yield out, None, None, None
+            _buf = _buf[after:]
+        if len(_buf) > 100:
+            safe = _buf[:-100]
+            full_answer += safe
+            yield safe, None, None, None
+            _buf = _buf[-100:]
+    if _buf:
+        final = re.sub(r'\n\n(?!\*\*)', '\n', _buf)
+        full_answer += final
+        yield final, None, None, None
 
     fixed = await postprocess_answer_async(full_answer)
     if fixed != full_answer:
