@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 public class DocumentStorageService implements DocumentDownloadService {
     private static final Logger log = LoggerFactory.getLogger(DocumentStorageService.class);
     private static final int BACKUP_JOB_ERROR_MAX_LENGTH = 1000;
+    private static final long COMPANY_UPLOAD_QUOTA_BYTES = 2L * 1024L * 1024L * 1024L;
     private static final String DEFAULT_DOCUMENT_CONTENT = "Object Storage 업로드 문서";
 
     private enum DeleteOutcome {
@@ -138,6 +139,8 @@ public class DocumentStorageService implements DocumentDownloadService {
                 );
             }
         }
+
+        validateCompanyUploadQuota(finalCompanyCode, file.getSize());
 
         byte[] payload = toBytes(file);
         String extension = resolveExtension(file.getOriginalFilename());
@@ -223,6 +226,17 @@ public class DocumentStorageService implements DocumentDownloadService {
         );
     }
 
+    @Transactional
+    public DocumentUploadResponse uploadCompanyDocument(
+            MultipartFile file,
+            String title,
+            String documentType,
+            String department
+    ) {
+        resolveCompanyDocumentManagementScope();
+        return upload(file, title, documentType, department, null);
+    }
+
     public DocumentBackupRetryResponse retryBackup(Long documentId) {
         RequesterScope requesterScope = resolveDocumentManagementScope();
 
@@ -259,6 +273,24 @@ public class DocumentStorageService implements DocumentDownloadService {
         return new DocumentDeleteResponse(documentId, "문서가 성공적으로 삭제되었습니다.");
     }
 
+    @Transactional
+    public DocumentDeleteResponse deleteCompanyDocument(Long documentId, boolean confirm) {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+        if (!confirm) {
+            throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "문서 삭제는 confirm=true가 필요합니다.");
+        }
+
+        DeleteOutcome outcome = deleteDocumentInternal(requesterScope, documentId, true);
+        if (outcome == DeleteOutcome.NOT_FOUND) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다.");
+        }
+        if (outcome == DeleteOutcome.FORBIDDEN) {
+            throw new StorageException(HttpStatus.FORBIDDEN, "RESOURCE_004", "documentId", "관리자 회사 문서만 삭제할 수 있습니다.");
+        }
+
+        return new DocumentDeleteResponse(documentId, "문서가 성공적으로 삭제되었습니다.");
+    }
+
     public DocumentDeleteCheckResponse getDeleteCheck(Long documentId) {
         RequesterScope requesterScope = resolveDocumentManagementScope();
 
@@ -281,11 +313,56 @@ public class DocumentStorageService implements DocumentDownloadService {
         );
     }
 
+    public DocumentDeleteCheckResponse getCompanyDeleteCheck(Long documentId) {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+        validateExactCompanyBoundary(requesterScope, document.getCompanyCode());
+
+        Optional<DocumentFile> optionalFile = documentFileRepository.findByDocumentId(documentId);
+
+        return new DocumentDeleteCheckResponse(
+                document.getId(),
+                document.getTitle(),
+                document.getCompanyCode(),
+                document.isActive(),
+                optionalFile.map(DocumentFile::getOriginalFileName).orElse(null),
+                optionalFile.map(DocumentFile::getFileSize).orElse(null),
+                optionalFile.map(file -> file.getBackupStatus().name()).orElse(null),
+                document.getCreatedAt(),
+                true
+        );
+    }
+
     public DocumentBulkDeleteCheckResponse getBulkDeleteCheck(DocumentBulkDeleteRequest request) {
         RequesterScope requesterScope = resolveDocumentManagementScope();
         LinkedHashSet<Long> deduplicatedIds = deduplicateDocumentIds(request.getDocumentIds());
 
-        DeleteInspection inspection = inspectDeleteOutcomes(requesterScope, deduplicatedIds);
+        DeleteInspection inspection = inspectDeleteOutcomes(requesterScope, deduplicatedIds, false);
+        String message = buildBulkDeleteCheckMessage(
+                deduplicatedIds.size(),
+                inspection.deletableIds(),
+                inspection.notFoundIds(),
+                inspection.forbiddenIds()
+        );
+
+        return new DocumentBulkDeleteCheckResponse(
+                true,
+                message,
+                deduplicatedIds.size(),
+                inspection.deletableIds().size(),
+                inspection.deletableIds(),
+                inspection.notFoundIds(),
+                inspection.forbiddenIds()
+        );
+    }
+
+    public DocumentBulkDeleteCheckResponse getCompanyBulkDeleteCheck(DocumentBulkDeleteRequest request) {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+        LinkedHashSet<Long> deduplicatedIds = deduplicateDocumentIds(request.getDocumentIds());
+
+        DeleteInspection inspection = inspectDeleteOutcomes(requesterScope, deduplicatedIds, true);
         String message = buildBulkDeleteCheckMessage(
                 deduplicatedIds.size(),
                 inspection.deletableIds(),
@@ -328,6 +405,28 @@ public class DocumentStorageService implements DocumentDownloadService {
         );
     }
 
+    public DocumentBulkDeleteCheckResponse getCompanyDeleteAllCheck() {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+        List<Long> allDocumentIds = documentRepository.findActiveCompanyDocumentIds(requesterScope.companyCode());
+
+        String message = buildBulkDeleteCheckMessage(
+                allDocumentIds.size(),
+                allDocumentIds,
+                List.of(),
+                List.of()
+        );
+
+        return new DocumentBulkDeleteCheckResponse(
+                true,
+                message,
+                allDocumentIds.size(),
+                allDocumentIds.size(),
+                allDocumentIds,
+                List.of(),
+                List.of()
+        );
+    }
+
     @Transactional
     public DocumentBulkDeleteResponse bulkDeleteDocuments(
             DocumentBulkDeleteRequest request,
@@ -342,6 +441,19 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     @Transactional
+    public DocumentBulkDeleteResponse bulkDeleteCompanyDocuments(
+            DocumentBulkDeleteRequest request,
+            boolean confirm
+    ) {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+        if (!confirm) {
+            throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "선택 삭제는 confirm=true가 필요합니다.");
+        }
+
+        return executeBulkDelete(requesterScope, request.getDocumentIds(), true);
+    }
+
+    @Transactional
     public DocumentBulkDeleteResponse deleteAllDocuments(boolean confirm) {
         RequesterScope requesterScope = resolveDocumentManagementScope();
         if (!confirm) {
@@ -352,6 +464,17 @@ public class DocumentStorageService implements DocumentDownloadService {
                 ? documentRepository.findAllActiveDocumentIds()
                 : documentRepository.findActiveDocumentIdsByCompanyCode(requesterScope.companyCode());
         return executeBulkDelete(requesterScope, allDocumentIds);
+    }
+
+    @Transactional
+    public DocumentBulkDeleteResponse deleteAllCompanyDocuments(boolean confirm) {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+        if (!confirm) {
+            throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "confirm", "전체 삭제는 confirm=true가 필요합니다.");
+        }
+
+        List<Long> allDocumentIds = documentRepository.findActiveCompanyDocumentIds(requesterScope.companyCode());
+        return executeBulkDelete(requesterScope, allDocumentIds, true);
     }
 
     @Scheduled(fixedDelayString = "${app.storage.retry.interval-ms:60000}")
@@ -429,6 +552,34 @@ public class DocumentStorageService implements DocumentDownloadService {
                 documentPage.getSize(),
                 documentPage.getNumber()
         );
+    }
+
+    public DocumentListResponse listCompanyDocuments(
+            int page,
+            int size,
+            String scope,
+            String documentType,
+            String search
+    ) {
+        validateCompanyDocumentScope(scope);
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+        Page<Document> documentPage = documentRepository.searchCompanyDocuments(
+                requesterScope.companyCode(),
+                emptyToNull(documentType),
+                emptyToNull(search),
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
+        );
+
+        return toDocumentListResponse(documentPage);
+    }
+
+    public DocumentListResponse listCompanyDocuments(
+            int page,
+            int size,
+            String documentType,
+            String search
+    ) {
+        return listCompanyDocuments(page, size, "COMPANY", documentType, search);
     }
 
     public DocumentDetailResponse getDetail(Long documentId) {
@@ -805,6 +956,10 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     private DocumentBulkDeleteResponse executeBulkDelete(RequesterScope requesterScope, List<Long> documentIds) {
+        return executeBulkDelete(requesterScope, documentIds, false);
+    }
+
+    private DocumentBulkDeleteResponse executeBulkDelete(RequesterScope requesterScope, List<Long> documentIds, boolean companyOnly) {
         LinkedHashSet<Long> deduplicatedIds = deduplicateDocumentIds(documentIds);
 
         List<Long> deletedIds = new ArrayList<>();
@@ -812,7 +967,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         List<Long> forbiddenIds = new ArrayList<>();
 
         for (Long documentId : deduplicatedIds) {
-            DeleteOutcome outcome = deleteDocumentInternal(requesterScope, documentId);
+            DeleteOutcome outcome = deleteDocumentInternal(requesterScope, documentId, companyOnly);
             if (outcome == DeleteOutcome.DELETED) {
                 deletedIds.add(documentId);
             } else if (outcome == DeleteOutcome.NOT_FOUND) {
@@ -844,13 +999,13 @@ public class DocumentStorageService implements DocumentDownloadService {
         return new LinkedHashSet<>(documentIds);
     }
 
-    private DeleteInspection inspectDeleteOutcomes(RequesterScope requesterScope, LinkedHashSet<Long> deduplicatedIds) {
+    private DeleteInspection inspectDeleteOutcomes(RequesterScope requesterScope, LinkedHashSet<Long> deduplicatedIds, boolean companyOnly) {
         List<Long> deletableIds = new ArrayList<>();
         List<Long> notFoundIds = new ArrayList<>();
         List<Long> forbiddenIds = new ArrayList<>();
 
         for (Long documentId : deduplicatedIds) {
-            DeleteOutcome outcome = evaluateDeleteOutcome(requesterScope, documentId);
+            DeleteOutcome outcome = evaluateDeleteOutcome(requesterScope, documentId, companyOnly);
             if (outcome == DeleteOutcome.DELETED) {
                 deletableIds.add(documentId);
             } else if (outcome == DeleteOutcome.NOT_FOUND) {
@@ -864,12 +1019,22 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     private DeleteOutcome evaluateDeleteOutcome(RequesterScope requesterScope, Long documentId) {
+        return evaluateDeleteOutcome(requesterScope, documentId, false);
+    }
+
+    private DeleteOutcome evaluateDeleteOutcome(RequesterScope requesterScope, Long documentId, boolean companyOnly) {
         Optional<Document> optionalDocument = documentRepository.findByIdAndIsActiveTrue(documentId);
         if (optionalDocument.isEmpty()) {
             return DeleteOutcome.NOT_FOUND;
         }
 
         Document document = optionalDocument.get();
+        if (companyOnly
+                && !requesterScope.globalAccess()
+                && !requesterScope.companyCode().equals(document.getCompanyCode())) {
+            return DeleteOutcome.FORBIDDEN;
+        }
+
         if (!requesterScope.globalAccess()
                 && StringUtils.hasText(document.getCompanyCode())
                 && !document.getCompanyCode().equals(requesterScope.companyCode())) {
@@ -880,7 +1045,11 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     private DeleteOutcome deleteDocumentInternal(RequesterScope requesterScope, Long documentId) {
-        DeleteOutcome outcome = evaluateDeleteOutcome(requesterScope, documentId);
+        return deleteDocumentInternal(requesterScope, documentId, false);
+    }
+
+    private DeleteOutcome deleteDocumentInternal(RequesterScope requesterScope, Long documentId, boolean companyOnly) {
+        DeleteOutcome outcome = evaluateDeleteOutcome(requesterScope, documentId, companyOnly);
         if (outcome != DeleteOutcome.DELETED) {
             return outcome;
         }
@@ -929,6 +1098,70 @@ public class DocumentStorageService implements DocumentDownloadService {
         );
     }
 
+    public DocumentDetailResponse getCompanyDetail(Long documentId) {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+
+        validateExactCompanyBoundary(requesterScope, document.getCompanyCode());
+
+        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
+
+        return new DocumentDetailResponse(
+                document.getId(),
+                document.getTitle(),
+                document.getDocumentType(),
+                document.getDepartment(),
+                document.isActive(),
+                new DocumentDetailResponse.FileMetadata(
+                        file.getOriginalFileName(),
+                        file.getContentType(),
+                        file.getFileSize(),
+                        file.getChecksumSha256(),
+                        StorageSource.PRIMARY.name(),
+                        file.getBackupStatus().name()
+                ),
+                document.getCreatedAt(),
+                document.getUpdatedAt()
+        );
+    }
+
+    private DocumentListResponse toDocumentListResponse(Page<Document> documentPage) {
+        List<Long> documentIds = documentPage.getContent().stream()
+                .map(Document::getId)
+                .toList();
+
+        Map<Long, DocumentFile> fileMap = Map.of();
+        if (!documentIds.isEmpty()) {
+            try {
+                fileMap = documentFileRepository.findByDocumentIdIn(documentIds).stream()
+                        .collect(Collectors.toMap(
+                                DocumentFile::getDocumentId,
+                                documentFile -> documentFile,
+                                (existing, replacement) -> replacement
+                        ));
+            } catch (RuntimeException e) {
+                log.warn("臾몄꽌 ?뚯씪 硫뷀??곗씠??議고쉶 ?ㅽ뙣, 硫뷀??곗씠???놁씠 紐⑸줉??諛섑솚?⑸땲?? reason={}", safeMessage(e));
+            }
+        }
+
+        Map<Long, DocumentFile> resolvedFileMap = fileMap;
+        List<DocumentListItemResponse> content = documentPage.getContent().stream()
+                .map(document -> toListItem(document, resolvedFileMap.get(document.getId())))
+                .toList();
+
+        return new DocumentListResponse(
+                content,
+                documentPage.getTotalElements(),
+                documentPage.getTotalPages(),
+                documentPage.getSize(),
+                documentPage.getNumber()
+        );
+    }
+
+
     private StorageSource resolveSource(DocumentFile file) {
         boolean primaryExists = objectStorageClient.exists(
                 file.getPrimaryNamespace(),
@@ -956,6 +1189,18 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
     }
 
+    private void validateExactCompanyBoundary(RequesterScope requesterScope, String ownerCompanyCode) {
+        if (!StringUtils.hasText(ownerCompanyCode) || !ownerCompanyCode.equals(requesterScope.companyCode())) {
+            throw new StorageException(HttpStatus.FORBIDDEN, "RESOURCE_004", "documentId", "관리자 회사 문서만 접근할 수 있습니다.");
+        }
+    }
+
+    private void validateCompanyDocumentScope(String scope) {
+        if (!"COMPANY".equalsIgnoreCase(emptyToNull(scope))) {
+            throw new StorageException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "scope", "scope는 COMPANY만 지원합니다.");
+        }
+    }
+
     private RequesterScope resolveDocumentManagementScope() {
         RequesterScope scopeFromApiKey = resolveScopeFromApiKeyAuthentication();
         if (scopeFromApiKey != null) {
@@ -968,6 +1213,14 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
 
         throw new StorageException(HttpStatus.UNAUTHORIZED, "TOKEN_MISSING", "auth", "인증 토큰이 없습니다.");
+    }
+
+    private RequesterScope resolveCompanyDocumentManagementScope() {
+        RequesterScope requesterScope = resolveDocumentManagementScope();
+        if (requesterScope.globalAccess() || !StringUtils.hasText(requesterScope.companyCode())) {
+            throw new ForbiddenException("ACCESS_DENIED", "companyCode", "관리자 회사 문서만 관리할 수 있습니다.");
+        }
+        return requesterScope;
     }
 
     private RequesterScope resolveDocumentAccessScope() {
@@ -1153,6 +1406,22 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         if (file.getSize() > maxSizeBytes) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_001", "file", "파일 크기 제한을 초과했습니다.");
+        }
+    }
+
+    private void validateCompanyUploadQuota(String companyCode, long newFileSize) {
+        if (!StringUtils.hasText(companyCode)) {
+            return;
+        }
+
+        long currentUsageBytes = documentFileRepository.sumActiveFileSizeByCompanyCode(companyCode);
+        if (currentUsageBytes + newFileSize > COMPANY_UPLOAD_QUOTA_BYTES) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "FILE_001",
+                    "file",
+                    "회사별 총 업로드 용량 2GB를 초과할 수 없습니다."
+            );
         }
     }
 

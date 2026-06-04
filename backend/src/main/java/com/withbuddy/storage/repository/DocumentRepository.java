@@ -34,6 +34,21 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
             select d
             from Document d
             where d.isActive = true
+              and d.companyCode = :companyCode
+              and (:documentType is null or d.documentType = :documentType)
+              and (:search is null or lower(d.title) like lower(concat('%', :search, '%')))
+            """)
+    Page<Document> searchCompanyDocuments(
+            @Param("companyCode") String companyCode,
+            @Param("documentType") String documentType,
+            @Param("search") String search,
+            Pageable pageable
+    );
+
+    @Query("""
+            select d
+            from Document d
+            where d.isActive = true
               and (:documentType is null or d.documentType = :documentType)
               and (:search is null or lower(d.title) like lower(concat('%', :search, '%')))
             """)
@@ -51,6 +66,15 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
             order by d.id asc
             """)
     List<Long> findActiveDocumentIdsByCompanyCode(@Param("companyCode") String companyCode);
+
+    @Query("""
+            select d.id
+            from Document d
+            where d.isActive = true
+              and d.companyCode = :companyCode
+            order by d.id asc
+            """)
+    List<Long> findActiveCompanyDocumentIds(@Param("companyCode") String companyCode);
 
     @Query("""
             select d.id
