@@ -147,8 +147,6 @@ async def chat_stream(request: ChatRequest):
                 elif isinstance(chunk, str) and chunk.startswith("\x00"):
                     accumulated_text.clear()
                     accumulated_text.append(chunk[1:])
-                    if chunk[1:].strip():
-                        yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk[1:]}, ensure_ascii=False)}\n\n"
                 else:
                     accumulated_text.append(chunk)
                     if chunk.strip():
@@ -916,8 +914,6 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                         elif isinstance(chunk, str) and chunk.startswith("\x00"):
                             accumulated.clear()
                             accumulated.append(chunk[1:])
-                            if chunk[1:].strip():
-                                yield _delta(chunk[1:])
                         else:
                             accumulated.append(chunk)
                             if chunk.strip():
