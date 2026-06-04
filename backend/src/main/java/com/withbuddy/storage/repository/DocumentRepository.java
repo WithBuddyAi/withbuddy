@@ -87,4 +87,6 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     Optional<Document> findByIdAndIsActiveTrue(Long id);
 
     List<Document> findByIdInAndIsActiveTrue(Collection<Long> ids);
+
+    long countByCompanyCodeAndIsActiveTrue(String companyCode);
 }

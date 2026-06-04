@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 public class DocumentStorageService implements DocumentDownloadService {
     private static final Logger log = LoggerFactory.getLogger(DocumentStorageService.class);
     private static final int BACKUP_JOB_ERROR_MAX_LENGTH = 1000;
+    private static final long MAX_COMPANY_DOCUMENT_COUNT = 300L;
     private static final long COMPANY_UPLOAD_QUOTA_BYTES = 2L * 1024L * 1024L * 1024L;
     private static final String DEFAULT_DOCUMENT_CONTENT = "Object Storage 업로드 문서";
 
@@ -1412,6 +1413,16 @@ public class DocumentStorageService implements DocumentDownloadService {
     private void validateCompanyUploadQuota(String companyCode, long newFileSize) {
         if (!StringUtils.hasText(companyCode)) {
             return;
+        }
+
+        long currentDocumentCount = documentRepository.countByCompanyCodeAndIsActiveTrue(companyCode);
+        if (currentDocumentCount >= MAX_COMPANY_DOCUMENT_COUNT) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "FILE_001",
+                    "file",
+                    "회사당 문서 수는 300개를 초과할 수 없습니다."
+            );
         }
 
         long currentUsageBytes = documentFileRepository.sumActiveFileSizeByCompanyCode(companyCode);

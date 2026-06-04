@@ -252,7 +252,7 @@ AI Swagger UI: https://ai.itsdev.kr/docs
 - `AI_TIMEOUT`: AI 답변 생성 시간 초과
 - `AI_STREAM_FAILED`: SSE 스트리밍 중 AI 답변 생성 실패
 - `FORBIDDEN`: 채팅에서 수신하지 않은 문서 다운로드 요청
-- `FILE_001`: 업로드 파일이 비어 있거나 단일 파일 크기 또는 회사별 총 업로드 용량 제한을 초과함
+- `FILE_001`: 업로드 파일이 비어 있거나 단일 파일 크기, 회사당 문서 수 또는 회사별 총 업로드 용량 제한을 초과함
 - `FILE_002`: 지원하지 않는 파일 형식
 - `FILE_003`: 파일 읽기 또는 스토리지 처리 실패
 - `RESOURCE_004`: 다른 회사 문서 접근
@@ -2259,7 +2259,9 @@ Content-Type: multipart/form-data
 - 업로드되는 문서의 `company_code`는 요청 바디가 아니라 현재 로그인한 사용자의 `company_code`로 설정한다.
 - 관리자 계정 페이지에서는 공통 문서(`company_code = null`)를 업로드할 수 없다.
 - 문서 파일과 스프레드시트 파일은 최대 20MB, 이미지 파일은 최대 5MB까지 업로드할 수 있다.
-- 파일이 비어 있거나 단일 파일 크기 제한을 초과하면 `400 Bad Request`, `FILE_001`을 반환한다.
+- 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
+- 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
+- 파일이 비어 있거나 단일 파일 크기, 회사당 문서 수 또는 회사별 총 업로드 용량 제한을 초과하면 `400 Bad Request`, `FILE_001`을 반환한다.
 - 지원하지 않는 파일 확장자이면 `400 Bad Request`, `FILE_002`를 반환한다.
 - 응답은 `201 Created`와 `DocumentUploadResponse` 형식을 따른다.
 
@@ -2764,7 +2766,7 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 
 | 코드 | HTTP 상태 | 발생 조건 |
 |---|---:|---|
-| `FILE_001` | 400 | 업로드 파일이 비어 있거나 단일 파일 크기 또는 회사별 총 업로드 용량 제한을 초과한 경우 |
+| `FILE_001` | 400 | 업로드 파일이 비어 있거나 단일 파일 크기, 회사당 문서 수 또는 회사별 총 업로드 용량 제한을 초과한 경우 |
 | `FILE_002` | 400 | 지원하지 않는 파일 확장자인 경우 |
 | `FILE_003` | 500 | 파일 읽기, 원본 스토리지 업로드, DB 저장 등 스토리지 처리에 실패한 경우 |
 | `RESOURCE_004` | 403 | 다른 회사 문서에 접근하려는 경우 |
@@ -2783,6 +2785,7 @@ Content-Type: multipart/form-data
 - 업로드된 문서는 `documents`, `document_files`를 기준으로 저장 및 관리한다.
 - 파일 저장 후 백업 스토리지 연동 정책에 따라 백업 작업이 수행될 수 있다.
 - 단일 파일 크기 제한은 파일 형식별로 적용한다. 문서 파일(`.pdf`, `.docx`, `.pptx`, `.txt`)과 스프레드시트 파일(`.xls`, `.xlsx`)은 최대 20MB, 이미지 파일(`.png`, `.jpg`, `.jpeg`)은 최대 5MB다.
+- 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
 
 ### 9-2. 문서 목록 조회
@@ -2832,7 +2835,7 @@ Authorization: Bearer {accessToken}
 - 서버는 OCI pre-signed URL을 발급하고, 동일 파일/소스 조합의 URL은 유효시간 동안 Redis 캐시를 재사용할 수 있다.
 - pre-signed URL 유효시간은 현재 기본값 30초(`app.storage.oci-cli.preauth-ttl-seconds`)다.
 - 응답은 파일 바이트가 아니라 `302 Found` + `Location` 헤더(외부 Object Storage URL)다.
-- `document_type != TEMPLATE`인 경우 일반 사용자 권한에서는 `403 RESOURCE_004`을 반환한다.
+- `document_type != TEMPLATE`인 경우 일반 사용자 권한에서는 `403 RESOURCE_004`를 반환한다.
 
 #### Response (302 Found)
 ```http
@@ -2943,13 +2946,13 @@ Authorization: Bearer {accessToken}
 - 채팅 문서 다운로드 경로에서 `chat_message_documents` 연결 이력이 없으면 `403 Forbidden`, `FORBIDDEN`을 반환한다.
 - `document_type = TEMPLATE`인 경우에만 다운로드 URL 또는 접근 경로를 반환한다.
 - 파일 메타데이터 및 실제 저장 위치는 `document_files`를 기준으로 조회한다.
-- 응답 `downloadUrl`에는 내부 경로(`/api/v1/documents/{documentId}/file?source=...`)만 반환한다.
+- 응답 `downloadUrl`에는 내부 경로(`/api/v1/documents/{documentId}/file?source=...&token=...`)를 반환한다.
 - pre-signed URL은 `/file` 호출 시점에만 생성되어 `302 Location`으로 전달된다.
 - 다운로드 감사 로그는 `AUDIT_DOWNLOAD` 구조화 로그로 기록되며, pre-signed URL 원문은 로그에 남기지 않는다.
 - Grafana/Loki 운영 쿼리는 `docs/operations/storage/AUDIT_DOWNLOAD_GRAFANA_LOKI.md`를 따른다.
 - 응답의 `expiresIn`은 다운로드 토큰 유효시간을 의미한다.
 - 응답의 `source`는 실제 다운로드에 사용할 스토리지 소스(`PRIMARY` 또는 `BACKUP`)다.
-- `document_type != TEMPLATE`인 경우에는 정책에 따라 `400 Bad Request` 또는 `404 Not Found`를 반환한다.
+- `document_type != TEMPLATE`인 경우 일반 사용자 권한에서는 `403 RESOURCE_004`를 반환한다.
 
 #### Response (200 OK)
 ```json
@@ -2963,7 +2966,7 @@ Authorization: Bearer {accessToken}
 - 프론트엔드는 TEMPLATE 문서 다운로드 시 이 API를 우선 호출한다.
 - 응답의 `downloadUrl` 값을 그대로 호출하면 `/file`에서 302 리다이렉트가 발생하고, 최종 다운로드는 외부 스토리지에서 수행된다.
 - 채팅 메시지 응답 `documents[].file.downloadUrl`에는 채팅 전용 경로(`/api/v1/chat/documents/{documentId}/download`)가 제공된다.
-- 채팅 전용 경로 응답도 동일하게 내부 `/api/v1/documents/{documentId}/file?source=...` 형식을 반환한다.
+- 채팅 전용 경로 응답도 동일하게 내부 `/api/v1/documents/{documentId}/file?source=...&token=...` 형식을 반환한다.
 
 #### Error Response (404 Not Found)
 ```json
@@ -2982,13 +2985,13 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-#### Error Response (400 Bad Request)
+#### Error Response (403 Forbidden - TEMPLATE 문서 아님)
 ```json
 {
   "timestamp": "2026-04-14T15:30:00",
-  "status": 400,
-  "error": "Bad Request",
-  "code": "BAD_REQUEST",
+  "status": 403,
+  "error": "Forbidden",
+  "code": "RESOURCE_004",
   "errors": [
     {
       "field": "documentType",
@@ -3028,7 +3031,7 @@ Authorization: Bearer {accessToken}
 
 ### 9-7. 문서 삭제
 ```http
-DELETE /api/v1/documents/{documentId}
+DELETE /api/v1/documents/{documentId}?confirm=true
 Authorization: Bearer {accessToken}
 ```
 
@@ -3049,7 +3052,7 @@ Authorization: Bearer {accessToken}
 
 ### 9-9. 문서 전체 삭제
 ```http
-DELETE /api/v1/documents
+DELETE /api/v1/documents?confirm=true
 Authorization: Bearer {accessToken}
 ```
 
@@ -3071,7 +3074,7 @@ Content-Type: application/json
 
 ### 9-11. 문서 선택 삭제
 ```http
-POST /api/v1/documents/bulk-delete
+POST /api/v1/documents/bulk-delete?confirm=true
 Authorization: Bearer {accessToken}
 Content-Type: application/json
 ```
