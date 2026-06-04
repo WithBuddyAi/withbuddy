@@ -15,7 +15,7 @@ public record UserListItemResponse(
         @Schema(description = "회사 코드", example = "WB0001")
         String companyCode,
 
-        @Schema(description = "회사 이름", example = "체크 주식회사")
+        @Schema(description = "회사 이름", example = "테크 주식회사")
         String companyName,
 
         @Schema(description = "사번", example = "20260001")
