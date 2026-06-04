@@ -124,6 +124,7 @@ async def chat_stream(request: ChatRequest):
                 return
 
             accumulated_text: list[str] = []
+            _first_token = True
             async for chunk, source, related_docs, rag_doc_ids in stream_rag_chain(
                 uid, message, request.user.name, request.user.companyCode,
                 company_name=request.user.companyName,
@@ -142,7 +143,9 @@ async def chat_stream(request: ChatRequest):
                         contacts = [contact]
                     doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])][:2]
                     tok = pop_token_usage()
-                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts, 'inputTokens': tok['input_tokens'], 'outputTokens': tok['output_tokens'], 'cacheReadTokens': tok['cache_read'], 'cacheCreationTokens': tok['cache_creation'], 'latencyMs': int((time.time() - _start) * 1000), 'category': pop_category()}, ensure_ascii=False)}\n\n"
+                    _latency = int((time.time() - _start) * 1000)
+                    import logging; logging.getLogger(__name__).info(f"[latency] questionId={request.questionId} latencyMs={_latency}")
+                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts, 'inputTokens': tok['input_tokens'], 'outputTokens': tok['output_tokens'], 'cacheReadTokens': tok['cache_read'], 'cacheCreationTokens': tok['cache_creation'], 'latencyMs': _latency, 'category': pop_category()}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                     pass
                 elif isinstance(chunk, str) and chunk.startswith("\x00"):
@@ -151,6 +154,9 @@ async def chat_stream(request: ChatRequest):
                 else:
                     accumulated_text.append(chunk)
                     if chunk.strip():
+                        if _first_token:
+                            import logging; logging.getLogger(__name__).warning(f"[TTFT] questionId={request.questionId} ttftMs={int((time.time() - _start) * 1000)}")
+                            _first_token = False
                         yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"

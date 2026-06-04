@@ -241,6 +241,12 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     yield "__STAGE__generating", None, None, None
 
+    _EMPATHY_KEYWORDS = ["지각", "조퇴", "실수", "징계"]
+    _EMPATHY_VARIANTS = ["당황스러우셨겠어요! ", "걱정되셨죠? ", "많이 당황하셨겠어요! "]
+    if any(kw in question for kw in _EMPATHY_KEYWORDS):
+        import random
+        yield random.choice(_EMPATHY_VARIANTS), None, None, None
+
     full_answer = ""
     _buf = ""
     async for _raw in stream_answer(
