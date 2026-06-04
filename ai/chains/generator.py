@@ -55,6 +55,11 @@ def _fix_names(text: str) -> str:
     return text
 
 
+def _fix_section_spacing(text: str) -> str:
+    """** 앞 \n\n은 섹션 구분으로 유지, 나머지 \n\n → \n으로 교체."""
+    return re.sub(r'\n\n(?!\*\*)', '\n', text)
+
+
 def _has_duplicate_lines(text: str) -> bool:
     """연속 중복 줄 빠른 감지."""
     lines = [l.strip() for l in text.split('\n') if l.strip()]
@@ -171,6 +176,7 @@ def generate_answer(
         "hire_info": hire_info,
     })
     answer = _fix_names(answer)
+    answer = _fix_section_spacing(answer)
     answer = _dedup_answer(answer)
     return answer
 
@@ -210,6 +216,7 @@ async def postprocess_answer_async(full_answer: str) -> str:
     import asyncio
     loop = asyncio.get_event_loop()
     fixed = _fix_names(full_answer)
+    fixed = _fix_section_spacing(fixed)
     fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     return fixed
 
@@ -217,5 +224,6 @@ async def postprocess_answer_async(full_answer: str) -> str:
 def postprocess_answer(full_answer: str) -> str:
     """동기 후처리 (이름 교정 + 중복 제거)."""
     fixed = _fix_names(full_answer)
+    fixed = _fix_section_spacing(fixed)
     fixed = _dedup_answer(fixed)
     return fixed
