@@ -43,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 
 import java.io.IOException;
@@ -1024,7 +1025,9 @@ public class DocumentStorageService implements DocumentDownloadService {
                 throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
             }
 
-            if (!requireAdmin && currentUser.getRole() == UserRole.INACTIVE) {
+            if (!requireAdmin
+                    && currentUser.getRole() == UserRole.USER
+                    && currentUser.getAccountStatus() == UserAccountStatus.INACTIVE) {
                 throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 문서를 다운로드할 수 없습니다.");
             }
 

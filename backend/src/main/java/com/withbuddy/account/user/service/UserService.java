@@ -83,6 +83,7 @@ public class UserService {
                 company.getCompanyCode(),
                 company.getName(),
                 user.getRole().name(),
+                user.getAccountStatus().name(),
                 user.getEmployeeNumber(),
                 user.getName(),
                 user.getHireDate(),

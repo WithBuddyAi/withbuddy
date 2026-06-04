@@ -15,7 +15,7 @@ public record UserListItemResponse(
         @Schema(description = "회사 코드", example = "WB0001")
         String companyCode,
 
-        @Schema(description = "회사 이름", example = "테크 주식회사")
+        @Schema(description = "회사 이름", example = "체크 주식회사")
         String companyName,
 
         @Schema(description = "사번", example = "20260001")
@@ -28,8 +28,11 @@ public record UserListItemResponse(
         @Schema(description = "이름", example = "김지원")
         String name,
 
-        @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
+        @Schema(description = "사용자", example = "USER", allowableValues = {"USER"})
         String role,
+
+        @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
+        String accountStatus,
 
         @Schema(description = "입사일", example = "2026-03-01", type = "string", format = "date")
         LocalDate hireDate,
