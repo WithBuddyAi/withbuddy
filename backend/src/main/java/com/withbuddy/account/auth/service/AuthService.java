@@ -17,6 +17,7 @@ import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -50,9 +51,9 @@ public class AuthService {
                 normalizedEmployeeNumber
         ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."));
 
-        UserRole currentRole = resolveLifecycleRole(user);
-        if (user.getRole() != currentRole) {
-            user.updateRole(currentRole);
+        UserAccountStatus currentAccountStatus = resolveLifecycleAccountStatus(user);
+        if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
+            user.updateAccountStatus(currentAccountStatus);
         }
 
         redisCacheService.get(RedisCacheKeys.userSession(user.getId()))
@@ -70,7 +71,7 @@ public class AuthService {
                 RedisCacheTtl.SESSION_TOKEN
         );
 
-        if (currentRole != UserRole.INACTIVE) {
+        if (user.getRole() != UserRole.USER || currentAccountStatus != UserAccountStatus.INACTIVE) {
             userActivityLogService.saveLoginSessionStart(user.getId());
             redisActivityLogService.append(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
             rmqActivityLogService.publish(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
@@ -79,7 +80,8 @@ public class AuthService {
         LoginUserResponse userResponse = new LoginUserResponse(
                 user.getId(),
                 user.getCompany().getCompanyCode(),
-                currentRole,
+                user.getRole(),
+                user.getRole() == UserRole.USER ? currentAccountStatus : null,
                 user.getCompany().getName(),
                 user.getEmployeeNumber(),
                 user.getName(),
@@ -119,11 +121,9 @@ public class AuthService {
         return value == null ? "" : value.trim();
     }
 
-    private UserRole resolveLifecycleRole(User user) {
-        if (user.getRole() == UserRole.ADMIN
-                || user.getRole() == UserRole.SERVICE_ADMIN
-                || user.getRole() == UserRole.INACTIVE) {
-            return user.getRole();
+    private UserAccountStatus resolveLifecycleAccountStatus(User user) {
+        if (user.getRole() != UserRole.USER) {
+            return null;
         }
 
         int probationPeriod = user.getCompany().getProbationPeriod() == null
@@ -134,11 +134,11 @@ public class AuthService {
         LocalDate inactiveStartDate = readOnlyStartDate.plusDays(30);
 
         if (!today.isBefore(inactiveStartDate)) {
-            return UserRole.INACTIVE;
+            return UserAccountStatus.INACTIVE;
         }
         if (!today.isBefore(readOnlyStartDate)) {
-            return UserRole.READ_ONLY;
+            return UserAccountStatus.READ_ONLY;
         }
-        return UserRole.ACTIVE;
+        return UserAccountStatus.ACTIVE;
     }
 }

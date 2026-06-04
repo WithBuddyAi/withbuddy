@@ -1,6 +1,7 @@
 package com.withbuddy.admin.user.repository;
 
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,9 +30,9 @@ public interface AdminUserRepository extends JpaRepository<User, Long> {
             order by
               case when :sortBy is null then
                 case
-                  when u.role in :activeRoles then 0
-                  when u.role in :readOnlyRoles then 1
-                  when u.role in :inactiveRoles then 2
+                  when u.accountStatus in :activeStatuses then 0
+                  when u.accountStatus in :readOnlyStatuses then 1
+                  when u.accountStatus in :inactiveStatuses then 2
                   else 3
                 end
               end asc,
@@ -46,9 +47,9 @@ public interface AdminUserRepository extends JpaRepository<User, Long> {
     Page<User> searchUsers(
             @Param("companyCode") String companyCode,
             @Param("roles") Collection<UserRole> roles,
-            @Param("activeRoles") Collection<UserRole> activeRoles,
-            @Param("readOnlyRoles") Collection<UserRole> readOnlyRoles,
-            @Param("inactiveRoles") Collection<UserRole> inactiveRoles,
+            @Param("activeStatuses") Collection<UserAccountStatus> activeStatuses,
+            @Param("readOnlyStatuses") Collection<UserAccountStatus> readOnlyStatuses,
+            @Param("inactiveStatuses") Collection<UserAccountStatus> inactiveStatuses,
             @Param("department") String department,
             @Param("teamName") String teamName,
             @Param("sortBy") String sortBy,
