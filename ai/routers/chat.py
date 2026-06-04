@@ -94,6 +94,7 @@ async def chat_stream(request: ChatRequest):
     토큰 단위로 실시간 응답을 전송합니다.
     """
     async def event_generator():
+        _start = time.time()
         try:
             from agents.orchestrator import run_orchestrator
             from chains.rag_chain import _fix_names, pop_token_usage, pop_category
@@ -141,7 +142,7 @@ async def chat_stream(request: ChatRequest):
                         contacts = [contact]
                     doc_ids = [{"documentId": did} for did in (rag_doc_ids or [])][:2]
                     tok = pop_token_usage()
-                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts, 'inputTokens': tok['input_tokens'], 'outputTokens': tok['output_tokens'], 'cacheReadTokens': tok['cache_read'], 'cacheCreationTokens': tok['cache_creation'], 'latencyMs': 0, 'category': pop_category()}, ensure_ascii=False)}\n\n"
+                    yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts, 'inputTokens': tok['input_tokens'], 'outputTokens': tok['output_tokens'], 'cacheReadTokens': tok['cache_read'], 'cacheCreationTokens': tok['cache_creation'], 'latencyMs': int((time.time() - _start) * 1000), 'category': pop_category()}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                     pass
                 elif isinstance(chunk, str) and chunk.startswith("\x00"):
