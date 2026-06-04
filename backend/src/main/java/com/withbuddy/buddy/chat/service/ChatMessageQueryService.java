@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageListResponse;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageResponse;
@@ -212,21 +213,22 @@ public class ChatMessageQueryService {
 
     private User requireMessageQueryAllowed(Long userId) {
         User user = findUser(userId);
-        if (user.getRole() != UserRole.ACTIVE
-                && user.getRole() != UserRole.READ_ONLY
-                && user.getRole() != UserRole.SERVICE_ADMIN) {
+        boolean readableUser = user.getRole() == UserRole.USER
+                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
+                || user.getAccountStatus() == UserAccountStatus.READ_ONLY);
+        if (!readableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 채팅 메시지를 조회할 수 없습니다.");
         }
         return user;
     }
 
     private boolean canExposeQuickTaps(User user) {
-        return user.getRole() == UserRole.ACTIVE || user.getRole() == UserRole.SERVICE_ADMIN;
+        return (user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.ACTIVE) || user.getRole() == UserRole.SERVICE_ADMIN;
     }
 
     private void requireChatDocumentDownloadAllowed(Long userId) {
         User user = findUser(userId);
-        if (user.getRole() == UserRole.INACTIVE) {
+        if (user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.INACTIVE) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 문서를 다운로드할 수 없습니다.");
         }
     }
