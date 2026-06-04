@@ -52,15 +52,13 @@ public class DocumentController {
             @RequestPart("file") MultipartFile file,
             @RequestParam("title") @NotBlank String title,
             @RequestParam("documentType") @NotBlank String documentType,
-            @RequestParam("department") @NotBlank String department,
-            @RequestParam(value = "companyCode", required = false) String companyCode
+            @RequestParam("department") @NotBlank String department
     ) {
-        DocumentUploadResponse response = documentStorageService.upload(
+        DocumentUploadResponse response = documentStorageService.uploadCompanyDocument(
                 file,
                 title,
                 documentType,
-                department,
-                companyCode
+                department
         );
         return ResponseEntity.status(201).body(response);
     }
@@ -69,17 +67,18 @@ public class DocumentController {
     @GetMapping
     public ResponseEntity<DocumentListResponse> list(
             @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "5") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "COMPANY") String scope,
             @RequestParam(required = false) String documentType,
             @RequestParam(required = false) String search
     ) {
-        return ResponseEntity.ok(documentStorageService.list(page, size, documentType, search));
+        return ResponseEntity.ok(documentStorageService.listCompanyDocuments(page, size, scope, documentType, search));
     }
 
     @Operation(summary = "문서 상세 조회")
     @GetMapping("/{documentId}")
     public ResponseEntity<DocumentDetailResponse> detail(@PathVariable Long documentId) {
-        return ResponseEntity.ok(documentStorageService.getDetail(documentId));
+        return ResponseEntity.ok(documentStorageService.getCompanyDetail(documentId));
     }
 
     @Operation(summary = "다운로드 URL 발급")
@@ -100,13 +99,13 @@ public class DocumentController {
             @PathVariable Long documentId,
             @RequestParam(defaultValue = "false") boolean confirm
     ) {
-        return ResponseEntity.ok(documentStorageService.deleteDocument(documentId, confirm));
+        return ResponseEntity.ok(documentStorageService.deleteCompanyDocument(documentId, confirm));
     }
 
     @Operation(summary = "문서 삭제 사전 점검")
     @GetMapping("/{documentId}/delete-check")
     public ResponseEntity<DocumentDeleteCheckResponse> deleteCheck(@PathVariable Long documentId) {
-        return ResponseEntity.ok(documentStorageService.getDeleteCheck(documentId));
+        return ResponseEntity.ok(documentStorageService.getCompanyDeleteCheck(documentId));
     }
 
     @Operation(summary = "문서 선택 삭제 사전 점검")
@@ -114,7 +113,7 @@ public class DocumentController {
     public ResponseEntity<DocumentBulkDeleteCheckResponse> bulkDeleteCheck(
             @Valid @RequestBody DocumentBulkDeleteRequest request
     ) {
-        return ResponseEntity.ok(documentStorageService.getBulkDeleteCheck(request));
+        return ResponseEntity.ok(documentStorageService.getCompanyBulkDeleteCheck(request));
     }
 
     @Operation(summary = "문서 선택 삭제 (confirm 필요)")
@@ -123,13 +122,13 @@ public class DocumentController {
             @RequestParam(defaultValue = "false") boolean confirm,
             @Valid @RequestBody DocumentBulkDeleteRequest request
     ) {
-        return ResponseEntity.ok(documentStorageService.bulkDeleteDocuments(request, confirm));
+        return ResponseEntity.ok(documentStorageService.bulkDeleteCompanyDocuments(request, confirm));
     }
 
     @Operation(summary = "문서 전체 삭제 사전 점검")
     @GetMapping("/delete-check")
     public ResponseEntity<DocumentBulkDeleteCheckResponse> deleteAllCheck() {
-        return ResponseEntity.ok(documentStorageService.getDeleteAllCheck());
+        return ResponseEntity.ok(documentStorageService.getCompanyDeleteAllCheck());
     }
 
     @Operation(summary = "문서 전체 삭제 (confirm 필요)")
@@ -137,7 +136,7 @@ public class DocumentController {
     public ResponseEntity<DocumentBulkDeleteResponse> deleteAll(
             @RequestParam(defaultValue = "false") boolean confirm
     ) {
-        return ResponseEntity.ok(documentStorageService.deleteAllDocuments(confirm));
+        return ResponseEntity.ok(documentStorageService.deleteAllCompanyDocuments(confirm));
     }
 
     @Operation(summary = "문서 파일 직접 다운로드 (로컬 개발용)")
