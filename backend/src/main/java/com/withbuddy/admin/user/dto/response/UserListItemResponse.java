@@ -28,8 +28,11 @@ public record UserListItemResponse(
         @Schema(description = "이름", example = "김지원")
         String name,
 
-        @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
+        @Schema(description = "사용자", example = "USER", allowableValues = {"USER"})
         String role,
+
+        @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
+        String accountStatus,
 
         @Schema(description = "입사일", example = "2026-03-01", type = "string", format = "date")
         LocalDate hireDate,

@@ -37,6 +37,10 @@ public class User {
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_status", length = 20)
+    private UserAccountStatus accountStatus;
+
     @Column(name = "name", nullable = false, length = 20)
     private String name;
 
@@ -68,7 +72,8 @@ public class User {
             String teamName,
             String employeeNumber,
             LocalDate hireDate,
-            UserRole role
+            UserRole role,
+            UserAccountStatus accountStatus
     ) {
         this.company = company;
         this.name = name;
@@ -76,7 +81,10 @@ public class User {
         this.teamName = teamName;
         this.employeeNumber = employeeNumber;
         this.hireDate = hireDate;
-        this.role = role == null ? UserRole.ACTIVE : role;
+        this.role = role == null ? UserRole.USER : role;
+        this.accountStatus = this.role == UserRole.USER
+                ? (accountStatus == null ? UserAccountStatus.ACTIVE : accountStatus)
+                : null;
     }
 
     public static User createUser(
@@ -94,12 +102,17 @@ public class User {
                 .teamName(teamName)
                 .employeeNumber(employeeNumber)
                 .hireDate(hireDate)
-                .role(UserRole.ACTIVE)
+                .role(UserRole.USER)
+                .accountStatus(UserAccountStatus.ACTIVE)
                 .build();
     }
 
     public void updateRole(UserRole role) {
         this.role = role;
+    }
+
+    public void updateAccountStatus(UserAccountStatus accountStatus) {
+        this.accountStatus = accountStatus;
     }
 
     public static User createUser(

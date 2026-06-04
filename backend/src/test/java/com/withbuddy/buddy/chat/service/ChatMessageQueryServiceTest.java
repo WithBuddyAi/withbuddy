@@ -3,6 +3,7 @@ package com.withbuddy.buddy.chat.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageListResponse;
 import com.withbuddy.buddy.chat.entity.ChatMessage;
@@ -66,7 +67,7 @@ class ChatMessageQueryServiceTest {
         ChatMessage suggestionMessage = ChatMessage.createSuggestionMessage(userId, 10L, "suggestion");
         ReflectionTestUtils.setField(suggestionMessage, "createdAt", LocalDateTime.now());
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user(UserRole.READ_ONLY)));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user(UserAccountStatus.READ_ONLY)));
         when(chatMessageRepository.findByUserIdOrderByCreatedAtAsc(userId)).thenReturn(List.of(suggestionMessage));
         when(chatMessageDocumentRepository.findByChatMessageIdIn(anyList())).thenReturn(List.of());
 
@@ -77,14 +78,15 @@ class ChatMessageQueryServiceTest {
         verify(onboardingSuggestionRepository, never()).findById(10L);
     }
 
-    private User user(UserRole role) {
+    private User user(UserAccountStatus accountStatus) {
         return User.builder()
                 .name("tester")
                 .department("-")
                 .teamName("-")
                 .employeeNumber("E001")
                 .hireDate(LocalDate.now())
-                .role(role)
+                .role(UserRole.USER)
+                .accountStatus(accountStatus)
                 .build();
     }
 }
