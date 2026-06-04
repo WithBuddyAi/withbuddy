@@ -3645,4 +3645,5 @@ Authorization: Bearer {accessToken}
   - `READ_ONLY` 사용자의 suggestion 메시지에서도 `quickTaps`를 빈 배열(`[]`)로 반환하도록 채팅 메시지 조회 및 응답 필드 설명을 정리
   - `INACTIVE` 사용자는 로그인 성공 시에도 `LOGIN` activity log를 기록하지 않는 예외 규칙을 명세에 반영
 - **v2.2.2 (2026-06-04)**:
-  - 관리자 계정
+  - 관리자 문서 관리 API를 `/api/v1/admin/documents` 기준으로 정리하고, 회사 문서 조회·업로드·선택 삭제 검증/삭제 흐름을 갱신
+  - 문서 다운로드 `/file` API의 `token` 필수 파라미터, Redis 캐시, 토큰 만료 응답 및 관리자 지표 `SERVICE_ADMIN` 권한 설명을 실제 구현 기준으로 정리
