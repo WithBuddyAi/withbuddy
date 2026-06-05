@@ -229,7 +229,7 @@ public class AdminUserService {
                 formatDepartmentTeam(user.getDepartment(), user.getTeamName()),
                 user.getName(),
                 user.getRole().name(),
-                user.getAccountStatus().name(),
+                user.getAccountStatus() == null ? null : user.getAccountStatus().name(),
                 user.getHireDate(),
                 calculateHireDay(user.getHireDate()),
                 countUserQuestions(user.getId()),
