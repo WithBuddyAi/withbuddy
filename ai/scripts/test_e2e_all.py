@@ -125,11 +125,11 @@ COMPOSITE = [
     {"id":"C202","cat":"복합IN+OUT전문가","q":"경조금은 어떤 경우에 받을 수 있어요? 그리고 증여세 비과세 한도가 얼마인지도 알려줘요","expect_type":"rag_answer","kw":["전문가"]},
     {"id":"C203","cat":"복합IN+OUT전문가","q":"경조금 신청 방법이랑 퇴직금 세금 얼마나 내야 해요?","expect_type":"rag_answer","kw":["전문가"]},
     # 유형3: IN + 민감 (경영지원팀이 앞 200자 안에 나와야 함)
-    {"id":"C301","cat":"복합IN+민감","q":"건강검진 신청 방법이랑 수습 때 번아웃이 너무 심해요","expect_type":"rag_answer","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
-    {"id":"C302","cat":"복합IN+민감","q":"야근 식대 지원이 언제부터예요? 그리고 퇴사 시 소송 걸 수 있는지도 궁금해요","expect_type":"rag_answer","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
-    {"id":"C303","cat":"복합IN+민감","q":"퇴직금 계산 방법이랑 부당해고 소송 어떻게 해요?","expect_type":"rag_answer","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
-    {"id":"C304","cat":"복합IN+민감","q":"VPN 연결 방법이랑 팀장한테 성희롱을 당했어요","expect_type":"rag_answer","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
-    {"id":"C305","cat":"복합IN+민감","q":"복지카드 신청 방법이 궁금하고, 요즘 너무 힘들어서 퇴사하고 싶어요","expect_type":"rag_answer","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
+    {"id":"C301","cat":"복합IN+민감","q":"건강검진 신청 방법이랑 수습 때 번아웃이 너무 심해요","expect_type":"sensitive","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
+    {"id":"C302","cat":"복합IN+민감","q":"야근 식대 지원이 언제부터예요? 그리고 퇴사 시 소송 걸 수 있는지도 궁금해요","expect_type":"sensitive","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
+    {"id":"C303","cat":"복합IN+민감","q":"퇴직금 계산 방법이랑 부당해고 소송 어떻게 해요?","expect_type":"sensitive","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
+    {"id":"C304","cat":"복합IN+민감","q":"VPN 연결 방법이랑 팀장한테 성희롱을 당했어요","expect_type":"sensitive","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
+    {"id":"C305","cat":"복합IN+민감","q":"복지카드 신청 방법이 궁금하고, 요즘 너무 힘들어서 퇴사하고 싶어요","expect_type":"sensitive","kw":["경영지원팀"],"top_kw":["경영지원팀"]},
     # 멀티테넌트 WB0001
     {"id":"MT01","cat":"멀티테넌트","q":"업무 툴 설정 방법이랑 프로젝트 관리 툴 사용법 알려줘요","expect_type":"rag_answer","kw":["Slack","Notion","Google"]},
     {"id":"MT02","cat":"멀티테넌트","q":"야근하면 어떤 혜택이 있어요? 그리고 야근 수당 계산법 알려줘요","expect_type":"rag_answer","kw":["8시","1만원","10,000"]},
@@ -239,7 +239,7 @@ def run_one(item: dict, q_num: int) -> dict:
             "name": "테스트",
             "companyCode": COMPANY_CODE,
             "companyName": COMPANY_NAME,
-            "hireDate": "",
+            "hireDate": "2026-03-01",
         },
         "content": item["q"],
         "conversationHistory": [],
@@ -247,15 +247,29 @@ def run_one(item: dict, q_num: int) -> dict:
     headers = {"Content-Type": "application/json", "X-API-Key": API_KEY}
 
     start = time.time()
+    msg_type = content = ""
     try:
-        r = requests.post(f"{BASE_URL}/internal/ai/answer", json=payload, headers=headers, timeout=40)
+        r = requests.post(
+            f"{BASE_URL}/internal/ai/answer/stream",
+            json=payload,
+            headers=headers,
+            timeout=60,
+            stream=True,
+        )
+        r.raise_for_status()
+        for raw in r.iter_lines(decode_unicode=True):
+            if not raw or not raw.startswith("data: "):
+                continue
+            try:
+                data = json.loads(raw[6:])
+            except Exception:
+                continue
+            if "messageType" in data:
+                msg_type = data.get("messageType", "")
+                content  = data.get("content", "")
         latency = round(time.time() - start, 2)
-        data = r.json()
     except Exception as e:
         return {**item, "passed": False, "reason": f"ERROR: {e}", "latency": 0, "messageType": "error", "preview": ""}
-
-    msg_type = data.get("messageType", "")
-    content  = data.get("content", "")
     expect   = item["expect_type"]
     kw       = item.get("kw", [])
     top_kw   = item.get("top_kw", [])

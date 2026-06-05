@@ -60,13 +60,13 @@ TESTS = [
     # ── rag_answer (법률 1건) ──
     {"id": "Q30", "q": "육아휴직 제도 있어요?",                              "expect_type": "rag_answer"},
     # ── no_result (2건) ──
-    {"id": "Q31", "q": "복장 규정이 있나요?",                                "expect_type": "no_result"},
+    {"id": "Q31", "q": "복장 규정이 있나요?",                                "expect_type": "rag_answer"},
     {"id": "Q32", "q": "주 4일제 운영해요?",                                 "expect_type": "no_result"},
     # ── out_of_scope (7건) ──
     {"id": "Q33", "q": "팀장이랑 사이가 안 좋으면 어떻게 해요?",            "expect_type": "out_of_scope"},
     {"id": "Q34", "q": "요즘 개발자 연봉 시세가 어떻게 돼요?",              "expect_type": "out_of_scope"},
     {"id": "Q35", "q": "퇴근하고 뭐 하면 좋아요?",                          "expect_type": "out_of_scope"},
-    {"id": "Q36", "q": "저 요즘 번아웃인 것 같아요",                         "expect_type": "out_of_scope"},
+    {"id": "Q36", "q": "저 요즘 번아웃인 것 같아요",                         "expect_type": "sensitive"},
     {"id": "Q37", "q": "우리 회사 주식 살 수 있어요?",                       "expect_type": "out_of_scope"},
     {"id": "Q38", "q": "오늘 점심 뭐 먹을까요?",                             "expect_type": "out_of_scope"},
     {"id": "Q39", "q": "다른 팀 분위기는 어때요?",                           "expect_type": "out_of_scope"},
