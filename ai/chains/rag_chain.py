@@ -292,11 +292,11 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             full_answer += out
             yield out, None, None, None
             _buf = _buf[after:]
-        if len(_buf) > 100:
-            safe = _fmt(_buf[:-100])
+        if len(_buf) > 4:
+            safe = _fmt(_buf[:-4])
             full_answer += safe
             yield safe, None, None, None
-            _buf = _buf[-100:]
+            _buf = _buf[-4:]
     if _buf:
         final = _fmt(_buf)
         full_answer += final
