@@ -18,7 +18,7 @@ function UserMobileCard({ user }) {
           {user.name}
         </span>
         <span className="px-[12px]">
-          {user.role === "ACTIVE" ? (
+          {user.accountStatus === "ACTIVE" ? (
             <div className="rounded-[16px] py-[4px] px-[12px] bg-[#EBFBEE] text-[#37B24D] text-[12px]">
               <span className="text-[8px] mr-[4px]">●</span>활성화
             </div>

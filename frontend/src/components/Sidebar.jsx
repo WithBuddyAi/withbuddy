@@ -21,7 +21,10 @@ function Sidebar({
   activeDates,
   handleDateChange,
   setIsLogoutModal,
+  isReadOnly,
 }) {
+  const department = localStorage.getItem("department");
+  const teamName = localStorage.getItem("teamName");
   const [activeStartDate, setActiveStartDate] = useState(new Date());
   const [view, setView] = useState("month");
 
@@ -46,16 +49,30 @@ function Sidebar({
                   alt="위드버디 대표 로고"
                   className="w-[26px] mr-[12px]"
                 />
-                <div className="flex items-center">
-                  <p className="text-[#343A40] text-[16px] font-semibold mr-[8px]">
-                    {name}
-                  </p>
-                  <p className="text-[#20486799] text-[12px]">
-                    Day{" "}
-                    {Number(dayCount) >= 0
-                      ? Number(dayCount) + 1
-                      : Number(dayCount)}
-                  </p>
+                <div>
+                  <div className="flex items-center">
+                    <p className="text-[#343A40] text-[16px] font-semibold mr-[8px]">
+                      {name}
+                    </p>
+                    {isReadOnly && (
+                      <p className="text-[#ADB5BD] text-[14px]">
+                        수습 기간 종료
+                      </p>
+                    )}
+                    {!isReadOnly && (
+                      <p className="text-[#20486799] text-[12px]">
+                        Day{" "}
+                        {Number(dayCount) >= 0
+                          ? Number(dayCount) + 1
+                          : Number(dayCount)}
+                      </p>
+                    )}
+                  </div>
+                  {department && teamName && (
+                    <p className="text-[#495057] text-[12px]">
+                      {department} · {teamName}
+                    </p>
+                  )}
                 </div>
               </div>
               {/* 데스크탑: bar 아이콘 */}
