@@ -71,10 +71,11 @@ def _fix_plain_list_to_bullet(text: str) -> str:
         if re.match(r'^\*\*.+\*\*:?$', line.strip()):
             result.append(line)
             i += 1
-            # 헤더 다음 줄들 수집 (다음 헤더 또는 빈 줄 전까지)
+            # 헤더 다음 줄들 수집 (다음 헤더 전까지, 빈 줄은 무시하고 계속 수집)
             plain_items = []
-            while i < len(lines) and lines[i].strip() and not re.match(r'^\*\*.+\*\*:?$', lines[i].strip()):
-                plain_items.append(lines[i])
+            while i < len(lines) and not re.match(r'^\*\*.+\*\*:?$', lines[i].strip()):
+                if lines[i].strip():
+                    plain_items.append(lines[i])
                 i += 1
             # 2개 이상이고 bullet/번호 아닌 plain text면 변환
             if len(plain_items) >= 2 and not any(p.strip().startswith(('- ', '* ', '1.', '2.', '3.')) for p in plain_items):
