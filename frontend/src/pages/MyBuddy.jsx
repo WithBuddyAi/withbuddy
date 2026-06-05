@@ -21,7 +21,9 @@ function MyBuddy({ setIsLoggedIn }) {
   // 재시도 기능
   const [retryBt, setRetryBt] = useState(null);
 
-  const { dayOffset, role } = useUser();
+  const { dayOffset, role, accountStatus: contextAccountStatus } = useUser();
+  const accountStatus =
+    contextAccountStatus ?? localStorage.getItem("accountStatus");
   const dayCount =
     dayOffset !== undefined && dayOffset !== null
       ? dayOffset
@@ -121,7 +123,10 @@ function MyBuddy({ setIsLoggedIn }) {
       localStorage.removeItem("dayCount");
       localStorage.removeItem("hireDate");
       localStorage.removeItem("name");
+      localStorage.removeItem("department");
+      localStorage.removeItem("teamName");
       localStorage.removeItem("role");
+      localStorage.removeItem("accountStatus");
       setIsLoggedIn(false);
       navigate("/login");
     }
@@ -139,7 +144,7 @@ function MyBuddy({ setIsLoggedIn }) {
       try {
         const [messageResponse, quickResponse] = await Promise.allSettled([
           axiosInstance.get("/api/v1/chat/messages", {}),
-          role !== "READ_ONLY"
+          accountStatus !== "READ_ONLY"
             ? axiosInstance.get("/api/v1/chat/quick-questions", {})
             : Promise.resolve(null),
         ]);
@@ -191,7 +196,7 @@ function MyBuddy({ setIsLoggedIn }) {
     };
 
     const init = async () => {
-      if (role !== "READ_ONLY") {
+      if (accountStatus !== "READ_ONLY") {
         await sessionStart();
         await exposure();
       }
@@ -571,6 +576,7 @@ function MyBuddy({ setIsLoggedIn }) {
   bg-[#FFFFFF]
   text-[#000000]
   text-[12px]
+  leading-snug
   md:text-[15px]
   text-left
   max-w-[310px]
@@ -638,6 +644,7 @@ function MyBuddy({ setIsLoggedIn }) {
           activeDates={activeDates}
           handleDateChange={handleDateChange}
           setIsLogoutModal={setIsLogoutModal}
+          isReadOnly={accountStatus === "READ_ONLY"}
         />
 
         {/* 채팅 영역 */}
@@ -710,7 +717,7 @@ function MyBuddy({ setIsLoggedIn }) {
           </div>
 
           {/* 빠른 질문 */}
-          {role !== "READ_ONLY" && (
+          {accountStatus !== "READ_ONLY" && (
             <QuickQuestions
               quickQuestion={quickQuestion}
               handleSubmit={handleSubmit}
@@ -719,9 +726,11 @@ function MyBuddy({ setIsLoggedIn }) {
           )}
 
           {/* 입력 창 */}
-          {role !== "READ_ONLY" && (
-            <ChatInput handleSubmit={handleSubmit} isLoading={isLoading} />
-          )}
+          <ChatInput
+            handleSubmit={handleSubmit}
+            isLoading={isLoading}
+            isReadOnly={accountStatus === "READ_ONLY"}
+          />
         </div>
       </div>
     </div>
