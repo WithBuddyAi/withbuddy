@@ -12,7 +12,10 @@ function App() {
     !!localStorage.getItem("accessToken"),
   );
   const [toastMessage, setToastMessage] = useState("");
-  const role = localStorage.getItem("role");
+  const role = isLoggedIn ? localStorage.getItem("role") : null;
+  const accountStatus = isLoggedIn
+    ? localStorage.getItem("accountStatus")
+    : null;
 
   useEffect(() => {
     setLogoutHandler(() => {
@@ -37,9 +40,9 @@ function App() {
           path="/"
           element={
             isLoggedIn ? (
-              role === "ADMIN" ? (
+              role === "ADMIN" && accountStatus === "ACTIVE" ? (
                 <Navigate to="/admin" />
-              ) : role === "INACTIVE" ? (
+              ) : role === "USER" && accountStatus === "INACTIVE" ? (
                 <Navigate to="/inactive" />
               ) : (
                 <Navigate to="/mybuddy" />
@@ -54,9 +57,9 @@ function App() {
           path="/login"
           element={
             isLoggedIn ? (
-              role === "ADMIN" ? (
+              role === "ADMIN" && accountStatus === "ACTIVE" ? (
                 <Navigate to="/admin" />
-              ) : role === "INACTIVE" ? (
+              ) : role === "USER" && accountStatus === "INACTIVE" ? (
                 <Navigate to="/inactive" />
               ) : (
                 <Navigate to="/mybuddy" />
@@ -71,7 +74,7 @@ function App() {
           path="/mybuddy"
           element={
             isLoggedIn ? (
-              role === "ADMIN" ? (
+              role === "ADMIN" && accountStatus === "ACTIVE" ? (
                 <Navigate to="/admin" />
               ) : (
                 <MyBuddy setIsLoggedIn={setIsLoggedIn} />
@@ -86,7 +89,7 @@ function App() {
           path="/inactive"
           element={
             isLoggedIn ? (
-              role === "INACTIVE" ? (
+              role === "USER" && accountStatus === "INACTIVE" ? (
                 <Inactive setIsLoggedIn={setIsLoggedIn} />
               ) : (
                 <Navigate to="/mybuddy" />
@@ -101,7 +104,7 @@ function App() {
           path="/admin"
           element={
             isLoggedIn ? (
-              role === "ADMIN" ? (
+              role === "ADMIN" && accountStatus === "ACTIVE" ? (
                 <Admin setIsLoggedIn={setIsLoggedIn} />
               ) : (
                 <Navigate to="/mybuddy" />

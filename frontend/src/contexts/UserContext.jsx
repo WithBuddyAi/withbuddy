@@ -6,10 +6,20 @@ export function UserProvider({ children }) {
   const [hireDate, setHireDate] = useState();
   const [dayOffset, setDayOffset] = useState();
   const [role, setRole] = useState();
+  const [accountStatus, setAccountStatus] = useState();
 
   return (
     <UserContext.Provider
-      value={{ hireDate, setHireDate, dayOffset, setDayOffset, role, setRole }}
+      value={{
+        hireDate,
+        setHireDate,
+        dayOffset,
+        setDayOffset,
+        role,
+        setRole,
+        accountStatus,
+        setAccountStatus,
+      }}
     >
       {children}
     </UserContext.Provider>
