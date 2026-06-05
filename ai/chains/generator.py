@@ -60,6 +60,34 @@ def _fix_section_spacing(text: str) -> str:
     return re.sub(r'\n\n(?!\*\*)', '\n', text)
 
 
+def _fix_plain_list_to_bullet(text: str) -> str:
+    """섹션 헤더(**제목:**) 아래 plain text 항목 2개 이상이면 bullet(- )으로 변환."""
+    lines = text.split('\n')
+    result = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # 섹션 헤더 감지: **...**으로 시작하는 줄
+        if re.match(r'^\*\*.+\*\*:?$', line.strip()):
+            result.append(line)
+            i += 1
+            # 헤더 다음 줄들 수집 (다음 헤더 또는 빈 줄 전까지)
+            plain_items = []
+            while i < len(lines) and lines[i].strip() and not re.match(r'^\*\*.+\*\*:?$', lines[i].strip()):
+                plain_items.append(lines[i])
+                i += 1
+            # 2개 이상이고 bullet/번호 아닌 plain text면 변환
+            if len(plain_items) >= 2 and not any(p.strip().startswith(('- ', '* ', '1.', '2.', '3.')) for p in plain_items):
+                for item in plain_items:
+                    result.append(f"- {item.strip()}")
+            else:
+                result.extend(plain_items)
+        else:
+            result.append(line)
+            i += 1
+    return '\n'.join(result)
+
+
 def _has_duplicate_lines(text: str) -> bool:
     """연속 중복 줄 빠른 감지."""
     lines = [l.strip() for l in text.split('\n') if l.strip()]
@@ -177,6 +205,7 @@ def generate_answer(
     })
     answer = _fix_names(answer)
     answer = _fix_section_spacing(answer)
+    answer = _fix_plain_list_to_bullet(answer)
     answer = _dedup_answer(answer)
     return answer
 
@@ -217,6 +246,7 @@ async def postprocess_answer_async(full_answer: str) -> str:
     loop = asyncio.get_event_loop()
     fixed = _fix_names(full_answer)
     fixed = _fix_section_spacing(fixed)
+    fixed = _fix_plain_list_to_bullet(fixed)
     fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     return fixed
 
@@ -225,5 +255,6 @@ def postprocess_answer(full_answer: str) -> str:
     """동기 후처리 (이름 교정 + 중복 제거)."""
     fixed = _fix_names(full_answer)
     fixed = _fix_section_spacing(fixed)
+    fixed = _fix_plain_list_to_bullet(fixed)
     fixed = _dedup_answer(fixed)
     return fixed
