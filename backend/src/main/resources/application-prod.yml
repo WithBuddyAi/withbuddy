@@ -5,6 +5,10 @@ spring:
   config:
     activate:
       on-profile: prod
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
   datasource:
     url: ${SPRING_DB_URL}
     username: ${SPRING_DB_USERNAME}
