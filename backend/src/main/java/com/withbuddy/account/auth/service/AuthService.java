@@ -81,7 +81,7 @@ public class AuthService {
                 user.getId(),
                 user.getCompany().getCompanyCode(),
                 user.getRole(),
-                user.getRole() == UserRole.USER ? currentAccountStatus : null,
+                resolveResponseAccountStatus(user, currentAccountStatus),
                 user.getCompany().getName(),
                 user.getEmployeeNumber(),
                 user.getName(),
@@ -90,6 +90,16 @@ public class AuthService {
         cacheUserProfile(user.getId(), userResponse);
 
         return new LoginResponse(accessToken, userResponse);
+    }
+
+    private UserAccountStatus resolveResponseAccountStatus(User user, UserAccountStatus currentAccountStatus) {
+        if (user.getRole() == UserRole.USER) {
+            return currentAccountStatus;
+        }
+        if (user.getRole() == UserRole.ADMIN) {
+            return user.getAccountStatus();
+        }
+        return null;
     }
 
     public void logout(Long userId) {
