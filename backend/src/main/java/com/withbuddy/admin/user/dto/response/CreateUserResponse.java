@@ -17,10 +17,10 @@ public record CreateUserResponse(
         @Schema(description = "회사 이름", example = "테크 주식회사")
         String companyName,
 
-        @Schema(description = "사용자", example = "USER")
+        @Schema(description = "사용자 역할", example = "USER", allowableValues = {"USER", "ADMIN", "SERVICE_ADMIN"})
         String role,
 
-        @Schema(description = "사용자 역할", example = "ACTIVE")
+        @Schema(description = "계정 상태", example = "ACTIVE", allowableValues = {"ACTIVE", "INACTIVE", "READ_ONLY"})
         String accountStatus,
 
         @Schema(description = "이름", example = "김지원")
