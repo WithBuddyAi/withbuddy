@@ -113,6 +113,10 @@ public class User {
         this.accountStatus = accountStatus;
     }
 
+    public boolean isActiveAdmin() {
+        return role == UserRole.ADMIN && accountStatus == UserAccountStatus.ACTIVE;
+    }
+
     public static User createUser(
             Company company,
             String name,
