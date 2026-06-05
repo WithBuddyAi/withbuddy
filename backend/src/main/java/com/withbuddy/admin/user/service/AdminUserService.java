@@ -162,8 +162,8 @@ public class AdminUserService {
         User currentUser = adminUserRepository.findById(principal.userId())
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
-        if (currentUser.getRole() != UserRole.ADMIN) {
-            throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
+        if (!currentUser.isActiveAdmin()) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "활성 관리자 권한이 필요한 API입니다.");
         }
 
         if (!currentUser.getCompany().getCompanyCode().equals(companyCode)) {

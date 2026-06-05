@@ -22,7 +22,7 @@ public class LoginUserResponse {
     @Schema(description = "사용자", example = "USER", allowableValues = {"USER", "ADMIN", "SERVICE_ADMIN"})
     private UserRole role;
 
-    @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
+    @Schema(description = "계정 상태. USER는 이용 상태, ADMIN은 관리자 기능 사용 가능 여부 판단에 사용한다.", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
     private UserAccountStatus accountStatus;
 
     @Schema(description = "회사명", example = "테크 주식회사")
