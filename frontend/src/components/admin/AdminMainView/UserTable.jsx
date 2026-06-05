@@ -12,12 +12,12 @@ function SortHeader({ label, sortKey, sortBy, sortDirection, handleSort }) {
         <img
           src={triangleDown}
           onClick={() => handleSort(sortKey, "asc")}
-          className={`cursor-pointer rotate-180 w-[10px] ${sortBy === sortKey && sortDirection === "asc" ? "opacity-100" : "opacity-30"}`}
+          className={`cursor-pointer rotate-180 w-[12px] ${sortBy === sortKey && sortDirection === "asc" ? "opacity-100" : "opacity-30"}`}
         />
         <img
           src={triangleDown}
           onClick={() => handleSort(sortKey, "desc")}
-          className={`cursor-pointer w-[10px] ${sortBy === sortKey && sortDirection === "desc" ? "opacity-100" : "opacity-30"}`}
+          className={`cursor-pointer w-[12px] ${sortBy === sortKey && sortDirection === "desc" ? "opacity-100" : "opacity-30"}`}
         />
       </div>
     </span>

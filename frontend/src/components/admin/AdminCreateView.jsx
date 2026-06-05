@@ -164,7 +164,7 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
         teamName,
         hireDate: format(hireDate, "yyyy-MM-dd"),
       });
-      onSuccess(`${name} 계정이 생성되었어요.`);
+      onSuccess(`${name} 계정이 추가됐어요.`);
     } catch (error) {
       // 400 에러인 경우
       if (error.response?.status === 400) {

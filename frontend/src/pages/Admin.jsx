@@ -33,7 +33,10 @@ function Admin({ setIsLoggedIn }) {
       localStorage.removeItem("dayCount");
       localStorage.removeItem("hireDate");
       localStorage.removeItem("name");
+      localStorage.removeItem("department");
+      localStorage.removeItem("teamName");
       localStorage.removeItem("role");
+      localStorage.removeItem("accountStatus");
       setIsLoggedIn(false);
       navigate("/login");
     }
@@ -102,6 +105,8 @@ function Admin({ setIsLoggedIn }) {
           isSidebarOpen={isSidebarOpen}
           setIsSidebarOpen={setIsSidebarOpen}
           setIsLogoutModal={setIsLogoutModal}
+          currentView={view}
+          handleViewChange={handleViewChange}
         />
 
         {/* 본문 영역 */}
@@ -137,6 +142,9 @@ function Admin({ setIsLoggedIn }) {
                 }}
               />
             )}
+            {view === "dashboard" && <div>대시보드 준비 중</div>}
+            {view === "documents" && <div>문서 관리 준비 중</div>}
+            {view === "unanswered" && <div>미답변 질문 준비 중</div>}
           </div>
         </div>
       </div>

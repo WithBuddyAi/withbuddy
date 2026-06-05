@@ -130,7 +130,20 @@ function MessageList({
                   ) : (
                     <>
                       {/* 메시지 내용 */}
-                      <ReactMarkdown>
+                      <ReactMarkdown
+                        components={{
+                          ul: ({ children }) => (
+                            <ul className="list-disc pl-[16px]">
+                              {children}
+                            </ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="list-decimal pl-[16px]">
+                              {children}
+                            </ol>
+                          ),
+                        }}
+                      >
                         {message.content?.replace(/\\n/g, "\n")}
                       </ReactMarkdown>
 
