@@ -88,11 +88,15 @@ def pop_category() -> str:
 
 
 def _extract_category(docs: List[Document]) -> str:
-    """검색된 문서에서 가장 많이 등장한 category 메타데이터를 반환."""
+    """검색된 문서에서 가장 많이 등장한 document_type을 category로 반환."""
     if not docs:
         return ""
     from collections import Counter
-    cats = [d.metadata.get("category", "") for d in docs if d.metadata.get("category")]
+    cats = [
+        d.metadata.get("category") or d.metadata.get("document_type", "")
+        for d in docs
+        if d.metadata.get("category") or d.metadata.get("document_type")
+    ]
     if not cats:
         return ""
     return Counter(cats).most_common(1)[0][0]
