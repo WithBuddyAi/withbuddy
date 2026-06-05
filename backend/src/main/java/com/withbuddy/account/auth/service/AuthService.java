@@ -81,7 +81,7 @@ public class AuthService {
                 user.getId(),
                 user.getCompany().getCompanyCode(),
                 user.getRole(),
-                user.getRole() == UserRole.USER ? currentAccountStatus : null,
+                user.getAccountStatus(),
                 user.getCompany().getName(),
                 user.getEmployeeNumber(),
                 user.getName(),
@@ -123,7 +123,7 @@ public class AuthService {
 
     private UserAccountStatus resolveLifecycleAccountStatus(User user) {
         if (user.getRole() != UserRole.USER) {
-            return null;
+            return user.getAccountStatus();
         }
 
         int probationPeriod = user.getCompany().getProbationPeriod() == null

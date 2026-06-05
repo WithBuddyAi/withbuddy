@@ -38,7 +38,7 @@ public class User {
     private UserRole role;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "account_status", length = 20)
+    @Column(name = "account_status", nullable = false, length = 20)
     private UserAccountStatus accountStatus;
 
     @Column(name = "name", nullable = false, length = 20)
@@ -82,9 +82,7 @@ public class User {
         this.employeeNumber = employeeNumber;
         this.hireDate = hireDate;
         this.role = role == null ? UserRole.USER : role;
-        this.accountStatus = this.role == UserRole.USER
-                ? (accountStatus == null ? UserAccountStatus.ACTIVE : accountStatus)
-                : null;
+        this.accountStatus = accountStatus == null ? UserAccountStatus.ACTIVE : accountStatus;
     }
 
     public static User createUser(

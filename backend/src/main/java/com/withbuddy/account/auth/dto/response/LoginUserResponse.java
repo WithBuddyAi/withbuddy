@@ -19,10 +19,10 @@ public class LoginUserResponse {
     @Schema(description = "회사 코드", example = "WB0001")
     private String companyCode;
 
-    @Schema(description = "사용자", example = "USER", allowableValues = {"USER", "ADMIN", "SERVICE_ADMIN"})
+    @Schema(description = "사용자 역할", example = "USER", allowableValues = {"USER", "ADMIN", "SERVICE_ADMIN"})
     private UserRole role;
 
-    @Schema(description = "사용자 역할", example = "ACTIVE", allowableValues = {"ACTIVE", "READ_ONLY", "INACTIVE"})
+    @Schema(description = "계정 상태", example = "ACTIVE", allowableValues = {"ACTIVE", "INACTIVE", "READ_ONLY"})
     private UserAccountStatus accountStatus;
 
     @Schema(description = "회사명", example = "테크 주식회사")
