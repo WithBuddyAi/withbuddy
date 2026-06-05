@@ -1,11 +1,13 @@
 """
-E2E 평가 스크립트 — 40문항 (test_e2e_20260522.md 기반)
-실행: python scripts/test_e2e_20260522.py
-결과: scripts/test_e2e_20260522_result_YYYYMMDD_HHMM.json
+E2E 평가 스크립트 — 위드버디 테스트셋 v2 (40문항)
+실행: python scripts/test_e2e_v2.py
+결과: scripts/test_e2e_v2_result_YYYYMMDD_HHMM.json
 
 출력 항목: 분류(messageType), 속도(latency), 정확도, 미스이유
 판정 기준: expect_type == 실제 messageType 일치 여부
   expect_type: rag_answer / no_result / out_of_scope
+
+★ = BM25 성능 측정용 단어형 쿼리 (15문항)
 """
 
 import json
@@ -23,64 +25,63 @@ COMPANY_CODE = "WB0001"
 COMPANY_NAME = "테크주식회사"
 
 # ══════════════════════════════════════════════════════════════════
-# 테스트 문항 (test_e2e_20260522.md)
+# 테스트 문항 (withbuddy_testset_v2.md)
 # ══════════════════════════════════════════════════════════════════
 TESTS = [
     # ── rag_answer (25건) ──
-    {"id": "Q01", "q": "입사하고 나서 언제부터 연차를 쓸 수 있어요?",       "expect_type": "rag_answer"},
-    {"id": "Q02", "q": "점심값 영수증 제출해야 해요?",                       "expect_type": "rag_answer"},
-    {"id": "Q03", "q": "야근하면 밥값 지원되나요?",                          "expect_type": "rag_answer"},
-    {"id": "Q04", "q": "병원비 보험 처리 돼요?",                             "expect_type": "rag_answer"},
-    {"id": "Q05", "q": "책 사면 회사에서 돈 돌려줘요?",                      "expect_type": "rag_answer"},
-    {"id": "Q06", "q": "월급은 언제 들어와요?",                              "expect_type": "rag_answer"},
-    {"id": "Q07", "q": "결혼하면 회사에서 뭐 해줘요?",                       "expect_type": "rag_answer"},
-    {"id": "Q08", "q": "수습 기간에도 복지카드 쓸 수 있나요?",               "expect_type": "rag_answer"},
-    {"id": "Q09", "q": "Notion에서 비품 신청하는 방법이 어떻게 돼요?",       "expect_type": "rag_answer"},
-    {"id": "Q10", "q": "Flex에서 반차 신청은 어떻게 해요?",                  "expect_type": "rag_answer"},
-    {"id": "Q11", "q": "Slack에서 IT 문의는 어디다 해요?",                   "expect_type": "rag_answer"},
-    {"id": "Q12", "q": "회사 강의 지원은 얼마까지 되나요?",                  "expect_type": "rag_answer"},
-    {"id": "Q13", "q": "노트북 말고 모니터도 받을 수 있어요?",               "expect_type": "rag_answer"},
-    {"id": "Q14", "q": "출장 가면 숙박비 얼마까지 돼요?",                    "expect_type": "rag_answer"},
-    {"id": "Q15", "q": "회의실은 몇 개 있어요?",                             "expect_type": "rag_answer"},
-    {"id": "Q16", "q": "비밀번호 얼마나 자주 바꿔야 해요?",                  "expect_type": "rag_answer"},
-    {"id": "Q17", "q": "법인카드 쓰고 나서 언제까지 정산해야 해요?",         "expect_type": "rag_answer"},
-    {"id": "Q18", "q": "퇴사할 때 장비는 어떻게 반납해요?",                  "expect_type": "rag_answer"},
-    {"id": "Q19", "q": "생일에 뭔가 혜택이 있나요?",                         "expect_type": "rag_answer"},
-    {"id": "Q20", "q": "경비 정산 마감이 언제예요?",                         "expect_type": "rag_answer"},
-    {"id": "Q21", "q": "Notion에서 경비 청구서 어떻게 찾아요?",              "expect_type": "rag_answer"},
-    {"id": "Q22", "q": "VPN 설치 파일 어디서 받아요?",                       "expect_type": "rag_answer"},
-    {"id": "Q23", "q": "수습평가",                                           "expect_type": "rag_answer"},
-    {"id": "Q24", "q": "재직증명서",                                         "expect_type": "rag_answer"},
-    {"id": "Q25", "q": "반차",                                               "expect_type": "rag_answer"},
-    # ── no_result (4건) ──
-    {"id": "Q26", "q": "사내 동호회 있어요?",                                "expect_type": "no_result"},
-    {"id": "Q27", "q": "리프레시 휴가는 언제 쓸 수 있어요?",                 "expect_type": "no_result"},
-    {"id": "Q28", "q": "스톡옵션 받을 수 있나요?",                           "expect_type": "no_result"},
-    {"id": "Q29", "q": "사이닝 보너스 있나요?",                              "expect_type": "no_result"},
-    # ── rag_answer (법률 1건) ──
-    {"id": "Q30", "q": "육아휴직 제도 있어요?",                              "expect_type": "rag_answer"},
-    # ── no_result (2건) ──
-    {"id": "Q31", "q": "복장 규정이 있나요?",                                "expect_type": "rag_answer"},
-    {"id": "Q32", "q": "주 4일제 운영해요?",                                 "expect_type": "no_result"},
+    {"id": "Q01", "q": "월급은 언제 들어와?",                               "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q02", "q": "수습 때 월급 깎여?",                                "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q03", "q": "야근하면 수당 얼마야?",                              "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q04", "q": "연차 언제부터 쓸 수 있어?",                         "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q05", "q": "반차 어떻게 신청해?",                               "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q06", "q": "결혼하면 휴가 며칠 줘?",                            "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q07", "q": "재택근무 가능해?",                                  "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q08", "q": "재직증명서 어떻게 뽑아?",                           "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q09", "q": "점심 영수증 제출해야 해?",                          "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q10", "q": "야근하면 밥값 나와?",                               "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q11", "q": "복지카드 한도 얼마야?",                             "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q12", "q": "수습 때도 복지카드 써?",                            "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q13", "q": "결혼하면 회사에서 돈 줘?",                          "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q14", "q": "생일에 혜택 있어?",                                 "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q15", "q": "책 사면 회사에서 돈 돌려줘?",                       "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q16", "q": "온라인 강의비 지원돼?",                             "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q17", "q": "병원비 보험 처리 돼?",                              "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q18", "q": "경비 정산 마감이 언제야?",                          "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q19", "q": "법인카드 쓰고 나서 언제까지 정산해야 해?",          "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q20", "q": "출장 숙박비 얼마까지 돼?",                          "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q21", "q": "비품 신청 어떻게 해?",                              "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q22", "q": "퇴사할 때 장비 어떻게 반납해?",                     "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q23", "q": "비밀번호 얼마나 자주 바꿔야 해?",                   "bm25": False, "expect_type": "rag_answer"},
+    {"id": "Q24", "q": "VPN 설치 파일 어디서 받아?",                        "bm25": True,  "expect_type": "rag_answer"},
+    {"id": "Q25", "q": "Slack에서 IT 문의 어디다 해?",                      "bm25": True,  "expect_type": "rag_answer"},
+    # ── no_result (8건) ──
+    {"id": "Q26", "q": "사내 동호회 있어?",                                 "bm25": True,  "expect_type": "no_result"},
+    {"id": "Q27", "q": "리프레시 휴가 있어?",                               "bm25": False, "expect_type": "no_result"},
+    {"id": "Q28", "q": "연봉 협상은 어떻게 해?",                            "bm25": True,  "expect_type": "no_result"},
+    {"id": "Q29", "q": "업무폰 지급돼?",                                    "bm25": False, "expect_type": "no_result"},
+    {"id": "Q30", "q": "주 4일제야?",                                       "bm25": False, "expect_type": "no_result"},
+    {"id": "Q31", "q": "육아휴직 어떻게 신청해?",                           "bm25": False, "expect_type": "no_result"},
+    {"id": "Q32", "q": "스톡옵션 받을 수 있어?",                            "bm25": True,  "expect_type": "no_result"},
+    {"id": "Q33", "q": "복장 규정 있어?",                                   "bm25": False, "expect_type": "no_result"},
     # ── out_of_scope (7건) ──
-    {"id": "Q33", "q": "팀장이랑 사이가 안 좋으면 어떻게 해요?",            "expect_type": "out_of_scope"},
-    {"id": "Q34", "q": "요즘 개발자 연봉 시세가 어떻게 돼요?",              "expect_type": "out_of_scope"},
-    {"id": "Q35", "q": "퇴근하고 뭐 하면 좋아요?",                          "expect_type": "out_of_scope"},
-    {"id": "Q36", "q": "저 요즘 번아웃인 것 같아요",                         "expect_type": "sensitive"},
-    {"id": "Q37", "q": "우리 회사 주식 살 수 있어요?",                       "expect_type": "out_of_scope"},
-    {"id": "Q38", "q": "오늘 점심 뭐 먹을까요?",                             "expect_type": "out_of_scope"},
-    {"id": "Q39", "q": "다른 팀 분위기는 어때요?",                           "expect_type": "out_of_scope"},
-    # ── rag_answer (1건) ──
-    {"id": "Q40", "q": "경조사비",                                           "expect_type": "rag_answer"},
+    {"id": "Q34", "q": "팀장이랑 사이가 안 좋으면 어떻게 해?",             "bm25": False, "expect_type": "out_of_scope"},
+    {"id": "Q35", "q": "요즘 개발자 연봉 시세 어떻게 돼?",                 "bm25": False, "expect_type": "out_of_scope"},
+    {"id": "Q36", "q": "저 요즘 번아웃인 것 같아요",                        "bm25": False, "expect_type": "out_of_scope"},
+    {"id": "Q37", "q": "오늘 점심 뭐 먹을까?",                              "bm25": False, "expect_type": "out_of_scope"},
+    {"id": "Q38", "q": "우리 회사 주식 살 수 있어?",                        "bm25": False, "expect_type": "out_of_scope"},
+    {"id": "Q39", "q": "다른 팀 분위기는 어때?",                            "bm25": False, "expect_type": "out_of_scope"},
+    {"id": "Q40", "q": "퇴근하고 뭐 하면 좋아?",                            "bm25": False, "expect_type": "out_of_scope"},
 ]
 
 assert len(TESTS) == 40, f"테스트 케이스 수 오류: {len(TESTS)}건"
+assert sum(1 for t in TESTS if t["bm25"]) == 15, f"BM25 ★ 문항 수 오류"
 
 _BY_TYPE = {
     "rag_answer":   [t for t in TESTS if t["expect_type"] == "rag_answer"],
     "no_result":    [t for t in TESTS if t["expect_type"] == "no_result"],
     "out_of_scope": [t for t in TESTS if t["expect_type"] == "out_of_scope"],
 }
+_BM25 = [t for t in TESTS if t["bm25"]]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -173,11 +174,12 @@ def _confusion_row(expect: str, results: list) -> dict:
 
 def main():
     print(f"\n{'='*65}")
-    print(f"  E2E 평가 — 40문항 ({COMPANY_CODE} / {COMPANY_NAME})")
+    print(f"  E2E 평가 v2 — 40문항 ({COMPANY_CODE} / {COMPANY_NAME})")
     print(f"  서버: {BASE_URL}")
     print(f"  기대 타입: rag_answer {len(_BY_TYPE['rag_answer'])}건 /"
           f" no_result {len(_BY_TYPE['no_result'])}건 /"
           f" out_of_scope {len(_BY_TYPE['out_of_scope'])}건")
+    print(f"  BM25 ★ 문항: {len(_BM25)}건")
     print(f"{'='*65}\n")
 
     results: list = []
@@ -187,7 +189,8 @@ def main():
     total_cache_c = 0
 
     for i, item in enumerate(TESTS, 1):
-        label = f"[{item['id']}] {item['q'][:38]}"
+        star  = "★" if item["bm25"] else " "
+        label = f"[{item['id']}]{star} {item['q'][:36]}"
         print(f"{label:<46}", end=" ", flush=True)
         result = run_one(item, i)
         results.append(result)
@@ -233,6 +236,14 @@ def main():
         bar     = "█" * ok + "░" * (len(sub) - ok)
         print(f"  {etype:<16} {bar} {ok}/{len(sub)} ({subrate}%)")
 
+    # ── BM25 ★ 문항 정확도 ────────────────────────────────────
+    bm25_results = [r for r in results if r.get("bm25")]
+    bm25_ok      = sum(1 for r in bm25_results if r["passed"])
+    bm25_rate    = round(bm25_ok / len(bm25_results) * 100, 1) if bm25_results else 0.0
+    print(f"\n[BM25 ★ 문항 정확도]")
+    bar = "█" * bm25_ok + "░" * (len(bm25_results) - bm25_ok)
+    print(f"  BM25 ★          {bar} {bm25_ok}/{len(bm25_results)} ({bm25_rate}%)")
+
     # ── 혼동 행렬 ─────────────────────────────────────────────
     print("\n[혼동 행렬 — 기대→실제]")
     all_types = sorted({r["messageType"] for r in results} | {"rag_answer", "no_result", "out_of_scope"})
@@ -251,7 +262,8 @@ def main():
     if fails:
         print(f"\n[FAIL 목록 — {len(fails)}건]")
         for r in fails:
-            print(f"  [{r['id']}] {r['q'][:48]}")
+            star = " ★" if r.get("bm25") else ""
+            print(f"  [{r['id']}]{star} {r['q'][:48]}")
             print(f"       └ {r['reason']}")
             if r["preview"]:
                 print(f"         응답: {r['preview'][:60]}")
@@ -261,6 +273,7 @@ def main():
     # ── JSON 저장 ─────────────────────────────────────────────
     out = {
         "date":    time.strftime("%Y-%m-%d %H:%M"),
+        "version": "v2",
         "company": COMPANY_CODE,
         "server":  BASE_URL,
         "total":   total,
@@ -283,9 +296,14 @@ def main():
             etype: _confusion_row(etype, results)
             for etype in ("rag_answer", "no_result", "out_of_scope")
         },
+        "bm25": {
+            "total":  len(bm25_results),
+            "passed": bm25_ok,
+            "rate":   bm25_rate,
+        },
         "results": results,
     }
-    fname = f"scripts/test_e2e_20260522_result_{time.strftime('%Y%m%d_%H%M')}.json"
+    fname = f"scripts/test_e2e_v2_result_{time.strftime('%Y%m%d_%H%M')}.json"
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print(f"\n결과 저장: {fname}")

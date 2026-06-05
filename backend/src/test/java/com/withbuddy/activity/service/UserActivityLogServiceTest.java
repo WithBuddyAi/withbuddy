@@ -2,6 +2,7 @@ package com.withbuddy.activity.service;
 
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.admin.activity.dto.response.LogResponse;
 import com.withbuddy.admin.activity.entity.UserActivityLog;
@@ -40,7 +41,7 @@ class UserActivityLogServiceTest {
                 userRepository
         );
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(UserRole.ACTIVE)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(UserAccountStatus.ACTIVE)));
         when(userActivityLogRepository.save(any(UserActivityLog.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -59,7 +60,7 @@ class UserActivityLogServiceTest {
                 userRepository
         );
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(UserRole.ACTIVE)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(UserAccountStatus.ACTIVE)));
 
         assertThatThrownBy(() -> userActivityLogService.saveQuickQuestionClick(1L, "QUICK_TAP_UNKNOWN"))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -73,21 +74,22 @@ class UserActivityLogServiceTest {
                 userRepository
         );
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(UserRole.READ_ONLY)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(UserAccountStatus.READ_ONLY)));
 
         assertThatThrownBy(() -> userActivityLogService.saveQuickQuestionClick(1L, "QUICK_TAP_LOCATION"))
                 .isInstanceOf(ForbiddenException.class);
         verify(userActivityLogRepository, never()).save(any(UserActivityLog.class));
     }
 
-    private User user(UserRole role) {
+    private User user(UserAccountStatus accountStatus) {
         return User.builder()
                 .name("tester")
                 .department("-")
                 .teamName("-")
                 .employeeNumber("E001")
                 .hireDate(LocalDate.now())
-                .role(role)
+                .role(UserRole.USER)
+                .accountStatus(accountStatus)
                 .build();
     }
 }

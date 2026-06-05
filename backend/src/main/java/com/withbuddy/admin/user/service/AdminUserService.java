@@ -11,6 +11,7 @@ import com.withbuddy.admin.user.repository.AdminUserRepository;
 import com.withbuddy.account.company.entity.Company;
 import com.withbuddy.account.company.repository.CompanyRepository;
 import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.buddy.chat.entity.MessageType;
 import com.withbuddy.buddy.chat.entity.SenderType;
@@ -98,6 +99,7 @@ public class AdminUserService {
                 company.getCompanyCode(),
                 company.getName(),
                 user.getRole().name(),
+                user.getAccountStatus().name(),
                 user.getName(),
                 user.getDepartment(),
                 user.getTeamName(),
@@ -124,10 +126,10 @@ public class AdminUserService {
 
         Page<User> userPage = adminUserRepository.searchUsers(
                 companyCode,
-                List.of(UserRole.ACTIVE, UserRole.READ_ONLY, UserRole.INACTIVE),
-                List.of(UserRole.ACTIVE),
-                List.of(UserRole.READ_ONLY),
-                List.of(UserRole.INACTIVE),
+                List.of(UserRole.USER),
+                List.of(UserAccountStatus.ACTIVE),
+                List.of(UserAccountStatus.READ_ONLY),
+                List.of(UserAccountStatus.INACTIVE),
                 normalizeFilter(department, "department"),
                 normalizeFilter(teamName, "teamName"),
                 normalizedSortBy,
@@ -160,8 +162,8 @@ public class AdminUserService {
         User currentUser = adminUserRepository.findById(principal.userId())
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
-        if (currentUser.getRole() != UserRole.ADMIN) {
-            throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
+        if (!currentUser.isActiveAdmin()) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "활성 관리자 권한이 필요한 API입니다.");
         }
 
         if (!currentUser.getCompany().getCompanyCode().equals(companyCode)) {
@@ -227,6 +229,7 @@ public class AdminUserService {
                 formatDepartmentTeam(user.getDepartment(), user.getTeamName()),
                 user.getName(),
                 user.getRole().name(),
+                user.getAccountStatus() == null ? null : user.getAccountStatus().name(),
                 user.getHireDate(),
                 calculateHireDay(user.getHireDate()),
                 countUserQuestions(user.getId()),

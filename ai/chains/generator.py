@@ -55,6 +55,40 @@ def _fix_names(text: str) -> str:
     return text
 
 
+def _fix_section_spacing(text: str) -> str:
+    """** 앞 \n\n은 섹션 구분으로 유지, 나머지 \n\n → \n으로 교체."""
+    return re.sub(r'\n\n(?!\*\*)', '\n', text)
+
+
+def _fix_plain_list_to_bullet(text: str) -> str:
+    """섹션 헤더(**제목:**) 아래 plain text 항목 2개 이상이면 bullet(- )으로 변환."""
+    lines = text.split('\n')
+    result = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # 섹션 헤더 감지: **...**으로 시작하는 줄
+        if re.match(r'^\*\*.+\*\*:?$', line.strip()):
+            result.append(line)
+            i += 1
+            # 헤더 다음 줄들 수집 (다음 헤더 전까지, 빈 줄은 무시하고 계속 수집)
+            plain_items = []
+            while i < len(lines) and not re.match(r'^\*\*.+\*\*:?$', lines[i].strip()):
+                if lines[i].strip():
+                    plain_items.append(lines[i])
+                i += 1
+            # 2개 이상이고 bullet/번호 아닌 plain text면 변환
+            if len(plain_items) >= 2 and not any(p.strip().startswith(('- ', '* ', '1.', '2.', '3.')) for p in plain_items):
+                for item in plain_items:
+                    result.append(f"- {item.strip()}")
+            else:
+                result.extend(plain_items)
+        else:
+            result.append(line)
+            i += 1
+    return '\n'.join(result)
+
+
 def _has_duplicate_lines(text: str) -> bool:
     """연속 중복 줄 빠른 감지."""
     lines = [l.strip() for l in text.split('\n') if l.strip()]
@@ -93,6 +127,8 @@ _NO_ANSWER_KEYWORDS = [
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "문서에 없어서", "안내드리기 어려워",
+    "없는 것 같아요", "나와있지 않", "명시되어 있지 않", "기재되어 있지 않",
+    "확인되지 않", "나와 있지 않", "관련 내용이 없",
 ]
 
 _LABOR_LAW_KEYWORDS = ["근로기준법", "노동법", "최저임금법", "산업안전보건법", "고용노동부", "노동자 권리", "근로자 권리"]
@@ -171,6 +207,8 @@ def generate_answer(
         "hire_info": hire_info,
     })
     answer = _fix_names(answer)
+    answer = _fix_section_spacing(answer)
+    answer = _fix_plain_list_to_bullet(answer)
     answer = _dedup_answer(answer)
     return answer
 
@@ -210,6 +248,8 @@ async def postprocess_answer_async(full_answer: str) -> str:
     import asyncio
     loop = asyncio.get_event_loop()
     fixed = _fix_names(full_answer)
+    fixed = _fix_section_spacing(fixed)
+    fixed = _fix_plain_list_to_bullet(fixed)
     fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     return fixed
 
@@ -217,5 +257,7 @@ async def postprocess_answer_async(full_answer: str) -> str:
 def postprocess_answer(full_answer: str) -> str:
     """동기 후처리 (이름 교정 + 중복 제거)."""
     fixed = _fix_names(full_answer)
+    fixed = _fix_section_spacing(fixed)
+    fixed = _fix_plain_list_to_bullet(fixed)
     fixed = _dedup_answer(fixed)
     return fixed
