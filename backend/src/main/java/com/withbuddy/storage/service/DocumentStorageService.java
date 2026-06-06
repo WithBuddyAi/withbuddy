@@ -1275,8 +1275,8 @@ public class DocumentStorageService implements DocumentDownloadService {
                             "사용자 정보를 찾을 수 없습니다."
                     ));
 
-            if (requireAdmin && currentUser.getRole() != UserRole.ADMIN) {
-                throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
+            if (requireAdmin && !currentUser.isActiveAdmin()) {
+                throw new ForbiddenException("ACCESS_DENIED", "role", "활성 관리자 권한이 필요한 API입니다.");
             }
 
             if (!requireAdmin

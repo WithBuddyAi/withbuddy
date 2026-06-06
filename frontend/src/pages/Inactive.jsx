@@ -12,7 +12,10 @@ function Inactive({ setIsLoggedIn }) {
       localStorage.removeItem("dayCount");
       localStorage.removeItem("hireDate");
       localStorage.removeItem("name");
+      localStorage.removeItem("department");
+      localStorage.removeItem("teamName");
       localStorage.removeItem("role");
+      localStorage.removeItem("accountStatus");
       setIsLoggedIn(false);
       navigate("/login");
     }
@@ -20,9 +23,11 @@ function Inactive({ setIsLoggedIn }) {
 
   return (
     <div className="h-screen flex flex-col items-center justify-center gap-[16px]">
-      <p className="text-[18px] font-medium">서비스 이용 기간이 종료됐어요.</p>
+      <p className="text-[18px] font-medium">
+        위드버디 이용 기간이 종료됐어요.
+      </p>
       <p className="text-[14px] text-[#868E96]">
-        궁금한 사항은 담당자에게 직접 문의해주세요.
+        궁금한 사항은 담당자에게 직접 문의해 주세요.
       </p>
       <button
         onClick={handleLogout}

@@ -20,7 +20,8 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
+               AND u.role = 'USER'
+               AND u.account_status IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= DATE_SUB(:asOfDate, INTERVAL 6 DAY)
             LEFT JOIN chat_messages rag_message
                 ON rag_message.user_id = u.id
@@ -50,7 +51,8 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
+               AND u.role = 'USER'
+               AND u.account_status IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= :asOfDate
             LEFT JOIN user_activity_logs d0_click
                 ON d0_click.user_id = u.id
@@ -86,7 +88,8 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
+               AND u.role = 'USER'
+               AND u.account_status IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= DATE_SUB(:asOfDate, INTERVAL 6 DAY)
             LEFT JOIN user_activity_logs d0_chat
                 ON d0_chat.user_id = u.id
@@ -129,7 +132,8 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
+               AND u.role = 'USER'
+               AND u.account_status IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= :asOfDate
             LEFT JOIN chat_messages ai_message
                 ON ai_message.user_id = u.id
@@ -169,7 +173,8 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             FROM companies c
             LEFT JOIN users u
                 ON u.company_code = c.company_code
-               AND u.role IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
+               AND u.role = 'USER'
+               AND u.account_status IN ('ACTIVE', 'READ_ONLY', 'INACTIVE')
                AND u.hire_date <= :asOfDate
             LEFT JOIN (
                 SELECT

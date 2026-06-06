@@ -88,11 +88,15 @@ def pop_category() -> str:
 
 
 def _extract_category(docs: List[Document]) -> str:
-    """검색된 문서에서 가장 많이 등장한 category 메타데이터를 반환."""
+    """검색된 문서에서 가장 많이 등장한 document_type을 category로 반환."""
     if not docs:
         return ""
     from collections import Counter
-    cats = [d.metadata.get("category", "") for d in docs if d.metadata.get("category")]
+    cats = [
+        d.metadata.get("category") or d.metadata.get("document_type", "")
+        for d in docs
+        if d.metadata.get("category") or d.metadata.get("document_type")
+    ]
     if not cats:
         return ""
     return Counter(cats).most_common(1)[0][0]
@@ -231,7 +235,11 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     if result.direct_legal_answer:
         save_interaction(user_id, result.question, result.direct_legal_answer)
         related_docs = find_related_docs(result.question)
-        yield result.direct_legal_answer, None, None, None
+        _legal = re.sub(r'\n\n(?=\*\*)', '\x00', result.direct_legal_answer)
+        _legal = re.sub(r'\n\n', '\n', _legal)
+        _legal = re.sub(r'\n', '  \n', _legal)
+        _legal = _legal.replace('\x00', '\n\n')
+        yield _legal, None, None, None
         yield "", result.source_names, related_docs, result.doc_ids
         return
 
@@ -240,6 +248,19 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     hr_team, _ = get_hr_contact(company_code)
 
     yield "__STAGE__generating", None, None, None
+
+    _EMPATHY_KEYWORDS = ["지각", "조퇴", "실수", "징계"]
+    _EMPATHY_VARIANTS = ["당황스러우셨겠어요! ", "걱정되시겠어요! ", "많이 당황하셨겠어요! "]
+    if any(kw in question for kw in _EMPATHY_KEYWORDS):
+        import random
+        yield random.choice(_EMPATHY_VARIANTS), None, None, None
+
+    def _fmt(text: str) -> str:
+        text = re.sub(r'\n\n(?=\*\*)', '\x00', text)
+        text = re.sub(r'\n\n', '\n', text)
+        text = re.sub(r'\n', '  \n', text)
+        text = text.replace('\x00', '\n\n')
+        return text
 
     full_answer = ""
     _buf = ""
@@ -265,19 +286,19 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             if after >= len(_buf):
                 break  # \n\n이 버퍼 끝 — 다음 청크 기다림
             if _buf[after:after + 2] == '**':
-                out = _buf[:after]  # ** 앞 \n\n은 섹션 구분으로 유지
+                out = _fmt(_buf[:idx]) + '\n\n'
             else:
-                out = _buf[:idx] + '\n'  # 나머지 \n\n → \n으로 교체
+                out = _fmt(_buf[:after])
             full_answer += out
             yield out, None, None, None
             _buf = _buf[after:]
-        if len(_buf) > 100:
-            safe = _buf[:-100]
+        if len(_buf) > 20:
+            safe = _fmt(_buf[:-4])
             full_answer += safe
             yield safe, None, None, None
-            _buf = _buf[-100:]
+            _buf = _buf[-4:]
     if _buf:
-        final = re.sub(r'\n\n(?!\*\*)', '\n', _buf)
+        final = _fmt(_buf)
         full_answer += final
         yield final, None, None, None
 
