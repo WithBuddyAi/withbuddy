@@ -25,7 +25,7 @@ function Login({ setIsLoggedIn }) {
   const [nameError, setNameError] = useState("");
   const nameRef = useRef(null);
 
-  const { setHireDate, setDayOffset, setRole } = useUser();
+  const { setHireDate, setDayOffset, setRole, setAccountStatus } = useUser();
 
   const location = useLocation();
   const tokenError = location.state?.tokenError;
@@ -71,8 +71,12 @@ function Login({ setIsLoggedIn }) {
       localStorage.setItem("hireDate", data.user.hireDate);
       setHireDate(data.user.hireDate);
       localStorage.setItem("name", data.user.name);
+      localStorage.setItem("department", data.user.department)
+      localStorage.setItem("teamName", data.user.teamName)
       localStorage.setItem("role", data.user.role);
+      localStorage.setItem("accountStatus", data.user.accountStatus);
       setRole(data.user.role);
+      setAccountStatus(data.user.accountStatus);
 
       const today = new Date();
       const hireDate = new Date(data.user.hireDate);
@@ -80,15 +84,24 @@ function Login({ setIsLoggedIn }) {
       localStorage.setItem("dayCount", dayOffset);
       setDayOffset(dayOffset);
 
-      if (
-        data.user.role === "ACTIVE" ||
-        data.user.role === "READ_ONLY" ||
-        data.user.role === "SERVICE_ADMIN"
+      if (data.user.role === "USER" && data.user.accountStatus === "ACTIVE") {
+        navigate("/mybuddy");
+      } else if (
+        data.user.role === "USER" &&
+        data.user.accountStatus === "READ_ONLY"
       ) {
         navigate("/mybuddy");
-      } else if (data.user.role === "INACTIVE") {
+      } else if (
+        data.user.role === "USER" &&
+        data.user.accountStatus === "INACTIVE"
+      ) {
         navigate("/inactive");
-      } else if (data.user.role === "ADMIN") {
+      } else if (data.user.role === "SERVICE_ADMIN") {
+        navigate("/mybuddy");
+      } else if (
+        data.user.role === "ADMIN" &&
+        data.user.accountStatus === "ACTIVE"
+      ) {
         navigate("/admin");
       }
     } catch (error) {

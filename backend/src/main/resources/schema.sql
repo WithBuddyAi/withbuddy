@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS company_organization_units (
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT NOT NULL AUTO_INCREMENT,
     company_code VARCHAR(20) NOT NULL,
-    role VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    role VARCHAR(20) NOT NULL DEFAULT 'USER',
+    account_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     department VARCHAR(100) NOT NULL,
     team_name VARCHAR(100) NOT NULL,
     name VARCHAR(20) NOT NULL,
@@ -238,50 +239,50 @@ WHERE NOT EXISTS (
     WHERE company_code = 'WB0002' AND department = '미지정' AND team_name = '미지정'
 );
 
-INSERT INTO users (company_code, role, department, team_name, name, employee_number, hire_date)
-SELECT 'WB0001', 'ACTIVE', '미지정', '미지정', '김민준', '20260001', '2026-04-14'
+INSERT INTO users (company_code, role, account_status, department, team_name, name, employee_number, hire_date)
+SELECT 'WB0001', 'USER', 'ACTIVE', '미지정', '미지정', '김민준', '20260001', '2026-04-14'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE company_code = 'WB0001' AND employee_number = '20260001'
 );
 
-INSERT INTO users (company_code, role, department, team_name, name, employee_number, hire_date)
-SELECT 'WB0001', 'ACTIVE', '미지정', '미지정', '이서연', '20260002', '2026-04-11'
+INSERT INTO users (company_code, role, account_status, department, team_name, name, employee_number, hire_date)
+SELECT 'WB0001', 'USER', 'ACTIVE', '미지정', '미지정', '이서연', '20260002', '2026-04-11'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE company_code = 'WB0001' AND employee_number = '20260002'
 );
 
-INSERT INTO users (company_code, role, department, team_name, name, employee_number, hire_date)
-SELECT 'WB0001', 'ACTIVE', '미지정', '미지정', '박도현', '20260003', '2026-04-07'
+INSERT INTO users (company_code, role, account_status, department, team_name, name, employee_number, hire_date)
+SELECT 'WB0001', 'USER', 'ACTIVE', '미지정', '미지정', '박도현', '20260003', '2026-04-07'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE company_code = 'WB0001' AND employee_number = '20260003'
 );
 
-INSERT INTO users (company_code, role, department, team_name, name, employee_number, hire_date)
-SELECT 'WB0001', 'ACTIVE', '미지정', '미지정', '최지아', '20260004', '2026-03-15'
+INSERT INTO users (company_code, role, account_status, department, team_name, name, employee_number, hire_date)
+SELECT 'WB0001', 'USER', 'ACTIVE', '미지정', '미지정', '최지아', '20260004', '2026-03-15'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE company_code = 'WB0001' AND employee_number = '20260004'
 );
 
-INSERT INTO users (company_code, role, department, team_name, name, employee_number, hire_date)
-SELECT 'WB0002', 'ACTIVE', '미지정', '미지정', '정하은', '20260001', '2026-04-14'
+INSERT INTO users (company_code, role, account_status, department, team_name, name, employee_number, hire_date)
+SELECT 'WB0002', 'USER', 'ACTIVE', '미지정', '미지정', '정하은', '20260001', '2026-04-14'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE company_code = 'WB0002' AND employee_number = '20260001'
 );
 
-INSERT INTO users (company_code, role, department, team_name, name, employee_number, hire_date)
-SELECT 'WB0002', 'ACTIVE', '미지정', '미지정', '강준서', '20260002', '2026-04-11'
+INSERT INTO users (company_code, role, account_status, department, team_name, name, employee_number, hire_date)
+SELECT 'WB0002', 'USER', 'ACTIVE', '미지정', '미지정', '강준서', '20260002', '2026-04-11'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE company_code = 'WB0002' AND employee_number = '20260002'
 );
 
-INSERT INTO users (company_code, role, department, team_name, name, employee_number, hire_date)
-SELECT 'WB0001', 'ADMIN', '미지정', '미지정', '김하늘', '20250001', '2025-01-01'
+INSERT INTO users (company_code, role, account_status, department, team_name, name, employee_number, hire_date)
+SELECT 'WB0001', 'ADMIN', 'ACTIVE', '미지정', '미지정', '김하늘', '20250001', '2025-01-01'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE company_code = 'WB0001' AND employee_number = '20250001'
 );
 
-INSERT INTO users (company_code, role, department, team_name, name, employee_number, hire_date)
-SELECT 'WB0002', 'ADMIN', '미지정', '미지정', '이서윤', '20240001', '2024-01-01'
+INSERT INTO users (company_code, role, account_status, department, team_name, name, employee_number, hire_date)
+SELECT 'WB0002', 'ADMIN', 'ACTIVE', '미지정', '미지정', '이서윤', '20240001', '2024-01-01'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE company_code = 'WB0002' AND employee_number = '20240001'
 );
