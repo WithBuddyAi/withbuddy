@@ -8,6 +8,9 @@ import LogoutModal from "../components/LogoutModal";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminMainView from "../components/admin/AdminMainView/AdminMainView";
 import AdminCreateView from "../components/admin/AdminCreateView";
+import AdminDocumentView from "../components/admin/AdminDocumentView/AdminDocumentView";
+import DocDeleteModal from "../components/admin/AdminDocumentView/DocDeleteModal";
+import DocToast from "../components/admin/AdminDocumentView/DocToast";
 
 function Admin({ setIsLoggedIn }) {
   // 세션 정책
@@ -23,6 +26,14 @@ function Admin({ setIsLoggedIn }) {
 
   // 계정 생성 완료 메시지
   const [successMessage, setSuccessMessage] = useState("");
+
+  // 문서 삭제 모달
+  const [isDeleteModal, setIsDeleteModal] = useState(false);
+  const [deleteSelectedIds, setDeleteSelectedIds] = useState([]);
+  const [deleteDocuments, setDeleteDocuments] = useState([]);
+
+  // 문서 삭제 메시지 'success' | 'error' | null
+  const [docToast, setDocToast] = useState(null);
 
   // 로그아웃
   const handleLogout = async () => {
@@ -61,6 +72,14 @@ function Admin({ setIsLoggedIn }) {
     }
   }, [successMessage]);
 
+  // 문서 삭제 토스트
+  useEffect(() => {
+    if (docToast === "success") {
+      const timer = setTimeout(() => setDocToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [docToast]);
+
   return (
     <div className="h-screen flex relative overflow-hidden">
       {/* 세션 정책 */}
@@ -70,11 +89,40 @@ function Admin({ setIsLoggedIn }) {
         handleRetry={retryBt}
         setIsLoggedIn={setIsLoggedIn}
       />
+
       {/* 로그아웃 모달 */}
       <LogoutModal
         isLogoutModal={isLogoutModal}
         setIsLogoutModal={setIsLogoutModal}
         handleLogout={handleLogout}
+      />
+
+      {/* 문서 삭제 모달 */}
+      {isDeleteModal && (
+        <DocDeleteModal
+          selectedIds={deleteSelectedIds}
+          documents={deleteDocuments}
+          onClose={() => setIsDeleteModal(false)}
+          onSuccess={() => {
+            setIsDeleteModal(false);
+            setDeleteSelectedIds([]);
+            setDeleteDocuments([]);
+            setDocToast("success");
+          }}
+          onError={() => {
+            setIsDeleteModal(false);
+            setDocToast("error");
+          }}
+        />
+      )}
+
+      {/* 문서 삭제 토스트 */}
+      <DocToast
+        type={docToast}
+        onRetry={() => {
+          setDocToast(null);
+          setIsDeleteModal(true);
+        }}
       />
 
       <div
@@ -143,7 +191,15 @@ function Admin({ setIsLoggedIn }) {
               />
             )}
             {view === "dashboard" && <div>대시보드 준비 중</div>}
-            {view === "documents" && <div>문서 관리 준비 중</div>}
+            {view === "documents" && (
+              <AdminDocumentView
+                onDeleteModalOpen={(ids, docs) => {
+                  setDeleteSelectedIds(ids);
+                  setDeleteDocuments(docs);
+                  setIsDeleteModal(true);
+                }}
+              />
+            )}
             {view === "unanswered" && <div>미답변 질문 준비 중</div>}
           </div>
         </div>
