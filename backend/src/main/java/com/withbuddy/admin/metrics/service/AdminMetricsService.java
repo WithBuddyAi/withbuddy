@@ -16,6 +16,7 @@ import com.withbuddy.account.user.entity.UserRole;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -45,12 +46,12 @@ public class AdminMetricsService {
             String companyCode,
             LocalDate asOfDate
     ) {
-        requireServiceAdmin(principal);
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
         LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
 
         List<RagExperienceRateResponse.CompanyMetric> companies =
-                adminMetricsRepository.findRagExperienceRateMetrics(companyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findRagExperienceRateMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
                         .map(metric -> new RagExperienceRateResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -68,12 +69,12 @@ public class AdminMetricsService {
             String companyCode,
             LocalDate asOfDate
     ) {
-        requireServiceAdmin(principal);
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
         LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
 
         List<FirstInteractionRateResponse.CompanyMetric> companies =
-                adminMetricsRepository.findFirstInteractionRateMetrics(companyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findFirstInteractionRateMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
                         .map(metric -> new FirstInteractionRateResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -91,12 +92,12 @@ public class AdminMetricsService {
             String companyCode,
             LocalDate asOfDate
     ) {
-        requireServiceAdmin(principal);
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
         LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
 
         List<RevisitRateResponse.CompanyMetric> companies =
-                adminMetricsRepository.findRevisitRateMetrics(companyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findRevisitRateMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
                         .map(metric -> new RevisitRateResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -114,12 +115,12 @@ public class AdminMetricsService {
             String companyCode,
             LocalDate asOfDate
     ) {
-        requireServiceAdmin(principal);
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
         LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
 
         List<UnansweredRateResponse.CompanyMetric> companies =
-                adminMetricsRepository.findUnansweredRateMetrics(companyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findUnansweredRateMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
                         .map(metric -> new UnansweredRateResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -141,12 +142,12 @@ public class AdminMetricsService {
             String companyCode,
             LocalDate asOfDate
     ) {
-        requireServiceAdmin(principal);
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
         LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
 
         List<TtaResponse.CompanyMetric> companies =
-                adminMetricsRepository.findTtaMetrics(companyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findTtaMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
                         .map(metric -> new TtaResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -165,14 +166,14 @@ public class AdminMetricsService {
             LocalDate asOfDate,
             Integer limit
     ) {
-        requireServiceAdmin(principal);
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
         LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
         int resolvedLimit = resolvePatternLimit(limit);
 
         List<UnansweredQuestionPatternsResponse.PatternItem> patterns =
                 adminMetricsRepository.findUnansweredQuestionPatterns(
-                                companyCode,
+                                scopedCompanyCode,
                                 dayAfter,
                                 PageRequest.of(0, resolvedLimit)
                         ).stream()
@@ -195,13 +196,35 @@ public class AdminMetricsService {
         );
     }
 
-    private void requireServiceAdmin(JwtAuthenticationPrincipal principal) {
+    private String resolveCompanyScope(JwtAuthenticationPrincipal principal, String requestedCompanyCode) {
         User currentUser = userRepository.findById(principal.userId())
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
-        if (currentUser.getRole() != UserRole.SERVICE_ADMIN) {
+        if (currentUser.getRole() == UserRole.SERVICE_ADMIN) {
+            return normalizeCompanyCode(requestedCompanyCode);
+        }
+
+        if (!currentUser.isActiveAdmin()) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "관리자 권한이 필요한 API입니다.");
         }
+
+        String principalCompanyCode = principal.companyCode();
+        if (!StringUtils.hasText(principalCompanyCode)) {
+            throw new UnauthorizedException("사용자 회사 정보를 확인할 수 없습니다.");
+        }
+
+        String currentUserCompanyCode = currentUser.getCompany().getCompanyCode();
+        if (!currentUserCompanyCode.equals(principalCompanyCode)) {
+            throw new UnauthorizedException("사용자 회사 정보가 일치하지 않습니다.");
+        }
+
+        String normalizedRequestedCompanyCode = normalizeCompanyCode(requestedCompanyCode);
+        if (StringUtils.hasText(normalizedRequestedCompanyCode)
+                && !currentUserCompanyCode.equals(normalizedRequestedCompanyCode)) {
+            throw new ForbiddenException("ACCESS_DENIED", "companyCode", "다른 회사 지표는 조회할 수 없습니다.");
+        }
+
+        return currentUserCompanyCode;
     }
 
     private LocalDate resolveAsOfDate(LocalDate asOfDate) {
@@ -233,5 +256,12 @@ public class AdminMetricsService {
             return 1;
         }
         return Math.min(limit, MAX_PATTERN_LIMIT);
+    }
+
+    private String normalizeCompanyCode(String companyCode) {
+        if (!StringUtils.hasText(companyCode)) {
+            return null;
+        }
+        return companyCode.trim();
     }
 }
