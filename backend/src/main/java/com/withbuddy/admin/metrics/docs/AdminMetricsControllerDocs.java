@@ -1,6 +1,7 @@
 package com.withbuddy.admin.metrics.docs;
 
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
+import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
@@ -23,6 +24,24 @@ import java.time.LocalDate;
 
 @Tag(name = "Admin Metrics", description = "서비스 관리자/기업 관리자용 핵심 지표 조회 API")
 public interface AdminMetricsControllerDocs {
+
+    @Operation(summary = "대시보드 묶음 지표 조회")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "대시보드 조회 성공",
+                    content = @Content(schema = @Schema(implementation = AdminDashboardResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "권한 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 파라미터",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<AdminDashboardResponse> getDashboard(
+            @Parameter(hidden = true) Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
+            @RequestParam(required = false) Integer unansweredPatternLimit
+    );
 
     @Operation(summary = "D+6 RAG 답변 수신 경험률 조회")
     @ApiResponses(value = {
