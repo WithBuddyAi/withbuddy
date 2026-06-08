@@ -3,6 +3,7 @@ package com.withbuddy.admin.metrics.service;
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.company.entity.Company;
 import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
@@ -176,6 +177,52 @@ class AdminMetricsServiceTest {
         ))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("다른 회사 지표는 조회할 수 없습니다.");
+    }
+
+    @Test
+    void dashboardUsesAdminOwnCompanyAndDefaultPatternLimit() {
+        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
+                2L,
+                "A002",
+                "기업관리자",
+                "WB0001",
+                "WithBuddy",
+                "2026-06-01"
+        );
+        User admin = activeAdmin("WB0001");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+        when(adminMetricsRepository.findRagExperienceRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+                .thenReturn(List.of());
+        when(adminMetricsRepository.findFirstInteractionRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+                .thenReturn(List.of());
+        when(adminMetricsRepository.findRevisitRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+                .thenReturn(List.of());
+        when(adminMetricsRepository.findUnansweredRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+                .thenReturn(List.of());
+        when(adminMetricsRepository.findTtaMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+                .thenReturn(List.of());
+        when(adminMetricsRepository.findUnansweredQuestionPatterns(
+                org.mockito.ArgumentMatchers.eq("WB0001"),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
+                org.mockito.ArgumentMatchers.any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of()));
+
+        AdminDashboardResponse response = adminMetricsService.getDashboard(
+                principal,
+                null,
+                LocalDate.of(2026, 6, 1),
+                null
+        );
+
+        assertThat(response.metric()).isEqualTo("admin_dashboard");
+        assertThat(response.asOfDate()).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(response.unansweredQuestionPatterns().limit()).isEqualTo(5);
+
+        verify(adminMetricsRepository).findRagExperienceRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
+        verify(adminMetricsRepository).findFirstInteractionRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
+        verify(adminMetricsRepository).findRevisitRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
+        verify(adminMetricsRepository).findUnansweredRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
+        verify(adminMetricsRepository).findTtaMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
     }
 
     private User serviceAdmin() {
