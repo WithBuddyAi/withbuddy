@@ -18,8 +18,10 @@ import com.withbuddy.buddy.chat.entity.ChatMessage;
 import com.withbuddy.buddy.chat.entity.ChatMessageDocument;
 import com.withbuddy.buddy.chat.entity.MessageType;
 import com.withbuddy.buddy.chat.entity.SenderType;
+import com.withbuddy.buddy.chat.entity.UnansweredQuestionLog;
 import com.withbuddy.buddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
+import com.withbuddy.buddy.chat.repository.UnansweredQuestionLogRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
@@ -78,6 +80,7 @@ public class ChatMessageService {
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageDocumentRepository chatMessageDocumentRepository;
+    private final UnansweredQuestionLogRepository unansweredQuestionLogRepository;
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
     private final AiStreamClient aiStreamClient;
@@ -126,6 +129,7 @@ public class ChatMessageService {
                 );
                 sendStreamEvent(emitter, "question_saved", new ChatStreamQuestionSavedResponse(questionResponse));
 
+                long aiStartedAt = System.currentTimeMillis();
                 AiAnswerServerResponse aiResponse = aiStreamClient.streamAnswer(
                         questionId,
                         loginUserId,
@@ -135,6 +139,7 @@ public class ChatMessageService {
                         savedQuestionMessage.getContent(),
                         delta -> forwardDelta(emitter, delta)
                 );
+                long latencyMs = Math.max(0L, System.currentTimeMillis() - aiStartedAt);
 
                 MessageType answerMessageType = aiResponse.getMessageType();
                 List<Long> answerDocumentIds = filterExistingDocumentIds(extractDocumentIds(aiResponse));
@@ -146,11 +151,15 @@ public class ChatMessageService {
                 ChatMessage savedAnswerMessage = transactionTemplate.execute(
                         status -> saveAnswerMessage(
                                 loginUserId,
+                                companyCode,
+                                savedQuestionMessage.getContent(),
+                                savedQuestionId,
                                 resolveAnswerToMessageId(answerMessageType, savedQuestionId),
                                 answerMessageType,
                                 aiResponse.getContent(),
                                 answerDocumentIds,
-                                recommendedContactsJson
+                                recommendedContactsJson,
+                                latencyMs
                         )
                 );
                 if (savedAnswerMessage == null) {
@@ -261,11 +270,15 @@ public class ChatMessageService {
 
     private ChatMessage saveAnswerMessage(
             Long userId,
+            String companyCode,
+            String questionContent,
+            Long questionMessageId,
             Long answerToMessageId,
             MessageType answerMessageType,
             String answerContent,
             List<Long> answerDocumentIds,
-            String recommendedContactsJson
+            String recommendedContactsJson,
+            Long latencyMs
     ) {
         ChatMessage answerMessage = new ChatMessage(
                 userId,
@@ -274,11 +287,51 @@ public class ChatMessageService {
                 answerMessageType,
                 answerContent,
                 recommendedContactsJson,
-                answerToMessageId
+                answerToMessageId,
+                latencyMs
         );
         ChatMessage savedAnswerMessage = chatMessageRepository.save(answerMessage);
         saveDocumentMappings(savedAnswerMessage.getId(), answerDocumentIds);
+        saveUnansweredQuestionLog(
+                userId,
+                companyCode,
+                questionContent,
+                questionMessageId,
+                savedAnswerMessage,
+                latencyMs
+        );
         return savedAnswerMessage;
+    }
+
+    boolean shouldCreateUnansweredQuestionLog(MessageType answerMessageType) {
+        return answerMessageType == MessageType.no_result
+                || answerMessageType == MessageType.out_of_scope
+                || answerMessageType == MessageType.sensitive;
+    }
+
+    private void saveUnansweredQuestionLog(
+            Long userId,
+            String companyCode,
+            String questionContent,
+            Long questionMessageId,
+            ChatMessage savedAnswerMessage,
+            Long latencyMs
+    ) {
+        if (!shouldCreateUnansweredQuestionLog(savedAnswerMessage.getMessageType())) {
+            return;
+        }
+
+        unansweredQuestionLogRepository.save(
+                UnansweredQuestionLog.builder()
+                        .userId(userId)
+                        .companyCode(companyCode)
+                        .questionMessageId(questionMessageId)
+                        .answerMessageId(savedAnswerMessage.getId())
+                        .questionContent(questionContent)
+                        .answerType(savedAnswerMessage.getMessageType())
+                        .latencyMs(latencyMs)
+                        .build()
+        );
     }
 
     Long resolveAnswerToMessageId(MessageType answerMessageType, Long savedQuestionId) {

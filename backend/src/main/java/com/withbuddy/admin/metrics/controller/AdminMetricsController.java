@@ -6,6 +6,7 @@ import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
 import com.withbuddy.admin.metrics.dto.response.UnansweredRateResponse;
+import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
 import com.withbuddy.admin.metrics.service.AdminMetricsService;
 import com.withbuddy.global.security.AuthenticationPrincipalResolver;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
@@ -80,5 +81,17 @@ public class AdminMetricsController implements AdminMetricsControllerDocs {
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         return ResponseEntity.ok(adminMetricsService.getTta(principal, companyCode, asOfDate));
+    }
+
+    @Override
+    @GetMapping("/unanswered-question-patterns")
+    public ResponseEntity<UnansweredQuestionPatternsResponse> getUnansweredQuestionPatterns(
+            Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
+            @RequestParam(required = false) Integer limit
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return ResponseEntity.ok(adminMetricsService.getUnansweredQuestionPatterns(principal, companyCode, asOfDate, limit));
     }
 }
