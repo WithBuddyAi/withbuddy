@@ -1,6 +1,9 @@
 package com.withbuddy.admin.metrics.service;
 
 import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.account.company.entity.Company;
+import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
 import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
@@ -20,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -118,9 +122,75 @@ class AdminMetricsServiceTest {
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(20);
     }
 
+    @Test
+    void adminIsForcedToOwnCompanyScope() {
+        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
+                2L,
+                "A002",
+                "기업관리자",
+                "WB0001",
+                "WithBuddy",
+                "2026-06-01"
+        );
+        User admin = activeAdmin("WB0001");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+        when(adminMetricsRepository.findUnansweredQuestionPatterns(
+                org.mockito.ArgumentMatchers.eq("WB0001"),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
+                org.mockito.ArgumentMatchers.any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of()));
+
+        UnansweredQuestionPatternsResponse response = adminMetricsService.getUnansweredQuestionPatterns(
+                principal,
+                null,
+                LocalDate.of(2026, 6, 1),
+                3
+        );
+
+        assertThat(response.limit()).isEqualTo(3);
+        verify(adminMetricsRepository).findUnansweredQuestionPatterns(
+                org.mockito.ArgumentMatchers.eq("WB0001"),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
+                org.mockito.ArgumentMatchers.any(Pageable.class)
+        );
+    }
+
+    @Test
+    void adminCannotRequestOtherCompanyMetrics() {
+        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
+                2L,
+                "A002",
+                "기업관리자",
+                "WB0001",
+                "WithBuddy",
+                "2026-06-01"
+        );
+        User admin = activeAdmin("WB0001");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> adminMetricsService.getUnansweredQuestionPatterns(
+                principal,
+                "WB9999",
+                LocalDate.of(2026, 6, 1),
+                3
+        ))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("다른 회사 지표는 조회할 수 없습니다.");
+    }
+
     private User serviceAdmin() {
         User user = org.mockito.Mockito.mock(User.class);
-        when(user.getRole()).thenReturn(com.withbuddy.account.user.entity.UserRole.SERVICE_ADMIN);
+        when(user.getRole()).thenReturn(UserRole.SERVICE_ADMIN);
+        return user;
+    }
+
+    private User activeAdmin(String companyCode) {
+        User user = org.mockito.Mockito.mock(User.class);
+        Company company = org.mockito.Mockito.mock(Company.class);
+        when(user.getRole()).thenReturn(UserRole.ADMIN);
+        when(user.isActiveAdmin()).thenReturn(true);
+        when(user.getCompany()).thenReturn(company);
+        when(company.getCompanyCode()).thenReturn(companyCode);
         return user;
     }
 
