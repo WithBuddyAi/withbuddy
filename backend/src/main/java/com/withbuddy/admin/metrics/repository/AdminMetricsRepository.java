@@ -2,10 +2,13 @@ package com.withbuddy.admin.metrics.repository;
 
 import com.withbuddy.account.user.entity.User;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @org.springframework.stereotype.Repository
@@ -208,6 +211,39 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             @Param("dayAfter") LocalDate dayAfter
     );
 
+    @Query(value = """
+            SELECT
+                log.company_code AS companyCode,
+                log.question_content AS questionContent,
+                COUNT(*) AS totalCount,
+                COUNT(DISTINCT log.user_id) AS uniqueUsers,
+                COUNT(CASE WHEN log.answer_type = 'no_result' THEN 1 END) AS noResultCount,
+                COUNT(CASE WHEN log.answer_type = 'out_of_scope' THEN 1 END) AS outOfScopeCount,
+                MAX(log.created_at) AS latestOccurredAt
+            FROM unanswered_question_logs log
+            WHERE log.created_at < :dayAfter
+              AND log.answer_type IN ('no_result', 'out_of_scope')
+              AND (:companyCode IS NULL OR log.company_code = :companyCode)
+            GROUP BY log.company_code, log.question_content
+            ORDER BY totalCount DESC, uniqueUsers DESC, latestOccurredAt DESC, questionContent
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM (
+                SELECT 1
+                FROM unanswered_question_logs log
+                WHERE log.created_at < :dayAfter
+                  AND log.answer_type IN ('no_result', 'out_of_scope')
+                  AND (:companyCode IS NULL OR log.company_code = :companyCode)
+                GROUP BY log.company_code, log.question_content
+            ) grouped_patterns
+            """,
+            nativeQuery = true)
+    Page<UnansweredQuestionPatternProjection> findUnansweredQuestionPatterns(
+            @Param("companyCode") String companyCode,
+            @Param("dayAfter") LocalDate dayAfter,
+            Pageable pageable
+    );
+
     interface RagExperienceMetricProjection {
         String getCompanyCode();
         String getCompanyName();
@@ -244,5 +280,15 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
         Long getLoggedInUsers();
         Long getMeasuredUsers();
         Double getAverageTtaMinutes();
+    }
+
+    interface UnansweredQuestionPatternProjection {
+        String getCompanyCode();
+        String getQuestionContent();
+        Long getTotalCount();
+        Long getUniqueUsers();
+        Long getNoResultCount();
+        Long getOutOfScopeCount();
+        LocalDateTime getLatestOccurredAt();
     }
 }
