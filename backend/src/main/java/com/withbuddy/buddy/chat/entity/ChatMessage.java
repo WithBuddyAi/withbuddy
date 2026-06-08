@@ -49,6 +49,9 @@ public class ChatMessage {
     @Column(name = "answer_to_message_id")
     private Long answerToMessageId;
 
+    @Column(name = "latency_ms")
+    private Long latencyMs;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -61,7 +64,7 @@ public class ChatMessage {
             String content,
             String recommendedContactsJson
     ) {
-        this(userId, suggestionId, senderType, messageType, content, recommendedContactsJson, null);
+        this(userId, suggestionId, senderType, messageType, content, recommendedContactsJson, null, null);
     }
 
     @Builder
@@ -72,7 +75,8 @@ public class ChatMessage {
             MessageType messageType,
             String content,
             String recommendedContactsJson,
-            Long answerToMessageId
+            Long answerToMessageId,
+            Long latencyMs
     ) {
         this.userId = userId;
         this.suggestionId = suggestionId;
@@ -81,6 +85,7 @@ public class ChatMessage {
         this.content = content;
         this.recommendedContactsJson = recommendedContactsJson;
         this.answerToMessageId = answerToMessageId;
+        this.latencyMs = latencyMs;
     }
 
     public static ChatMessage createSuggestionMessage(Long userId, Long suggestionId, String content) {
@@ -92,6 +97,7 @@ public class ChatMessage {
         message.content = content;
         message.recommendedContactsJson = null;
         message.answerToMessageId = null;
+        message.latencyMs = null;
         return message;
     }
 }

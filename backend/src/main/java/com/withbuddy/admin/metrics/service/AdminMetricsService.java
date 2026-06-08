@@ -5,6 +5,7 @@ import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
 import com.withbuddy.admin.metrics.dto.response.UnansweredRateResponse;
+import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
 import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.global.exception.ForbiddenException;
@@ -12,6 +13,7 @@ import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserRole;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,8 @@ import java.util.List;
 public class AdminMetricsService {
 
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
+    private static final int DEFAULT_PATTERN_LIMIT = 5;
+    private static final int MAX_PATTERN_LIMIT = 20;
 
     private final AdminMetricsRepository adminMetricsRepository;
     private final UserRepository userRepository;
@@ -155,6 +159,42 @@ public class AdminMetricsService {
         return new TtaResponse("tta", resolvedAsOfDate, "minutes", companies);
     }
 
+    public UnansweredQuestionPatternsResponse getUnansweredQuestionPatterns(
+            JwtAuthenticationPrincipal principal,
+            String companyCode,
+            LocalDate asOfDate,
+            Integer limit
+    ) {
+        requireServiceAdmin(principal);
+        LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
+        LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
+        int resolvedLimit = resolvePatternLimit(limit);
+
+        List<UnansweredQuestionPatternsResponse.PatternItem> patterns =
+                adminMetricsRepository.findUnansweredQuestionPatterns(
+                                companyCode,
+                                dayAfter,
+                                PageRequest.of(0, resolvedLimit)
+                        ).stream()
+                        .map(pattern -> new UnansweredQuestionPatternsResponse.PatternItem(
+                                pattern.getCompanyCode(),
+                                pattern.getQuestionContent(),
+                                defaultLong(pattern.getTotalCount()),
+                                defaultLong(pattern.getUniqueUsers()),
+                                defaultLong(pattern.getNoResultCount()),
+                                defaultLong(pattern.getOutOfScopeCount()),
+                                pattern.getLatestOccurredAt()
+                        ))
+                        .toList();
+
+        return new UnansweredQuestionPatternsResponse(
+                "unanswered_question_patterns",
+                resolvedAsOfDate,
+                resolvedLimit,
+                patterns
+        );
+    }
+
     private void requireServiceAdmin(JwtAuthenticationPrincipal principal) {
         User currentUser = userRepository.findById(principal.userId())
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
@@ -183,5 +223,15 @@ public class AdminMetricsService {
 
         double ratio = defaultLong(numerator) * 100.0 / resolvedDenominator;
         return Math.round(ratio * 10.0) / 10.0;
+    }
+
+    private int resolvePatternLimit(Integer limit) {
+        if (limit == null) {
+            return DEFAULT_PATTERN_LIMIT;
+        }
+        if (limit < 1) {
+            return 1;
+        }
+        return Math.min(limit, MAX_PATTERN_LIMIT);
     }
 }

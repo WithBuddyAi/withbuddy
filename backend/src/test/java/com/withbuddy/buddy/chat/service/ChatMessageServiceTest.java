@@ -5,7 +5,9 @@ import com.withbuddy.buddy.chat.entity.ChatMessage;
 import com.withbuddy.buddy.chat.entity.MessageType;
 import com.withbuddy.buddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
+import com.withbuddy.buddy.chat.repository.UnansweredQuestionLogRepository;
 import com.withbuddy.buddy.onboarding.repository.OnboardingSuggestionRepository;
+import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.infrastructure.ai.client.AiStreamClient;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -34,6 +36,8 @@ class ChatMessageServiceTest {
     @Mock
     private ChatMessageDocumentRepository chatMessageDocumentRepository;
     @Mock
+    private UnansweredQuestionLogRepository unansweredQuestionLogRepository;
+    @Mock
     private DocumentRepository documentRepository;
     @Mock
     private DocumentFileRepository documentFileRepository;
@@ -51,6 +55,8 @@ class ChatMessageServiceTest {
     private QuickQuestionCatalog quickQuestionCatalog;
     @Mock
     private OnboardingSuggestionRepository onboardingSuggestionRepository;
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private ChatMessageService chatMessageService;
@@ -105,5 +111,33 @@ class ChatMessageServiceTest {
         Long result = chatMessageService.resolveAnswerToMessageId(MessageType.rag_answer, 201L);
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    void createsUnansweredQuestionLogForNoResult() {
+        boolean result = chatMessageService.shouldCreateUnansweredQuestionLog(MessageType.no_result);
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void createsUnansweredQuestionLogForOutOfScope() {
+        boolean result = chatMessageService.shouldCreateUnansweredQuestionLog(MessageType.out_of_scope);
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void createsUnansweredQuestionLogForSensitive() {
+        boolean result = chatMessageService.shouldCreateUnansweredQuestionLog(MessageType.sensitive);
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void doesNotCreateUnansweredQuestionLogForRagAnswer() {
+        boolean result = chatMessageService.shouldCreateUnansweredQuestionLog(MessageType.rag_answer);
+
+        assertThat(result).isFalse();
     }
 }
