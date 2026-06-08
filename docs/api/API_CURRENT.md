@@ -3,7 +3,7 @@
 > WithBuddy REST API 문서
 >
 **버전**: 2.2.3
-**최종 업데이트**: 2026-06-05
+**최종 업데이트**: 2026-06-08
 
 ---
 
@@ -334,6 +334,8 @@ Content-Type: application/json
     "companyName": "테크 주식회사",
     "employeeNumber": "20260001",
     "name": "김지원",
+    "department": "개발팀",
+    "teamName": "백엔드팀",
     "role": "USER",
     "accountStatus": "ACTIVE",
     "hireDate": "2026-03-01"
@@ -352,6 +354,8 @@ Content-Type: application/json
 | `user.companyName` | String | Y | 사용자 소속 회사명 |
 | `user.employeeNumber` | String | Y | 사용자 사번 |
 | `user.name` | String | Y | 사용자 이름 |
+| `user.department` | String | Y | 사용자 소속 부서 |
+| `user.teamName` | String | Y | 사용자 소속 팀명 |
 | `user.role` | String | Y | 사용자 역할. `USER`, `ADMIN`, `SERVICE_ADMIN` 중 하나 |
 | `user.accountStatus` | String | N | 계정 상태. `USER` 역할이면 `ACTIVE`, `READ_ONLY`, `INACTIVE` 중 하나. `ADMIN` 역할이면 관리자 기능 사용 가능 여부 판단을 위해 `ACTIVE`여야 한다. `SERVICE_ADMIN`은 `null` 또는 미사용 |
 | `user.hireDate` | String | Y | 사용자 입사일 |
@@ -3592,3 +3596,5 @@ Authorization: Bearer {accessToken}
 - **v2.2.2 (2026-06-04)**:
   - 관리자 문서 관리 API를 `/api/v1/admin/documents` 기준으로 정리하고, 회사 문서 조회·업로드·선택 삭제 검증/삭제 흐름을 갱신
   - 문서 다운로드 `/file` API의 `token` 필수 파라미터, Redis 캐시, 토큰 만료 응답 및 관리자 지표 `SERVICE_ADMIN` 권한 설명을 실제 구현 기준으로 정리
+- **v2.2.3 (2026-06-08)**:
+  - 로그인 API(`/api/v1/auth/login`)에 명세 추가

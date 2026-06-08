@@ -80,11 +80,13 @@ public class AuthService {
         LoginUserResponse userResponse = new LoginUserResponse(
                 user.getId(),
                 user.getCompany().getCompanyCode(),
-                user.getRole(),
-                resolveResponseAccountStatus(user, currentAccountStatus),
                 user.getCompany().getName(),
                 user.getEmployeeNumber(),
                 user.getName(),
+                user.getDepartment(),
+                user.getTeamName(),
+                user.getRole(),
+                resolveResponseAccountStatus(user, currentAccountStatus),
                 user.getHireDate()
         );
         cacheUserProfile(user.getId(), userResponse);
