@@ -1,6 +1,7 @@
 package com.withbuddy.admin.metrics.service;
 
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
+import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
@@ -62,6 +63,26 @@ public class AdminMetricsService {
                         .toList();
 
         return new RagExperienceRateResponse("rag_experience_rate", resolvedAsOfDate, companies);
+    }
+
+    public AdminDashboardResponse getDashboard(
+            JwtAuthenticationPrincipal principal,
+            String companyCode,
+            LocalDate asOfDate,
+            Integer unansweredPatternLimit
+    ) {
+        LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
+
+        return new AdminDashboardResponse(
+                "admin_dashboard",
+                resolvedAsOfDate,
+                getRagExperienceRate(principal, companyCode, resolvedAsOfDate),
+                getFirstInteractionRate(principal, companyCode, resolvedAsOfDate),
+                getRevisitRate(principal, companyCode, resolvedAsOfDate),
+                getUnansweredRate(principal, companyCode, resolvedAsOfDate),
+                getTta(principal, companyCode, resolvedAsOfDate),
+                getUnansweredQuestionPatterns(principal, companyCode, resolvedAsOfDate, unansweredPatternLimit)
+        );
     }
 
     public FirstInteractionRateResponse getFirstInteractionRate(
