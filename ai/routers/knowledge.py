@@ -78,24 +78,22 @@ async def summarize_no_result(req: NoResultSummaryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"요약 생성 실패: {str(e)}")
 
-    # 요약과 액션 파싱
-    summary = ""
-    actions = []
-    lines = result.strip().split("\n")
-    in_actions = False
-    for line in lines:
-        line = line.strip()
-        if line.startswith("요약:"):
-            summary = line.replace("요약:", "").strip()
-        elif line.startswith("액션:"):
-            in_actions = True
-        elif in_actions and line and line[0].isdigit() and "." in line:
-            action = line.split(".", 1)[1].strip() if "." in line else line
-            if action:
-                actions.append(action)
+    # 요약과 액션 파싱 (헤더가 독립된 줄에 있는 형식 대응)
+    import re as _re
+    _clean = lambda s: _re.sub(r'\*+', '', s).strip()
 
-    if not summary:
-        summary = result.strip()
+    summary_match = _re.search(r'요약:\s*\*{0,2}\n?(.*?)(?=\n\s*\n?\*{0,2}액션:|$)', result, _re.DOTALL)
+    summary = _clean(summary_match.group(1)) if summary_match else _clean(result.split("액션:")[0])
+
+    actions = []
+    actions_match = _re.search(r'액션:\s*\*{0,2}\n(.*)', result, _re.DOTALL)
+    if actions_match:
+        for line in actions_match.group(1).strip().splitlines():
+            line = line.strip()
+            if line and line[0].isdigit() and "." in line:
+                action = _clean(line.split(".", 1)[1].strip())
+                if action:
+                    actions.append(action)
 
     return NoResultSummaryResponse(
         companyCode=req.companyCode,
