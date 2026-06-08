@@ -78,6 +78,7 @@ WithBuddy는?
 <br>
 
 ## 📁 프로젝트 구조
+
 ```
 src/
 ├── App.jsx                                    # 라우팅 설정, 전체 앱 진입점
@@ -96,22 +97,31 @@ src/
 │   ├── ChatInput.jsx                          # 채팅 입력창
 │   ├── SessionModal.jsx                       # 세션 만료 모달
 │   └── admin/
-│       ├── AdminSidebar.jsx                   # 관리자 사이드바
+│       ├── AdminSidebar.jsx                   # 관리자 사이드바 (탭 네비게이션 포함)
 │       ├── AdminCreateView.jsx                # 신입 계정 생성 화면 (폼 + 유효성 검사 + API 호출)
 │       ├── AdminForm.jsx                      # 계정 생성 폼
-│       └── AdminMainView/
-│           ├── AdminMainView.jsx              # 계정 관리 메인 화면 (상태 관리, API 호출 담당)
-│           ├── AdminHeader.jsx                # 계정 관리 상단 헤더
-│           ├── UserMobileList.jsx             # 모바일 계정 목록
-│           ├── UserMobileCard.jsx             # 모바일 계정 카드
-│           ├── UserTable.jsx                  # PC / 태블릿 계정 테이블
-│           ├── UserRow.jsx                    # 계정 테이블 행
-│           ├── Pagination.jsx                 # 페이지네이션
-│           ├── LoadingState.jsx               # 로딩 상태 UI
-│           └── EmptyState.jsx                 # 빈 상태 UI
+│       ├── AdminMainView/
+│       │   ├── AdminMainView.jsx              # 계정 관리 메인 화면 (상태 관리, API 호출 담당)
+│       │   ├── AdminHeader.jsx                # 계정 관리 상단 헤더
+│       │   ├── UserMobileList.jsx             # 모바일 계정 목록
+│       │   ├── UserMobileCard.jsx             # 모바일 계정 카드
+│       │   ├── UserTable.jsx                  # PC / 태블릿 계정 테이블
+│       │   ├── UserRow.jsx                    # 계정 테이블 행
+│       │   ├── Pagination.jsx                 # 페이지네이션
+│       │   ├── LoadingState.jsx               # 로딩 상태 UI
+│       │   └── EmptyState.jsx                 # 빈 상태 UI
+│       └── AdminDocumentView/
+│           ├── AdminDocumentView.jsx          # 문서 관리 메인 화면 (상태 관리, API 호출 담당)
+│           ├── AdminDocHeader.jsx             # 문서 관리 상단 헤더
+│           ├── DocTable.jsx                   # PC / 태블릿 문서 테이블
+│           ├── DocRow.jsx                     # 문서 테이블 행
+│           ├── DocMobileCard.jsx              # 모바일 문서 카드
+│           ├── DocDeleteModal.jsx             # 문서 삭제 확인 모달
+│           └── DocToast.jsx                   # 문서 삭제 결과 토스트
 └── pages/
     ├── Login.jsx                              # 로그인 페이지
     ├── MyBuddy.jsx                            # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
+    ├── Inactive.jsx                           # 이용 기간 종료 안내 페이지
     └── Admin.jsx                              # 관리자 페이지 (뷰 전환 · 레이아웃 담당)
 ```
 
@@ -202,3 +212,4 @@ git commit -m "ㅇㅇ"
 - 2026-05-11: 서비스명 WithBuddy로 수정, 관리자 페이지(신입 계정 생성) 추가, `components/admin/` 폴더 구조 반영 (AdminSidebar, AdminMainView, AdminCreateView 분리).
 - 2026-05-28: `AdminMainView`를 폴더 구조로 리팩토링하고 관리자 메인 화면 컴포넌트를 역할별로 분리.
   (`AdminHeader`, `UserTable`, `UserRow`, `UserMobileList`, `UserMobileCard`, `Pagination`, `LoadingState`, `EmptyState`)
+- 2026-06-08: `AdminDocumentView` 폴더 추가 (문서 목록 조회, 삭제 확인 모달, 토스트 포함), 관리자 사이드바 탭 구조 추가 (대시보드·문서 관리·미답변 질문), `Inactive.jsx` 페이지 추가.
