@@ -1,10 +1,40 @@
 import { NavLink } from "react-router-dom";
-import { LogOut, UserRoundCog, ChevronRight, Menu } from "lucide-react";
+import {
+  LogOut,
+  UserRoundCog,
+  ChevronRight,
+  Menu,
+  LayoutGrid,
+  File,
+  MessageCircleQuestionMark,
+} from "lucide-react";
 import char from "../../assets/Favicon_web.svg";
 import bar from "../../assets/side_bar.svg";
 
-function AdminSidebar({ isSidebarOpen, setIsSidebarOpen, setIsLogoutModal }) {
+function AdminSidebar({
+  isSidebarOpen,
+  setIsSidebarOpen,
+  setIsLogoutModal,
+  currentView,
+  handleViewChange,
+}) {
   const name = localStorage.getItem("name") || "";
+
+  const menuItems = [
+    {
+      view: "dashboard",
+      label: "대시보드",
+      icon: <LayoutGrid size={18} />,
+    },
+    { view: "main", label: "계정 관리", icon: <UserRoundCog size={18} /> },
+
+    { view: "documents", label: "문서 관리", icon: <File size={18} /> },
+    {
+      view: "unanswered",
+      label: "미답변 질문",
+      icon: <MessageCircleQuestionMark size={18} />,
+    },
+  ];
 
   return (
     <div className="contents">
@@ -51,20 +81,21 @@ function AdminSidebar({ isSidebarOpen, setIsSidebarOpen, setIsLogoutModal }) {
           </div>
 
           {/* 메뉴 */}
-          <div className="flex-1 py-[24px] px-[16px]">
-            <NavLink
-              to="/admin"
-              className={({ isActive }) =>
-                `flex items-center justify-between py-[10px] px-[12px] rounded-[6px] border-[1px] w-[200px] lg:w-[231px] h-[48px] lg:h-[46px] hover:bg-[#D0EBFFCC] hover:border-[#D0EBFF] text-[#336B97] text-[16px]
-                  ${isActive ? "bg-[#EAF6FF] border-[#4791CA]" : "bg-[#FFFFFF] border-[#D0EBFF]"}`
-              }
-            >
-              <div className="flex items-center gap-[10px]">
-                <UserRoundCog size={18} />
-                <span>계정 관리</span>
-              </div>
-              <ChevronRight size={16} />
-            </NavLink>
+          <div className="flex-1 py-[24px] px-[16px] flex flex-col gap-[8px]">
+            {menuItems.map((item) => (
+              <button
+                key={item.view}
+                onClick={() => handleViewChange(item.view)}
+                className={`flex items-center justify-between py-[10px] px-[12px] rounded-[6px] border-[1px] w-[200px] lg:w-[231px] h-[48px] lg:h-[46px] hover:bg-[#D0EBFFCC] hover:border-[#D0EBFF] text-[#336B97] text-[16px]
+        ${currentView === item.view ? "bg-[#EAF6FF] border-[#4791CA]" : "bg-transparent border-none"}`}
+              >
+                <div className="flex items-center gap-[10px]">
+                  {item.icon}
+                  <span>{item.label}</span>
+                </div>
+                <ChevronRight size={16} />
+              </button>
+            ))}
           </div>
 
           {/* 로그아웃 */}
@@ -89,18 +120,18 @@ function AdminSidebar({ isSidebarOpen, setIsSidebarOpen, setIsLogoutModal }) {
           </div>
 
           {/* 메뉴 */}
-          <div className="flex-1 py-[24px] px-[16px]">
-            <NavLink
-              to="/admin"
-              className={({ isActive }) =>
-                `flex items-center justify-center py-[10px] px-[12px] rounded-[6px] border-[1px] w-[44px] h-[48px] hover:bg-[#D0EBFFCC] hover:border-[#D0EBFF] text-[#336B97]
-                  ${isActive ? "bg-[#EAF6FF] border-[#4791CA]" : "bg-[#FFFFFF] border-[#D0EBFF]"}`
-              }
-            >
-              <UserRoundCog size={18} />
-            </NavLink>
+          <div className="flex-1 py-[24px] px-[16px] flex flex-col gap-[8px]">
+            {menuItems.map((item) => (
+              <button
+                key={item.view}
+                onClick={() => handleViewChange(item.view)}
+                className={`flex items-center justify-center py-[10px] px-[12px] rounded-[6px] border-[1px] w-[44px] h-[48px] hover:bg-[#D0EBFFCC] hover:border-[#D0EBFF] text-[#336B97]
+        ${currentView === item.view ? "bg-[#EAF6FF] border-[#4791CA]" : "bg-transparent border-none"}`}
+              >
+                {item.icon}
+              </button>
+            ))}
           </div>
-
           {/* 로그아웃 */}
           <button
             className="text-[#204867] mt-auto mb-[36px] flex items-center gap-2 py-[10px] px-[8px] ml-[16px]"
