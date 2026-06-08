@@ -217,7 +217,7 @@ public class ChatMessageQueryService {
                 && (user.getAccountStatus() == UserAccountStatus.ACTIVE
                 || user.getAccountStatus() == UserAccountStatus.READ_ONLY);
         if (!readableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
-            throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 채팅 메시지를 조회할 수 없습니다.");
+            throw new ForbiddenException("ACCESS_DENIED", "role", "접근 권한이 없습니다.");
         }
         return user;
     }
