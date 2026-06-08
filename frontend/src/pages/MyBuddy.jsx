@@ -334,8 +334,10 @@ function MyBuddy({ setIsLoggedIn }) {
             localStorage.removeItem("dayCount");
             localStorage.removeItem("hireDate");
             localStorage.removeItem("name");
+            localStorage.removeItem("department");
+            localStorage.removeItem("teamName");
             localStorage.removeItem("role");
-
+            localStorage.removeItem("accountStatus");
             navigate("/login");
             return;
           }

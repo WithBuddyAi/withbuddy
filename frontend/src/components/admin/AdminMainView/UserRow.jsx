@@ -2,7 +2,6 @@ function UserRow({ user }) {
   const deptTeam = user["부서(팀)"].match(/^(.+)\((.+)\)$/);
   const department = deptTeam ? deptTeam[1] : user["부서(팀)"];
   const teamName = deptTeam ? deptTeam[2] : "";
-console.log(user.name, user.accountStatus);
   return (
     <div className="min-w-[900px] grid grid-cols-8 bg-white items-center md:px-0 lg:px-[24px] py-[8px] md:text-[12px] lg:text-[16px] text-[#495057] text-center border-b border-[#F1F3F5]">
       <span className="px-[24px] text-[#000000] font-medium">{user.name}</span>
