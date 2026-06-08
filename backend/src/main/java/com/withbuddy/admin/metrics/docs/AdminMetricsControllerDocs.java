@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDate;
 
-@Tag(name = "Admin Metrics", description = "서비스 관리자용 회사별 핵심 지표 조회 API")
+@Tag(name = "Admin Metrics", description = "서비스 관리자/기업 관리자용 핵심 지표 조회 API")
 public interface AdminMetricsControllerDocs {
 
     @Operation(summary = "D+6 RAG 답변 수신 경험률 조회")
