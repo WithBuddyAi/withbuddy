@@ -2,13 +2,13 @@ package com.withbuddy.admin.metrics.service;
 
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.company.entity.Company;
+import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
-import com.withbuddy.global.exception.ForbiddenException;
-import com.withbuddy.account.user.entity.User;
 import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
 import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
+import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,28 +42,22 @@ class AdminMetricsServiceTest {
     private AdminMetricsService adminMetricsService;
 
     @Test
-    void returnsTopPatternsWithDefaultLimit() {
-        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
-                1L,
-                "A001",
-                "관리자",
-                "WB0001",
-                "WithBuddy",
-                "2026-06-01"
-        );
+    void returnsTopPatternsWithDefaultLimitAndSevenDayWindow() {
+        JwtAuthenticationPrincipal principal = principal(1L, "WB0001");
         User serviceAdmin = serviceAdmin();
         when(userRepository.findById(1L)).thenReturn(Optional.of(serviceAdmin));
         when(adminMetricsRepository.findUnansweredQuestionPatterns(
                 org.mockito.ArgumentMatchers.eq("WB0001"),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 26)),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 1)),
                 org.mockito.ArgumentMatchers.any(Pageable.class)
         )).thenReturn(new PageImpl<>(List.of(pattern(
                 "WB0001",
                 "복지카드는 어떻게 신청하나요?",
                 4L,
                 3L,
-                3L,
-                1L,
+                4L,
+                0L,
                 LocalDateTime.of(2026, 6, 1, 13, 0)
         ))));
 
@@ -82,129 +76,60 @@ class AdminMetricsServiceTest {
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(adminMetricsRepository).findUnansweredQuestionPatterns(
                 org.mockito.ArgumentMatchers.eq("WB0001"),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 26)),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 1)),
                 pageableCaptor.capture()
         );
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5);
     }
 
     @Test
-    void capsPatternLimitAtTwenty() {
-        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
-                1L,
-                "A001",
-                "관리자",
-                "WB0001",
-                "WithBuddy",
-                "2026-06-01"
-        );
-        User serviceAdmin = serviceAdmin();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(serviceAdmin));
-        when(adminMetricsRepository.findUnansweredQuestionPatterns(
-                org.mockito.ArgumentMatchers.isNull(),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
-                org.mockito.ArgumentMatchers.any(Pageable.class)
-        )).thenReturn(new PageImpl<>(List.of()));
-
-        UnansweredQuestionPatternsResponse response = adminMetricsService.getUnansweredQuestionPatterns(
-                principal,
-                null,
-                LocalDate.of(2026, 6, 1),
-                100
-        );
-
-        assertThat(response.limit()).isEqualTo(20);
-
-        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(adminMetricsRepository).findUnansweredQuestionPatterns(
-                org.mockito.ArgumentMatchers.isNull(),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
-                pageableCaptor.capture()
-        );
-        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(20);
-    }
-
-    @Test
     void adminIsForcedToOwnCompanyScope() {
-        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
-                2L,
-                "A002",
-                "기업관리자",
-                "WB0001",
-                "WithBuddy",
-                "2026-06-01"
-        );
+        JwtAuthenticationPrincipal principal = principal(2L, "WB0001");
         User admin = activeAdmin("WB0001");
         when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
-        when(adminMetricsRepository.findUnansweredQuestionPatterns(
-                org.mockito.ArgumentMatchers.eq("WB0001"),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
-                org.mockito.ArgumentMatchers.any(Pageable.class)
-        )).thenReturn(new PageImpl<>(List.of()));
+        when(adminMetricsRepository.findDocumentGapRateMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1)))
+                .thenReturn(List.of());
 
-        UnansweredQuestionPatternsResponse response = adminMetricsService.getUnansweredQuestionPatterns(
+        adminMetricsService.getDocumentGapRate(
                 principal,
                 null,
-                LocalDate.of(2026, 6, 1),
-                3
+                LocalDate.of(2026, 6, 1)
         );
 
-        assertThat(response.limit()).isEqualTo(3);
-        verify(adminMetricsRepository).findUnansweredQuestionPatterns(
-                org.mockito.ArgumentMatchers.eq("WB0001"),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
-                org.mockito.ArgumentMatchers.any(Pageable.class)
-        );
+        verify(adminMetricsRepository).findDocumentGapRateMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1));
     }
 
     @Test
     void adminCannotRequestOtherCompanyMetrics() {
-        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
-                2L,
-                "A002",
-                "기업관리자",
-                "WB0001",
-                "WithBuddy",
-                "2026-06-01"
-        );
+        JwtAuthenticationPrincipal principal = principal(2L, "WB0001");
         User admin = activeAdmin("WB0001");
         when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
 
-        assertThatThrownBy(() -> adminMetricsService.getUnansweredQuestionPatterns(
+        assertThatThrownBy(() -> adminMetricsService.getDocumentGapRate(
                 principal,
                 "WB9999",
-                LocalDate.of(2026, 6, 1),
-                3
+                LocalDate.of(2026, 6, 1)
         ))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("다른 회사 지표는 조회할 수 없습니다.");
     }
 
     @Test
-    void dashboardUsesAdminOwnCompanyAndDefaultPatternLimit() {
-        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
-                2L,
-                "A002",
-                "기업관리자",
-                "WB0001",
-                "WithBuddy",
-                "2026-06-01"
-        );
+    void dashboardUsesP0Metrics() {
+        JwtAuthenticationPrincipal principal = principal(2L, "WB0001");
         User admin = activeAdmin("WB0001");
         when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
-        when(adminMetricsRepository.findRagExperienceRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+        when(adminMetricsRepository.findRagExperienceRateMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1)))
                 .thenReturn(List.of());
-        when(adminMetricsRepository.findFirstInteractionRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
-                .thenReturn(List.of());
-        when(adminMetricsRepository.findRevisitRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
-                .thenReturn(List.of());
-        when(adminMetricsRepository.findUnansweredRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
-                .thenReturn(List.of());
-        when(adminMetricsRepository.findTtaMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
-                .thenReturn(List.of());
+        when(adminMetricsRepository.findDocumentGapRateMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1)))
+                .thenReturn(List.of(documentGapMetric("WB0001", "WithBuddy", 10L, 2L)));
+        when(adminMetricsRepository.findUnstartedUsersMetrics("WB0001", LocalDate.of(2026, 6, 1)))
+                .thenReturn(List.of(unstartedUsersMetric("WB0001", "WithBuddy", 8L, 3L)));
         when(adminMetricsRepository.findUnansweredQuestionPatterns(
                 org.mockito.ArgumentMatchers.eq("WB0001"),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 2)),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 26)),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 1)),
                 org.mockito.ArgumentMatchers.any(Pageable.class)
         )).thenReturn(new PageImpl<>(List.of()));
 
@@ -216,34 +141,26 @@ class AdminMetricsServiceTest {
         );
 
         assertThat(response.metric()).isEqualTo("admin_dashboard");
-        assertThat(response.asOfDate()).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(response.documentGapRate().companies()).hasSize(1);
+        assertThat(response.unstartedUsers().companies()).hasSize(1);
         assertThat(response.unansweredQuestionPatterns().limit()).isEqualTo(5);
-
-        verify(adminMetricsRepository).findRagExperienceRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
-        verify(adminMetricsRepository).findFirstInteractionRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
-        verify(adminMetricsRepository).findRevisitRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
-        verify(adminMetricsRepository).findUnansweredRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
-        verify(adminMetricsRepository).findTtaMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
     }
 
     @Test
     void internalDashboardReturnsServiceAdminOnlyMetrics() {
-        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
-                1L,
-                "A001",
-                "서비스관리자",
-                "WB0001",
-                "WithBuddy",
-                "2026-06-01"
-        );
+        JwtAuthenticationPrincipal principal = principal(1L, "WB0001");
         User serviceAdmin = serviceAdmin();
         when(userRepository.findById(1L)).thenReturn(Optional.of(serviceAdmin));
-        when(adminMetricsRepository.findUnansweredRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
-                .thenReturn(List.of(unansweredMetric("WB0001", "WithBuddy", 10L, 2L, 1L, 1L)));
-        when(adminMetricsRepository.findFirstInteractionRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+        when(adminMetricsRepository.findFirstInteractionRateMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1)))
                 .thenReturn(List.of(firstInteractionMetric("WB0001", "WithBuddy", 20L, 15L)));
-        when(adminMetricsRepository.findRevisitRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+        when(adminMetricsRepository.findRevisitRateMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1)))
                 .thenReturn(List.of(revisitMetric("WB0001", "WithBuddy", 12L, 7L)));
+        when(adminMetricsRepository.findTtaMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1)))
+                .thenReturn(List.of(ttaMetric("WB0001", "WithBuddy", 11L, 8L, 13.5)));
+        when(adminMetricsRepository.findTtaUnreachedMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1)))
+                .thenReturn(List.of(ttaUnreachedMetric("WB0001", "WithBuddy", 11L, 3L)));
+        when(adminMetricsRepository.findUnansweredRateMetrics("WB0001", LocalDate.of(2026, 5, 3), LocalDate.of(2026, 6, 1)))
+                .thenReturn(List.of(unansweredMetric("WB0001", "WithBuddy", 10L, 2L, 1L, 1L)));
 
         InternalAdminDashboardResponse response = adminMetricsService.getInternalDashboard(
                 principal,
@@ -252,25 +169,15 @@ class AdminMetricsServiceTest {
         );
 
         assertThat(response.metric()).isEqualTo("internal_admin_dashboard");
-        assertThat(response.companies()).hasSize(1);
-        InternalAdminDashboardResponse.CompanyMetric companyMetric = response.companies().getFirst();
-        assertThat(companyMetric.nonRagAnswers()).isEqualTo(4L);
-        assertThat(companyMetric.nonRagProcessingRate()).isEqualTo(40.0);
-        assertThat(companyMetric.sensitiveAnswers()).isEqualTo(1L);
-        assertThat(companyMetric.firstInteractionUsers()).isEqualTo(15L);
-        assertThat(companyMetric.revisitUsers()).isEqualTo(7L);
+        assertThat(response.nonRagRate().companies()).hasSize(1);
+        assertThat(response.nonRagRate().companies().getFirst().nonRagAnswers()).isEqualTo(4L);
+        assertThat(response.ttaUnreached().companies().getFirst().unreachedUsers()).isEqualTo(3L);
+        assertThat(response.firstInteractionRate().companies().getFirst().firstInteractionUsers()).isEqualTo(15L);
     }
 
     @Test
     void internalDashboardRejectsCompanyAdmin() {
-        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
-                2L,
-                "A002",
-                "기업관리자",
-                "WB0001",
-                "WithBuddy",
-                "2026-06-01"
-        );
+        JwtAuthenticationPrincipal principal = principal(2L, "WB0001");
         User admin = org.mockito.Mockito.mock(User.class);
         when(admin.getRole()).thenReturn(UserRole.ADMIN);
         when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
@@ -284,19 +191,30 @@ class AdminMetricsServiceTest {
                 .hasMessageContaining("서비스 관리자 권한이 필요한 API입니다.");
     }
 
+    private JwtAuthenticationPrincipal principal(Long userId, String companyCode) {
+        return new JwtAuthenticationPrincipal(
+                userId,
+                "A001",
+                "관리자",
+                companyCode,
+                "WithBuddy",
+                "2026-06-01"
+        );
+    }
+
     private User serviceAdmin() {
         User user = org.mockito.Mockito.mock(User.class);
-        when(user.getRole()).thenReturn(UserRole.SERVICE_ADMIN);
+        org.mockito.Mockito.doReturn(UserRole.SERVICE_ADMIN).when(user).getRole();
         return user;
     }
 
     private User activeAdmin(String companyCode) {
         User user = org.mockito.Mockito.mock(User.class);
         Company company = org.mockito.Mockito.mock(Company.class);
-        when(user.getRole()).thenReturn(UserRole.ADMIN);
-        when(user.isActiveAdmin()).thenReturn(true);
-        when(user.getCompany()).thenReturn(company);
-        when(company.getCompanyCode()).thenReturn(companyCode);
+        org.mockito.Mockito.doReturn(UserRole.ADMIN).when(user).getRole();
+        org.mockito.Mockito.doReturn(true).when(user).isActiveAdmin();
+        org.mockito.Mockito.doReturn(company).when(user).getCompany();
+        org.mockito.Mockito.doReturn(companyCode).when(company).getCompanyCode();
         return user;
     }
 
@@ -347,15 +265,13 @@ class AdminMetricsServiceTest {
         };
     }
 
-    private AdminMetricsRepository.UnansweredMetricProjection unansweredMetric(
+    private AdminMetricsRepository.DocumentGapMetricProjection documentGapMetric(
             String companyCode,
             String companyName,
-            Long totalAiAnswers,
-            Long noResultAnswers,
-            Long outOfScopeAnswers,
-            Long sensitiveAnswers
+            Long answerableBotAnswers,
+            Long noResultAnswers
     ) {
-        return new AdminMetricsRepository.UnansweredMetricProjection() {
+        return new AdminMetricsRepository.DocumentGapMetricProjection() {
             @Override
             public String getCompanyCode() {
                 return companyCode;
@@ -367,23 +283,42 @@ class AdminMetricsServiceTest {
             }
 
             @Override
-            public Long getTotalAiAnswers() {
-                return totalAiAnswers;
+            public Long getAnswerableBotAnswers() {
+                return answerableBotAnswers;
             }
 
             @Override
             public Long getNoResultAnswers() {
                 return noResultAnswers;
             }
+        };
+    }
 
+    private AdminMetricsRepository.UnstartedUsersMetricProjection unstartedUsersMetric(
+            String companyCode,
+            String companyName,
+            Long activeNewUsers,
+            Long unstartedUsers
+    ) {
+        return new AdminMetricsRepository.UnstartedUsersMetricProjection() {
             @Override
-            public Long getOutOfScopeAnswers() {
-                return outOfScopeAnswers;
+            public String getCompanyCode() {
+                return companyCode;
             }
 
             @Override
-            public Long getSensitiveAnswers() {
-                return sensitiveAnswers;
+            public String getCompanyName() {
+                return companyName;
+            }
+
+            @Override
+            public Long getActiveNewUsers() {
+                return activeNewUsers;
+            }
+
+            @Override
+            public Long getUnstartedUsers() {
+                return unstartedUsers;
             }
         };
     }
@@ -442,6 +377,111 @@ class AdminMetricsServiceTest {
             @Override
             public Long getRevisitUsers() {
                 return revisitUsers;
+            }
+        };
+    }
+
+    private AdminMetricsRepository.UnansweredMetricProjection unansweredMetric(
+            String companyCode,
+            String companyName,
+            Long totalAiAnswers,
+            Long noResultAnswers,
+            Long outOfScopeAnswers,
+            Long sensitiveAnswers
+    ) {
+        return new AdminMetricsRepository.UnansweredMetricProjection() {
+            @Override
+            public String getCompanyCode() {
+                return companyCode;
+            }
+
+            @Override
+            public String getCompanyName() {
+                return companyName;
+            }
+
+            @Override
+            public Long getTotalAiAnswers() {
+                return totalAiAnswers;
+            }
+
+            @Override
+            public Long getNoResultAnswers() {
+                return noResultAnswers;
+            }
+
+            @Override
+            public Long getOutOfScopeAnswers() {
+                return outOfScopeAnswers;
+            }
+
+            @Override
+            public Long getSensitiveAnswers() {
+                return sensitiveAnswers;
+            }
+        };
+    }
+
+    private AdminMetricsRepository.TtaMetricProjection ttaMetric(
+            String companyCode,
+            String companyName,
+            Long loggedInUsers,
+            Long measuredUsers,
+            Double averageTtaMinutes
+    ) {
+        return new AdminMetricsRepository.TtaMetricProjection() {
+            @Override
+            public String getCompanyCode() {
+                return companyCode;
+            }
+
+            @Override
+            public String getCompanyName() {
+                return companyName;
+            }
+
+            @Override
+            public Long getLoggedInUsers() {
+                return loggedInUsers;
+            }
+
+            @Override
+            public Long getMeasuredUsers() {
+                return measuredUsers;
+            }
+
+            @Override
+            public Double getAverageTtaMinutes() {
+                return averageTtaMinutes;
+            }
+        };
+    }
+
+    private AdminMetricsRepository.TtaUnreachedMetricProjection ttaUnreachedMetric(
+            String companyCode,
+            String companyName,
+            Long loggedInUsers,
+            Long unreachedUsers
+    ) {
+        return new AdminMetricsRepository.TtaUnreachedMetricProjection() {
+            @Override
+            public String getCompanyCode() {
+                return companyCode;
+            }
+
+            @Override
+            public String getCompanyName() {
+                return companyName;
+            }
+
+            @Override
+            public Long getLoggedInUsers() {
+                return loggedInUsers;
+            }
+
+            @Override
+            public Long getUnreachedUsers() {
+                return unreachedUsers;
             }
         };
     }
