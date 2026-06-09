@@ -60,6 +60,7 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             LEFT JOIN user_activity_logs d0_session
                 ON d0_session.user_id = u.id
                AND d0_session.event_type = 'SESSION_START'
+               AND d0_session.event_target = 'CHAT'
                AND DATE(CONVERT_TZ(d0_session.created_at, '+00:00', '+09:00')) = u.hire_date
             WHERE (:companyCode IS NULL OR c.company_code = :companyCode)
             GROUP BY c.company_code, c.name
@@ -89,10 +90,12 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             LEFT JOIN user_activity_logs d0_session
                 ON d0_session.user_id = u.id
                AND d0_session.event_type = 'SESSION_START'
+               AND d0_session.event_target = 'CHAT'
                AND DATE(CONVERT_TZ(d0_session.created_at, '+00:00', '+09:00')) = u.hire_date
             LEFT JOIN user_activity_logs revisit_session
                 ON revisit_session.user_id = u.id
                AND revisit_session.event_type = 'SESSION_START'
+               AND revisit_session.event_target = 'CHAT'
                AND DATE(CONVERT_TZ(revisit_session.created_at, '+00:00', '+09:00')) >= DATE_ADD(u.hire_date, INTERVAL 1 DAY)
                AND DATE(CONVERT_TZ(revisit_session.created_at, '+00:00', '+09:00')) < DATE_ADD(u.hire_date, INTERVAL 7 DAY)
                AND DATE(CONVERT_TZ(revisit_session.created_at, '+00:00', '+09:00')) <= :asOfDate
