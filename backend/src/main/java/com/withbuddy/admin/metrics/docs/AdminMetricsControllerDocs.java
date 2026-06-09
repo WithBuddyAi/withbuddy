@@ -2,7 +2,7 @@ package com.withbuddy.admin.metrics.docs;
 
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
-import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
+import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
@@ -42,6 +42,23 @@ public interface AdminMetricsControllerDocs {
             @RequestParam(required = false) String companyCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
             @RequestParam(required = false) Integer unansweredPatternLimit
+    );
+
+    @Operation(summary = "내부 운영용 대시보드 묶음 지표 조회")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "내부 운영용 대시보드 조회 성공",
+                    content = @Content(schema = @Schema(implementation = InternalAdminDashboardResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "권한 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 파라미터",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<InternalAdminDashboardResponse> getInternalDashboard(
+            @Parameter(hidden = true) Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate
     );
 
     @Operation(summary = "D+6 RAG 답변 수신 경험률 조회")
