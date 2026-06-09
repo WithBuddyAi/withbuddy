@@ -2,7 +2,7 @@ package com.withbuddy.admin.metrics.service;
 
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
-import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
+import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
@@ -22,7 +22,9 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional(readOnly = true)
@@ -216,6 +218,96 @@ public class AdminMetricsService {
                 resolvedLimit,
                 patterns
         );
+    }
+
+    public InternalAdminDashboardResponse getInternalDashboard(
+            JwtAuthenticationPrincipal principal,
+            String companyCode,
+            LocalDate asOfDate
+    ) {
+        requireServiceAdmin(principal);
+        LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
+
+        UnansweredRateResponse unansweredRate = getUnansweredRate(principal, companyCode, resolvedAsOfDate);
+        FirstInteractionRateResponse firstInteractionRate = getFirstInteractionRate(principal, companyCode, resolvedAsOfDate);
+        RevisitRateResponse revisitRate = getRevisitRate(principal, companyCode, resolvedAsOfDate);
+
+        Map<String, InternalAdminDashboardResponse.CompanyMetric> companies = new LinkedHashMap<>();
+
+        unansweredRate.companies().forEach(metric -> companies.put(
+                metric.companyCode(),
+                new InternalAdminDashboardResponse.CompanyMetric(
+                        metric.companyCode(),
+                        metric.companyName(),
+                        metric.totalAiAnswers(),
+                        metric.noResultAnswers() + metric.outOfScopeAnswers() + metric.sensitiveAnswers(),
+                        calculateRate(
+                                metric.noResultAnswers() + metric.outOfScopeAnswers() + metric.sensitiveAnswers(),
+                                metric.totalAiAnswers()
+                        ),
+                        metric.sensitiveAnswers(),
+                        metric.sensitiveRate(),
+                        0L,
+                        0L,
+                        0.0,
+                        0L,
+                        0L,
+                        0.0
+                )
+        ));
+
+        firstInteractionRate.companies().forEach(metric -> companies.compute(
+                metric.companyCode(),
+                (companyCodeKey, existing) -> new InternalAdminDashboardResponse.CompanyMetric(
+                        metric.companyCode(),
+                        metric.companyName(),
+                        existing == null ? 0L : existing.totalAiAnswers(),
+                        existing == null ? 0L : existing.nonRagAnswers(),
+                        existing == null ? 0.0 : existing.nonRagProcessingRate(),
+                        existing == null ? 0L : existing.sensitiveAnswers(),
+                        existing == null ? 0.0 : existing.sensitiveRate(),
+                        metric.targetUsers(),
+                        metric.firstInteractionUsers(),
+                        metric.firstInteractionRate(),
+                        existing == null ? 0L : existing.d0Users(),
+                        existing == null ? 0L : existing.revisitUsers(),
+                        existing == null ? 0.0 : existing.revisitRate()
+                )
+        ));
+
+        revisitRate.companies().forEach(metric -> companies.compute(
+                metric.companyCode(),
+                (companyCodeKey, existing) -> new InternalAdminDashboardResponse.CompanyMetric(
+                        metric.companyCode(),
+                        metric.companyName(),
+                        existing == null ? 0L : existing.totalAiAnswers(),
+                        existing == null ? 0L : existing.nonRagAnswers(),
+                        existing == null ? 0.0 : existing.nonRagProcessingRate(),
+                        existing == null ? 0L : existing.sensitiveAnswers(),
+                        existing == null ? 0.0 : existing.sensitiveRate(),
+                        existing == null ? 0L : existing.targetUsers(),
+                        existing == null ? 0L : existing.firstInteractionUsers(),
+                        existing == null ? 0.0 : existing.firstInteractionRate(),
+                        metric.d0Users(),
+                        metric.revisitUsers(),
+                        metric.revisitRate()
+                )
+        ));
+
+        return new InternalAdminDashboardResponse(
+                "internal_admin_dashboard",
+                resolvedAsOfDate,
+                List.copyOf(companies.values())
+        );
+    }
+
+    private void requireServiceAdmin(JwtAuthenticationPrincipal principal) {
+        User currentUser = userRepository.findById(principal.userId())
+                .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+
+        if (currentUser.getRole() != UserRole.SERVICE_ADMIN) {
+            throw new ForbiddenException("ACCESS_DENIED", "role", "서비스 관리자 권한이 필요한 API입니다.");
+        }
     }
 
     private String resolveCompanyScope(JwtAuthenticationPrincipal principal, String requestedCompanyCode) {

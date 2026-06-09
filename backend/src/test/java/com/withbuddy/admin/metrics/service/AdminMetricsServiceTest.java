@@ -4,6 +4,7 @@ import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.company.entity.Company;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
+import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
@@ -225,6 +226,64 @@ class AdminMetricsServiceTest {
         verify(adminMetricsRepository).findTtaMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2));
     }
 
+    @Test
+    void internalDashboardReturnsServiceAdminOnlyMetrics() {
+        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
+                1L,
+                "A001",
+                "서비스관리자",
+                "WB0001",
+                "WithBuddy",
+                "2026-06-01"
+        );
+        User serviceAdmin = serviceAdmin();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(serviceAdmin));
+        when(adminMetricsRepository.findUnansweredRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+                .thenReturn(List.of(unansweredMetric("WB0001", "WithBuddy", 10L, 2L, 1L, 1L)));
+        when(adminMetricsRepository.findFirstInteractionRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+                .thenReturn(List.of(firstInteractionMetric("WB0001", "WithBuddy", 20L, 15L)));
+        when(adminMetricsRepository.findRevisitRateMetrics("WB0001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2)))
+                .thenReturn(List.of(revisitMetric("WB0001", "WithBuddy", 12L, 7L)));
+
+        InternalAdminDashboardResponse response = adminMetricsService.getInternalDashboard(
+                principal,
+                "WB0001",
+                LocalDate.of(2026, 6, 1)
+        );
+
+        assertThat(response.metric()).isEqualTo("internal_admin_dashboard");
+        assertThat(response.companies()).hasSize(1);
+        InternalAdminDashboardResponse.CompanyMetric companyMetric = response.companies().getFirst();
+        assertThat(companyMetric.nonRagAnswers()).isEqualTo(4L);
+        assertThat(companyMetric.nonRagProcessingRate()).isEqualTo(40.0);
+        assertThat(companyMetric.sensitiveAnswers()).isEqualTo(1L);
+        assertThat(companyMetric.firstInteractionUsers()).isEqualTo(15L);
+        assertThat(companyMetric.revisitUsers()).isEqualTo(7L);
+    }
+
+    @Test
+    void internalDashboardRejectsCompanyAdmin() {
+        JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
+                2L,
+                "A002",
+                "기업관리자",
+                "WB0001",
+                "WithBuddy",
+                "2026-06-01"
+        );
+        User admin = org.mockito.Mockito.mock(User.class);
+        when(admin.getRole()).thenReturn(UserRole.ADMIN);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> adminMetricsService.getInternalDashboard(
+                principal,
+                "WB0001",
+                LocalDate.of(2026, 6, 1)
+        ))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("서비스 관리자 권한이 필요한 API입니다.");
+    }
+
     private User serviceAdmin() {
         User user = org.mockito.Mockito.mock(User.class);
         when(user.getRole()).thenReturn(UserRole.SERVICE_ADMIN);
@@ -284,6 +343,105 @@ class AdminMetricsServiceTest {
             @Override
             public LocalDateTime getLatestOccurredAt() {
                 return latestOccurredAt;
+            }
+        };
+    }
+
+    private AdminMetricsRepository.UnansweredMetricProjection unansweredMetric(
+            String companyCode,
+            String companyName,
+            Long totalAiAnswers,
+            Long noResultAnswers,
+            Long outOfScopeAnswers,
+            Long sensitiveAnswers
+    ) {
+        return new AdminMetricsRepository.UnansweredMetricProjection() {
+            @Override
+            public String getCompanyCode() {
+                return companyCode;
+            }
+
+            @Override
+            public String getCompanyName() {
+                return companyName;
+            }
+
+            @Override
+            public Long getTotalAiAnswers() {
+                return totalAiAnswers;
+            }
+
+            @Override
+            public Long getNoResultAnswers() {
+                return noResultAnswers;
+            }
+
+            @Override
+            public Long getOutOfScopeAnswers() {
+                return outOfScopeAnswers;
+            }
+
+            @Override
+            public Long getSensitiveAnswers() {
+                return sensitiveAnswers;
+            }
+        };
+    }
+
+    private AdminMetricsRepository.FirstInteractionMetricProjection firstInteractionMetric(
+            String companyCode,
+            String companyName,
+            Long targetUsers,
+            Long firstInteractionUsers
+    ) {
+        return new AdminMetricsRepository.FirstInteractionMetricProjection() {
+            @Override
+            public String getCompanyCode() {
+                return companyCode;
+            }
+
+            @Override
+            public String getCompanyName() {
+                return companyName;
+            }
+
+            @Override
+            public Long getTargetUsers() {
+                return targetUsers;
+            }
+
+            @Override
+            public Long getFirstInteractionUsers() {
+                return firstInteractionUsers;
+            }
+        };
+    }
+
+    private AdminMetricsRepository.RevisitMetricProjection revisitMetric(
+            String companyCode,
+            String companyName,
+            Long d0Users,
+            Long revisitUsers
+    ) {
+        return new AdminMetricsRepository.RevisitMetricProjection() {
+            @Override
+            public String getCompanyCode() {
+                return companyCode;
+            }
+
+            @Override
+            public String getCompanyName() {
+                return companyName;
+            }
+
+            @Override
+            public Long getD0Users() {
+                return d0Users;
+            }
+
+            @Override
+            public Long getRevisitUsers() {
+                return revisitUsers;
             }
         };
     }
