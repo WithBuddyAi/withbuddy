@@ -1,20 +1,24 @@
 package com.withbuddy.admin.metrics.service;
 
+import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
+import com.withbuddy.admin.metrics.dto.response.DocumentGapRateResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
 import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
+import com.withbuddy.admin.metrics.dto.response.NonRagRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
-import com.withbuddy.admin.metrics.dto.response.UnansweredRateResponse;
+import com.withbuddy.admin.metrics.dto.response.TtaUnreachedResponse;
 import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
+import com.withbuddy.admin.metrics.dto.response.UnansweredRateResponse;
+import com.withbuddy.admin.metrics.dto.response.UnstartedUsersResponse;
 import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
-import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
-import com.withbuddy.account.user.entity.User;
-import com.withbuddy.account.user.entity.UserRole;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +26,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Transactional(readOnly = true)
@@ -52,10 +54,10 @@ public class AdminMetricsService {
     ) {
         String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
-        LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
+        LocalDate cohortStartDate = resolveRollingStartDate(resolvedAsOfDate);
 
         List<RagExperienceRateResponse.CompanyMetric> companies =
-                adminMetricsRepository.findRagExperienceRateMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findRagExperienceRateMetrics(scopedCompanyCode, cohortStartDate, resolvedAsOfDate).stream()
                         .map(metric -> new RagExperienceRateResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -66,6 +68,50 @@ public class AdminMetricsService {
                         .toList();
 
         return new RagExperienceRateResponse("rag_experience_rate", resolvedAsOfDate, companies);
+    }
+
+    public DocumentGapRateResponse getDocumentGapRate(
+            JwtAuthenticationPrincipal principal,
+            String companyCode,
+            LocalDate asOfDate
+    ) {
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
+        LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
+        LocalDate windowStartDate = resolveRollingStartDate(resolvedAsOfDate);
+
+        List<DocumentGapRateResponse.CompanyMetric> companies =
+                adminMetricsRepository.findDocumentGapRateMetrics(scopedCompanyCode, windowStartDate, resolvedAsOfDate).stream()
+                        .map(metric -> new DocumentGapRateResponse.CompanyMetric(
+                                metric.getCompanyCode(),
+                                metric.getCompanyName(),
+                                defaultLong(metric.getAnswerableBotAnswers()),
+                                defaultLong(metric.getNoResultAnswers()),
+                                calculateRate(metric.getNoResultAnswers(), metric.getAnswerableBotAnswers())
+                        ))
+                        .toList();
+
+        return new DocumentGapRateResponse("document_gap_rate", resolvedAsOfDate, companies);
+    }
+
+    public UnstartedUsersResponse getUnstartedUsers(
+            JwtAuthenticationPrincipal principal,
+            String companyCode,
+            LocalDate asOfDate
+    ) {
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
+        LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
+
+        List<UnstartedUsersResponse.CompanyMetric> companies =
+                adminMetricsRepository.findUnstartedUsersMetrics(scopedCompanyCode, resolvedAsOfDate).stream()
+                        .map(metric -> new UnstartedUsersResponse.CompanyMetric(
+                                metric.getCompanyCode(),
+                                metric.getCompanyName(),
+                                defaultLong(metric.getActiveNewUsers()),
+                                defaultLong(metric.getUnstartedUsers())
+                        ))
+                        .toList();
+
+        return new UnstartedUsersResponse("unstarted_users", resolvedAsOfDate, companies);
     }
 
     public AdminDashboardResponse getDashboard(
@@ -80,10 +126,8 @@ public class AdminMetricsService {
                 "admin_dashboard",
                 resolvedAsOfDate,
                 getRagExperienceRate(principal, companyCode, resolvedAsOfDate),
-                getFirstInteractionRate(principal, companyCode, resolvedAsOfDate),
-                getRevisitRate(principal, companyCode, resolvedAsOfDate),
-                getUnansweredRate(principal, companyCode, resolvedAsOfDate),
-                getTta(principal, companyCode, resolvedAsOfDate),
+                getDocumentGapRate(principal, companyCode, resolvedAsOfDate),
+                getUnstartedUsers(principal, companyCode, resolvedAsOfDate),
                 getUnansweredQuestionPatterns(principal, companyCode, resolvedAsOfDate, unansweredPatternLimit)
         );
     }
@@ -95,10 +139,10 @@ public class AdminMetricsService {
     ) {
         String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
-        LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
+        LocalDate cohortStartDate = resolveRollingStartDate(resolvedAsOfDate);
 
         List<FirstInteractionRateResponse.CompanyMetric> companies =
-                adminMetricsRepository.findFirstInteractionRateMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findFirstInteractionRateMetrics(scopedCompanyCode, cohortStartDate, resolvedAsOfDate).stream()
                         .map(metric -> new FirstInteractionRateResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -118,10 +162,10 @@ public class AdminMetricsService {
     ) {
         String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
-        LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
+        LocalDate cohortStartDate = resolveRollingStartDate(resolvedAsOfDate);
 
         List<RevisitRateResponse.CompanyMetric> companies =
-                adminMetricsRepository.findRevisitRateMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findRevisitRateMetrics(scopedCompanyCode, cohortStartDate, resolvedAsOfDate).stream()
                         .map(metric -> new RevisitRateResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -141,10 +185,10 @@ public class AdminMetricsService {
     ) {
         String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
-        LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
+        LocalDate windowStartDate = resolveRollingStartDate(resolvedAsOfDate);
 
         List<UnansweredRateResponse.CompanyMetric> companies =
-                adminMetricsRepository.findUnansweredRateMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findUnansweredRateMetrics(scopedCompanyCode, windowStartDate, resolvedAsOfDate).stream()
                         .map(metric -> new UnansweredRateResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -161,6 +205,38 @@ public class AdminMetricsService {
         return new UnansweredRateResponse("unanswered_rate", resolvedAsOfDate, companies);
     }
 
+    public NonRagRateResponse getNonRagRate(
+            JwtAuthenticationPrincipal principal,
+            String companyCode,
+            LocalDate asOfDate
+    ) {
+        requireServiceAdmin(principal);
+        LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
+        LocalDate windowStartDate = resolveRollingStartDate(resolvedAsOfDate);
+
+        List<NonRagRateResponse.CompanyMetric> companies =
+                adminMetricsRepository.findUnansweredRateMetrics(normalizeCompanyCode(companyCode), windowStartDate, resolvedAsOfDate).stream()
+                        .map(metric -> {
+                            long nonRagAnswers = defaultLong(metric.getNoResultAnswers())
+                                    + defaultLong(metric.getOutOfScopeAnswers())
+                                    + defaultLong(metric.getSensitiveAnswers());
+                            return new NonRagRateResponse.CompanyMetric(
+                                    metric.getCompanyCode(),
+                                    metric.getCompanyName(),
+                                    defaultLong(metric.getTotalAiAnswers()),
+                                    nonRagAnswers,
+                                    calculateRate(nonRagAnswers, metric.getTotalAiAnswers()),
+                                    defaultLong(metric.getNoResultAnswers()),
+                                    defaultLong(metric.getOutOfScopeAnswers()),
+                                    defaultLong(metric.getSensitiveAnswers()),
+                                    calculateRate(metric.getSensitiveAnswers(), metric.getTotalAiAnswers())
+                            );
+                        })
+                        .toList();
+
+        return new NonRagRateResponse("non_rag_rate", resolvedAsOfDate, companies);
+    }
+
     public TtaResponse getTta(
             JwtAuthenticationPrincipal principal,
             String companyCode,
@@ -168,10 +244,10 @@ public class AdminMetricsService {
     ) {
         String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
-        LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
+        LocalDate windowStartDate = resolveRollingStartDate(resolvedAsOfDate);
 
         List<TtaResponse.CompanyMetric> companies =
-                adminMetricsRepository.findTtaMetrics(scopedCompanyCode, resolvedAsOfDate, dayAfter).stream()
+                adminMetricsRepository.findTtaMetrics(scopedCompanyCode, windowStartDate, resolvedAsOfDate).stream()
                         .map(metric -> new TtaResponse.CompanyMetric(
                                 metric.getCompanyCode(),
                                 metric.getCompanyName(),
@@ -184,6 +260,29 @@ public class AdminMetricsService {
         return new TtaResponse("tta", resolvedAsOfDate, "minutes", companies);
     }
 
+    public TtaUnreachedResponse getTtaUnreached(
+            JwtAuthenticationPrincipal principal,
+            String companyCode,
+            LocalDate asOfDate
+    ) {
+        requireServiceAdmin(principal);
+        LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
+        LocalDate windowStartDate = resolveRollingStartDate(resolvedAsOfDate);
+
+        List<TtaUnreachedResponse.CompanyMetric> companies =
+                adminMetricsRepository.findTtaUnreachedMetrics(normalizeCompanyCode(companyCode), windowStartDate, resolvedAsOfDate).stream()
+                        .map(metric -> new TtaUnreachedResponse.CompanyMetric(
+                                metric.getCompanyCode(),
+                                metric.getCompanyName(),
+                                defaultLong(metric.getLoggedInUsers()),
+                                defaultLong(metric.getUnreachedUsers()),
+                                calculateRate(metric.getUnreachedUsers(), metric.getLoggedInUsers())
+                        ))
+                        .toList();
+
+        return new TtaUnreachedResponse("tta_unreached", resolvedAsOfDate, companies);
+    }
+
     public UnansweredQuestionPatternsResponse getUnansweredQuestionPatterns(
             JwtAuthenticationPrincipal principal,
             String companyCode,
@@ -192,13 +291,14 @@ public class AdminMetricsService {
     ) {
         String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
-        LocalDate dayAfter = resolvedAsOfDate.plusDays(1);
+        LocalDate windowStartDate = resolveTopFiveStartDate(resolvedAsOfDate);
         int resolvedLimit = resolvePatternLimit(limit);
 
         List<UnansweredQuestionPatternsResponse.PatternItem> patterns =
                 adminMetricsRepository.findUnansweredQuestionPatterns(
                                 scopedCompanyCode,
-                                dayAfter,
+                                windowStartDate,
+                                resolvedAsOfDate,
                                 PageRequest.of(0, resolvedLimit)
                         ).stream()
                         .map(pattern -> new UnansweredQuestionPatternsResponse.PatternItem(
@@ -228,76 +328,14 @@ public class AdminMetricsService {
         requireServiceAdmin(principal);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
 
-        UnansweredRateResponse unansweredRate = getUnansweredRate(principal, companyCode, resolvedAsOfDate);
-        FirstInteractionRateResponse firstInteractionRate = getFirstInteractionRate(principal, companyCode, resolvedAsOfDate);
-        RevisitRateResponse revisitRate = getRevisitRate(principal, companyCode, resolvedAsOfDate);
-
-        Map<String, InternalAdminDashboardResponse.CompanyMetric> companies = new LinkedHashMap<>();
-
-        unansweredRate.companies().forEach(metric -> companies.put(
-                metric.companyCode(),
-                new InternalAdminDashboardResponse.CompanyMetric(
-                        metric.companyCode(),
-                        metric.companyName(),
-                        metric.totalAiAnswers(),
-                        metric.noResultAnswers() + metric.outOfScopeAnswers() + metric.sensitiveAnswers(),
-                        calculateRate(
-                                metric.noResultAnswers() + metric.outOfScopeAnswers() + metric.sensitiveAnswers(),
-                                metric.totalAiAnswers()
-                        ),
-                        metric.sensitiveAnswers(),
-                        metric.sensitiveRate(),
-                        0L,
-                        0L,
-                        0.0,
-                        0L,
-                        0L,
-                        0.0
-                )
-        ));
-
-        firstInteractionRate.companies().forEach(metric -> companies.compute(
-                metric.companyCode(),
-                (companyCodeKey, existing) -> new InternalAdminDashboardResponse.CompanyMetric(
-                        metric.companyCode(),
-                        metric.companyName(),
-                        existing == null ? 0L : existing.totalAiAnswers(),
-                        existing == null ? 0L : existing.nonRagAnswers(),
-                        existing == null ? 0.0 : existing.nonRagProcessingRate(),
-                        existing == null ? 0L : existing.sensitiveAnswers(),
-                        existing == null ? 0.0 : existing.sensitiveRate(),
-                        metric.targetUsers(),
-                        metric.firstInteractionUsers(),
-                        metric.firstInteractionRate(),
-                        existing == null ? 0L : existing.d0Users(),
-                        existing == null ? 0L : existing.revisitUsers(),
-                        existing == null ? 0.0 : existing.revisitRate()
-                )
-        ));
-
-        revisitRate.companies().forEach(metric -> companies.compute(
-                metric.companyCode(),
-                (companyCodeKey, existing) -> new InternalAdminDashboardResponse.CompanyMetric(
-                        metric.companyCode(),
-                        metric.companyName(),
-                        existing == null ? 0L : existing.totalAiAnswers(),
-                        existing == null ? 0L : existing.nonRagAnswers(),
-                        existing == null ? 0.0 : existing.nonRagProcessingRate(),
-                        existing == null ? 0L : existing.sensitiveAnswers(),
-                        existing == null ? 0.0 : existing.sensitiveRate(),
-                        existing == null ? 0L : existing.targetUsers(),
-                        existing == null ? 0L : existing.firstInteractionUsers(),
-                        existing == null ? 0.0 : existing.firstInteractionRate(),
-                        metric.d0Users(),
-                        metric.revisitUsers(),
-                        metric.revisitRate()
-                )
-        ));
-
         return new InternalAdminDashboardResponse(
                 "internal_admin_dashboard",
                 resolvedAsOfDate,
-                List.copyOf(companies.values())
+                getFirstInteractionRate(principal, companyCode, resolvedAsOfDate),
+                getRevisitRate(principal, companyCode, resolvedAsOfDate),
+                getTta(principal, companyCode, resolvedAsOfDate),
+                getTtaUnreached(principal, companyCode, resolvedAsOfDate),
+                getNonRagRate(principal, companyCode, resolvedAsOfDate)
         );
     }
 
@@ -348,6 +386,14 @@ public class AdminMetricsService {
         return LocalDate.now(KOREA_ZONE_ID);
     }
 
+    private LocalDate resolveRollingStartDate(LocalDate asOfDate) {
+        return asOfDate.minusDays(29);
+    }
+
+    private LocalDate resolveTopFiveStartDate(LocalDate asOfDate) {
+        return asOfDate.minusDays(6);
+    }
+
     private long defaultLong(Long value) {
         return value == null ? 0L : value;
     }
@@ -360,6 +406,10 @@ public class AdminMetricsService {
 
         double ratio = defaultLong(numerator) * 100.0 / resolvedDenominator;
         return Math.round(ratio * 10.0) / 10.0;
+    }
+
+    private double calculateRate(long numerator, Long denominator) {
+        return calculateRate(Long.valueOf(numerator), denominator);
     }
 
     private int resolvePatternLimit(Integer limit) {
