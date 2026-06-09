@@ -1,6 +1,7 @@
 package com.withbuddy.admin.metrics.controller;
 
 import com.withbuddy.admin.metrics.docs.AdminMetricsControllerDocs;
+import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
@@ -27,6 +28,18 @@ import java.time.LocalDate;
 public class AdminMetricsController implements AdminMetricsControllerDocs {
 
     private final AdminMetricsService adminMetricsService;
+
+    @Override
+    @GetMapping("/dashboard")
+    public ResponseEntity<AdminDashboardResponse> getDashboard(
+            Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
+            @RequestParam(required = false) Integer unansweredPatternLimit
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return ResponseEntity.ok(adminMetricsService.getDashboard(principal, companyCode, asOfDate, unansweredPatternLimit));
+    }
 
     @Override
     @GetMapping("/rag-experience-rate")
