@@ -27,7 +27,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -315,6 +317,51 @@ public class GlobalExceptionHandler {
         log.warn("Storage error: path={}, field={}, message={}", resolveMaskedPath(request), e.getField(), e.getMessage());
 
         return ResponseEntity.status(e.getStatus()).body(response);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("file", "파일 크기 제한을 초과했습니다.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "FILE_001_SIZE",
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        log.warn("Upload size exceeded: path={}", resolveMaskedPath(request));
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ErrorResponse> handleMissingServletRequestPartException(
+            MissingServletRequestPartException e,
+            HttpServletRequest request
+    ) {
+        String code = "file".equals(e.getRequestPartName()) ? "FILE_001_EMPTY" : "BAD_REQUEST";
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError(e.getRequestPartName(), "요청 파트가 존재하지 않습니다.")
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                code,
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(AiTimeoutException.class)
