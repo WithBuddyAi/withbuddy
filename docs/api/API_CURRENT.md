@@ -2232,20 +2232,18 @@ Content-Type: multipart/form-data
 
 업로드 가능한 파일 형식은 다음 확장자로 제한됩니다.
 
-| 구분 | 확장자 | 단일 파일 최대 크기 |
-|---|---|---:|
-| 문서 파일 | `.pdf`, `.docx`, `.pptx`, `.txt` | 20MB |
-| 스프레드시트 파일 | `.xls`, `.xlsx` | 20MB |
-| 이미지 파일 | `.png`, `.jpg`, `.jpeg` | 5MB |
+| 구분 | 확장자                     | 단일 파일 최대 크기 |
+|---|-------------------------|---:|
+| 문서 파일 | `.pdf`, `.docx`, `.txt` | 20MB |
 
 #### Request Field (`form-data`)
 
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `file` | File | Y | 업로드할 문서 파일 |
-| `title` | String | Y | 문서 제목 |
-| `documentType` | String | Y | 문서 유형. 예: `LEGAL`, `GUIDE`, `TEMPLATE` |
-| `department` | String | Y | 문서 담당 부서 |
+| 필드 | 타입 | 필수 | 설명                                      |
+|---|---|---|-----------------------------------------|
+| `file` | File | Y | 업로드할 문서 파일                              |
+| `title` | String | Y | 문서 제목                                   |
+| `documentType` | String | Y | 문서 유형. 예: `POLICY`, `GUIDE`, `TEMPLATE` |
+| `department` | String | Y | 문서 담당 부서                                |
 
 요청 예시(Postman):
 - Method: `POST`
@@ -2263,7 +2261,7 @@ Content-Type: multipart/form-data
 - 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)만 호출할 수 있다.
 - 업로드되는 문서의 `company_code`는 요청 바디가 아니라 현재 로그인한 사용자의 `company_code`로 설정한다.
 - 관리자 계정 페이지에서는 공통 문서(`company_code = null`)를 업로드할 수 없다.
-- 문서 파일과 스프레드시트 파일은 최대 20MB, 이미지 파일은 최대 5MB까지 업로드할 수 있다.
+- 문서 파일은 최대 20MB까지 업로드할 수 있다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
 - 파일이 비어 있거나 단일 파일 크기, 회사당 문서 수 또는 회사별 총 업로드 용량 제한을 초과하면 `400 Bad Request`, `FILE_001`을 반환한다.
@@ -2789,7 +2787,7 @@ Content-Type: multipart/form-data
 - 문서를 업로드한다.
 - 업로드된 문서는 `documents`, `document_files`를 기준으로 저장 및 관리한다.
 - 파일 저장 후 백업 스토리지 연동 정책에 따라 백업 작업이 수행될 수 있다.
-- 단일 파일 크기 제한은 파일 형식별로 적용한다. 문서 파일(`.pdf`, `.docx`, `.pptx`, `.txt`)과 스프레드시트 파일(`.xls`, `.xlsx`)은 최대 20MB, 이미지 파일(`.png`, `.jpg`, `.jpeg`)은 최대 5MB다.
+- 업로드 가능한 파일 형식은 `.pdf`, `.docx`, `.txt`이며, 단일 파일 최대 크기는 20MB다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
 
