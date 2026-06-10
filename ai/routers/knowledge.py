@@ -35,7 +35,8 @@ _SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
 - 문서 보강이 필요한 가능성만 제안합니다.
 - 요약은 2-3문장으로 간결하게 작성합니다.
 - 액션은 2-3개로 제한합니다.
-- 마크다운 볼드(**) 등 특수 기호 사용 금지. 일반 텍스트로만 출력합니다."""),
+- 마크다운 볼드(**) 등 특수 기호 사용 금지. 일반 텍스트로만 출력합니다.
+- 법적 분쟁, 임금 체불, 신체적 위협 등 민감한 질문은 문서 보강 대상에서 제외하고 "HR/법무 담당자 직접 상담 필요" 로 별도 분리하세요."""),
     ("human", """다음은 신입 직원들이 반복적으로 질문했지만 회사 문서에서 답변 근거를 찾지 못한 질문 목록입니다.
 
 질문 목록:
@@ -50,10 +51,35 @@ _SUMMARY_PROMPT = ChatPromptTemplate.from_messages([
 3. (필요시 추가)"""),
 ])
 
+_SUMMARY_PROMPT_B = ChatPromptTemplate.from_messages([
+    ("system", """당신은 기업 온보딩 문서 보강을 돕는 AI입니다.
+신입 직원들이 반복적으로 질문했지만 회사 문서에서 답을 찾지 못한 질문 목록을 분석하여,
+관리자가 즉시 조치할 수 있도록 카테고리별로 분류하고 구체적인 문서 보강을 제안합니다.
+
+중요한 규칙:
+- 회사 정책을 임의로 확정하지 않습니다.
+- 카테고리는 1-3개로 제한합니다.
+- 문서 보강 제안은 구체적인 문서명과 포함할 내용을 명시합니다."""),
+    ("human", """다음은 신입 직원들이 반복적으로 질문했지만 회사 문서에서 답변 근거를 찾지 못한 질문 목록입니다.
+
+질문 목록:
+{questions}
+
+이 질문들을 카테고리별로 분류하여 아래 형식으로 답변해주세요:
+
+요약: (한 문장으로 핵심 요약)
+카테고리 분석:
+1. 질문 카테고리: (카테고리명)
+   문서 보강 제안: (구체적인 문서명 및 포함할 내용)
+2. 질문 카테고리: (카테고리명, 해당하는 경우만)
+   문서 보강 제안: (구체적인 문서명 및 포함할 내용)"""),
+])
+
 
 class NoResultSummaryRequest(BaseModel):
     companyCode: str = Field(..., description="회사 코드")
     questions: List[str] = Field(..., description="no_result 질문 목록")
+    promptStyle: str = Field("A", description="프롬프트 방식 (A: 단순 요약+액션, B: 카테고리 분류+문서 보강 제안)")
 
 
 class NoResultSummaryResponse(BaseModel):
@@ -61,29 +87,40 @@ class NoResultSummaryResponse(BaseModel):
     questionCount: int
     summary: str
     actions: List[str]
+    promptStyle: str = "A"
 
 
-def _run_summary(questions: List[str]) -> tuple:
+def _run_summary(questions: List[str], prompt_style: str = "A") -> tuple:
     """요약 체인 실행 — 엔드포인트와 스케줄러 공용."""
     import re as _re
     _clean = lambda s: _re.sub(r'\*+', '', s).strip()
 
     questions_text = "\n".join(f"- {q}" for q in questions)
-    chain = _SUMMARY_PROMPT | get_llm() | StrOutputParser()
+    prompt = _SUMMARY_PROMPT_B if prompt_style == "B" else _SUMMARY_PROMPT
+    chain = prompt | get_llm() | StrOutputParser()
     result = chain.invoke({"questions": questions_text})
 
-    summary_match = _re.search(r'요약:\s*\*{0,2}\n?(.*?)(?=\n\s*\n?\*{0,2}액션:|$)', result, _re.DOTALL)
-    summary = _clean(summary_match.group(1)) if summary_match else _clean(result.split("액션:")[0])
+    summary_match = _re.search(r'요약:\s*\*{0,2}\n?(.*?)(?=\n\s*[-#*]*\s*\*{0,2}(?:액션|카테고리 분석))', result, _re.DOTALL)
+    raw_summary = summary_match.group(1) if summary_match else _re.split(r'\n\s*[-#*]*\s*(?:액션|카테고리 분석)', result)[0].replace("요약:", "")
+    summary = _re.sub(r'[\n\r\s]*-{2,}[\n\r\s]*$', '', _clean(raw_summary)).strip()
 
     actions = []
-    actions_match = _re.search(r'액션:\s*\*{0,2}\n(.*)', result, _re.DOTALL)
-    if actions_match:
-        for line in actions_match.group(1).strip().splitlines():
-            line = line.strip()
-            if line and line[0].isdigit() and "." in line:
-                action = _clean(line.split(".", 1)[1].strip())
+    if prompt_style == "B":
+        for line in result.splitlines():
+            line_s = line.strip()
+            if "문서명:" in line_s:
+                action = _clean(line_s.split("문서명:", 1)[1].strip())
                 if action:
                     actions.append(action)
+    else:
+        actions_match = _re.search(r'액션:\s*\*{0,2}\n(.*)', result, _re.DOTALL)
+        if actions_match:
+            for line in actions_match.group(1).strip().splitlines():
+                line = line.strip()
+                if line and line[0].isdigit() and "." in line:
+                    action = _clean(line.split(".", 1)[1].strip())
+                    if action:
+                        actions.append(action)
 
     return summary, actions
 
@@ -98,18 +135,20 @@ async def summarize_no_result(req: NoResultSummaryRequest):
         raise HTTPException(status_code=400, detail="질문 목록이 비어있습니다.")
 
     try:
-        summary, actions = await asyncio.to_thread(_run_summary, req.questions)
+        summary, actions = await asyncio.to_thread(_run_summary, req.questions, req.promptStyle)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"요약 생성 실패: {str(e)}")
 
-    from tasks.slack_notifier import send_no_result_summary
-    asyncio.create_task(send_no_result_summary(req.companyCode, summary, actions, len(req.questions)))
+    if req.promptStyle == "A":
+        from tasks.slack_notifier import send_no_result_summary
+        asyncio.create_task(send_no_result_summary(req.companyCode, summary, actions, len(req.questions)))
 
     return NoResultSummaryResponse(
         companyCode=req.companyCode,
         questionCount=len(req.questions),
         summary=summary,
         actions=actions,
+        promptStyle=req.promptStyle,
     )
 
 _QA_DOC_PATH = Path(__file__).parent.parent / "docs" / "qa_knowledge.md"
