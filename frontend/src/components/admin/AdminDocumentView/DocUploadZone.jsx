@@ -68,7 +68,7 @@ function DocUploadZone({ onFileSelect }) {
               <span className="md:hidden">을 클릭하세요</span>
             </p>
             <p className="text-[12px] text-[#868E96]">
-              문서 파일 | .pdf, .docx, .txt .md (20MB)
+              문서 파일 | .pdf, .docx, .txt, .md (20MB)
             </p>
           </div>
         )}
@@ -77,7 +77,7 @@ function DocUploadZone({ onFileSelect }) {
           ref={inputRef}
           type="file"
           className="hidden"
-          accept=".pdf,.docx,.txt,.md"
+          accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
           onChange={handleChange}
         />
       </div>
