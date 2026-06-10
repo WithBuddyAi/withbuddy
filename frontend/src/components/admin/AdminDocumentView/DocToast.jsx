@@ -4,11 +4,16 @@ function DocToast({ type, onRetry }) {
   if (!type) return null;
 
   return (
-    <div className="fixed bottom-[70px] right-[70px] z-50 flex items-center gap-[8px] bg-white border border-[#DEE2E6] rounded-[8px] px-[16px] py-[12px] shadow-md text-[14px]">
+    <div className="fixed bottom-[50px] md:bottom-[70px] right-[50px] md:right-[70px] z-50 flex items-center gap-[8px] bg-white border border-[#DEE2E6] rounded-[8px] px-[16px] py-[12px] shadow-md text-[14px]">
       {type === "success" ? (
         <>
           <CircleCheck size={16} />
           문서가 삭제됐어요.
+        </>
+      ) : type === "uploadSuccess" ? (
+        <>
+          <CircleCheck size={16} />
+          문서가 업로드됐어요.
         </>
       ) : (
         <>

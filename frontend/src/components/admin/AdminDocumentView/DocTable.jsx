@@ -8,9 +8,39 @@ function DocTable({
   handleSelect,
   handleSelectAll,
   onDeleteClick,
+  search,
+  selectedType,
 }) {
   const allChecked =
     documents.length > 0 && selectedIds.length === documents.length;
+
+  // 빈 상태 메시지 결정
+  const getEmptyMessage = () => {
+    if (search && selectedType) {
+      return {
+        main: "조건에 맞는 문서가 없어요.",
+        sub: "검색어나 문서 유형을 변경해보세요.",
+      };
+    }
+    if (search) {
+      return {
+        main: `검색어와 일치하는 문서가 없어요.`,
+        sub: "다른 검색어로 다시 시도해보세요.",
+      };
+    }
+    if (selectedType) {
+      return {
+        main: `등록된 ${selectedType} 문서가 없어요.`,
+        sub: "다른 유형을 선택하거나 문서를 업로드해보세요.",
+      };
+    }
+    return {
+      main: "아직 등록된 문서가 없어요.",
+      sub: "온보딩 문서를 업로드하면 신입 질문에 AI가 답변할 수 있어요.",
+    };
+  };
+
+  const emptyMessage = getEmptyMessage();
 
   return (
     <div className="flex flex-col">
@@ -49,13 +79,11 @@ function DocTable({
             불러오는 중...
           </p>
         ) : documents.length === 0 ? (
-          <div>
-            <p className="text-center pt-[32px] text-[14px] text-[#495057]">
-              아직 등록된 문서가 없어요.
-            </p>
-            <p className="text-center pt-[6px] text-[12px] text-[#868E96]">
-              사내 규정, 복지 안내, 하드웨어 수령 확인서 등 신입 사원을 위한
-              안내문을 먼저 등록해 보세요.
+          <div className="text-center pt-[32px] text-[14px] text-[#495057]">
+            <p>
+              {emptyMessage.main}
+              <br/>
+              {emptyMessage.sub}
             </p>
           </div>
         ) : (
