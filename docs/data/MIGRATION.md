@@ -42,6 +42,7 @@
 | V8 | `V8__create_document_backup_jobs.sql` | document_backup_jobs 테이블 생성 | SCRUM-169 |
 | V9 | `V9__seed_data.sql` | 초기 테스트 시드 데이터 삽입 | SCRUM-120 |
 | V10 | `V10__backfill_seed_rows_idempotent.sql` | V9 시드 누락 보정 (행 단위 idempotent) | SCRUM-120 |
+| V27 | `V27__create_unanswered_question_logs.sql` | 미답변 질문 로그 테이블 생성 | SCRUM-425 |
 
 > V4(onboarding_suggestions)가 V5(chat_messages)보다 먼저 실행되는 이유는 FK 의존성 때문이다.  
 > V7(document_files)은 documents(V3)를 참조하므로 V3 이후에 실행되어야 한다.  
@@ -217,6 +218,24 @@
 - `idx_backup_jobs_file_attempt`: (document_file_id, attempt_no)
 - `idx_backup_jobs_status_created`: (status, created_at)
 
+### 4.9 unanswered_question_logs
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| `id` | BIGINT | PK, AUTO_INCREMENT | 식별자 |
+| `user_id` | BIGINT | NOT NULL, FK → users | 질문 사용자 |
+| `company_code` | VARCHAR(20) | NOT NULL | 회사 코드 |
+| `question_message_id` | BIGINT | NOT NULL, FK → chat_messages | 원 질문 메시지 |
+| `answer_message_id` | BIGINT | NOT NULL, UNIQUE, FK → chat_messages | 미답변 BOT 메시지 |
+| `question_content` | TEXT | NOT NULL | 집계용 질문 원문 |
+| `answer_type` | VARCHAR(30) | NOT NULL | 미답변 응답 유형 (`no_result`, `out_of_scope`, `sensitive`) |
+| `latency_ms` | BIGINT | NULL | 답변 생성 지연 시간 |
+| `created_at` | DATETIME | NOT NULL, DEFAULT CURRENT_TIMESTAMP | 생성 일시 |
+
+**인덱스**
+- `idx_unanswered_question_logs_company_created`: (company_code, created_at)
+- `idx_unanswered_question_logs_answer_type_created`: (answer_type, created_at)
+
 ---
 
 ## 5. 시드 데이터 (V9, V10 보정 포함)
@@ -308,6 +327,7 @@ SHOW CREATE TABLE chat_messages;
 SHOW CREATE TABLE user_activity_logs;
 SHOW CREATE TABLE document_files;
 SHOW CREATE TABLE document_backup_jobs;
+SHOW CREATE TABLE unanswered_question_logs;
 ```
 
 ### 로그인 API 테스트
@@ -329,6 +349,16 @@ Flyway는 적용된 마이그레이션 파일의 체크섬을 검증한다.
 
 - 스키마 변경이 필요한 경우 반드시 새 버전 파일을 추가한다.
 - 예: `V10__add_column_to_users.sql`
+
+### 롤백 원칙
+
+- Flyway 적용 이력은 수정하지 않고, 운영 롤백이 필요할 때는 별도 수동 SQL로 되돌린다.
+- `SCRUM-425 / V27` 롤백 helper:
+  - [rollback/V27__drop_unanswered_question_logs.sql](./rollback/V27__drop_unanswered_question_logs.sql)
+- `unanswered_question_logs` 롤백 전 체크:
+  1. 애플리케이션의 미답변 로그 쓰기 로직이 배포 코드에서 먼저 제거되었는지 확인
+  2. 운영 데이터 백업 필요 여부 확인
+  3. 대시보드/집계 API가 해당 테이블에 의존하지 않는 버전인지 확인
 
 ### 파일 작성 시 주의사항
 

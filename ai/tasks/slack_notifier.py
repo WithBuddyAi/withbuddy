@@ -107,8 +107,8 @@ def _send_to_leader(leader_slack_id: str, name: str, user_id: str,
     logger.info("슬랙 리포트 전송 완료: %s(%s) → %s", name, user_id, leader_slack_id)
 
 
-async def notify_unanswered_question(user_id: str, question: str, qid: str) -> None:
-    """AI가 답변하지 못한 질문을 모든 리더에게 Slack 알림"""
+async def notify_unanswered_question(user_id: str, question: str, qid: str, user_name: str = "", company_code: str = "") -> None:
+    """AI가 답변하지 못한 질문을 Slack 알림 — internal은 전체, company는 해당 회사만"""
     teams = _load_teams()
     if not teams:
         return
@@ -121,7 +121,7 @@ async def notify_unanswered_question(user_id: str, question: str, qid: str) -> N
     blocks = [
         {"type": "header", "text": {"type": "plain_text", "text": "❓ 미답변 질문 알림", "emoji": True}},
         {"type": "section", "fields": [
-            {"type": "mrkdwn", "text": f"*사번:* {user_id}"},
+            {"type": "mrkdwn", "text": f"*이름:* {user_name or '알 수 없음'}  |  *ID:* {user_id}"},
             {"type": "mrkdwn", "text": f"*질문 ID:* `{qid}`"},
         ]},
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*질문 내용:*\n> {question}"}},
@@ -145,6 +145,11 @@ async def notify_unanswered_question(user_id: str, question: str, qid: str) -> N
 
     notified: set = set()
     for team in teams:
+        team_type = team.get("type", "internal")
+        team_cc = team.get("company_code", "")
+        # internal: 전체 수신 / company: 해당 company_code 질문만 수신
+        if team_type == "company" and team_cc != company_code:
+            continue
         leader_id = team.get("leader_slack_id", "")
         channel   = team.get("notify_channel") or leader_id
         if not channel or channel in notified:
@@ -154,10 +159,59 @@ async def notify_unanswered_question(user_id: str, question: str, qid: str) -> N
             client.chat_postMessage(
                 channel=channel,
                 blocks=blocks,
-                text=f"<@{leader_id}> ❓ 수습사원({user_id})의 질문에 답변이 필요합니다: {question}",
+                text=f"❓ {user_name or user_id}의 질문: {question}",
             )
         except Exception as e:
             logger.error("미답변 알림 전송 실패 → %s: %s", channel, e)
+
+
+async def send_no_result_summary(company_code: str, summary: str, actions: list, question_count: int) -> None:
+    """no_result 질문 요약 결과를 Slack 채널에 발송"""
+    teams = _load_teams()
+    if not teams:
+        return
+    try:
+        client = get_slack_client()
+    except ValueError as e:
+        logger.error("Slack 클라이언트 초기화 실패: %s", e)
+        return
+
+    action_text = "\n".join(f"{i+1}. {a}" for i, a in enumerate(actions))
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": "📊 미답변 질문 요약 리포트", "emoji": True}},
+        {"type": "section", "fields": [
+            {"type": "mrkdwn", "text": f"*회사 코드:* {company_code}"},
+            {"type": "mrkdwn", "text": f"*분석 질문 수:* {question_count}개"},
+        ]},
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"*요약*\n{summary}"}},
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"*문서 보강 제안*\n{action_text}"}},
+        {"type": "divider"},
+        {"type": "context", "elements": [
+            {"type": "mrkdwn", "text": "관리자 대시보드에서 문서를 보강해 주세요."}
+        ]},
+    ]
+
+    notified: set = set()
+    for team in teams:
+        team_type = team.get("type", "internal")
+        team_cc = team.get("company_code", "")
+        # internal: 전체 요약 수신 / company: 해당 회사 요약만 수신
+        if team_type == "company" and team_cc != company_code:
+            continue
+        leader_id = team.get("leader_slack_id", "")
+        channel = team.get("notify_channel") or leader_id
+        if not channel or channel in notified:
+            continue
+        notified.add(channel)
+        try:
+            client.chat_postMessage(
+                channel=channel,
+                blocks=blocks,
+                text=f"📊 미답변 질문 요약 ({company_code}) — {question_count}개 질문 분석 완료",
+            )
+            logger.info("no_result 요약 발송 완료 → %s", channel)
+        except Exception as e:
+            logger.error("no_result 요약 발송 실패 → %s: %s", channel, e)
 
 
 async def send_all_reports() -> None:
