@@ -1388,7 +1388,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_001", "file", "업로드 파일이 비어 있습니다.");
+            throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_001_EMPTY", "file", "업로드 파일이 비어 있거나 존재하지 않습니다.");
         }
 
         String originalFileName = Optional.ofNullable(file.getOriginalFilename()).orElse("");
@@ -1400,7 +1400,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         long maxSizeBytes = storageProperties.getMaxDocumentSizeMb() * 1024L * 1024L;
         if (file.getSize() > maxSizeBytes) {
-            throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_001", "file", "파일 크기 제한을 초과했습니다.");
+            throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_001_SIZE", "file", "파일 크기 제한을 초과했습니다.");
         }
     }
 
@@ -1413,7 +1413,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         if (currentDocumentCount >= MAX_COMPANY_DOCUMENT_COUNT) {
             throw new StorageException(
                     HttpStatus.BAD_REQUEST,
-                    "FILE_001",
+                    "FILE_001_COUNT",
                     "file",
                     "회사당 문서 수는 300개를 초과할 수 없습니다."
             );
@@ -1423,7 +1423,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         if (currentUsageBytes + newFileSize > COMPANY_UPLOAD_QUOTA_BYTES) {
             throw new StorageException(
                     HttpStatus.BAD_REQUEST,
-                    "FILE_001",
+                    "FILE_001_CAPACITY",
                     "file",
                     "회사별 총 업로드 용량 2GB를 초과할 수 없습니다."
             );

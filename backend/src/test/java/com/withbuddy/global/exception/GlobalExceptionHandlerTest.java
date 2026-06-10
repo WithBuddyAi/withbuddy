@@ -8,6 +8,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,5 +69,39 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getStatus()).isEqualTo(404);
         assertThat(response.getBody().getCode()).isEqualTo("NOT_FOUND");
         assertThat(response.getBody().getPath()).isEqualTo("/api/v1/admin/documents/999");
+    }
+
+    @Test
+    void mapsMultipartSizeLimitToFileSizeCode() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/admin/documents/upload");
+
+        ResponseEntity<ErrorResponse> response = handler.handleMaxUploadSizeExceededException(
+                new MaxUploadSizeExceededException(20L * 1024L * 1024L),
+                request
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo("FILE_001_SIZE");
+        assertThat(response.getBody().getErrors()).isNotEmpty();
+        assertThat(response.getBody().getErrors().get(0).getField()).isEqualTo("file");
+    }
+
+    @Test
+    void mapsMissingFilePartToFileEmptyCode() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/admin/documents/upload");
+
+        ResponseEntity<ErrorResponse> response = handler.handleMissingServletRequestPartException(
+                new MissingServletRequestPartException("file"),
+                request
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo("FILE_001_EMPTY");
+        assertThat(response.getBody().getErrors()).isNotEmpty();
+        assertThat(response.getBody().getErrors().get(0).getField()).isEqualTo("file");
     }
 }
