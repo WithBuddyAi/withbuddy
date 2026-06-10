@@ -1393,7 +1393,7 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         String originalFileName = Optional.ofNullable(file.getOriginalFilename()).orElse("");
         String extension = resolveExtension(originalFileName).toLowerCase(Locale.ROOT);
-        Set<String> allowed = Set.of(".pdf", ".docx", ".txt");
+        Set<String> allowed = Set.of(".pdf", ".docx", ".txt", ".md");
         if (!allowed.contains(extension)) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_002", "file", "지원하지 않는 파일 형식입니다.");
         }
