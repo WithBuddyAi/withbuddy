@@ -121,7 +121,7 @@ function Admin({ setIsLoggedIn }) {
         />
       )}
 
-      {/* 문서 삭제 토스트 */}
+      {/* 문서 토스트 (성공 | 실패) */}
       <DocToast
         type={docToast}
         onRetry={() => {
@@ -208,6 +208,7 @@ function Admin({ setIsLoggedIn }) {
                   setClearSelectedIds(() => clearIds);
                 }}
                 onUploadSuccess={() => setDocToast("uploadSuccess")}
+                onUploadError={() => setDocToast("uploadError")}
               />
             )}
             {view === "unanswered" && <div>미답변 질문 준비 중</div>}
