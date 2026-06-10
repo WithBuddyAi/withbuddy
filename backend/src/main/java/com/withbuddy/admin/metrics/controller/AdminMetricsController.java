@@ -1,11 +1,14 @@
 package com.withbuddy.admin.metrics.controller;
 
 import com.withbuddy.admin.metrics.docs.AdminMetricsControllerDocs;
+import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
+import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
 import com.withbuddy.admin.metrics.dto.response.UnansweredRateResponse;
+import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
 import com.withbuddy.admin.metrics.service.AdminMetricsService;
 import com.withbuddy.global.security.AuthenticationPrincipalResolver;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
@@ -26,6 +29,29 @@ import java.time.LocalDate;
 public class AdminMetricsController implements AdminMetricsControllerDocs {
 
     private final AdminMetricsService adminMetricsService;
+
+    @Override
+    @GetMapping("/dashboard")
+    public ResponseEntity<AdminDashboardResponse> getDashboard(
+            Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
+            @RequestParam(required = false) Integer unansweredPatternLimit
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return ResponseEntity.ok(adminMetricsService.getDashboard(principal, companyCode, asOfDate, unansweredPatternLimit));
+    }
+
+    @Override
+    @GetMapping("/internal-dashboard")
+    public ResponseEntity<InternalAdminDashboardResponse> getInternalDashboard(
+            Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return ResponseEntity.ok(adminMetricsService.getInternalDashboard(principal, companyCode, asOfDate));
+    }
 
     @Override
     @GetMapping("/rag-experience-rate")
@@ -80,5 +106,17 @@ public class AdminMetricsController implements AdminMetricsControllerDocs {
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         return ResponseEntity.ok(adminMetricsService.getTta(principal, companyCode, asOfDate));
+    }
+
+    @Override
+    @GetMapping("/unanswered-question-patterns")
+    public ResponseEntity<UnansweredQuestionPatternsResponse> getUnansweredQuestionPatterns(
+            Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
+            @RequestParam(required = false) Integer limit
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return ResponseEntity.ok(adminMetricsService.getUnansweredQuestionPatterns(principal, companyCode, asOfDate, limit));
     }
 }
