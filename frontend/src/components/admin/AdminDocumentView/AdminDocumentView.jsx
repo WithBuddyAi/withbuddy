@@ -8,9 +8,14 @@ import DocUploadZone from "./DocUploadZone";
 import DocUploadForm from "./DocUploadForm";
 import DocMobileList from "./DocMobileList";
 
-const DOC_TYPES = ["전체", "LEGAL", "GUIDE", "TEMPLATE"];
+const DOC_TYPES = ["전체", "POLICY", "GUIDE", "TEMPLATE"];
 
-function AdminDocumentView({ onDeleteModalOpen, onDeleteSuccess, onUploadSuccess }) {
+function AdminDocumentView({
+  onDeleteModalOpen,
+  onDeleteSuccess,
+  onUploadSuccess,
+  onUploadError,
+}) {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
@@ -113,6 +118,7 @@ function AdminDocumentView({ onDeleteModalOpen, onDeleteSuccess, onUploadSuccess
             fetchDocuments();
             onUploadSuccess?.();
           }}
+          onError={() => onUploadError?.()}
         />
       ) : (
         <DocUploadZone onFileSelect={(file) => setUploadFile(file)} />

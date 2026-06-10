@@ -115,9 +115,13 @@ src/
 │           ├── AdminDocHeader.jsx             # 문서 관리 상단 헤더
 │           ├── DocTable.jsx                   # PC / 태블릿 문서 테이블
 │           ├── DocRow.jsx                     # 문서 테이블 행
+│           ├── DocMobileList.jsx              # 모바일 문서 목록
 │           ├── DocMobileCard.jsx              # 모바일 문서 카드
+│           ├── DocUploadZone.jsx              # 파일 드래그앤드롭 업로드 영역
+│           ├── DocUploadForm.jsx              # 파일 업로드 입력 폼
 │           ├── DocDeleteModal.jsx             # 문서 삭제 확인 모달
-│           └── DocToast.jsx                   # 문서 삭제 결과 토스트
+│           ├── DocToast.jsx                   # 문서 삭제·업로드 결과 토스트
+│           └── validateFile.js               # 파일 형식·크기 검사 유틸
 └── pages/
     ├── Login.jsx                              # 로그인 페이지
     ├── MyBuddy.jsx                            # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
@@ -213,3 +217,4 @@ git commit -m "ㅇㅇ"
 - 2026-05-28: `AdminMainView`를 폴더 구조로 리팩토링하고 관리자 메인 화면 컴포넌트를 역할별로 분리.
   (`AdminHeader`, `UserTable`, `UserRow`, `UserMobileList`, `UserMobileCard`, `Pagination`, `LoadingState`, `EmptyState`)
 - 2026-06-08: `AdminDocumentView` 폴더 추가 (문서 목록 조회, 삭제 확인 모달, 토스트 포함), 관리자 사이드바 탭 구조 추가 (대시보드·문서 관리·미답변 질문), `Inactive.jsx` 페이지 추가.
+- 2026-06-10: `AdminDocumentView` 문서 업로드 기능 추가 (드래그앤드롭 업로드존, 입력 폼, 파일 검사 유틸), 모바일 문서 목록 추가 (`DocMobileList`, `DocMobileCard`), 업로드·삭제 토스트 통합.
