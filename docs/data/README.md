@@ -7,6 +7,7 @@
 - [ERD.md](./ERD.md): MVP 기준 핵심 ERD 설명
 - [ERD.png](ERD.png): ERD 이미지
 - [MIGRATION.md](./MIGRATION.md): Flyway 마이그레이션 가이드
+- [rollback/V27__drop_unanswered_question_logs.sql](./rollback/V27__drop_unanswered_question_logs.sql): SCRUM-425 unanswered_question_logs 롤백 helper
 - [storage/README.md](./storage/README.md): 스토리지 전용 데이터 문서 인덱스
 - [storage/DB_DDL.sql](./storage/DB_DDL.sql): 스토리지 관련 DDL
 - [storage/STORAGE_ERD.md](./storage/STORAGE_ERD.md): 스토리지 전용 ERD 설명
