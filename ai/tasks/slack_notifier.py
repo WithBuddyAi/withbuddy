@@ -214,6 +214,95 @@ async def send_no_result_summary(company_code: str, summary: str, actions: list,
             logger.error("no_result 요약 발송 실패 → %s: %s", channel, e)
 
 
+_MT_LABEL = {
+    "rag":        "✅ 문서 답변",
+    "no_result":  "❓ 미답변",
+    "out_of_scope": "🚫 범위 외",
+    "chitchat":   "💬 일상 대화",
+    "sensitive":  "⚠️ 민감 질문",
+}
+
+
+async def send_analytics_report(company_code: str, day: Optional[str] = None) -> None:
+    """일별 AI 응답 통계 + no_result 요약을 Slack에 발송"""
+    from memory.analytics_store import get_stats
+    from routers.knowledge import _run_summary
+    import asyncio as _aio
+
+    stats = get_stats(company_code, day)
+    total = stats["total"]
+    avg_ms = stats["avg_latency_ms"]
+    by_type: dict = stats["by_type"]
+    no_result_qs: list = stats["no_result_questions"]
+
+    teams = _load_teams()
+    if not teams:
+        return
+    try:
+        client = get_slack_client()
+    except ValueError as e:
+        logger.error("Slack 클라이언트 초기화 실패: %s", e)
+        return
+
+    # 응답 유형 텍스트
+    type_lines = []
+    for mt, cnt in sorted(by_type.items(), key=lambda x: -x[1]):
+        pct = int(cnt / total * 100) if total else 0
+        label = _MT_LABEL.get(mt, mt)
+        type_lines.append(f"{label}  {cnt}건({pct}%)")
+    type_text = "\n".join(type_lines) if type_lines else "데이터 없음"
+
+    avg_sec = f"{avg_ms / 1000:.1f}초" if avg_ms else "-"
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": "📊 오늘의 AI 응답 리포트", "emoji": True}},
+        {"type": "section", "fields": [
+            {"type": "mrkdwn", "text": f"*총 질문*\n{total}건"},
+            {"type": "mrkdwn", "text": f"*평균 응답시간*\n{avg_sec}"},
+        ]},
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"*응답 유형*\n{type_text}"}},
+    ]
+
+    # no_result 질문이 있으면 AI 요약 추가
+    if no_result_qs:
+        blocks.append({"type": "divider"})
+        q_text = "\n".join(f"• {q}" for q in no_result_qs)
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*📋 문서 보강 후보*\n{q_text}"}})
+        try:
+            summary, actions = await _aio.to_thread(_run_summary, no_result_qs)
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*🤖 AI 분석*\n{summary}"}})
+            if actions:
+                action_text = "\n".join(f"{i+1}. {a}" for i, a in enumerate(actions))
+                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*추천 액션*\n{action_text}"}})
+        except Exception as e:
+            logger.error("no_result 요약 실패: %s", e)
+
+    blocks.append({"type": "context", "elements": [
+        {"type": "mrkdwn", "text": "With Buddy AI · 자동 생성"}
+    ]})
+
+    notified: set = set()
+    for team in teams:
+        team_type = team.get("type", "internal")
+        team_cc = team.get("company_code", "")
+        if team_type == "company" and team_cc != company_code:
+            continue
+        leader_id = team.get("leader_slack_id", "")
+        channel = team.get("notify_channel") or leader_id
+        if not channel or channel in notified:
+            continue
+        notified.add(channel)
+        try:
+            client.chat_postMessage(
+                channel=channel,
+                blocks=blocks,
+                text=f"📊 AI 응답 리포트 ({company_code}) — 총 {total}건",
+            )
+            logger.info("analytics 리포트 발송 완료 → %s", channel)
+        except Exception as e:
+            logger.error("analytics 리포트 발송 실패 → %s: %s", channel, e)
+
+
 async def send_all_reports() -> None:
     """전체 팀의 수습사원 리포트를 각 리더에게 전송 (스케줄러 호출용)"""
     teams = _load_teams()
