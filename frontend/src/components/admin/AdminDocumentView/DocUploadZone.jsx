@@ -77,7 +77,7 @@ function DocUploadZone({ onFileSelect }) {
           ref={inputRef}
           type="file"
           className="hidden"
-          accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+          accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
           onChange={handleChange}
         />
       </div>
