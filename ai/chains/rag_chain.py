@@ -102,12 +102,12 @@ def _extract_category(docs: List[Document]) -> str:
     return Counter(cats).most_common(1)[0][0]
 
 
-async def _fire_unanswered_alert(user_id: str, question: str, company_code: str = "") -> None:
+async def _fire_unanswered_alert(user_id: str, question: str, company_code: str = "", user_name: str = "") -> None:
     """미답변 저장 + Slack 알림 + nudge Task 등록 (백그라운드)"""
     try:
         from tasks.slack_notifier import notify_unanswered_question
-        qid = add_unanswered(user_id, question)
-        await notify_unanswered_question(user_id, question, qid)
+        qid = add_unanswered(user_id, question, company_code)
+        await notify_unanswered_question(user_id, question, qid, user_name=user_name, company_code=company_code)
     except Exception:
         pass
     try:
@@ -292,11 +292,11 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             full_answer += out
             yield out, None, None, None
             _buf = _buf[after:]
-        if len(_buf) > 20:
-            safe = _fmt(_buf[:-4])
+        if len(_buf) > 2:
+            safe = _fmt(_buf[:-2])
             full_answer += safe
             yield safe, None, None, None
-            _buf = _buf[-4:]
+            _buf = _buf[-2:]
     if _buf:
         final = _fmt(_buf)
         full_answer += final
@@ -322,7 +322,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         if contact_msg:
             yield contact_msg, None, None, None
             fixed += contact_msg
-        asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code))
+        asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
 
     global _last_category
     _last_category = _extract_category(result.docs)

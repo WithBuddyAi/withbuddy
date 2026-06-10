@@ -11,9 +11,32 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from tasks.slack_notifier import send_all_reports, send_mybuddy_checkin_all
+from tasks.slack_notifier import send_all_reports, send_mybuddy_checkin_all, send_no_result_summary, send_analytics_report
 
 logger = logging.getLogger(__name__)
+
+
+async def _send_weekly_no_result_summary() -> None:
+    """매주 월요일 오전 — 회사별 미답변 질문 요약 Slack 발송"""
+    from collections import defaultdict
+    from memory.unanswered_store import get_pending
+    from routers.knowledge import _run_summary
+
+    pending = get_pending()
+    if not pending:
+        return
+
+    by_company: dict[str, list[str]] = defaultdict(list)
+    for item in pending:
+        cc = item.get("company_code") or "공통"
+        by_company[cc].append(item["question"])
+
+    for company_code, questions in by_company.items():
+        try:
+            summary, actions = await asyncio.to_thread(_run_summary, questions)
+            await send_no_result_summary(company_code, summary, actions, len(questions))
+        except Exception as e:
+            logger.error("주간 no_result 요약 실패 (%s): %s", company_code, e)
 
 
 async def _keepalive_llm() -> None:
@@ -54,6 +77,23 @@ def start_scheduler() -> None:
         replace_existing=True,
         misfire_grace_time=300,
     )
+    async def _send_daily_analytics():
+        from tasks.slack_notifier import send_analytics_report as _sar
+        for cc in ["WB0001", "WB0002"]:
+            await _sar(cc)
+
+    _scheduler.add_job(
+        _send_daily_analytics,
+        CronTrigger(
+            day_of_week="mon-fri",
+            hour=17,
+            minute=30,
+            timezone="Asia/Seoul",
+        ),
+        id="daily_analytics_report",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
     _scheduler.add_job(
         _keepalive_llm,
         "interval",
@@ -61,8 +101,20 @@ def start_scheduler() -> None:
         id="llm_keepalive",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        _send_weekly_no_result_summary,
+        CronTrigger(
+            day_of_week="mon",
+            hour=9,
+            minute=0,
+            timezone="Asia/Seoul",
+        ),
+        id="weekly_no_result_summary",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
     _scheduler.start()
-    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 09:00 My Buddy 체크인 / 60분 LLM keep-alive 활성화")
+    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 17:30 analytics / 09:00 My Buddy 체크인 / 월 09:00 미답변 요약 / 60분 LLM keep-alive 활성화")
 
 
 def stop_scheduler() -> None:

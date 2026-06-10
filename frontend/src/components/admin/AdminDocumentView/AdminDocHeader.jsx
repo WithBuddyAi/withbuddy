@@ -1,7 +1,7 @@
 function AdminDocHeader({ handleViewChange }) {
   return (
-    <div className="flex flex-col md:flex-row items-start md:items-center justify-between my-[14px]">
-      <div className="mb-[10px] md:mb-[16px]">
+    <div className="flex flex-col md:flex-row items-start md:items-center justify-between mt-[14px]">
+      <div>
         <h1 className="text-[17px] md:text-[20px] lg:text-[22px] font-medium text-[#000000]">
           문서 관리
         </h1>
