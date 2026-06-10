@@ -6,6 +6,7 @@
 ChromaDB에 즉시 추가되어 이후 AI 응답에 활용됩니다.
 """
 
+import asyncio
 from pathlib import Path
 from typing import List
 
@@ -61,26 +62,14 @@ class NoResultSummaryResponse(BaseModel):
     actions: List[str]
 
 
-@router.post("/no-result/summary", response_model=NoResultSummaryResponse, tags=["internal"])
-async def summarize_no_result(req: NoResultSummaryRequest):
-    """
-    no_result 질문 목록을 받아 AI가 요약 + 문서 보강 액션을 반환합니다.
-    관리자 대시보드에서 문서 보강 후보 항목 클릭 시 호출합니다.
-    """
-    if not req.questions:
-        raise HTTPException(status_code=400, detail="질문 목록이 비어있습니다.")
-
-    questions_text = "\n".join(f"- {q}" for q in req.questions)
-
-    try:
-        chain = _SUMMARY_PROMPT | get_llm() | StrOutputParser()
-        result = chain.invoke({"questions": questions_text})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"요약 생성 실패: {str(e)}")
-
-    # 요약과 액션 파싱 (헤더가 독립된 줄에 있는 형식 대응)
+def _run_summary(questions: List[str]) -> tuple:
+    """요약 체인 실행 — 엔드포인트와 스케줄러 공용."""
     import re as _re
     _clean = lambda s: _re.sub(r'\*+', '', s).strip()
+
+    questions_text = "\n".join(f"- {q}" for q in questions)
+    chain = _SUMMARY_PROMPT | get_llm() | StrOutputParser()
+    result = chain.invoke({"questions": questions_text})
 
     summary_match = _re.search(r'요약:\s*\*{0,2}\n?(.*?)(?=\n\s*\n?\*{0,2}액션:|$)', result, _re.DOTALL)
     summary = _clean(summary_match.group(1)) if summary_match else _clean(result.split("액션:")[0])
@@ -94,6 +83,26 @@ async def summarize_no_result(req: NoResultSummaryRequest):
                 action = _clean(line.split(".", 1)[1].strip())
                 if action:
                     actions.append(action)
+
+    return summary, actions
+
+
+@router.post("/no-result/summary", response_model=NoResultSummaryResponse, tags=["internal"])
+async def summarize_no_result(req: NoResultSummaryRequest):
+    """
+    no_result 질문 목록을 받아 AI가 요약 + 문서 보강 액션을 반환합니다.
+    관리자 대시보드에서 문서 보강 후보 항목 클릭 시 호출합니다.
+    """
+    if not req.questions:
+        raise HTTPException(status_code=400, detail="질문 목록이 비어있습니다.")
+
+    try:
+        summary, actions = await asyncio.to_thread(_run_summary, req.questions)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"요약 생성 실패: {str(e)}")
+
+    from tasks.slack_notifier import send_no_result_summary
+    asyncio.create_task(send_no_result_summary(req.companyCode, summary, actions, len(req.questions)))
 
     return NoResultSummaryResponse(
         companyCode=req.companyCode,
