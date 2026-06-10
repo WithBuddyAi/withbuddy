@@ -6,10 +6,8 @@ public record AdminDashboardResponse(
         String metric,
         LocalDate asOfDate,
         RagExperienceRateResponse ragExperienceRate,
-        FirstInteractionRateResponse firstInteractionRate,
-        RevisitRateResponse revisitRate,
-        UnansweredRateResponse unansweredRate,
-        TtaResponse tta,
+        DocumentGapRateResponse documentGapRate,
+        UnstartedUsersResponse unstartedUsers,
         UnansweredQuestionPatternsResponse unansweredQuestionPatterns
 ) {
 }

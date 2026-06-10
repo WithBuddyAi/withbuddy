@@ -3,6 +3,7 @@ package com.withbuddy.admin.metrics.controller;
 import com.withbuddy.admin.metrics.docs.AdminMetricsControllerDocs;
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
+import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
@@ -39,6 +40,17 @@ public class AdminMetricsController implements AdminMetricsControllerDocs {
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         return ResponseEntity.ok(adminMetricsService.getDashboard(principal, companyCode, asOfDate, unansweredPatternLimit));
+    }
+
+    @Override
+    @GetMapping("/internal-dashboard")
+    public ResponseEntity<InternalAdminDashboardResponse> getInternalDashboard(
+            Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return ResponseEntity.ok(adminMetricsService.getInternalDashboard(principal, companyCode, asOfDate));
     }
 
     @Override
