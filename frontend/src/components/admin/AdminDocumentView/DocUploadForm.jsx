@@ -1,10 +1,11 @@
 import { File, ChevronDown } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import axiosInstance from "../../../api/axiosInstance";
+import { validateFile } from "./validateFile";
 
-const DOC_TYPES = ["LEGAL", "GUIDE", "TEMPLATE"];
+const DOC_TYPES = ["POLICY", "GUIDE", "TEMPLATE"];
 
-function DocUploadForm({ file, onCancel, onSuccess }) {
+function DocUploadForm({ file, onCancel, onSuccess, onError }) {
   const [title, setTitle] = useState(
     file?.name?.replace(/\.[^/.]+$/, "") || "",
   );
@@ -40,7 +41,7 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
     fetchOrgOptions();
   }, []);
 
-  // 외부 클릭 시 닫기
+  // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (deptFilterRef.current && !deptFilterRef.current.contains(e.target)) {
@@ -51,8 +52,10 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // 모든 필드가 입력됐을 때만 업로드 버튼 활성화
   const isValid = title.trim() && documentType && department;
 
+  // 문서 업로드 API 호출
   const handleUpload = async () => {
     if (!isValid) return;
     setIsLoading(true);
@@ -75,20 +78,27 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
       } else if (code === "FILE_002") {
         setErrorMessage("지원하지 않는 파일 형식이에요.");
       } else {
-        setErrorMessage("업로드에 실패했어요. 다시 시도해 주세요.");
+        onError?.(); // 그 외 에러는 토스트로
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 다시 업로드 버튼 클릭 시 파일 선택 창 열기
+  // 다시 업로드 버튼 클릭 시 파일 선택 창 열기 + 파일 검사
   const handleReUpload = (e) => {
     const newFile = e.target.files[0];
-    if (newFile) onCancel(newFile);
+    if (newFile) {
+      const error = validateFile(newFile);
+      if (error) {
+        setErrorMessage(error);
+        return;
+      }
+      onCancel(newFile);
+    }
   };
 
-  // 다시 업로드 시 제목/문서 타입/담당 부서 업데이트
+  // 파일이 바뀌면 제목/문서 타입/담당 부서/에러 메시지 초기화
   useEffect(() => {
     setTitle(file?.name?.replace(/\.[^/.]+$/, "") || "");
     setDocumentType("");
@@ -98,7 +108,6 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
 
   return (
     <div className="flex flex-col">
-      {/* 폼 헤더 영역 */}
       {/* 파일명 + 크기 + 다시 업로드 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between border border-[#DEE2E6] border-b-0 rounded-t-[12px] bg-[#E6EDF266] px-[20px] py-[12px] gap-[8px]">
         <div className="flex items-center gap-[8px] text-[12px] md:text-[14px] min-w-0">
@@ -111,6 +120,7 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
           <span className="text-[11px] md:text-[12px] text-[#495057]">
             {formatFileSize(file.size)}
           </span>
+          {/* 업로드 중에는 다시 업로드 비활성화 */}
           <label
             className={`text-[12px] md:text-[14px] underline underline-offset-2 cursor-pointer
             ${isLoading ? "text-[#ADB5BD] pointer-events-none" : "text-[#204867]"}`}
@@ -119,7 +129,7 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
             <input
               type="file"
               className="hidden"
-              accept=".pdf,.docx,.pptx,.txt,.xls,.xlsx,.png,.jpg,.jpeg"
+              accept=".pdf,.docx,.txt,.md"
               onChange={handleReUpload}
               disabled={isLoading}
             />
@@ -137,7 +147,6 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
         </div>
       ) : (
         <div className="border border-t-0 border-[#DEE2E6] rounded-b-[12px] p-[20px] flex flex-col gap-[20px]">
-          {/* 입력 영역 */}
           {/* 제목 */}
           <div className="flex flex-col gap-[8px]">
             <label className="text-[14px] md:text-[16px] font-semibold">
@@ -164,11 +173,11 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
                     key={type}
                     onClick={() => setDocumentType(type)}
                     className={`md:w-[112px] lg:w-[136px] px-[8px] py-[5px] md:py-[10px] lg:px-[9px] lg:py-[11px] rounded-[8px] border text-[12px] md:text-[14px] lg:text-[16px] transition-colors
-                  ${
-                    documentType === type
-                      ? "bg-[#F7FBFF] border-[#4791CA] text-[#336B97]"
-                      : "border-[#DEE2E6] text-[#868E96] hover:bg-[#F1F3F5] hover:border-[#CED4DA] hover:text-[#495057]"
-                  }`}
+                      ${
+                        documentType === type
+                          ? "bg-[#F7FBFF] border-[#4791CA] text-[#336B97]"
+                          : "border-[#DEE2E6] text-[#868E96] hover:bg-[#F1F3F5] hover:border-[#CED4DA] hover:text-[#495057]"
+                      }`}
                   >
                     {type}
                   </button>
@@ -213,12 +222,7 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
             </div>
           </div>
 
-          {/* 에러 메시지 */}
-          {errorMessage && (
-            <p className="text-[12px] text-[#F03E3E]">{errorMessage}</p>
-          )}
-
-          {/* 버튼 */}
+          {/* 취소 / 업로드 버튼 */}
           <div className="flex justify-end gap-[8px]">
             <button
               onClick={() => onCancel()}
@@ -230,11 +234,11 @@ function DocUploadForm({ file, onCancel, onSuccess }) {
               onClick={handleUpload}
               disabled={!isValid || isLoading}
               className={`w-[120px] px-[20px] py-[8px] rounded-[8px] border-[1px] text-[14px] md:text-[16px] transition-colors
-            ${
-              isValid && !isLoading
-                ? "bg-[#4791CA] text-white hover:bg-[#336B97]"
-                : "bg-[#F1F3F5] text-[#868E96] cursor-not-allowed"
-            }`}
+                ${
+                  isValid && !isLoading
+                    ? "bg-[#4791CA] text-white hover:bg-[#336B97]"
+                    : "bg-[#F1F3F5] text-[#868E96] cursor-not-allowed"
+                }`}
             >
               업로드
             </button>
