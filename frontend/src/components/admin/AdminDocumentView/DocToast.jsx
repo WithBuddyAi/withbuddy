@@ -3,8 +3,17 @@ import { CircleCheck, CircleX, RotateCcw } from "lucide-react";
 function DocToast({ type, onRetry }) {
   if (!type) return null;
 
+  const isError = type === "error" || type === "uploadError";
+
   return (
-    <div className="fixed bottom-[100px] right-[20px] md:right-[100px] z-50 flex items-center gap-[8px] bg-white border border-[#DEE2E6] rounded-[8px] px-[16px] py-[12px] shadow-md text-[12px] md:text-[14px] max-w-[calc(100vw-40px)] md:max-w-none">
+    <div
+      className={`fixed z-50 flex items-center gap-[8px] bg-white border border-[#DEE2E6] rounded-[8px] px-[16px] py-[12px] shadow-md text-[12px] md:text-[14px] max-w-[calc(100vw-40px)] md:max-w-none
+      ${
+        isError
+          ? "bottom-[100px] right-[20px] md:right-[100px]"
+          : "bottom-[20px] md:bottom-[70px] right-[20px] md:right-[70px]"
+      }`}
+    >
       {type === "success" ? (
         <>
           <CircleCheck size={16} />
