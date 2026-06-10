@@ -24,13 +24,14 @@ def _save(items: list) -> None:
     _PATH.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def add_unanswered(user_id: str, question: str) -> str:
+def add_unanswered(user_id: str, question: str, company_code: str = "") -> str:
     """미답변 질문 추가. 생성된 ID 반환."""
     items = _load()
     qid = str(uuid.uuid4())[:8]
     items.append({
         "id": qid,
         "user_id": user_id,
+        "company_code": company_code,
         "question": question,
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "status": "pending",
@@ -57,6 +58,16 @@ def delete_question(qid: str) -> bool:
         return False
     _save(new_items)
     return True
+
+
+def save_chunk_ids(qid: str, chunk_ids: list) -> None:
+    """ChromaDB 청크 ID 저장 — 답변 수정/삭제 시 사용."""
+    items = _load()
+    for item in items:
+        if item["id"] == qid:
+            item["chunk_ids"] = chunk_ids
+            _save(items)
+            return
 
 
 def answer_question(qid: str, answer: str) -> dict | None:
