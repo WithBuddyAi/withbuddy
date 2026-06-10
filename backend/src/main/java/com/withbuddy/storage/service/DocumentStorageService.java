@@ -1393,18 +1393,12 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         String originalFileName = Optional.ofNullable(file.getOriginalFilename()).orElse("");
         String extension = resolveExtension(originalFileName).toLowerCase(Locale.ROOT);
-        Set<String> allowed = Set.of(".pdf", ".docx", ".pptx", ".txt", ".xls", ".xlsx", ".png", ".jpg", ".jpeg");
+        Set<String> allowed = Set.of(".pdf", ".docx", ".txt");
         if (!allowed.contains(extension)) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_002", "file", "지원하지 않는 파일 형식입니다.");
         }
 
-        long maxSizeBytes;
-        if (extension.equals(".png") || extension.equals(".jpg") || extension.equals(".jpeg")) {
-            maxSizeBytes = storageProperties.getMaxImageSizeMb() * 1024L * 1024L;
-        } else {
-            maxSizeBytes = storageProperties.getMaxDocumentSizeMb() * 1024L * 1024L;
-        }
-
+        long maxSizeBytes = storageProperties.getMaxDocumentSizeMb() * 1024L * 1024L;
         if (file.getSize() > maxSizeBytes) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_001", "file", "파일 크기 제한을 초과했습니다.");
         }

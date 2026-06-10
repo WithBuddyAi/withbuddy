@@ -671,6 +671,12 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     category = pop_category()
     latency_ms = int((time.time() - _req_start) * 1000)
 
+    try:
+        from memory.analytics_store import record as _ar
+        _ar(request.user.companyCode, message_type, latency_ms, request.content)
+    except Exception:
+        pass
+
     return InternalAIAnswerResponse(
         questionId=request.questionId,
         messageType=message_type,
@@ -915,6 +921,11 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                             from chains.rag_chain import pop_category as _pop_cat
                             tok = _pop_tok()
                             latency_ms = int((time.time() - _req_start) * 1000)
+                            try:
+                                from memory.analytics_store import record as _ar
+                                _ar(request.user.companyCode, msg_type, latency_ms, request.content)
+                            except Exception:
+                                pass
                             yield _completed(msg_type, full_answer, doc_ids_list, recommended_contacts, tok, latency_ms, _pop_cat())
 
                         elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
