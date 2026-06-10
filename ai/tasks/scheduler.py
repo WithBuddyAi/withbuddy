@@ -11,7 +11,7 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from tasks.slack_notifier import send_all_reports, send_mybuddy_checkin_all, send_no_result_summary
+from tasks.slack_notifier import send_all_reports, send_mybuddy_checkin_all, send_no_result_summary, send_analytics_report
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,23 @@ def start_scheduler() -> None:
         replace_existing=True,
         misfire_grace_time=300,
     )
+    async def _send_daily_analytics():
+        from tasks.slack_notifier import send_analytics_report as _sar
+        for cc in ["WB0001", "WB0002"]:
+            await _sar(cc)
+
+    _scheduler.add_job(
+        _send_daily_analytics,
+        CronTrigger(
+            day_of_week="mon-fri",
+            hour=17,
+            minute=30,
+            timezone="Asia/Seoul",
+        ),
+        id="daily_analytics_report",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
     _scheduler.add_job(
         _keepalive_llm,
         "interval",
@@ -97,7 +114,7 @@ def start_scheduler() -> None:
         misfire_grace_time=300,
     )
     _scheduler.start()
-    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 09:00 My Buddy 체크인 / 월 09:00 미답변 요약 / 60분 LLM keep-alive 활성화")
+    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 17:30 analytics / 09:00 My Buddy 체크인 / 월 09:00 미답변 요약 / 60분 LLM keep-alive 활성화")
 
 
 def stop_scheduler() -> None:
