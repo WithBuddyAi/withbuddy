@@ -14,7 +14,6 @@ public class StorageProperties {
     private String provider = "local";
     private String localBaseDir = "storage-data";
     private int maxDocumentSizeMb = 20;
-    private int maxImageSizeMb = 5;
     private int downloadUrlTtlSeconds = 300;
     private int downloadUrlMaxUses = 1;
 
