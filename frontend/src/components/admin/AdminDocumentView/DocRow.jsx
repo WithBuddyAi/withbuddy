@@ -8,13 +8,6 @@ function StatusBadge({ status }) {
       </div>
     );
   }
-  if (status === "IN_PROGRESS") {
-    return (
-      <div className="rounded-[16px] py-[4px] px-[12px] bg-[#FFF9DB] text-[#F59F00] text-[12px]">
-        <span className="text-[8px] mr-[4px]">●</span>처리중
-      </div>
-    );
-  }
   return (
     <div className="rounded-[16px] py-[4px] px-[12px] bg-[#FFF5F5] text-[#F03E3E] text-[12px]">
       <span className="text-[8px] mr-[4px]">●</span>등록 실패
@@ -36,7 +29,9 @@ function DocRow({ doc, isSelected, onSelect }) {
       />
       <span className="flex items-center gap-[8px] pr-[12px] min-w-0">
         <FileText size={16} className="shrink-0 text-[#336B97]" />
-        <span className="truncate text-[#000000] font-medium">{doc.title}</span>
+        <span className="truncate text-[#000000] font-medium" title={doc.title}>
+          {doc.title}
+        </span>
       </span>
       <span className="flex justify-center">
         <StatusBadge status={doc.backupStatus} />

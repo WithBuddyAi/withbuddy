@@ -130,6 +130,10 @@ def _extract_text(file_bytes: bytes, filename: str) -> str:
     if ext in (".md", ".txt"):
         return file_bytes.decode("utf-8", errors="ignore")
 
+    if ext == ".docx":
+        import docx2txt
+        return docx2txt.process(io.BytesIO(file_bytes))
+
     return file_bytes.decode("utf-8", errors="ignore")
 
 
