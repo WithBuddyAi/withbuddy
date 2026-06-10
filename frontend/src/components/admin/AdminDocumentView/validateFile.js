@@ -1,5 +1,5 @@
 // 허용 파일 확장자
-const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", "md"];
+const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
 
 // 파일 크기 제한
 const MAX_DOC_SIZE = 20 * 1024 * 1024; // 20MB
