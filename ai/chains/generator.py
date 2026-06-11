@@ -137,14 +137,13 @@ def extract_contact_from_docs(docs: List[Document]) -> str | None:
 
 def build_contact_suffix(answer: str, docs: List[Document], hr_team: str) -> str:
     """미답변 시 담당자 안내 문구를 반환합니다. 이미 포함된 경우 빈 문자열."""
+    _CONTACT_HINTS = ["문의하시면", "여쭤보시면", "연락하시면", "담당자에게"]
+    if any(hint in answer for hint in _CONTACT_HINTS):
+        return ""
     contact = extract_contact_from_docs(docs)
     if contact:
-        if contact not in answer:
-            return f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
-    else:
-        if hr_team not in answer:
-            return f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
-    return ""
+        return f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+    return f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
 
 
 def build_case_a_suffix(hr_team: str) -> str:
