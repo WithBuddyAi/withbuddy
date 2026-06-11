@@ -168,6 +168,12 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         related_docs = find_related_docs(result.question)
         return result.direct_legal_answer, result.source_names, related_docs, result.doc_ids
 
+    if not result.docs:
+        hr_team, _ = get_hr_contact(company_code)
+        no_result_answer = f"죄송해요, 관련 문서에서 해당 내용을 찾지 못했어요.\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        save_interaction(user_id, result.question, no_result_answer)
+        return no_result_answer, "", [], []
+
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
     hr_team, _ = get_hr_contact(company_code)
@@ -241,6 +247,15 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         _legal = _legal.replace('\x00', '\n\n')
         yield _legal, None, None, None
         yield "", result.source_names, related_docs, result.doc_ids
+        return
+
+    if not result.docs:
+        hr_team, _ = get_hr_contact(company_code)
+        no_result_answer = f"죄송해요, 관련 문서에서 해당 내용을 찾지 못했어요.\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        save_interaction(user_id, result.question, no_result_answer)
+        asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+        yield no_result_answer, None, None, None
+        yield "", "", [], []
         return
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
