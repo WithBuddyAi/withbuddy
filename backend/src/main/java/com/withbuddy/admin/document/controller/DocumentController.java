@@ -81,10 +81,10 @@ public class DocumentController {
         return ResponseEntity.ok(documentStorageService.getCompanyDetail(documentId));
     }
 
-    @Operation(summary = "다운로드 URL 발급")
+    @Operation(summary = "필수 온보딩 문서 템플릿 다운로드 URL 발급")
     @GetMapping("/{documentId}/download")
     public ResponseEntity<DocumentDownloadResponse> download(@PathVariable Long documentId) {
-        return ResponseEntity.ok(documentStorageService.getDownloadUrl(documentId));
+        return ResponseEntity.ok(documentStorageService.getAdminDocumentDownloadUrl(documentId));
     }
 
     @Operation(summary = "백업 재시도")
