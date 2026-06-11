@@ -1,7 +1,7 @@
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { MessageSquare, Menu } from "lucide-react";
 import bot from "../assets/Bot_icon.svg";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import axiosInstance from "../api/axiosInstance";
 import { useUser } from "../contexts/UserContext";
@@ -21,7 +21,7 @@ function MyBuddy({ setIsLoggedIn }) {
   // 재시도 기능
   const [retryBt, setRetryBt] = useState(null);
 
-  const { dayOffset, role, accountStatus: contextAccountStatus } = useUser();
+  const { dayOffset, accountStatus: contextAccountStatus } = useUser();
   const accountStatus =
     contextAccountStatus ?? localStorage.getItem("accountStatus");
   const dayCount =
@@ -51,48 +51,7 @@ function MyBuddy({ setIsLoggedIn }) {
   const lastUserMessageRef = useRef(null);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  const charQueueRef = useRef([]);
-  const isTypingRef = useRef(false);
-  const streamDoneRef = useRef(null);
   const submitLockRef = useRef(false);
-  const processQueue = useCallback(() => {
-    if (charQueueRef.current.length === 0) {
-      isTypingRef.current = false;
-      if (streamDoneRef.current) {
-        const final = streamDoneRef.current;
-        streamDoneRef.current = null;
-        setMessageList((prev) =>
-          prev.map((msg) => (msg.messageType === "streaming" ? final : msg)),
-        );
-        setActiveDates((prev) =>
-          prev.includes(today) ? prev : [...prev, today],
-        );
-        setIsLoading(false);
-      }
-      return;
-    }
-    const char = charQueueRef.current.shift();
-    setMessageList((prev) => {
-      const last = prev[prev.length - 1];
-      if (last?.senderType === "BOT" && last?.messageType === "streaming") {
-        return prev.map((msg, i) =>
-          i === prev.length - 1 ? { ...msg, content: msg.content + char } : msg,
-        );
-      } else {
-        return [
-          ...prev,
-          {
-            id: `streaming-${Date.now()}-${Math.random()}`,
-            senderType: "BOT",
-            messageType: "streaming",
-            content: char,
-            createdAt: new Date().toISOString(),
-          },
-        ];
-      }
-    });
-    setTimeout(processQueue, 110);
-  }, [today]);
 
   // 대화 기록 달력
   const handleDateChange = async (date) => {
@@ -209,7 +168,7 @@ function MyBuddy({ setIsLoggedIn }) {
   useEffect(() => {
     if (isLoading) {
       chatBottomRef.current?.scrollIntoView({
-        behavior: "smooth",
+        behavior: "auto",
       });
     } else if (hasSubmitted) {
       lastUserMessageRef.current?.scrollIntoView({
@@ -272,11 +231,6 @@ function MyBuddy({ setIsLoggedIn }) {
         console.error("클릭 로그 기록 실패:", error);
       }
     }
-
-    // 이전 스트림 상태 초기화
-    charQueueRef.current = [];
-    isTypingRef.current = false;
-    streamDoneRef.current = null;
 
     setIsLoading(true);
     setHasSubmitted(true);
@@ -365,97 +319,86 @@ function MyBuddy({ setIsLoggedIn }) {
         } else {
           setErrorMessage(message || "메시지 전송에 실패했어요.");
         }
-
         return;
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-
       let buffer = "";
-
       while (true) {
         const { done, value } = await reader.read();
-
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
-
         let delimiterIndex;
-
         while ((delimiterIndex = buffer.indexOf("\n\n")) !== -1) {
           const rawEvent = buffer.slice(0, delimiterIndex).trim();
-
           buffer = buffer.slice(delimiterIndex + 2);
-
           if (!rawEvent) continue;
-
           const lines = rawEvent.split("\n");
-
           let eventName = "";
-
           for (const line of lines) {
             if (line.startsWith("event:")) {
               eventName = line.replace("event:", "").trim();
             }
-
             if (line.startsWith("data:")) {
               const parsed = JSON.parse(line.replace("data:", "").trim());
-
               if (eventName === "question_saved") {
                 setMessageList((prev) => {
                   const exists = prev.some(
                     (msg) => msg.id === parsed.question.id,
                   );
-
                   if (exists) {
                     return prev.map((msg) =>
                       msg.id === parsed.question.id ? parsed.question : msg,
                     );
                   }
-
                   const lastTempIndex = [...prev]
                     .map((msg, i) => ({ msg, i }))
                     .reverse()
                     .find(({ msg }) =>
                       msg.id.toString().startsWith("temp-"),
                     )?.i;
-
                   if (lastTempIndex === undefined) return prev;
-
                   return prev.map((msg, i) =>
                     i === lastTempIndex ? parsed.question : msg,
                   );
                 });
               } else if (eventName === "answer_delta") {
-                const words = parsed.content.split(" ");
-
-                words.forEach((word, i) => {
-                  charQueueRef.current.push(
-                    i < words.length - 1 ? word + " " : word,
-                  );
+                setMessageList((prev) => {
+                  const last = prev[prev.length - 1];
+                  if (
+                    last?.senderType === "BOT" &&
+                    last?.messageType === "streaming"
+                  ) {
+                    const next = [...prev];
+                    next[next.length - 1] = {
+                      ...next[next.length - 1],
+                      content: next[next.length - 1].content + parsed.content,
+                    };
+                    return next;
+                  } else {
+                    return [
+                      ...prev,
+                      {
+                        id: `streaming-${Date.now()}-${Math.random()}`,
+                        senderType: "BOT",
+                        messageType: "streaming",
+                        content: parsed.content,
+                        createdAt: new Date().toISOString(),
+                      },
+                    ];
+                  }
                 });
-
-                if (!isTypingRef.current) {
-                  isTypingRef.current = true;
-                  setTimeout(processQueue, 110);
-                }
               } else if (eventName === "answer_completed") {
-                if (!isTypingRef.current && charQueueRef.current.length === 0) {
-                  setMessageList((prev) =>
-                    prev.map((msg) =>
-                      msg.messageType === "streaming" ? parsed.answer : msg,
-                    ),
-                  );
-
-                  setActiveDates((prev) =>
-                    prev.includes(today) ? prev : [...prev, today],
-                  );
-
-                  setIsLoading(false);
-                } else {
-                  streamDoneRef.current = parsed.answer;
-                }
+                setMessageList((prev) =>
+                  prev.map((msg) =>
+                    msg.messageType === "streaming" ? parsed.answer : msg,
+                  ),
+                );
+                setActiveDates((prev) =>
+                  prev.includes(today) ? prev : [...prev, today],
+                );
+                setIsLoading(false);
               } else if (eventName === "error") {
                 setMessageList((prev) => [
                   ...prev,
@@ -501,7 +444,6 @@ function MyBuddy({ setIsLoggedIn }) {
 
   // 응답 지연 시 재시도
   const handleRetry = (errorMessage) => {
-    // errorMessage가 없으면 (redis 모달에서 호출) 기존 방식으로
     if (!errorMessage) {
       const lastUserMessage = [...messageList]
         .reverse()
@@ -541,20 +483,16 @@ function MyBuddy({ setIsLoggedIn }) {
   const handleDownload = async (downloadUrl, fileName) => {
     try {
       const { data } = await axiosInstance.get(downloadUrl);
-
       const response = await axiosInstance.get(data.downloadUrl, {
         responseType: "blob",
       });
-
       const blob = new Blob([response.data]);
       const objectUrl = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = objectUrl;
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
-
       document.body.removeChild(a);
       URL.revokeObjectURL(objectUrl);
     } catch (error) {
