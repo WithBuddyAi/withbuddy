@@ -14,7 +14,7 @@ function AdminHeader({ handleViewChange }) {
 
       <button
         onClick={() => handleViewChange("new")}
-        className="shrink-0 whitespace-nowrap bg-[#F1F3F5] text-[#868E96] text-[12px] w-[115px] p-[8px] md:text-[14px] md:w-[131px] md:p-[12px] rounded-[8px] hover:bg-[#204867] hover:text-[#FFFFFF] active:bg-[#336B97] active:text-[#FFFFFF]"
+        className="shrink-0 whitespace-nowrap bg-[#4791CA] border-[0.5px] border-[#DEE2E6] text-[#FFFFFF] hover:bg-[#336B97] text-[12px] w-[115px] p-[8px] md:text-[14px] md:w-[131px] md:p-[12px] rounded-[8px]"
       >
         + 계정 생성하기
       </button>

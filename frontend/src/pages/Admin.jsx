@@ -27,10 +27,12 @@ function Admin({ setIsLoggedIn }) {
   // 계정 생성 완료 메시지
   const [successMessage, setSuccessMessage] = useState("");
 
-  // 문서 삭제 모달
+  // 문서 삭제
   const [isDeleteModal, setIsDeleteModal] = useState(false);
   const [deleteSelectedIds, setDeleteSelectedIds] = useState([]);
   const [deleteDocuments, setDeleteDocuments] = useState([]);
+  const [refetchDocuments, setRefetchDocuments] = useState(null);
+  const [clearSelectedIds, setClearSelectedIds] = useState(null);
 
   // 문서 삭제 메시지 'success' | 'error' | null
   const [docToast, setDocToast] = useState(null);
@@ -72,9 +74,9 @@ function Admin({ setIsLoggedIn }) {
     }
   }, [successMessage]);
 
-  // 문서 삭제 토스트
+  // 문서 토스트 (문서 삭제 성공 | 문서 업로드 성공)
   useEffect(() => {
-    if (docToast === "success") {
+    if (docToast === "success" || docToast === "uploadSuccess") {
       const timer = setTimeout(() => setDocToast(null), 5000);
       return () => clearTimeout(timer);
     }
@@ -103,11 +105,14 @@ function Admin({ setIsLoggedIn }) {
           selectedIds={deleteSelectedIds}
           documents={deleteDocuments}
           onClose={() => setIsDeleteModal(false)}
+          // DocDeleteModal onSuccess 수정
           onSuccess={() => {
             setIsDeleteModal(false);
             setDeleteSelectedIds([]);
             setDeleteDocuments([]);
             setDocToast("success");
+            refetchDocuments?.();
+            clearSelectedIds?.();
           }}
           onError={() => {
             setIsDeleteModal(false);
@@ -116,7 +121,7 @@ function Admin({ setIsLoggedIn }) {
         />
       )}
 
-      {/* 문서 삭제 토스트 */}
+      {/* 문서 토스트 (성공 | 실패) */}
       <DocToast
         type={docToast}
         onRetry={() => {
@@ -198,6 +203,12 @@ function Admin({ setIsLoggedIn }) {
                   setDeleteDocuments(docs);
                   setIsDeleteModal(true);
                 }}
+                onDeleteSuccess={(refetch, clearIds) => {
+                  setRefetchDocuments(() => refetch);
+                  setClearSelectedIds(() => clearIds);
+                }}
+                onUploadSuccess={() => setDocToast("uploadSuccess")}
+                onUploadError={() => setDocToast("uploadError")}
               />
             )}
             {view === "unanswered" && <div>미답변 질문 준비 중</div>}

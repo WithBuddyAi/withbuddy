@@ -161,20 +161,29 @@ async def ingest_doc(file: UploadFile = File(...)):
             pass
     elif ext in (".md", ".txt"):
         text = data.decode("utf-8", errors="ignore")
+    elif ext == ".docx":
+        try:
+            import io, docx2txt
+            text = docx2txt.process(io.BytesIO(data))
+        except Exception:
+            pass
 
     # 3. ChromaDB 인덱싱
     chunks_count = 0
     ingest_error = None
     if text and text.strip():
         try:
-            from core.vectorstore import get_vectorstore
+            from core.vectorstore import get_vectorstore, invalidate_bm25_cache
             from langchain_core.documents import Document
             from langchain_text_splitters import RecursiveCharacterTextSplitter
             doc = Document(page_content=text, metadata={"source": filename})
             splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
             chunks = splitter.split_documents([doc])
-            get_vectorstore().add_documents(chunks)
-            chunks_count = len(chunks)
+            vs = get_vectorstore()
+            for chunk in chunks:
+                vs.add_documents([chunk])
+                chunks_count += 1
+            invalidate_bm25_cache()
         except Exception as e:
             ingest_error = str(e)
 

@@ -2,13 +2,20 @@ import { useState, useEffect, useRef } from "react";
 import axiosInstance from "../../../api/axiosInstance";
 import AdminDocHeader from "./AdminDocHeader";
 import DocTable from "./DocTable";
-import DocDeleteModal from "./DocDeleteModal";
 import Pagination from "../AdminMainView/Pagination";
 import { Search, ChevronDown } from "lucide-react";
+import DocUploadZone from "./DocUploadZone";
+import DocUploadForm from "./DocUploadForm";
+import DocMobileList from "./DocMobileList";
 
-const DOC_TYPES = ["전체", "LEGAL", "GUIDE", "TEMPLATE"];
+const DOC_TYPES = ["전체", "POLICY", "GUIDE", "TEMPLATE"];
 
-function AdminDocumentView({ onDeleteModalOpen }) {
+function AdminDocumentView({
+  onDeleteModalOpen,
+  onDeleteSuccess,
+  onUploadSuccess,
+  onUploadError,
+}) {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
@@ -24,8 +31,7 @@ function AdminDocumentView({ onDeleteModalOpen }) {
   // 체크박스 선택 상태
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // 삭제 모달
-  const [isDeleteModal, setIsDeleteModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
 
   const fetchDocuments = async () => {
     setIsLoading(true);
@@ -86,94 +92,131 @@ function AdminDocumentView({ onDeleteModalOpen }) {
     );
   };
 
-  // 삭제 완료 후 처리
-  const handleDeleteSuccess = () => {
-    setSelectedIds([]);
-    setIsDeleteModal(false);
-    fetchDocuments();
-  };
+  useEffect(() => {
+    if (onDeleteSuccess)
+      onDeleteSuccess(fetchDocuments, () => setSelectedIds([]));
+  }, []);
+
+  useEffect(() => {
+    if (search === "") {
+      setCurrentPage(0);
+      fetchDocuments();
+    }
+  }, [search]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col gap-[24px] h-full overflow-y-auto pr-[20px]">
       <AdminDocHeader />
 
-      {/* 총 문서 수 + 검색 + 필터 */}
-      <div className="flex items-center justify-between mb-[12px]">
-        <div className="flex items-center gap-[16px]">
-          <p className="text-[16px] font-medium">등록한 문서 목록</p>
-          <p className="rounded-[9999px] px-[12px] py-[4px] bg-[#F8F9FA] text-[12px] text-[#868E96]">
-            총 {totalElements}개
-          </p>
-        </div>
-        <div className="flex items-center gap-[8px]">
-          {/* 검색 */}
-          <div className="flex items-center gap-[8px] border border-[#868E96] rounded-[8px] px-[12px] py-[8px] text-[12px] md:text-[14px] text-[#868E96]">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              placeholder="문서 검색"
-              className="outline-none text-[#495057] w-[120px] md:w-[160px]"
-            />
-            <button
-              onClick={() => {
-                setCurrentPage(0);
-                fetchDocuments();
-              }}
-            >
-              <Search
-                size={14}
-                className="text-[#868E96] hover:text-[#204867]"
+      {/* 파일 업로드(파일을 드래그&드롭하면 입력 폼으로 교체) */}
+      {uploadFile ? (
+        <DocUploadForm
+          file={uploadFile}
+          onCancel={(newFile) => setUploadFile(newFile || null)}
+          onSuccess={() => {
+            setUploadFile(null);
+            fetchDocuments();
+            onUploadSuccess?.();
+          }}
+          onError={() => onUploadError?.()}
+        />
+      ) : (
+        <DocUploadZone onFileSelect={(file) => setUploadFile(file)} />
+      )}
+
+      <div>
+        {/* 총 문서 수 + 검색 + 필터 */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-[12px] gap-[8px]">
+          <div className="flex items-center gap-[16px]">
+            <p className="text-[16px] font-medium">등록한 문서 목록</p>
+            <p className="rounded-[9999px] px-[12px] py-[4px] bg-[#F8F9FA] text-[12px] text-[#868E96]">
+              총 {totalElements}개
+            </p>
+          </div>
+          <div className="flex items-center gap-[8px]">
+            {/* 검색 */}
+            <div className="flex flex-1 md:flex-none items-center gap-[8px] border border-[#868E96] rounded-[8px] px-[12px] py-[8px] text-[12px] md:text-[14px] text-[#868E96] focus-within:border-[#4791CA]">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="문서 검색"
+                className="outline-none text-[#495057] w-full focus:text-[#204867]"
               />
-            </button>
-          </div>
+              <button
+                onClick={() => {
+                  setCurrentPage(0);
+                  fetchDocuments();
+                }}
+              >
+                <Search
+                  size={14}
+                  className="text-[#868E96] hover:text-[#204867]"
+                />
+              </button>
+            </div>
 
-          {/* 문서 타입 필터 */}
-          <div ref={typeFilterRef} className="relative">
-            <button
-              onClick={() => setShowTypeFilter((prev) => !prev)}
-              className="flex items-center justify-between gap-[6px] border border-[#868E96] rounded-[8px] w-[132px] px-[12px] py-[8px] text-[12px] md:text-[14px] text-[#868E96]"
-            >
-              {selectedType || "문서 타입"}
-              <ChevronDown size={14} />
-            </button>
-            {showTypeFilter && (
-              <ul className="absolute top-full right-0 mt-[4px] bg-white border border-[#CED4DA] rounded-[8px] shadow-md z-10 min-w-[120px]">
-                {DOC_TYPES.map((type) => (
-                  <li
-                    key={type}
-                    onMouseDown={() => {
-                      setSelectedType(type === "전체" ? "" : type);
-                      setCurrentPage(0);
-                      setShowTypeFilter(false);
-                    }}
-                    className={`px-[12px] py-[10px] text-[14px] cursor-pointer ${
-                      (type === "전체" && selectedType === "") ||
-                      selectedType === type
-                        ? "bg-[#EAF6FF] text-[#204867]"
-                        : "hover:bg-[#F1F3F5]"
-                    }`}
-                  >
-                    {type}
-                  </li>
-                ))}
-              </ul>
-            )}
+            {/* 문서 타입 필터 */}
+            <div ref={typeFilterRef} className="relative">
+              <button
+                onClick={() => setShowTypeFilter((prev) => !prev)}
+                className="flex items-center justify-between gap-[6px] border border-[#868E96] rounded-[8px] w-[132px] px-[12px] py-[8px] text-[12px] md:text-[14px] text-[#868E96]"
+              >
+                {selectedType || "문서 타입"}
+                <ChevronDown size={14} />
+              </button>
+              {showTypeFilter && (
+                <ul className="absolute top-full right-0 mt-[4px] bg-white border border-[#CED4DA] rounded-[8px] shadow-md z-10 min-w-[120px]">
+                  {DOC_TYPES.map((type) => (
+                    <li
+                      key={type}
+                      onMouseDown={() => {
+                        setSelectedType(type === "전체" ? "" : type);
+                        setCurrentPage(0);
+                        setShowTypeFilter(false);
+                      }}
+                      className={`px-[12px] py-[10px] text-[14px] cursor-pointer ${
+                        (type === "전체" && selectedType === "") ||
+                        selectedType === type
+                          ? "bg-[#EAF6FF] text-[#204867]"
+                          : "hover:bg-[#F1F3F5]"
+                      }`}
+                    >
+                      {type}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 문서 테이블 */}
-      <div className="flex-1 overflow-auto">
-        <DocTable
+        {/* 모바일 버전 문서 테이블 */}
+        <DocMobileList
           documents={documents}
           isLoading={isLoading}
           selectedIds={selectedIds}
           handleSelect={handleSelect}
-          handleSelectAll={handleSelectAll}
+          search={search}
+          selectedType={selectedType}
           onDeleteClick={() => onDeleteModalOpen(selectedIds, documents)}
+          handleSelectAll={handleSelectAll}
         />
+
+        {/* 문서 테이블 */}
+        <div className="hidden md:flex md:flex-col">
+          <DocTable
+            documents={documents}
+            isLoading={isLoading}
+            selectedIds={selectedIds}
+            handleSelect={handleSelect}
+            handleSelectAll={handleSelectAll}
+            onDeleteClick={() => onDeleteModalOpen(selectedIds, documents)}
+            search={search}
+            selectedType={selectedType}
+          />
+        </div>
       </div>
 
       {/* 페이지네이션 */}
@@ -182,16 +225,6 @@ function AdminDocumentView({ onDeleteModalOpen }) {
         totalPages={totalPages}
         setCurrentPage={setCurrentPage}
       />
-
-      {/* 삭제 모달 */}
-      {isDeleteModal && (
-        <DocDeleteModal
-          selectedIds={selectedIds}
-          documents={documents}
-          onClose={() => setIsDeleteModal(false)}
-          onSuccess={handleDeleteSuccess}
-        />
-      )}
     </div>
   );
 }
