@@ -2501,6 +2501,76 @@ Authorization: Bearer {accessToken}
 - 회사별 지표 배열은 회사 코드 오름차순으로 반환한다.
 - 미답변 질문 패턴은 발생 횟수, 고유 사용자 수, 최근 발생 시각 내림차순으로 정렬한다.
 
+### 7-9. 필수 온보딩 문서 템플릿
+
+관리자가 필수 온보딩 문서 템플릿을 다운로드한다.
+공통 문서는 허용된 필수 온보딩 템플릿인 경우에만 다운로드할 수 있다.
+관리자가 기존에 업로드한 본인 회사의 템플릿 문서 다운로드도 동일한 경로에서 계속 지원한다.
+
+```http
+GET /api/v1/admin/documents/{documentId}/download
+Authorization: Bearer {accessToken}
+```
+
+#### Path Variable
+
+| 이름 | 타입 | 필수 여부 | 설명 |
+|---|---|---:|---|
+| `documentId` | Long | Y | 다운로드할 필수 온보딩 문서 ID |
+
+#### 다운로드 대상 조건
+
+| 컬럼 | 조건 |
+|---|---|
+| `documents.id` | 공통 문서인 경우 `56`~`64` 중 하나 |
+| `documents.company_code` | `NULL` |
+| `documents.document_type` | `TEMPLATE` |
+| `documents.is_active` | `true` |
+
+#### 다운로드 가능 문서
+
+| documentId | title | documentType | category |
+|---:|---|---|---|
+| 56 | IT 보안 및 장애대응 안내 | TEMPLATE | IT |
+| 57 | 업무 도구 및 계정 안내 | TEMPLATE | IT |
+| 58 | 오피스 이용 및 행정 지원 안내 | TEMPLATE | 행정 |
+| 59 | 경비·구매·법인카드 처리 안내 | TEMPLATE | 행정 |
+| 60 | 복리후생 안내 | TEMPLATE | 복지 |
+| 61 | 건강·보험·가족지원 안내 | TEMPLATE | 복지 |
+| 62 | 신입사원 온보딩 안내 | TEMPLATE | 인사 |
+| 63 | 급여 지급 안내 | TEMPLATE | 인사 |
+| 64 | 근로계약 및 수습 기간 안내 | TEMPLATE | 인사 |
+
+#### Response (200 OK)
+
+```json
+{
+  "downloadUrl": "/api/v1/documents/56/file?source=PRIMARY&token=550e8400-e29b-41d4-a716-446655440000",
+  "expiresIn": 30,
+  "source": "PRIMARY"
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `downloadUrl` | String | 실제 파일 다운로드에 사용할 내부 경로 |
+| `expiresIn` | Number | 다운로드 토큰 유효시간(초) |
+| `source` | String | 다운로드에 사용할 스토리지 소스. `PRIMARY` 또는 `BACKUP` |
+
+#### 동작 규칙
+
+- 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)가 호출한다.
+- 공통 문서 다운로드는 위 표에 정의된 `documentId` 56~64로 제한한다.
+- 공통 온보딩 템플릿은 `documents.company_code = NULL`, `documents.document_type = TEMPLATE`이고 활성 상태여야 한다.
+- 관리자가 업로드한 회사 문서는 현재 로그인한 관리자의 회사 코드와 `documents.company_code`가 일치하고, `documents.document_type = TEMPLATE`인 경우 다운로드할 수 있다.
+- 다른 회사 문서, 허용 목록에 없는 공통 문서 또는 `TEMPLATE`가 아닌 문서는 다운로드할 수 없다.
+- 문서 또는 문서 파일 메타데이터가 존재하지 않으면 `404 Not Found`, `NOT_FOUND`를 반환한다.
+- 다운로드 조건을 충족하지 않으면 `403 Forbidden`, `RESOURCE_004`를 반환한다.
+- 응답의 `downloadUrl`을 호출하면 파일 다운로드 API에서 외부 Object Storage URL로 리다이렉트한다.
+- 다운로드 토큰이 만료되면 다운로드 URL 발급 API를 다시 호출해야 한다.
+
 ---
 
 ## 8. 내부 AI 연동 규격
@@ -3755,4 +3825,4 @@ Authorization: Bearer {accessToken}
 - **v2.2.4 (2026-06-10)**:
   - 업로드 가능한 파일 형식(`.pdf`, `.docx`, `.txt`, `.md`) 수정, FILE_001 에러 코드 세분화
 - **v2.2.5 (2026-06-11)**:
-  - 관리자 대시보드 명세 추가
+  - 관리자 대시보드 명세 추가, 관리자 계정 페이지에서 필수 온보딩 문서 템플릿을 다운로드 할 수 있는 `GET /api/v1/admin/organization-options` 명세를 추가.
