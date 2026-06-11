@@ -73,12 +73,20 @@ function DocUploadForm({ file, onCancel, onSuccess, onError }) {
       onSuccess();
     } catch (error) {
       const code = error.response?.data?.code;
-      if (code === "FILE_001") {
-        setErrorMessage("파일 크기 또는 문서 수 제한을 초과했어요.");
-      } else if (code === "FILE_002") {
-        setErrorMessage("지원하지 않는 파일 형식이에요.");
+
+      const errorMessages = {
+        FILE_001_SIZE: "파일 크기가 너무 커요. (최대 20MB)",
+        FILE_001_COUNT: "업로드 가능한 문서 수 제한을 초과했어요. (최대 300개)",
+        FILE_001_CAPACITY: "업로드 가능한 전체 용량 한도를 초과했어요. (최대 2GB)",
+        FILE_001_EMPTY: "파일이 비어 있거나 존재하지 않아요.",
+        FILE_002: "지원하지 않는 파일 형식이에요.",
+      };
+
+      const message = errorMessages[code];
+      if (message) {
+        setErrorMessage(message);
       } else {
-        onError?.(); // 그 외 에러는 토스트로
+        onError?.();
       }
     } finally {
       setIsLoading(false);
@@ -221,6 +229,11 @@ function DocUploadForm({ file, onCancel, onSuccess, onError }) {
               </div>
             </div>
           </div>
+
+          {/* 에러 메시지 */}
+          {errorMessage && (
+            <p className="text-[12px] text-[#F03E3E]">{errorMessage}</p>
+          )}
 
           {/* 취소 / 업로드 버튼 */}
           <div className="flex justify-end gap-[8px]">
