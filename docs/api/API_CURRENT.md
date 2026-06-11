@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.2.3
-**최종 업데이트**: 2026-06-08
+**버전**: 2.2.5
+**최종 업데이트**: 2026-06-11
 
 ---
 
@@ -2354,6 +2354,153 @@ Content-Type: application/json
 - 일부 문서만 검증을 통과하면 “일부 문서만 삭제할 수 있습니다. 삭제할 수 없는 문서는 관리자에게 문의해 주세요.” 문구를 표시한다.
 - 일부 문서만 검증을 통과한 경우 프론트엔드는 “삭제 가능한 문서만 삭제하시겠습니까?”를 한 번 더 확인한 뒤, 검증을 통과한 문서 ID만 삭제 요청에 포함한다.
 
+### 7-8. 대시보드 조회
+
+관리자 대시보드에 필요한 RAG 답변 수신 경험률, 문서 공백률, 미시작 사용자 수, 미답변 질문 패턴을 한 번에 조회한다.
+
+```http
+GET /api/v1/admin/metrics/dashboard?companyCode=WB0001&asOfDate=2026-06-11&unansweredPatternLimit=5
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 조회할 회사 코드. 활성 고객사 관리자는 생략하거나 본인 회사 코드만 전달할 수 있다. 서비스 관리자는 생략 시 전체 회사를 조회한다. |
+| `asOfDate` | String | N | 집계 기준일. `yyyy-MM-dd` 형식이며, 생략 시 한국 시간(`Asia/Seoul`) 기준 현재 날짜를 사용한다. |
+| `unansweredPatternLimit` | Number | N | 미답변 질문 패턴 최대 조회 개수. 기본값 `5`, 최솟값 `1`, 최댓값 `20`이다. 범위를 벗어나면 각각 `1` 또는 `20`으로 보정한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "admin_dashboard",
+  "asOfDate": "2026-06-11",
+  "ragExperienceRate": {
+    "metric": "rag_experience_rate",
+    "asOfDate": "2026-06-11",
+    "companies": [
+      {
+        "companyCode": "WB0001",
+        "companyName": "위드버디",
+        "targetUsers": 20,
+        "ragReceivedUsers": 16,
+        "ragExperienceRate": 80.0
+      }
+    ]
+  },
+  "documentGapRate": {
+    "metric": "document_gap_rate",
+    "asOfDate": "2026-06-11",
+    "companies": [
+      {
+        "companyCode": "WB0001",
+        "companyName": "위드버디",
+        "answerableBotAnswers": 100,
+        "noResultAnswers": 12,
+        "documentGapRate": 12.0
+      }
+    ]
+  },
+  "unstartedUsers": {
+    "metric": "unstarted_users",
+    "asOfDate": "2026-06-11",
+    "companies": [
+      {
+        "companyCode": "WB0001",
+        "companyName": "위드버디",
+        "activeNewUsers": 30,
+        "unstartedUsers": 5
+      }
+    ]
+  },
+  "unansweredQuestionPatterns": {
+    "metric": "unanswered_question_patterns",
+    "asOfDate": "2026-06-11",
+    "limit": 5,
+    "patterns": [
+      {
+        "companyCode": "WB0001",
+        "questionContent": "경조사 휴가는 어떻게 신청하나요?",
+        "totalCount": 8,
+        "uniqueUsers": 6,
+        "noResultCount": 8,
+        "outOfScopeCount": 0,
+        "latestOccurredAt": "2026-06-10T14:30:00"
+      }
+    ]
+  }
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 대시보드 지표 식별자. 항상 `admin_dashboard` |
+| `asOfDate` | String | 적용된 집계 기준일 |
+| `ragExperienceRate` | Object | 입사 후 D+6까지 RAG 답변을 한 번 이상 받은 사용자 비율 |
+| `documentGapRate` | Object | 최근 30일간 문서 기반 답변 가능 응답 중 `no_result` 응답 비율 |
+| `unstartedUsers` | Object | 기준일까지 입사한 활성 사용자 중 질문을 한 번도 등록하지 않은 사용자 현황 |
+| `unansweredQuestionPatterns` | Object | 최근 7일간 반복된 `no_result` 질문 패턴 |
+
+#### Response Field (`ragExperienceRate.companies[]`)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `companyCode` | String | 회사 코드 |
+| `companyName` | String | 회사명 |
+| `targetUsers` | Number | 최근 30일 입사자 중 기준일에 입사 후 6일이 지난 `ACTIVE` 또는 `READ_ONLY` 사용자 수 |
+| `ragReceivedUsers` | Number | 대상 사용자 중 입사일부터 7일 미만 기간에 `rag_answer`를 한 번 이상 받은 사용자 수 |
+| `ragExperienceRate` | Number | `ragReceivedUsers / targetUsers * 100`. 소수점 첫째 자리까지 반환하며, 대상자가 없으면 `0.0` |
+
+#### Response Field (`documentGapRate.companies[]`)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `companyCode` | String | 회사 코드 |
+| `companyName` | String | 회사명 |
+| `answerableBotAnswers` | Number | 최근 30일간 `rag_answer`와 `no_result`를 합한 BOT 응답 수 |
+| `noResultAnswers` | Number | 최근 30일간 `no_result` BOT 응답 수 |
+| `documentGapRate` | Number | `noResultAnswers / answerableBotAnswers * 100`. 소수점 첫째 자리까지 반환하며, 응답이 없으면 `0.0` |
+
+#### Response Field (`unstartedUsers.companies[]`)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `companyCode` | String | 회사 코드 |
+| `companyName` | String | 회사명 |
+| `activeNewUsers` | Number | 기준일까지 입사한 `ACTIVE` 사용자 수 |
+| `unstartedUsers` | Number | `activeNewUsers` 중 `user_question` 메시지를 한 번도 등록하지 않은 사용자 수 |
+
+#### Response Field (`unansweredQuestionPatterns`)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `limit` | Number | 실제 적용된 최대 조회 개수 |
+| `patterns` | Array | 최근 7일간 발생한 `no_result` 질문을 회사 코드와 질문 내용으로 묶은 목록 |
+| `patterns[].companyCode` | String | 질문이 발생한 회사 코드 |
+| `patterns[].questionContent` | String | 미답변 질문 내용 |
+| `patterns[].totalCount` | Number | 동일 질문의 전체 발생 횟수 |
+| `patterns[].uniqueUsers` | Number | 동일 질문을 등록한 고유 사용자 수 |
+| `patterns[].noResultCount` | Number | `no_result` 발생 횟수. 현재 `totalCount`와 동일 |
+| `patterns[].outOfScopeCount` | Number | 범위 밖 질문 발생 횟수. 현재 구현에서는 항상 `0` |
+| `patterns[].latestOccurredAt` | String | 동일 질문의 가장 최근 발생 시각 |
+
+#### 동작 규칙
+
+- 이 API의 실제 구현 경로는 `GET /api/v1/admin/metrics/dashboard`이다.
+- 활성 고객사 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)와 서비스 관리자(`users.role = SERVICE_ADMIN`)가 호출할 수 있다.
+- 활성 고객사 관리자는 본인 회사 지표만 조회할 수 있다. `companyCode`를 생략해도 본인 회사로 제한되며, 다른 회사 코드를 전달하면 `403 Forbidden`, `ACCESS_DENIED`를 반환한다.
+- 서비스 관리자는 `companyCode`를 생략하면 전체 회사 지표를 조회하고, 회사 코드를 전달하면 해당 회사만 조회한다.
+- 일반 사용자 또는 활성 상태가 아닌 고객사 관리자가 호출하면 `403 Forbidden`, `ACCESS_DENIED`를 반환한다.
+- 인증 토큰이 없거나 유효하지 않으면 `401 Unauthorized`를 반환한다.
+- `asOfDate` 형식이 올바르지 않으면 `400 Bad Request`, `BAD_REQUEST`를 반환한다.
+- 날짜 기반 집계와 기본 기준일은 한국 시간(`Asia/Seoul`)을 기준으로 한다.
+- 회사별 지표 배열은 회사 코드 오름차순으로 반환한다.
+- 미답변 질문 패턴은 발생 횟수, 고유 사용자 수, 최근 발생 시각 내림차순으로 정렬한다.
+
 ---
 
 ## 8. 내부 AI 연동 규격
@@ -3607,3 +3754,5 @@ Authorization: Bearer {accessToken}
   - 로그인 API(`/api/v1/auth/login`)에 명세 추가
 - **v2.2.4 (2026-06-10)**:
   - 업로드 가능한 파일 형식(`.pdf`, `.docx`, `.txt`, `.md`) 수정, FILE_001 에러 코드 세분화
+- **v2.2.5 (2026-06-11)**:
+  - 관리자 대시보드 명세 추가
