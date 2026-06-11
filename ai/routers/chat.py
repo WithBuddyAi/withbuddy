@@ -115,7 +115,7 @@ async def chat_stream(request: ChatRequest):
                 message = resolved
 
             result = run_orchestrator(uid, request.user.name, message, request.user.companyCode, hire_date=request.user.hireDate)
-            if result.intent != "rag":
+            if result.intent not in ("rag", "company_info"):
                 fixed_answer = _fix_names(result.answer)
                 save_interaction(uid, message, fixed_answer)
                 msg_type = result.intent if result.intent in ("sensitive", "out_of_scope") else "out_of_scope"

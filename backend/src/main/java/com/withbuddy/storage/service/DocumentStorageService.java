@@ -68,6 +68,9 @@ public class DocumentStorageService implements DocumentDownloadService {
     private static final long MAX_COMPANY_DOCUMENT_COUNT = 300L;
     private static final long COMPANY_UPLOAD_QUOTA_BYTES = 2L * 1024L * 1024L * 1024L;
     private static final String DEFAULT_DOCUMENT_CONTENT = "Object Storage 업로드 문서";
+    private static final Set<Long> REQUIRED_ONBOARDING_TEMPLATE_IDS = Set.of(
+            56L, 57L, 58L, 59L, 60L, 61L, 62L, 63L, 64L
+    );
 
     private enum DeleteOutcome {
         DELETED,
@@ -624,6 +627,19 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
     }
 
+    private void validateRequiredOnboardingTemplate(Long documentId, Document document) {
+        if (!REQUIRED_ONBOARDING_TEMPLATE_IDS.contains(documentId)
+                || StringUtils.hasText(document.getCompanyCode())
+                || !"TEMPLATE".equals(document.getDocumentType())) {
+            throw new StorageException(
+                    HttpStatus.FORBIDDEN,
+                    "RESOURCE_004",
+                    "documentId",
+                    "필수 온보딩 공통 템플릿 문서만 다운로드할 수 있습니다."
+            );
+        }
+    }
+
     public DocumentDownloadResponse getDownloadUrl(Long documentId) {
         RequesterScope requesterScope = resolveDocumentAccessScope();
 
@@ -635,15 +651,38 @@ public class DocumentStorageService implements DocumentDownloadService {
             validateTemplateDocument(document);
         }
 
+        return issueDocumentDownloadUrl(document);
+    }
+
+    public DocumentDownloadResponse getAdminDocumentDownloadUrl(Long documentId) {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+
+        if (StringUtils.hasText(document.getCompanyCode())) {
+            validateExactCompanyBoundary(requesterScope, document.getCompanyCode());
+            validateTemplateDocument(document);
+        } else {
+            validateRequiredOnboardingTemplate(documentId, document);
+        }
+        return issueDocumentDownloadUrl(document);
+    }
+
+    private DocumentDownloadResponse issueDocumentDownloadUrl(Document document) {
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
 
         StorageSource source = resolveSource(file);
         int tokenTtlSeconds = Math.max(1, storageProperties.getDownloadUrlTtlSeconds());
         int tokenMaxUses = Math.max(1, storageProperties.getDownloadUrlMaxUses());
-        String downloadToken = issueDownloadToken(documentId, source, tokenTtlSeconds, tokenMaxUses);
+        String downloadToken = issueDownloadToken(document.getId(), source, tokenTtlSeconds, tokenMaxUses);
 
-        return new DocumentDownloadResponse(buildInternalDownloadUrl(documentId, source, downloadToken), tokenTtlSeconds, source.name());
+        return new DocumentDownloadResponse(
+                buildInternalDownloadUrl(document.getId(), source, downloadToken),
+                tokenTtlSeconds,
+                source.name()
+        );
     }
 
     public String issueRedirectDownloadUrl(Long documentId, StorageSource source, String downloadToken) {
