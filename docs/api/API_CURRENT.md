@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.2.3
-**최종 업데이트**: 2026-06-08
+**버전**: 2.2.5
+**최종 업데이트**: 2026-06-11
 
 ---
 
@@ -252,7 +252,10 @@ AI Swagger UI: https://ai.itsdev.kr/docs
 - `AI_TIMEOUT`: AI 답변 생성 시간 초과
 - `AI_STREAM_FAILED`: SSE 스트리밍 중 AI 답변 생성 실패
 - `FORBIDDEN`: 채팅에서 수신하지 않은 문서 다운로드 요청
-- `FILE_001`: 업로드 파일이 비어 있거나 단일 파일 크기, 회사당 문서 수 또는 회사별 총 업로드 용량 제한을 초과함
+- `FILE_001_EMPTY`: 업로드 파일이 비어 있거나 존재하지 않음
+- `FILE_001_SIZE`: 단일 업로드 파일 크기 제한 초과
+- `FILE_001_COUNT`: 회사당 업로드 가능한 활성 문서 수 제한 초과
+- `FILE_001_CAPACITY`: 회사별 총 업로드 용량 제한 초과
 - `FILE_002`: 지원하지 않는 파일 형식
 - `FILE_003`: 파일 읽기 또는 스토리지 처리 실패
 - `RESOURCE_004`: 다른 회사 문서 접근
@@ -2232,20 +2235,18 @@ Content-Type: multipart/form-data
 
 업로드 가능한 파일 형식은 다음 확장자로 제한됩니다.
 
-| 구분 | 확장자 | 단일 파일 최대 크기 |
-|---|---|---:|
-| 문서 파일 | `.pdf`, `.docx`, `.pptx`, `.txt` | 20MB |
-| 스프레드시트 파일 | `.xls`, `.xlsx` | 20MB |
-| 이미지 파일 | `.png`, `.jpg`, `.jpeg` | 5MB |
+| 구분 | 확장자                         | 단일 파일 최대 크기 |
+|---|-----------------------------|---:|
+| 문서 파일 | `.pdf`, `.docx`, `.txt`, `.md` | 20MB |
 
 #### Request Field (`form-data`)
 
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `file` | File | Y | 업로드할 문서 파일 |
-| `title` | String | Y | 문서 제목 |
-| `documentType` | String | Y | 문서 유형. 예: `LEGAL`, `GUIDE`, `TEMPLATE` |
-| `department` | String | Y | 문서 담당 부서 |
+| 필드 | 타입 | 필수 | 설명                                      |
+|---|---|---|-----------------------------------------|
+| `file` | File | Y | 업로드할 문서 파일                              |
+| `title` | String | Y | 문서 제목                                   |
+| `documentType` | String | Y | 문서 유형. 예: `POLICY`, `GUIDE`, `TEMPLATE` |
+| `department` | String | Y | 문서 담당 부서                                |
 
 요청 예시(Postman):
 - Method: `POST`
@@ -2263,10 +2264,13 @@ Content-Type: multipart/form-data
 - 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)만 호출할 수 있다.
 - 업로드되는 문서의 `company_code`는 요청 바디가 아니라 현재 로그인한 사용자의 `company_code`로 설정한다.
 - 관리자 계정 페이지에서는 공통 문서(`company_code = null`)를 업로드할 수 없다.
-- 문서 파일과 스프레드시트 파일은 최대 20MB, 이미지 파일은 최대 5MB까지 업로드할 수 있다.
+- 문서 파일은 최대 20MB까지 업로드할 수 있다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
-- 파일이 비어 있거나 단일 파일 크기, 회사당 문서 수 또는 회사별 총 업로드 용량 제한을 초과하면 `400 Bad Request`, `FILE_001`을 반환한다.
+- 업로드 파일이 비어 있거나 `file` 파트가 존재하지 않으면 `400 Bad Request`, `FILE_001_EMPTY`를 반환한다.
+- 단일 파일 크기가 20MB를 초과하면 `400 Bad Request`, `FILE_001_SIZE`를 반환한다.
+- 회사당 활성 문서 수가 300개를 초과하면 `400 Bad Request`, `FILE_001_COUNT`를 반환한다.
+- 기존 업로드 총 용량과 신규 파일 크기의 합이 2GB를 초과하면 `400 Bad Request`, `FILE_001_CAPACITY`를 반환한다.
 - 지원하지 않는 파일 확장자이면 `400 Bad Request`, `FILE_002`를 반환한다.
 - 응답은 `201 Created`와 `DocumentUploadResponse` 형식을 따른다.
 
@@ -2349,6 +2353,223 @@ Content-Type: application/json
 - 모든 문서가 검증을 통과하지 못하면 “삭제할 수 없는 문서가 포함되어 있습니다. 관리자에게 문의해 주세요.” 문구를 표시하고 삭제를 진행하지 않는다.
 - 일부 문서만 검증을 통과하면 “일부 문서만 삭제할 수 있습니다. 삭제할 수 없는 문서는 관리자에게 문의해 주세요.” 문구를 표시한다.
 - 일부 문서만 검증을 통과한 경우 프론트엔드는 “삭제 가능한 문서만 삭제하시겠습니까?”를 한 번 더 확인한 뒤, 검증을 통과한 문서 ID만 삭제 요청에 포함한다.
+
+### 7-8. 대시보드 조회
+
+관리자 대시보드에 필요한 RAG 답변 수신 경험률, 문서 공백률, 미시작 사용자 수, 미답변 질문 패턴을 한 번에 조회한다.
+
+```http
+GET /api/v1/admin/metrics/dashboard?companyCode=WB0001&asOfDate=2026-06-11&unansweredPatternLimit=5
+Authorization: Bearer {accessToken}
+```
+
+#### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 조회할 회사 코드. 활성 고객사 관리자는 생략하거나 본인 회사 코드만 전달할 수 있다. 서비스 관리자는 생략 시 전체 회사를 조회한다. |
+| `asOfDate` | String | N | 집계 기준일. `yyyy-MM-dd` 형식이며, 생략 시 한국 시간(`Asia/Seoul`) 기준 현재 날짜를 사용한다. |
+| `unansweredPatternLimit` | Number | N | 미답변 질문 패턴 최대 조회 개수. 기본값 `5`, 최솟값 `1`, 최댓값 `20`이다. 범위를 벗어나면 각각 `1` 또는 `20`으로 보정한다. |
+
+#### Response (200 OK)
+
+```json
+{
+  "metric": "admin_dashboard",
+  "asOfDate": "2026-06-11",
+  "ragExperienceRate": {
+    "metric": "rag_experience_rate",
+    "asOfDate": "2026-06-11",
+    "companies": [
+      {
+        "companyCode": "WB0001",
+        "companyName": "위드버디",
+        "targetUsers": 20,
+        "ragReceivedUsers": 16,
+        "ragExperienceRate": 80.0
+      }
+    ]
+  },
+  "documentGapRate": {
+    "metric": "document_gap_rate",
+    "asOfDate": "2026-06-11",
+    "companies": [
+      {
+        "companyCode": "WB0001",
+        "companyName": "위드버디",
+        "answerableBotAnswers": 100,
+        "noResultAnswers": 12,
+        "documentGapRate": 12.0
+      }
+    ]
+  },
+  "unstartedUsers": {
+    "metric": "unstarted_users",
+    "asOfDate": "2026-06-11",
+    "companies": [
+      {
+        "companyCode": "WB0001",
+        "companyName": "위드버디",
+        "activeNewUsers": 30,
+        "unstartedUsers": 5
+      }
+    ]
+  },
+  "unansweredQuestionPatterns": {
+    "metric": "unanswered_question_patterns",
+    "asOfDate": "2026-06-11",
+    "limit": 5,
+    "patterns": [
+      {
+        "companyCode": "WB0001",
+        "questionContent": "경조사 휴가는 어떻게 신청하나요?",
+        "totalCount": 8,
+        "uniqueUsers": 6,
+        "noResultCount": 8,
+        "outOfScopeCount": 0,
+        "latestOccurredAt": "2026-06-10T14:30:00"
+      }
+    ]
+  }
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `metric` | String | 대시보드 지표 식별자. 항상 `admin_dashboard` |
+| `asOfDate` | String | 적용된 집계 기준일 |
+| `ragExperienceRate` | Object | 입사 후 D+6까지 RAG 답변을 한 번 이상 받은 사용자 비율 |
+| `documentGapRate` | Object | 최근 30일간 문서 기반 답변 가능 응답 중 `no_result` 응답 비율 |
+| `unstartedUsers` | Object | 기준일까지 입사한 활성 사용자 중 질문을 한 번도 등록하지 않은 사용자 현황 |
+| `unansweredQuestionPatterns` | Object | 최근 7일간 반복된 `no_result` 질문 패턴 |
+
+#### Response Field (`ragExperienceRate.companies[]`)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `companyCode` | String | 회사 코드 |
+| `companyName` | String | 회사명 |
+| `targetUsers` | Number | 최근 30일 입사자 중 기준일에 입사 후 6일이 지난 `ACTIVE` 또는 `READ_ONLY` 사용자 수 |
+| `ragReceivedUsers` | Number | 대상 사용자 중 입사일부터 7일 미만 기간에 `rag_answer`를 한 번 이상 받은 사용자 수 |
+| `ragExperienceRate` | Number | `ragReceivedUsers / targetUsers * 100`. 소수점 첫째 자리까지 반환하며, 대상자가 없으면 `0.0` |
+
+#### Response Field (`documentGapRate.companies[]`)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `companyCode` | String | 회사 코드 |
+| `companyName` | String | 회사명 |
+| `answerableBotAnswers` | Number | 최근 30일간 `rag_answer`와 `no_result`를 합한 BOT 응답 수 |
+| `noResultAnswers` | Number | 최근 30일간 `no_result` BOT 응답 수 |
+| `documentGapRate` | Number | `noResultAnswers / answerableBotAnswers * 100`. 소수점 첫째 자리까지 반환하며, 응답이 없으면 `0.0` |
+
+#### Response Field (`unstartedUsers.companies[]`)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `companyCode` | String | 회사 코드 |
+| `companyName` | String | 회사명 |
+| `activeNewUsers` | Number | 기준일까지 입사한 `ACTIVE` 사용자 수 |
+| `unstartedUsers` | Number | `activeNewUsers` 중 `user_question` 메시지를 한 번도 등록하지 않은 사용자 수 |
+
+#### Response Field (`unansweredQuestionPatterns`)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `limit` | Number | 실제 적용된 최대 조회 개수 |
+| `patterns` | Array | 최근 7일간 발생한 `no_result` 질문을 회사 코드와 질문 내용으로 묶은 목록 |
+| `patterns[].companyCode` | String | 질문이 발생한 회사 코드 |
+| `patterns[].questionContent` | String | 미답변 질문 내용 |
+| `patterns[].totalCount` | Number | 동일 질문의 전체 발생 횟수 |
+| `patterns[].uniqueUsers` | Number | 동일 질문을 등록한 고유 사용자 수 |
+| `patterns[].noResultCount` | Number | `no_result` 발생 횟수. 현재 `totalCount`와 동일 |
+| `patterns[].outOfScopeCount` | Number | 범위 밖 질문 발생 횟수. 현재 구현에서는 항상 `0` |
+| `patterns[].latestOccurredAt` | String | 동일 질문의 가장 최근 발생 시각 |
+
+#### 동작 규칙
+
+- 이 API의 실제 구현 경로는 `GET /api/v1/admin/metrics/dashboard`이다.
+- 활성 고객사 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)와 서비스 관리자(`users.role = SERVICE_ADMIN`)가 호출할 수 있다.
+- 활성 고객사 관리자는 본인 회사 지표만 조회할 수 있다. `companyCode`를 생략해도 본인 회사로 제한되며, 다른 회사 코드를 전달하면 `403 Forbidden`, `ACCESS_DENIED`를 반환한다.
+- 서비스 관리자는 `companyCode`를 생략하면 전체 회사 지표를 조회하고, 회사 코드를 전달하면 해당 회사만 조회한다.
+- 일반 사용자 또는 활성 상태가 아닌 고객사 관리자가 호출하면 `403 Forbidden`, `ACCESS_DENIED`를 반환한다.
+- 인증 토큰이 없거나 유효하지 않으면 `401 Unauthorized`를 반환한다.
+- `asOfDate` 형식이 올바르지 않으면 `400 Bad Request`, `BAD_REQUEST`를 반환한다.
+- 날짜 기반 집계와 기본 기준일은 한국 시간(`Asia/Seoul`)을 기준으로 한다.
+- 회사별 지표 배열은 회사 코드 오름차순으로 반환한다.
+- 미답변 질문 패턴은 발생 횟수, 고유 사용자 수, 최근 발생 시각 내림차순으로 정렬한다.
+
+### 7-9. 필수 온보딩 문서 템플릿
+
+관리자가 필수 온보딩 문서 템플릿을 다운로드한다.
+공통 문서는 허용된 필수 온보딩 템플릿인 경우에만 다운로드할 수 있다.
+관리자가 기존에 업로드한 본인 회사의 템플릿 문서 다운로드도 동일한 경로에서 계속 지원한다.
+
+```http
+GET /api/v1/admin/documents/{documentId}/download
+Authorization: Bearer {accessToken}
+```
+
+#### Path Variable
+
+| 이름 | 타입 | 필수 여부 | 설명 |
+|---|---|---:|---|
+| `documentId` | Long | Y | 다운로드할 필수 온보딩 문서 ID |
+
+#### 다운로드 대상 조건
+
+| 컬럼 | 조건 |
+|---|---|
+| `documents.id` | 공통 문서인 경우 `56`~`64` 중 하나 |
+| `documents.company_code` | `NULL` |
+| `documents.document_type` | `TEMPLATE` |
+| `documents.is_active` | `true` |
+
+#### 다운로드 가능 문서
+
+| documentId | title | documentType | category |
+|---:|---|---|---|
+| 56 | IT 보안 및 장애대응 안내 | TEMPLATE | IT |
+| 57 | 업무 도구 및 계정 안내 | TEMPLATE | IT |
+| 58 | 오피스 이용 및 행정 지원 안내 | TEMPLATE | 행정 |
+| 59 | 경비·구매·법인카드 처리 안내 | TEMPLATE | 행정 |
+| 60 | 복리후생 안내 | TEMPLATE | 복지 |
+| 61 | 건강·보험·가족지원 안내 | TEMPLATE | 복지 |
+| 62 | 신입사원 온보딩 안내 | TEMPLATE | 인사 |
+| 63 | 급여 지급 안내 | TEMPLATE | 인사 |
+| 64 | 근로계약 및 수습 기간 안내 | TEMPLATE | 인사 |
+
+#### Response (200 OK)
+
+```json
+{
+  "downloadUrl": "/api/v1/documents/56/file?source=PRIMARY&token=550e8400-e29b-41d4-a716-446655440000",
+  "expiresIn": 30,
+  "source": "PRIMARY"
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `downloadUrl` | String | 실제 파일 다운로드에 사용할 내부 경로 |
+| `expiresIn` | Number | 다운로드 토큰 유효시간(초) |
+| `source` | String | 다운로드에 사용할 스토리지 소스. `PRIMARY` 또는 `BACKUP` |
+
+#### 동작 규칙
+
+- 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)가 호출한다.
+- 공통 문서 다운로드는 위 표에 정의된 `documentId` 56~64로 제한한다.
+- 공통 온보딩 템플릿은 `documents.company_code = NULL`, `documents.document_type = TEMPLATE`이고 활성 상태여야 한다.
+- 관리자가 업로드한 회사 문서는 현재 로그인한 관리자의 회사 코드와 `documents.company_code`가 일치하고, `documents.document_type = TEMPLATE`인 경우 다운로드할 수 있다.
+- 다른 회사 문서, 허용 목록에 없는 공통 문서 또는 `TEMPLATE`가 아닌 문서는 다운로드할 수 없다.
+- 문서 또는 문서 파일 메타데이터가 존재하지 않으면 `404 Not Found`, `NOT_FOUND`를 반환한다.
+- 다운로드 조건을 충족하지 않으면 `403 Forbidden`, `RESOURCE_004`를 반환한다.
+- 응답의 `downloadUrl`을 호출하면 파일 다운로드 API에서 외부 Object Storage URL로 리다이렉트한다.
+- 다운로드 토큰이 만료되면 다운로드 URL 발급 API를 다시 호출해야 한다.
 
 ---
 
@@ -2767,11 +2988,14 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 
 #### 문서 API 에러 코드
 
-문서 API는 공통 에러 응답 형식을 사용하며, 실제 backend 구현 기준으로 아래 코드가 추가로 반환될 수 있다.
+문서 API는 공통 에러 응답 형식을 사용하며, 아래 코드가 추가로 반환될 수 있다.
 
 | 코드 | HTTP 상태 | 발생 조건 |
 |---|---:|---|
-| `FILE_001` | 400 | 업로드 파일이 비어 있거나 단일 파일 크기, 회사당 문서 수 또는 회사별 총 업로드 용량 제한을 초과한 경우 |
+| `FILE_001_EMPTY` | 400 | 업로드 파일이 비어 있거나 `file` 파트가 존재하지 않는 경우 |
+| `FILE_001_SIZE` | 400 | 단일 업로드 파일 크기가 20MB를 초과한 경우 |
+| `FILE_001_COUNT` | 400 | 회사당 업로드 가능한 활성 문서 수가 300개를 초과한 경우 |
+| `FILE_001_CAPACITY` | 400 | 기존 업로드 총 용량과 신규 파일 크기의 합이 회사별 총 업로드 용량 2GB를 초과한 경우 |
 | `FILE_002` | 400 | 지원하지 않는 파일 확장자인 경우 |
 | `FILE_003` | 500 | 파일 읽기, 원본 스토리지 업로드, DB 저장 등 스토리지 처리에 실패한 경우 |
 | `RESOURCE_004` | 403 | 다른 회사 문서에 접근하려는 경우 |
@@ -2789,7 +3013,7 @@ Content-Type: multipart/form-data
 - 문서를 업로드한다.
 - 업로드된 문서는 `documents`, `document_files`를 기준으로 저장 및 관리한다.
 - 파일 저장 후 백업 스토리지 연동 정책에 따라 백업 작업이 수행될 수 있다.
-- 단일 파일 크기 제한은 파일 형식별로 적용한다. 문서 파일(`.pdf`, `.docx`, `.pptx`, `.txt`)과 스프레드시트 파일(`.xls`, `.xlsx`)은 최대 20MB, 이미지 파일(`.png`, `.jpg`, `.jpeg`)은 최대 5MB다.
+- 업로드 가능한 파일 형식은 `.pdf`, `.docx`, `.txt`, `.md`이며, 단일 파일 최대 크기는 20MB다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
 
@@ -3598,3 +3822,7 @@ Authorization: Bearer {accessToken}
   - 문서 다운로드 `/file` API의 `token` 필수 파라미터, Redis 캐시, 토큰 만료 응답 및 관리자 지표 `SERVICE_ADMIN` 권한 설명을 실제 구현 기준으로 정리
 - **v2.2.3 (2026-06-08)**:
   - 로그인 API(`/api/v1/auth/login`)에 명세 추가
+- **v2.2.4 (2026-06-10)**:
+  - 업로드 가능한 파일 형식(`.pdf`, `.docx`, `.txt`, `.md`) 수정, FILE_001 에러 코드 세분화
+- **v2.2.5 (2026-06-11)**:
+  - 관리자 대시보드 명세 추가, 관리자 계정 페이지에서 필수 온보딩 문서 템플릿을 다운로드 할 수 있는 `GET /api/v1/admin/organization-options` 명세를 추가.

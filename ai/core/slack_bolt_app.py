@@ -87,7 +87,7 @@ async def handle_answer_button(ack, body, client):
                     "elements": [
                         {
                             "type": "mrkdwn",
-                            "text": "💡 저장된 답변은 즉시 AI 지식(ChromaDB)에 반영됩니다.",
+                            "text": "💡 저장된 답변은 즉시 AI 지식에 반영됩니다.\n⚠️ 사규 원문을 그대로 붙여넣지 마세요.\n💬 누가·어디서·어떻게가 담긴 요약을 입력해야 AI가 다음 질문에 잘 답변할 수 있어요.",
                         }
                     ],
                 },
@@ -139,16 +139,20 @@ async def handle_answer_submit(ack, body, client):
         with open(qa_path, "a", encoding="utf-8") as f:
             f.write(f"\n\n## Q: {question}\n\n**A:** {answer}\n")
 
+        company_code = item.get("company_code", "")
         doc = Document(
             page_content=f"질문: {question}\n답변: {answer}",
-            metadata={"source": "qa_knowledge.md"},
+            metadata={"source": "qa_knowledge.md", "company_code": company_code},
         )
         chunks = RecursiveCharacterTextSplitter(
             chunk_size=500, chunk_overlap=50
         ).split_documents([doc])
-        get_vectorstore().add_documents(chunks)
+        chunk_ids = get_vectorstore().add_documents(chunks)
 
-        logger.info("AI 지식 반영 완료: qid=%s", qid)
+        from memory.unanswered_store import save_chunk_ids
+        save_chunk_ids(qid, chunk_ids)
+
+        logger.info("AI 지식 반영 완료: qid=%s, chunk_ids=%s", qid, chunk_ids)
     except Exception as e:
         logger.error("ChromaDB 저장 실패: %s", e)
 

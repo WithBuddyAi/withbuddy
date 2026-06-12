@@ -102,12 +102,12 @@ def _extract_category(docs: List[Document]) -> str:
     return Counter(cats).most_common(1)[0][0]
 
 
-async def _fire_unanswered_alert(user_id: str, question: str, company_code: str = "") -> None:
+async def _fire_unanswered_alert(user_id: str, question: str, company_code: str = "", user_name: str = "") -> None:
     """미답변 저장 + Slack 알림 + nudge Task 등록 (백그라운드)"""
     try:
         from tasks.slack_notifier import notify_unanswered_question
-        qid = add_unanswered(user_id, question)
-        await notify_unanswered_question(user_id, question, qid)
+        qid = add_unanswered(user_id, question, company_code)
+        await notify_unanswered_question(user_id, question, qid, user_name=user_name, company_code=company_code)
     except Exception:
         pass
     try:
@@ -167,6 +167,12 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         save_interaction(user_id, result.question, result.direct_legal_answer)
         related_docs = find_related_docs(result.question)
         return result.direct_legal_answer, result.source_names, related_docs, result.doc_ids
+
+    if not result.docs:
+        hr_team, _ = get_hr_contact(company_code)
+        no_result_answer = f"죄송해요, 관련 문서에서 해당 내용을 찾지 못했어요.\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        save_interaction(user_id, result.question, no_result_answer)
+        return no_result_answer, "", [], []
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
@@ -243,17 +249,20 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", result.source_names, related_docs, result.doc_ids
         return
 
+    if not result.docs:
+        hr_team, _ = get_hr_contact(company_code)
+        no_result_answer = f"죄송해요, 관련 문서에서 해당 내용을 찾지 못했어요.\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        save_interaction(user_id, result.question, no_result_answer)
+        asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+        yield no_result_answer, None, None, None
+        yield "", "", [], []
+        return
+
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
     hr_team, _ = get_hr_contact(company_code)
 
     yield "__STAGE__generating", None, None, None
-
-    _EMPATHY_KEYWORDS = ["지각", "조퇴", "실수", "징계"]
-    _EMPATHY_VARIANTS = ["당황스러우셨겠어요! ", "걱정되시겠어요! ", "많이 당황하셨겠어요! "]
-    if any(kw in question for kw in _EMPATHY_KEYWORDS):
-        import random
-        yield random.choice(_EMPATHY_VARIANTS), None, None, None
 
     def _fmt(text: str) -> str:
         text = re.sub(r'\n\n(?=\*\*)', '\x00', text)
@@ -292,11 +301,11 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             full_answer += out
             yield out, None, None, None
             _buf = _buf[after:]
-        if len(_buf) > 20:
-            safe = _fmt(_buf[:-4])
+        if len(_buf) > 2:
+            safe = _fmt(_buf[:-2])
             full_answer += safe
             yield safe, None, None, None
-            _buf = _buf[-4:]
+            _buf = _buf[-2:]
     if _buf:
         final = _fmt(_buf)
         full_answer += final
@@ -322,7 +331,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         if contact_msg:
             yield contact_msg, None, None, None
             fixed += contact_msg
-        asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code))
+        asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
 
     global _last_category
     _last_category = _extract_category(result.docs)

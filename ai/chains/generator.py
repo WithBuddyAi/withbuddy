@@ -52,6 +52,8 @@ def _fix_names(text: str) -> str:
     """'님 -' → '님:' 통일 및 어색한 문장 교체."""
     text = re.sub(r'님\s*[-–]', '님:', text)
     text = re.sub(r'어떤 부분이 필요한지에 따라 연락하[^\n\.\!]*[\.\!]?', '필요한 부분 확인 후 연락해보세요!', text)
+    text = re.sub(r'(\d+)~(\d+)영업일', r'영업일 기준 \1일~\2일', text)
+    text = text.replace("다만 참고로,", "참고로,").replace("다만 참고로", "참고로")
     return text
 
 
@@ -100,6 +102,7 @@ _NO_ANSWER_KEYWORDS = [
     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "문서에 없어서", "안내드리기 어려워",
     "없는 것 같아요", "나와있지 않", "명시되어 있지 않", "기재되어 있지 않",
     "확인되지 않", "나와 있지 않", "관련 내용이 없",
+    "찾지 못했", "드리기 어렵",
 ]
 
 _LABOR_LAW_KEYWORDS = ["근로기준법", "노동법", "최저임금법", "산업안전보건법", "고용노동부", "노동자 권리", "근로자 권리"]
@@ -134,14 +137,13 @@ def extract_contact_from_docs(docs: List[Document]) -> str | None:
 
 def build_contact_suffix(answer: str, docs: List[Document], hr_team: str) -> str:
     """미답변 시 담당자 안내 문구를 반환합니다. 이미 포함된 경우 빈 문자열."""
+    _CONTACT_HINTS = ["문의하시면", "여쭤보시면", "연락하시면", "담당자에게"]
+    if any(hint in answer for hint in _CONTACT_HINTS):
+        return ""
     contact = extract_contact_from_docs(docs)
     if contact:
-        if contact not in answer:
-            return f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
-    else:
-        if hr_team not in answer:
-            return f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
-    return ""
+        return f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+    return f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
 
 
 def build_case_a_suffix(hr_team: str) -> str:
