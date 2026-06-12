@@ -22,10 +22,26 @@ jobs:
     timeout-minutes: 25
 
     steps:
+      - name: Branch guard
+        id: branch_guard
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Production deploy enabled for ${GITHUB_REF}"
+          else
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Deploy Backend is production-only."
+            echo "Use main branch for production deployment."
+            echo "Current ref: ${GITHUB_REF}"
+          fi
+
       - name: Checkout
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Java 21
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -33,6 +49,7 @@ jobs:
           cache: gradle
 
       - name: Build Boot Jar
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         working-directory: ./backend
         run: |
           set -euo pipefail
@@ -40,6 +57,7 @@ jobs:
           ./gradlew clean bootJar -x test --no-daemon
 
       - name: Prepare artifact
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         run: |
           set -euo pipefail
           JAR_PATH=$(ls backend/build/libs/*.jar | grep -v '\-plain\.jar$' | head -n 1 || true)
@@ -50,6 +68,7 @@ jobs:
           cp "${JAR_PATH}" app.jar
 
       - name: Calculate Flyway checksum for V19 migration
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         id: v19_checksum
         shell: bash
         run: |
@@ -80,6 +99,7 @@ jobs:
           echo "value=${CHECKSUM}" >> "$GITHUB_OUTPUT"
           echo "Computed Flyway-style checksum for V19 migration: ${CHECKSUM}"
       - name: Validate required environment secrets
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_SERVER_HOST: ${{ secrets.BACKEND_SERVER_HOST }}
@@ -221,6 +241,7 @@ jobs:
           fi
 
       - name: Install cloudflared client on runner
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         run: |
           set -euo pipefail
           sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
@@ -228,6 +249,7 @@ jobs:
           cloudflared --version
 
       - name: Configure SSH over Cloudflare Access
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
@@ -259,6 +281,7 @@ jobs:
           ssh -o BatchMode=yes -o ConnectTimeout=10 "${BACKEND_ACCESS_HOST}" "echo ssh_ok"
 
       - name: Upload artifacts to server (Cloudflare SSH)
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
@@ -269,6 +292,7 @@ jobs:
           scp scripts/discord-health-alert.sh "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/scripts/discord-health-alert.sh"
 
       - name: Ensure health alert script permissions
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
@@ -277,6 +301,7 @@ jobs:
           ssh "${BACKEND_ACCESS_HOST}" "set -euo pipefail; APP_DIR='${BACKEND_APP_DIR}'; mkdir -p \"\${APP_DIR}/scripts\" \"\${APP_DIR}/logs\"; chmod +x \"\${APP_DIR}/scripts/discord-health-alert.sh\""
 
       - name: Repair Flyway failed migrations
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         continue-on-error: true
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
@@ -442,6 +467,7 @@ jobs:
             REMOTE
 
       - name: Restart backend (Cloudflare SSH)
+        if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
           BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
