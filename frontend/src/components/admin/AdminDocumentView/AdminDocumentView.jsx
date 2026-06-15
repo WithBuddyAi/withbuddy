@@ -7,6 +7,7 @@ import { Search, ChevronDown } from "lucide-react";
 import DocUploadZone from "./DocUploadZone";
 import DocUploadForm from "./DocUploadForm";
 import DocMobileList from "./DocMobileList";
+import DocTemplateAccordion from "./DocTemplateAccordion";
 
 const DOC_TYPES = ["전체", "POLICY", "GUIDE", "TEMPLATE"];
 
@@ -105,7 +106,7 @@ function AdminDocumentView({
   }, [search]);
 
   return (
-    <div className="flex flex-col gap-[24px] h-full overflow-y-auto pr-[20px]">
+    <div className="flex flex-col gap-[16px] h-full overflow-y-auto pr-[20px] pb-[20px]">
       <AdminDocHeader />
 
       {/* 파일 업로드(파일을 드래그&드롭하면 입력 폼으로 교체) */}
@@ -123,6 +124,9 @@ function AdminDocumentView({
       ) : (
         <DocUploadZone onFileSelect={(file) => setUploadFile(file)} />
       )}
+
+      {/* 문서 템플릿 */}
+      <DocTemplateAccordion />
 
       <div>
         {/* 총 문서 수 + 검색 + 필터 */}
