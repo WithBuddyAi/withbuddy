@@ -159,6 +159,8 @@ async def chat_stream(request: ChatRequest):
                             _first_token = False
                         yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': chunk}, ensure_ascii=False)}\n\n"
         except Exception as e:
+            import logging as _logging
+            _logging.getLogger(__name__).error(f"[STREAM_ERROR] questionId={request.questionId} {type(e).__name__}: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
@@ -269,7 +271,7 @@ def _build_documents(doc_ids: list[int], company_code: str = "") -> list[dict]:
     """doc_ids → presigned URL 조회 후 documents 배열 반환."""
     from core.be_client import get_presigned_url
     from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=len(doc_ids) or 1) as pool:
+    with ThreadPoolExecutor(max_workers=min(len(doc_ids), 3) or 1) as pool:
         urls = list(pool.map(get_presigned_url, doc_ids))
     result = []
     for did, url in zip(doc_ids, urls):
