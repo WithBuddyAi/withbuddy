@@ -291,6 +291,7 @@ _NO_RESULT_KW = [
     "문서에 없어서", "안내드리기 어려워",
     "문서에 없네요", "문서에 없어요", "없네요", "문서에 없는 내용", "없더라고", "명시되어 있지 않",
     "없는 것 같아요", "나와있지 않", "나와 있지 않", "기재되어 있지 않", "관련 내용이 없",
+    "나오지 않았",
 ]
 _OUT_OF_SCOPE_KW = ["서비스 범위", "담당 사수님과 직접"]
 
@@ -646,14 +647,16 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     if message_type == "no_result":
         from chains.agent_rag_chain import _run_agent_search
         from memory.chat_history import get_chat_history as _gc, replace_last_ai_message
+        import logging as _logging
         uid = str(request.user.userId)
         prior_hist = _gc(uid)[:-2]  # 현재 턴(no_result) 제외한 이전 히스토리
         try:
-            async with asyncio.timeout(20):
+            async with asyncio.timeout(8):
                 agent_answer = await asyncio.get_event_loop().run_in_executor(
                     None, lambda: _run_agent_search(rag_query, request.user.companyCode, prior_hist)
                 )
             if agent_answer and not any(kw in agent_answer for kw in _NO_RESULT_KW):
+                _logging.getLogger(__name__).warning("[AGENT_UPGRADE] no_result → rag_answer | q=%s", rag_query[:60])
                 answer = agent_answer
                 message_type = "rag_answer"
                 replace_last_ai_message(uid, agent_answer)
@@ -892,13 +895,15 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                             if msg_type == "no_result":
                                 from chains.agent_rag_chain import _run_agent_search
                                 from memory.chat_history import get_chat_history as _gc, replace_last_ai_message
+                                import logging as _logging
                                 prior_hist = _gc(uid)[:-2]
                                 try:
-                                    async with asyncio.timeout(20):
+                                    async with asyncio.timeout(8):
                                         agent_answer = await asyncio.get_event_loop().run_in_executor(
                                             None, lambda: _run_agent_search(rag_query, request.user.companyCode, prior_hist)
                                         )
                                     if agent_answer and not any(kw in agent_answer for kw in _NO_RESULT_KW):
+                                        _logging.getLogger(__name__).warning("[AGENT_UPGRADE] no_result → rag_answer | q=%s", rag_query[:60])
                                         full_answer = agent_answer
                                         msg_type = "rag_answer"
                                         replace_last_ai_message(uid, agent_answer)

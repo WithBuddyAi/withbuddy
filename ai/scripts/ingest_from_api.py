@@ -28,7 +28,7 @@ import tempfile
 
 import requests
 from dotenv import load_dotenv
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
 from langchain_core.documents import Document
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -138,7 +138,11 @@ def _extract_text(file_bytes: bytes, filename: str) -> str:
 
 
 def _split_text(text: str, metadata: dict) -> list[Document]:
-    """텍스트를 청크로 분할"""
+    """텍스트를 청크로 분할 (.md는 헤더 기준, 나머지는 고정 크기)"""
+    source = metadata.get("source", "")
+    if source.lower().endswith(".md"):
+        return _split_markdown(text, metadata)
+
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
@@ -146,11 +150,58 @@ def _split_text(text: str, metadata: dict) -> list[Document]:
     )
     docs = splitter.create_documents([text], metadatas=[metadata])
 
-    # 청크 앞에 문서 제목 추가
     title = metadata.get("title", "")
     for doc in docs:
         if title and title not in doc.page_content[:80]:
             doc.page_content = f"[{title}]\n{doc.page_content}"
+
+    return docs
+
+
+def _split_markdown(text: str, metadata: dict) -> list[Document]:
+    """마크다운: 헤더 기준 섹션 분할 → 대형 섹션만 재분할"""
+    md_splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=[("#", "h1"), ("##", "h2"), ("###", "h3")],
+        strip_headers=False,
+    )
+    sections = md_splitter.split_text(text)
+
+    char_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        separators=["\n\n", "\n", ".", " ", ""],
+    )
+
+    title = metadata.get("title", "")
+    docs: list[Document] = []
+
+    for section in sections:
+        content = section.page_content.strip()
+        if not content:
+            continue
+        section_meta = {**metadata, **section.metadata}
+
+        if len(content) > CHUNK_SIZE:
+            sub_docs = char_splitter.create_documents([content], metadatas=[section_meta])
+        else:
+            sub_docs = [Document(page_content=content, metadata=section_meta)]
+
+        for doc in sub_docs:
+            if title and title not in doc.page_content[:80]:
+                doc.page_content = f"[{title}]\n{doc.page_content}"
+        docs.extend(sub_docs)
+
+    # 헤더가 전혀 없는 .md면 일반 분할로 폴백
+    if not docs:
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP,
+            separators=["\n\n", "\n", ".", " ", ""],
+        )
+        docs = splitter.create_documents([text], metadatas=[metadata])
+        for doc in docs:
+            if title and title not in doc.page_content[:80]:
+                doc.page_content = f"[{title}]\n{doc.page_content}"
 
     return docs
 
