@@ -14,14 +14,23 @@ DELETE /admin/documents/{filename} : 문서 삭제 + RAG에서 제거
 """
 
 import json
+import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+import requests as _requests
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from langchain_core.documents import Document
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from pydantic import BaseModel, Field
 
 from core.vectorstore import get_vectorstore, invalidate_bm25_cache
+
+logger = logging.getLogger(__name__)
+
+_BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL", "http://10.0.0.81:8080")
+_INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 
 _COMPANY_INFO_PATH = Path(__file__).parent.parent / "data" / "company_info.json"
 
@@ -59,6 +68,42 @@ def _split_text(text: str) -> list[str]:
         chunks.append(text[start:end])
         start += _CHUNK_SIZE - _CHUNK_OVERLAP
     return [c for c in chunks if c.strip()]
+
+
+def _split_documents(text: str, filename: str, metadata: dict) -> list[Document]:
+    """헤더 기준(.md) 또는 고정 크기(기타) 청킹 → Document 리스트 반환"""
+    title = metadata.get("title", "")
+    char_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=_CHUNK_SIZE,
+        chunk_overlap=_CHUNK_OVERLAP,
+        separators=["\n\n", "\n", ".", " ", ""],
+    )
+
+    if filename.lower().endswith(".md"):
+        md_splitter = MarkdownHeaderTextSplitter(
+            headers_to_split_on=[("#", "h1"), ("##", "h2"), ("###", "h3")],
+            strip_headers=False,
+        )
+        sections = md_splitter.split_text(text)
+        docs: list[Document] = []
+        for sec in sections:
+            content = sec.page_content.strip()
+            if not content:
+                continue
+            sec_meta = {**metadata, **sec.metadata}
+            sub = char_splitter.create_documents([content], metadatas=[sec_meta]) if len(content) > _CHUNK_SIZE else [Document(page_content=content, metadata=sec_meta)]
+            for doc in sub:
+                if title and title not in doc.page_content[:80]:
+                    doc.page_content = f"[{title}]\n{doc.page_content}"
+            docs.extend(sub)
+        if docs:
+            return docs
+
+    docs = char_splitter.create_documents([text], metadatas=[metadata])
+    for doc in docs:
+        if title and title not in doc.page_content[:80]:
+            doc.page_content = f"[{title}]\n{doc.page_content}"
+    return docs
 
 
 # ── 텍스트 추출 헬퍼 ────────────────────────────────────────────
@@ -305,6 +350,92 @@ async def list_documents():
         if f.is_file() and f.suffix.lower() in _ALLOWED_EXT
     ]
     return {"documents": files}
+
+
+class IngestRequest(BaseModel):
+    documentId: int
+    companyCode: str = ""
+
+
+@router.post("/ingest")
+async def ingest_from_backend(
+    req: IngestRequest,
+    x_internal_key: Optional[str] = Header(None, alias="X-Internal-Key"),
+):
+    """
+    BE 문서 업로드 후 자동 인덱싱 (SCRUM-477).
+    BE → AI 내부 호출 전용. X-Internal-Key 검증 필수.
+    """
+    if not _INTERNAL_API_KEY or x_internal_key != _INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    headers = {"X-API-Key": _INTERNAL_API_KEY}
+    doc_id = req.documentId
+
+    try:
+        # 1. 문서 메타데이터 조회
+        meta_resp = _requests.get(
+            f"{_BACKEND_INTERNAL_URL}/api/v1/documents/{doc_id}",
+            headers=headers,
+            timeout=15,
+        )
+        meta_resp.raise_for_status()
+        doc_meta = meta_resp.json()
+        filename = doc_meta.get("fileName", f"document_{doc_id}.pdf")
+        title = doc_meta.get("title", filename)
+
+        # 2. 다운로드 URL 조회
+        dl_url_resp = _requests.get(
+            f"{_BACKEND_INTERNAL_URL}/api/v1/documents/{doc_id}/download",
+            headers=headers,
+            timeout=15,
+        )
+        dl_url_resp.raise_for_status()
+        dl_data = dl_url_resp.json()
+        download_url = dl_data["downloadUrl"] if isinstance(dl_data, dict) else dl_data[0]["downloadUrl"]
+        if download_url.startswith("/"):
+            download_url = f"{_BACKEND_INTERNAL_URL}{download_url}"
+            file_resp = _requests.get(download_url, headers=headers, timeout=60)
+        else:
+            file_resp = _requests.get(download_url, timeout=60)
+        file_resp.raise_for_status()
+        file_bytes = file_resp.content
+
+        # 3. 텍스트 추출
+        text = _extract_text(filename, file_bytes)
+        if not text.strip():
+            raise HTTPException(status_code=422, detail="텍스트 추출 실패")
+
+        # 4. 청킹 → 인덱싱 (기존 청크 먼저 삭제 후 재인덱싱)
+        metadata = {
+            "source": filename,
+            "title": title,
+            "doc_id": str(doc_id),
+            "document_type": doc_meta.get("documentType", ""),
+            "department": doc_meta.get("department", ""),
+            "company_code": req.companyCode,
+        }
+        chunks = _split_documents(text, filename, metadata)
+
+        vs = get_vectorstore()
+        try:
+            vs.delete(where={"doc_id": str(doc_id)})
+        except Exception:
+            pass  # 최초 인덱싱 시 삭제할 청크 없어도 정상
+        for chunk in chunks:
+            vs.add_documents([chunk])
+
+        # 5. BM25 캐시 무효화
+        invalidate_bm25_cache(req.companyCode)
+
+        logger.info("자동 인덱싱 완료: documentId=%s, chunks=%d", doc_id, len(chunks))
+        return {"success": True, "documentId": doc_id, "chunksIndexed": len(chunks)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("자동 인덱싱 실패: documentId=%s, error=%s", doc_id, e)
+        raise HTTPException(status_code=500, detail=f"인덱싱 실패: {e}")
 
 
 @router.delete("/documents/{filename}")

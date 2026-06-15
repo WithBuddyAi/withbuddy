@@ -85,7 +85,7 @@ def is_direct_legal_question(question: str) -> bool:
 def get_k_for_question(question: str) -> int:
     if _ARTICLE_PATTERN.search(question):
         return 5
-    return 3
+    return 4
 
 
 # ── 모호한 질문 처리 ───────────────────────────────────────────
