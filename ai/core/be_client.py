@@ -251,7 +251,7 @@ def get_template_docs(company_code: str) -> list[dict]:
         from concurrent.futures import ThreadPoolExecutor
         doc_ids = [c["documentId"] for c in candidates]
         with ThreadPoolExecutor(max_workers=max(len(doc_ids), 1)) as pool:
-            urls = list(pool.map(get_presigned_url, doc_ids))
+            urls = list(pool.map(lambda did: get_presigned_url(did, timeout=1.0), doc_ids))
 
         if doc_ids and all(url is None for url in urls):
             logger.warning("get_template_docs: presigned URL 전부 실패 (company=%s), 빈 배열 반환", company_code)
@@ -277,10 +277,10 @@ def get_template_docs(company_code: str) -> list[dict]:
         return []
 
 
-def get_presigned_url(doc_id: int) -> str | None:
+def get_presigned_url(doc_id: int, timeout: float = 3.0) -> str | None:
     """문서 presigned URL 조회. AI 서버 API key(globalAccess)로 회사 체크 없이 호출."""
     try:
-        r = _call("GET", f"/api/v1/documents/{doc_id}/download", timeout=3.0)
+        r = _call("GET", f"/api/v1/documents/{doc_id}/download", timeout=timeout)
         data = r.json()
         if isinstance(data, list):
             return data[0].get("downloadUrl")
