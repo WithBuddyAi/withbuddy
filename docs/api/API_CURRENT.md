@@ -2172,7 +2172,7 @@ Authorization: Bearer {accessToken}
 | `page`         | Number | N  | 조회 페이지. 기본값 `0`  |
 | `size`         | Number | N  | 페이지 크기. 기본값 `5`  |
 | `scope`        | String | N  | 조회 범위. 현재 `COMPANY`만 지원. 기본값 `COMPANY` |
-| `documentType` | String | N  | 문서 유형 필터         |
+| `documentType` | String | N  | 문서 유형 필터. `POLICY`, `GUIDE`, `TEMPLATE` |
 | `search`       | String | N  | 문서 제목 검색어        |
 
 #### Response (200 OK)
@@ -2186,7 +2186,7 @@ Authorization: Bearer {accessToken}
       "documentType": "TEMPLATE",
       "department": "HR",
       "fileName": "onboarding-guide.pdf",
-      "contentType": "application/pdf",
+      "contentType": "pdf",
       "fileSize": 1048576,
       "backupStatus": "COMPLETED",
       "createdAt": "2026-05-20T09:30:00"
@@ -2197,7 +2197,7 @@ Authorization: Bearer {accessToken}
       "documentType": "GUIDE",
       "department": "HR",
       "fileName": "benefit-guide.pdf",
-      "contentType": "application/pdf",
+      "contentType": "pdf",
       "fileSize": 2097152,
       "backupStatus": "COMPLETED",
       "createdAt": "2026-05-21T10:00:00"
@@ -2216,6 +2216,7 @@ Authorization: Bearer {accessToken}
 * 조회 대상은 현재 로그인한 관리자의 회사(`users.company_code`)와 `documents.company_code`가 일치하는 문서만 포함한다.
 * 공통 문서(`documents.company_code = null`)는 관리자 회사 문서 목록에 포함하지 않는다.
 * `scope`는 향후 조회 범위 확장을 대비한 파라미터이며, 현재는 `COMPANY`만 지원한다. `COMPANY` 외 값은 `400 Bad Request`를 반환한다.
+* `contentType`은 MIME 타입 대신 파일 형식 확장자 값으로 반환한다. 지원 값은 `pdf`, `txt`, `docs`, `md`이다.
 * `documentType`이 전달되면 해당 문서 유형만 조회한다.
 * `search`가 전달되면 문서 제목 기준으로 검색한다.
 * 기본 정렬은 최신 등록순(`documents.created_at desc`)이다.
@@ -3826,3 +3827,5 @@ Authorization: Bearer {accessToken}
   - 업로드 가능한 파일 형식(`.pdf`, `.docx`, `.txt`, `.md`) 수정, FILE_001 에러 코드 세분화
 - **v2.2.5 (2026-06-11)**:
   - 관리자 대시보드 명세 추가, 관리자 계정 페이지에서 필수 온보딩 문서 템플릿을 다운로드 할 수 있는 `GET /api/v1/admin/organization-options` 명세를 추가.
+- **v2.2.6 (2026-06-16)**:
+  - 관리자 회사 문서 조회 문서 유형 필터(`pdf`, `docs`, `txt`, `md`) 수정
