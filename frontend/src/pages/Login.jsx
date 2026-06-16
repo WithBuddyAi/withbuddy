@@ -17,6 +17,12 @@ const SUB_COPIES = [
   "회사 문서 속 필요한 정보를 위드버디가 질문에 맞게 찾아드려요.",
 ];
 
+// 최초 마운트 시점의 너비로 결정 (너비 변환 시 타이핑 재시작 없음)
+const FULL_TEXT_WIDE =
+  "안녕하세요! 저는 위드버디예요😊 입사 초에 자주 헷갈리는 회사 생활 질문을 도와드려요.\n사소하지만 꼭 필요한 것부터 편하게 물어보세요.";
+const FULL_TEXT_NARROW =
+  "안녕하세요! 저는 위드버디예요😊\n입사 초에 자주 헷갈리는 회사 생활 질문을 도와드려요.\n사소하지만 꼭 필요한 것부터 편하게 물어보세요.";
+
 function Login({ setIsLoggedIn }) {
   // 'redis' 에러
   const [modalType, setModalType] = useState(null);
@@ -54,21 +60,39 @@ function Login({ setIsLoggedIn }) {
     return () => clearInterval(interval);
   }, []);
 
-  // 로그인 섹션 말풍선 타이핑 효과
+  // 말풍선 타이핑 효과
   const [displayedText, setDisplayedText] = useState("");
-  const fullText =
-    "안녕하세요! 저는 위드버디예요😊 입사 초에 자주 헷갈리는 회사 생활 질문을 도와드려요.\n사소하지만 꼭 필요한 것부터 편하게 물어보세요.";
-  const chars = useRef([...fullText]);
+  const fullText = useRef(
+    window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW,
+  );
+  const chars = useRef([...fullText.current]);
+  const isTypingDone = useRef(false);
 
+  // 타이핑 효과 (최초 1회)
   useEffect(() => {
     setDisplayedText("");
     let i = 0;
     const timer = setInterval(() => {
       setDisplayedText(chars.current.slice(0, i + 1).join(""));
       i++;
-      if (i >= chars.current.length) clearInterval(timer);
+      if (i >= chars.current.length) {
+        clearInterval(timer);
+        isTypingDone.current = true;
+      }
     }, 80);
     return () => clearInterval(timer);
+  }, []);
+
+  // 타이핑 끝난 후 너비 변경 시 텍스트만 교체 (타이핑 재시작 없음)
+  useEffect(() => {
+    const handleResize = () => {
+      if (!isTypingDone.current) return;
+      const next =
+        window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW;
+      setDisplayedText(next);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // 로그인 시 서버에 데이터 전송 및 페이지 이동
@@ -309,9 +333,9 @@ function Login({ setIsLoggedIn }) {
               <div className="flex flex-col gap-[10px] pt-[15px]">
                 {/* 말풍선 */}
                 <div
-                  className="border border-[#E9ECEF] shadow-[0px_2.59px_3.886px_rgba(0,0,0,0.06)] bg-[#FFFFFF]"
+                  className="border border-[#E9ECEF] shadow-[0px_2.59px_3.886px_rgba(0,0,0,0.06)] bg-[#FFFFFF] w-fit"
                   style={{
-                    fontSize: "clamp(11px, 1.1vw, 16px)",
+                    fontSize: "clamp(14px, 1.1vw, 16px)",
                     borderRadius:
                       "clamp(8px, 1vw, 10px) clamp(20px, 2.5vw, 31px) clamp(20px, 2.5vw, 31px) clamp(20px, 2.5vw, 31px)",
                     padding: "clamp(12px, 2vw, 20px)",

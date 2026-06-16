@@ -52,10 +52,8 @@ function DocMobileCard({ doc, isSelected, onSelect }) {
 
       {/* 상세 정보 */}
       <div className="flex flex-col gap-[6px] text-[13px] mt-[12px]">
-        <div className="flex">
-          <StatusBadge status={doc.backupStatus} />
-        </div>
         <InfoRow label="문서 타입" value={doc.documentType} />
+        <InfoRow label="문서 형태" value={doc.fileName.split(".").pop()?.toUpperCase()} />
         <InfoRow label="담당 부서" value={doc.department} />
         <InfoRow label="업로드일" value={doc.createdAt?.slice(0, 10)} />
       </div>
