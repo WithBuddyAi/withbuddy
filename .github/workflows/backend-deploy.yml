@@ -7,7 +7,6 @@ on:
       - main
     paths:
       - "backend/**"
-      - "scripts/discord-health-alert.sh"
       - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
 
@@ -287,18 +286,8 @@ jobs:
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         run: |
           set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}/scripts' '${BACKEND_APP_DIR}/logs'"
+          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}/logs'"
           scp app.jar "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/app.jar"
-          scp scripts/discord-health-alert.sh "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/scripts/discord-health-alert.sh"
-
-      - name: Ensure health alert script permissions
-        if: steps.branch_guard.outputs.should_deploy == 'true'
-        env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
-          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
-        run: |
-          set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" "set -euo pipefail; APP_DIR='${BACKEND_APP_DIR}'; mkdir -p \"\${APP_DIR}/scripts\" \"\${APP_DIR}/logs\"; chmod +x \"\${APP_DIR}/scripts/discord-health-alert.sh\""
 
       - name: Repair Flyway failed migrations
         if: steps.branch_guard.outputs.should_deploy == 'true'
@@ -675,10 +664,9 @@ jobs:
                 ;;
             esac
 
-            mkdir -p "${APP_DIR}" "${APP_DIR}/scripts" "${APP_DIR}/logs"
+            mkdir -p "${APP_DIR}" "${APP_DIR}/logs"
             test -f "${JAR_PATH}"
             test -f "${TMP_ENV_PATH}"
-            chmod +x "${APP_DIR}/scripts/discord-health-alert.sh"
 
             # Read dependency URLs from tmp env before installing the final root-only env file.
             EFFECTIVE_REDIS_URL="$(awk -F= '/^REDIS_URL=/{print substr($0, index($0, "=")+1); exit}' "${TMP_ENV_PATH}")"
