@@ -2,6 +2,9 @@ package com.withbuddy.global.exception;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.withbuddy.account.auth.exception.LoginFailedException;
+import com.withbuddy.account.auth.exception.LoginRateLimitExceededException;
+import com.withbuddy.account.auth.exception.TurnstileVerificationFailedException;
+import com.withbuddy.account.auth.exception.TurnstileVerificationUnavailableException;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
 import com.withbuddy.global.jwt.SessionExpiredException;
@@ -62,6 +65,29 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(LoginRateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleLoginRateLimitExceededException(
+            LoginRateLimitExceededException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("login", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                "LOGIN_RATE_LIMITED",
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
+                .body(response);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
@@ -218,6 +244,50 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(TurnstileVerificationFailedException.class)
+    public ResponseEntity<ErrorResponse> handleTurnstileVerificationFailedException(
+            TurnstileVerificationFailedException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("captcha", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "CAPTCHA_VERIFICATION_FAILED",
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(TurnstileVerificationUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleTurnstileVerificationUnavailableException(
+            TurnstileVerificationUnavailableException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("captcha", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase(),
+                "CAPTCHA_UNAVAILABLE",
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        log.warn("Turnstile unavailable: path={}, message={}", resolveMaskedPath(request), e.getMessage());
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

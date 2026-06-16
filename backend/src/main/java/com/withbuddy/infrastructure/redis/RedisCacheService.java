@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.List;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
@@ -94,6 +95,19 @@ public class RedisCacheService {
 
     public void expire(String key, Duration ttl) {
         redisTemplate.expire(key, ttl);
+    }
+
+    public long increment(String key) {
+        Long result = redisTemplate.opsForValue().increment(key);
+        return result == null ? 0L : result;
+    }
+
+    public Optional<Long> getExpireSeconds(String key) {
+        Long ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+        if (ttl == null || ttl < 0) {
+            return Optional.empty();
+        }
+        return Optional.of(ttl);
     }
 
     public void putHash(String key, Map<String, String> values, Duration ttl) {
