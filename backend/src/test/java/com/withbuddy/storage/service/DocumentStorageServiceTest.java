@@ -25,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -211,6 +212,61 @@ class DocumentStorageServiceTest {
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().getFirst().getDocumentType()).isEqualTo("GUIDE");
         assertThat(response.getContent().getFirst().getContentType()).isEqualTo("pdf");
+    }
+
+    @Test
+    void rejectsDuplicatePolicyByCompanyTypeAndTitle() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "policy.pdf",
+                "application/pdf",
+                "payload".getBytes()
+        );
+        when(storageProperties.getMaxDocumentSizeMb()).thenReturn(20);
+        when(documentRepository.existsByCompanyCodeAndDocumentTypeAndTitleAndIsActiveTrue(
+                "WB0001",
+                "POLICY",
+                "취업규칙"
+        )).thenReturn(true);
+
+        assertThatThrownBy(() ->
+                documentStorageService.uploadCompanyDocument(file, "취업규칙", "POLICY", "HR")
+        )
+                .isInstanceOfSatisfying(StorageException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getCode()).isEqualTo("DOCUMENT_DUPLICATE");
+                    assertThat(exception.getField()).isEqualTo("title");
+                });
+
+        verify(objectStorageClient, never()).putObject(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void rejectsDuplicateTemplateByCompanyTypeTitleAndContentType() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "template.pdf",
+                "application/pdf",
+                "payload".getBytes()
+        );
+        when(storageProperties.getMaxDocumentSizeMb()).thenReturn(20);
+        when(documentRepository.existsActiveTemplateDuplicate(
+                "WB0001",
+                "TEMPLATE",
+                "근로계약서",
+                "application/pdf"
+        )).thenReturn(true);
+
+        assertThatThrownBy(() ->
+                documentStorageService.uploadCompanyDocument(file, "근로계약서", "TEMPLATE", "HR")
+        )
+                .isInstanceOfSatisfying(StorageException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getCode()).isEqualTo("DOCUMENT_DUPLICATE");
+                    assertThat(exception.getField()).isEqualTo("title");
+                });
+
+        verify(objectStorageClient, never()).putObject(anyString(), anyString(), anyString(), any());
     }
 
     private Document document(Long id, String companyCode, String documentType) {
