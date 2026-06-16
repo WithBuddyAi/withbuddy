@@ -8,6 +8,8 @@ import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.storage.ObjectStorageClient;
 import com.withbuddy.infrastructure.storage.StorageProperties;
 import com.withbuddy.storage.dto.response.DocumentDownloadResponse;
+import com.withbuddy.storage.dto.response.DocumentListResponse;
+import com.withbuddy.storage.entity.BackupStatus;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.exception.StorageException;
@@ -21,11 +23,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -180,6 +184,33 @@ class DocumentStorageServiceTest {
                     assertThat(exception.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
                     assertThat(exception.getCode()).isEqualTo("RESOURCE_004");
                 });
+    }
+
+    @Test
+    void listsCompanyDocumentsWithExtensionContentType() {
+        Document document = document(101L, "WB0001", "GUIDE");
+        lenient().when(document.getTitle()).thenReturn("온보딩 가이드");
+        lenient().when(document.getDepartment()).thenReturn("HR");
+        lenient().when(document.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 5, 20, 9, 30));
+
+        DocumentFile file = mock(DocumentFile.class);
+        when(file.getDocumentId()).thenReturn(101L);
+        when(file.getOriginalFileName()).thenReturn("onboarding-guide.pdf");
+        when(file.getContentType()).thenReturn("application/pdf");
+        when(file.getFileSize()).thenReturn(1048576L);
+        when(file.getBackupStatus()).thenReturn(BackupStatus.COMPLETED);
+
+        when(documentRepository.searchCompanyDocuments(eq("WB0001"), eq(null), eq(null), any()))
+                .thenReturn(new PageImpl<>(List.of(document)));
+        when(documentFileRepository.findByDocumentIdIn(eq(List.of(101L))))
+                .thenReturn(List.of(file));
+
+        DocumentListResponse response =
+                documentStorageService.listCompanyDocuments(0, 5, "COMPANY", null, null);
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().getFirst().getDocumentType()).isEqualTo("GUIDE");
+        assertThat(response.getContent().getFirst().getContentType()).isEqualTo("pdf");
     }
 
     private Document document(Long id, String companyCode, String documentType) {
