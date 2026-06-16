@@ -51,10 +51,6 @@ public class LoginAttemptRateLimitService {
 
         redisCacheService.delete(RedisCacheKeys.loginFailureAccount(companyCode, employeeNumber));
         redisCacheService.delete(RedisCacheKeys.loginLockAccount(companyCode, employeeNumber));
-        if (clientIp != null && !clientIp.isBlank()) {
-            redisCacheService.delete(RedisCacheKeys.loginFailureIp(clientIp));
-            redisCacheService.delete(RedisCacheKeys.loginLockIp(clientIp));
-        }
     }
 
     private long incrementWithWindow(String key) {
