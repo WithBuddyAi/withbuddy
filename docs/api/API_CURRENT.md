@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.2.5
-**최종 업데이트**: 2026-06-11
+**버전**: 2.2.6
+**최종 업데이트**: 2026-06-16
 
 ---
 
@@ -2245,7 +2245,7 @@ Content-Type: multipart/form-data
 | 필드 | 타입 | 필수 | 설명                                      |
 |---|---|---|-----------------------------------------|
 | `file` | File | Y | 업로드할 문서 파일                              |
-| `title` | String | Y | 문서 제목                                   |
+| `title` | String | Y | 문서 파일명                                  |
 | `documentType` | String | Y | 문서 유형. 예: `POLICY`, `GUIDE`, `TEMPLATE` |
 | `department` | String | Y | 문서 담당 부서                                |
 
@@ -2265,6 +2265,11 @@ Content-Type: multipart/form-data
 - 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)만 호출할 수 있다.
 - 업로드되는 문서의 `company_code`는 요청 바디가 아니라 현재 로그인한 사용자의 `company_code`로 설정한다.
 - 관리자 계정 페이지에서는 공통 문서(`company_code = null`)를 업로드할 수 없다.
+- 동일한 회사의 활성 문서 중 아래 기준에 해당하는 문서가 이미 존재하면 중복 업로드로 판단한다.
+  - `documentType`이 `POLICY` 또는 `GUIDE`인 경우: `company_code` + `document_type` + `title`
+  - `documentType`이 `TEMPLATE`인 경우: `company_code` + `document_type` + `title` + `content_type`
+- 중복 판단에서 파일명은 업로드 파일의 원본 파일명이 아니라 `documents.title`에 저장되는 `title` 값을 의미한다.
+- 중복 문서이면 `409 Conflict`, `DOCUMENT_DUPLICATE`를 반환한다.
 - 문서 파일은 최대 20MB까지 업로드할 수 있다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
@@ -3829,3 +3834,4 @@ Authorization: Bearer {accessToken}
   - 관리자 대시보드 명세 추가, 관리자 계정 페이지에서 필수 온보딩 문서 템플릿을 다운로드 할 수 있는 `GET /api/v1/admin/organization-options` 명세를 추가.
 - **v2.2.6 (2026-06-16)**:
   - 관리자 회사 문서 조회 문서 유형 필터(`pdf`, `docs`, `txt`, `md`) 수정
+  - 관리자 회사 문서 업로드 중복 판단 기준(`POLICY`/`GUIDE`: `company_code` + `document_type` + `title`, `TEMPLATE`: `company_code` + `document_type` + `title` + `content_type`) 추가
