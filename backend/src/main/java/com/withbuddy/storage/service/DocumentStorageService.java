@@ -67,6 +67,10 @@ public class DocumentStorageService implements DocumentDownloadService {
     private static final int BACKUP_JOB_ERROR_MAX_LENGTH = 1000;
     private static final long MAX_COMPANY_DOCUMENT_COUNT = 300L;
     private static final long COMPANY_UPLOAD_QUOTA_BYTES = 2L * 1024L * 1024L * 1024L;
+    private static final String PDF_CONTENT_TYPE = "application/pdf";
+    private static final String TXT_CONTENT_TYPE = "text/plain";
+    private static final String DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    private static final String MD_CONTENT_TYPE = "text/markdown";
     private static final String DEFAULT_DOCUMENT_CONTENT = "Object Storage 업로드 문서";
     private static final Set<Long> REQUIRED_ONBOARDING_TEMPLATE_IDS = Set.of(
             56L, 57L, 58L, 59L, 60L, 61L, 62L, 63L, 64L
@@ -144,6 +148,8 @@ public class DocumentStorageService implements DocumentDownloadService {
             }
         }
 
+        String contentType = Optional.ofNullable(file.getContentType()).orElse("application/octet-stream");
+        validateDuplicateDocument(finalCompanyCode, documentType, title, contentType);
         validateCompanyUploadQuota(finalCompanyCode, file.getSize());
 
         byte[] payload = toBytes(file);
@@ -193,7 +199,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                             .companyCode(finalCompanyCode)
                             .originalFileName(Optional.ofNullable(file.getOriginalFilename()).orElse(storedFileName))
                             .storedFileName(storedFileName)
-                            .contentType(Optional.ofNullable(file.getContentType()).orElse("application/octet-stream"))
+                            .contentType(contentType)
                             .fileSize(file.getSize())
                             .checksumSha256(sha256(payload))
                             .primaryNamespace(primary.getNamespace())
@@ -1131,7 +1137,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                 document.getDocumentType(),
                 document.getDepartment(),
                 file.getOriginalFileName(),
-                file.getContentType(),
+                resolveContentType(file),
                 file.getFileSize(),
                 file.getBackupStatus().name(),
                 document.getCreatedAt()
@@ -1199,6 +1205,78 @@ public class DocumentStorageService implements DocumentDownloadService {
                 documentPage.getSize(),
                 documentPage.getNumber()
         );
+    }
+
+    private String resolveContentType(DocumentFile file) {
+        String contentType = resolveContentTypeByMimeType(file.getContentType());
+        if (contentType != null) {
+            return contentType;
+        }
+
+        contentType = resolveContentTypeByFileName(file.getOriginalFileName());
+        return contentType == null ? file.getContentType() : contentType;
+    }
+
+    private void validateDuplicateDocument(
+            String companyCode,
+            String documentType,
+            String title,
+            String contentType
+    ) {
+        if (!StringUtils.hasText(companyCode)
+                || !StringUtils.hasText(documentType)
+                || !StringUtils.hasText(title)) {
+            return;
+        }
+
+        boolean duplicate = switch (documentType.toUpperCase(Locale.ROOT)) {
+            case "POLICY", "GUIDE" -> documentRepository.existsByCompanyCodeAndDocumentTypeAndTitleAndIsActiveTrue(
+                    companyCode,
+                    documentType,
+                    title
+            );
+            case "TEMPLATE" -> documentRepository.existsActiveTemplateDuplicate(
+                    companyCode,
+                    documentType,
+                    title,
+                    contentType
+            );
+            default -> false;
+        };
+
+        if (duplicate) {
+            throw new StorageException(
+                    HttpStatus.CONFLICT,
+                    "DOCUMENT_DUPLICATE",
+                    "title",
+                    "이미 업로드된 문서입니다."
+            );
+        }
+    }
+
+    private String resolveContentTypeByMimeType(String mimeType) {
+        if (!StringUtils.hasText(mimeType)) {
+            return null;
+        }
+
+        return switch (mimeType.toLowerCase(Locale.ROOT)) {
+            case PDF_CONTENT_TYPE -> "pdf";
+            case TXT_CONTENT_TYPE -> "txt";
+            case DOCX_CONTENT_TYPE -> "docs";
+            case MD_CONTENT_TYPE -> "md";
+            default -> null;
+        };
+    }
+
+    private String resolveContentTypeByFileName(String fileName) {
+        String extension = resolveExtension(fileName).toLowerCase(Locale.ROOT);
+        return switch (extension) {
+            case ".pdf" -> "pdf";
+            case ".txt" -> "txt";
+            case ".docx" -> "docs";
+            case ".md" -> "md";
+            default -> null;
+        };
     }
 
 
