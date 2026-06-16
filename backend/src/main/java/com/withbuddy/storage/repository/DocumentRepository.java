@@ -89,4 +89,28 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     List<Document> findByIdInAndIsActiveTrue(Collection<Long> ids);
 
     long countByCompanyCodeAndIsActiveTrue(String companyCode);
+
+    boolean existsByCompanyCodeAndDocumentTypeAndTitleAndIsActiveTrue(
+            String companyCode,
+            String documentType,
+            String title
+    );
+
+    @Query("""
+            select count(d) > 0
+            from Document d
+            join DocumentFile df on df.documentId = d.id
+            where d.isActive = true
+              and df.deletedAt is null
+              and d.companyCode = :companyCode
+              and d.documentType = :documentType
+              and d.title = :title
+              and df.contentType = :contentType
+            """)
+    boolean existsActiveTemplateDuplicate(
+            @Param("companyCode") String companyCode,
+            @Param("documentType") String documentType,
+            @Param("title") String title,
+            @Param("contentType") String contentType
+    );
 }

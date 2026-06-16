@@ -148,6 +148,8 @@ public class DocumentStorageService implements DocumentDownloadService {
             }
         }
 
+        String contentType = Optional.ofNullable(file.getContentType()).orElse("application/octet-stream");
+        validateDuplicateDocument(finalCompanyCode, documentType, title, contentType);
         validateCompanyUploadQuota(finalCompanyCode, file.getSize());
 
         byte[] payload = toBytes(file);
@@ -197,7 +199,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                             .companyCode(finalCompanyCode)
                             .originalFileName(Optional.ofNullable(file.getOriginalFilename()).orElse(storedFileName))
                             .storedFileName(storedFileName)
-                            .contentType(Optional.ofNullable(file.getContentType()).orElse("application/octet-stream"))
+                            .contentType(contentType)
                             .fileSize(file.getSize())
                             .checksumSha256(sha256(payload))
                             .primaryNamespace(primary.getNamespace())
@@ -1213,6 +1215,43 @@ public class DocumentStorageService implements DocumentDownloadService {
 
         contentType = resolveContentTypeByFileName(file.getOriginalFileName());
         return contentType == null ? file.getContentType() : contentType;
+    }
+
+    private void validateDuplicateDocument(
+            String companyCode,
+            String documentType,
+            String title,
+            String contentType
+    ) {
+        if (!StringUtils.hasText(companyCode)
+                || !StringUtils.hasText(documentType)
+                || !StringUtils.hasText(title)) {
+            return;
+        }
+
+        boolean duplicate = switch (documentType.toUpperCase(Locale.ROOT)) {
+            case "POLICY", "GUIDE" -> documentRepository.existsByCompanyCodeAndDocumentTypeAndTitleAndIsActiveTrue(
+                    companyCode,
+                    documentType,
+                    title
+            );
+            case "TEMPLATE" -> documentRepository.existsActiveTemplateDuplicate(
+                    companyCode,
+                    documentType,
+                    title,
+                    contentType
+            );
+            default -> false;
+        };
+
+        if (duplicate) {
+            throw new StorageException(
+                    HttpStatus.CONFLICT,
+                    "DOCUMENT_DUPLICATE",
+                    "title",
+                    "이미 업로드된 문서입니다."
+            );
+        }
     }
 
     private String resolveContentTypeByMimeType(String mimeType) {
