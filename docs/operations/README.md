@@ -5,6 +5,8 @@
 ## 문서 목록
 
 - [DEPLOYMENT-ORACLE.md](./DEPLOYMENT-ORACLE.md): Oracle Cloud 배포 가이드
+- [DISCORD_HEALTH_ALERT.md](./DISCORD_HEALTH_ALERT.md): Discord 알림 운영 정책과 로컬 fallback 스크립트 메모
+- [PRODUCT_QUALITY_WEEK_MONITORING.md](./PRODUCT_QUALITY_WEEK_MONITORING.md): Product Quality Week 서버 모니터링 및 장애 대응 가이드
 - [FLYWAY_MIGRATION_STABILIZATION_CHECKLIST.md](./FLYWAY_MIGRATION_STABILIZATION_CHECKLIST.md): Flyway 마이그레이션 안정화(자동 repair + 배포 전/후 체크리스트)
 - [ai/OVERLOADED_529_GRAFANA_LOKI.md](./ai/OVERLOADED_529_GRAFANA_LOKI.md): AI 529 과부하 Grafana/Loki 쿼리 및 알림 가이드
 - [storage/README.md](./storage/README.md): 스토리지 운영 문서 인덱스
