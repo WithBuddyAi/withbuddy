@@ -53,10 +53,33 @@ public final class RedisCacheKeys {
         return "form:generated:" + userId + ":" + normalize(formType);
     }
 
+    public static String loginFailureAccount(String companyCode, String employeeNumber) {
+        return "login:failure:account:" + normalize(companyCode) + ":" + normalize(employeeNumber);
+    }
+
+    public static String loginFailureIp(String clientIp) {
+        return "login:failure:ip:" + normalizeKeyPart(clientIp);
+    }
+
+    public static String loginLockAccount(String companyCode, String employeeNumber) {
+        return "login:lock:account:" + normalize(companyCode) + ":" + normalize(employeeNumber);
+    }
+
+    public static String loginLockIp(String clientIp) {
+        return "login:lock:ip:" + normalizeKeyPart(clientIp);
+    }
+
     private static String normalize(String value) {
         if (value == null || value.isBlank()) {
             return "ALL";
         }
         return value.trim().toUpperCase();
+    }
+
+    private static String normalizeKeyPart(String value) {
+        if (value == null || value.isBlank()) {
+            return "UNKNOWN";
+        }
+        return value.trim().toLowerCase();
     }
 }
