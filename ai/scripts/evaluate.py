@@ -702,8 +702,9 @@ def evaluate_retrieval(question: str, expected_sources: list[str], k: int = 5, c
     if not expected_sources:
         return {"hit": None, "retrieved_sources": [], "note": "소스 미지정"}
 
-    retriever = get_retriever(k=k, company_code=company_code)
-    docs = retriever.invoke(question)
+    from chains.retriever import retrieve
+    result = retrieve(question, company_code, [])
+    docs = result.docs
     retrieved = [
         os.path.splitext(os.path.basename(d.metadata.get("source", "")))[0].replace("+", " ").replace("_", " ")
         for d in docs

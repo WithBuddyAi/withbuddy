@@ -17,6 +17,12 @@ const SUB_COPIES = [
   "회사 문서 속 필요한 정보를 위드버디가 질문에 맞게 찾아드려요.",
 ];
 
+// 최초 마운트 시점의 너비로 결정 (너비 변환 시 타이핑 재시작 없음)
+const FULL_TEXT_WIDE =
+  "안녕하세요! 저는 위드버디예요😊 입사 초에 자주 헷갈리는 회사 생활 질문을 도와드려요.\n사소하지만 꼭 필요한 것부터 편하게 물어보세요.";
+const FULL_TEXT_NARROW =
+  "안녕하세요! 저는 위드버디예요😊\n입사 초에 자주 헷갈리는 회사 생활 질문을 도와드려요.\n사소하지만 꼭 필요한 것부터 편하게 물어보세요.";
+
 function Login({ setIsLoggedIn }) {
   // 'redis' 에러
   const [modalType, setModalType] = useState(null);
@@ -49,9 +55,44 @@ function Login({ setIsLoggedIn }) {
       setTimeout(() => {
         setSubCopyIndex((prev) => (prev + 1) % SUB_COPIES.length);
         setIsSubCopyVisible(true);
-      }, 450);
+      }, 1000);
     }, 3500);
     return () => clearInterval(interval);
+  }, []);
+
+  // 말풍선 타이핑 효과
+  const [displayedText, setDisplayedText] = useState("");
+  const fullText = useRef(
+    window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW,
+  );
+  const chars = useRef([...fullText.current]);
+  const isTypingDone = useRef(false);
+
+  // 타이핑 효과 (최초 1회)
+  useEffect(() => {
+    setDisplayedText("");
+    let i = 0;
+    const timer = setInterval(() => {
+      setDisplayedText(chars.current.slice(0, i + 1).join(""));
+      i++;
+      if (i >= chars.current.length) {
+        clearInterval(timer);
+        isTypingDone.current = true;
+      }
+    }, 80);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 타이핑 끝난 후 너비 변경 시 텍스트만 교체 (타이핑 재시작 없음)
+  useEffect(() => {
+    const handleResize = () => {
+      if (!isTypingDone.current) return;
+      const next =
+        window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW;
+      setDisplayedText(next);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // 로그인 시 서버에 데이터 전송 및 페이지 이동
@@ -191,7 +232,7 @@ function Login({ setIsLoggedIn }) {
         handleRetry={handleLogin}
       />
 
-      {/*  데스크탑 전체 배경  */}
+      {/* 데스크탑 전체 배경 */}
       <div className="hidden lg:block fixed inset-0 pointer-events-none z-0">
         {/* 우측 연하늘색 그라디언트 */}
         <div
@@ -252,7 +293,7 @@ function Login({ setIsLoggedIn }) {
               }}
             >
               <p
-                className="text-[#204867] transition-all duration-[450ms]"
+                className="text-[#204867] transition-all duration-[1000ms]"
                 style={{
                   fontSize: "clamp(14px, 1.5vw, 22px)",
                   lineHeight: "1.6",
@@ -292,9 +333,9 @@ function Login({ setIsLoggedIn }) {
               <div className="flex flex-col gap-[10px] pt-[15px]">
                 {/* 말풍선 */}
                 <div
-                  className="border border-[#E9ECEF] shadow-[0px_2.59px_3.886px_rgba(0,0,0,0.06)] bg-[#FFFFFF]"
+                  className="border border-[#E9ECEF] shadow-[0px_2.59px_3.886px_rgba(0,0,0,0.06)] bg-[#FFFFFF] w-fit"
                   style={{
-                    fontSize: "clamp(11px, 1.1vw, 16px)",
+                    fontSize: "clamp(14px, 1.1vw, 16px)",
                     borderRadius:
                       "clamp(8px, 1vw, 10px) clamp(20px, 2.5vw, 31px) clamp(20px, 2.5vw, 31px) clamp(20px, 2.5vw, 31px)",
                     padding: "clamp(12px, 2vw, 20px)",
@@ -302,15 +343,10 @@ function Login({ setIsLoggedIn }) {
                   }}
                 >
                   <p
-                    className="text-black"
-                    style={{
-                      lineHeight: "1.8",
-                    }}
+                    className="text-[#000000]"
+                    style={{ lineHeight: "1.8", whiteSpace: "pre-line" }}
                   >
-                    안녕하세요! 저는 위드버디예요😊 입사 초에 자주 헷갈리는 회사
-                    생활 질문을 도와드려요.
-                    <br />
-                    사소하지만 꼭 필요한 것부터 편하게 물어보세요.
+                    {displayedText}
                   </p>
                 </div>
 
@@ -388,7 +424,7 @@ function Login({ setIsLoggedIn }) {
           }}
         >
           <div
-            className="bg-FFFFFFCC border border-[rgba(51,107,151,0.3)] rounded-[28px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.16)] flex flex-col gap-[32px]"
+            className="bg-[#FFFFFFCC] border border-[#33679B4D] rounded-[28px] shadow-[0px_4px_8px_0px_#00000029] flex flex-col gap-[32px]"
             style={{
               width: "clamp(380px, 90%, 526px)",
               padding: "clamp(24px, 3.5vw, 48px)",
@@ -421,7 +457,7 @@ function Login({ setIsLoggedIn }) {
                 {/* 회사코드 입력칸 */}
                 <div className="flex flex-col gap-[6px]">
                   <div className="flex items-center gap-[2px] h-[32px]">
-                    <span className="font-semibold text-[16px] text-black">
+                    <span className="font-semibold text-[16px] text-[#000000]">
                       회사코드
                     </span>
                     <span className="text-[#F03E3E] text-[12px] font-semibold">
@@ -451,7 +487,7 @@ function Login({ setIsLoggedIn }) {
                 {/* 사원번호 입력칸 */}
                 <div className="flex flex-col gap-[6px]">
                   <div className="flex items-center gap-[2px] h-[32px]">
-                    <span className="font-semibold text-[16px] text-black">
+                    <span className="font-semibold text-[16px] text-[#000000]">
                       사원번호
                     </span>
                     <span className="text-[#F03E3E] text-[12px] font-semibold">
@@ -480,7 +516,7 @@ function Login({ setIsLoggedIn }) {
                 {/* 이름 입력칸 */}
                 <div className="flex flex-col gap-[6px]">
                   <div className="flex items-center gap-[2px] h-[32px]">
-                    <span className="font-semibold text-[16px] text-black">
+                    <span className="font-semibold text-[16px] text-[#000000]">
                       이름
                     </span>
                     <span className="text-[#F03E3E] text-[12px] font-semibold">
@@ -520,7 +556,7 @@ function Login({ setIsLoggedIn }) {
               >
                 <span>시작하기</span>
                 {isLoading && (
-                  <div className="border-gray-300 border-t-blue-700 rounded-full animate-spin w-5 h-5 border-2" />
+                  <div className="border-[#D1D5DB] border-t-[#1D6EBC] rounded-full animate-spin w-5 h-5 border-2" />
                 )}
               </button>
             </form>
@@ -579,7 +615,7 @@ function MobileForm({
         {/* 회사코드 입력칸 */}
         <div className="flex flex-col items-center gap-[10px] rounded-[8px]">
           <div className="flex items-center font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]">
-            회사코드<span className="text-red-500">*</span>
+            회사코드<span className="text-[#EF4444]">*</span>
             <Tooltip message="회사코드와 사원번호는 담당자에게 확인해 주세요." />
           </div>
           <input
@@ -597,7 +633,7 @@ function MobileForm({
         {/* 사원번호 입력칸 */}
         <div className="flex flex-col items-center gap-[10px] rounded-[8px]">
           <div className="font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]">
-            사원번호<span className="text-red-500">*</span>
+            사원번호<span className="text-[#EF4444]">*</span>
           </div>
           <input
             className={`${inputClass} ${employeeNumberError ? "border-[#F03E3E] focus:border-[#F03E3E]" : "border-[#CED4DA] focus:border-[#339AF0]"}`}
@@ -614,7 +650,7 @@ function MobileForm({
         {/* 이름 입력칸 */}
         <div className="flex flex-col items-center gap-[10px] rounded-[8px]">
           <div className="font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]">
-            이름<span className="text-red-500">*</span>
+            이름<span className="text-[#EF4444]">*</span>
           </div>
           <input
             className={`${inputClass} ${nameError ? "border-[#F03E3E] focus:border-[#F03E3E]" : "border-[#CED4DA] focus:border-[#339AF0]"}`}
@@ -643,7 +679,7 @@ function MobileForm({
           <div className="flex items-center justify-center gap-3">
             <span>시작하기</span>
             {isLoading && (
-              <div className="border-gray-300 border-t-blue-700 rounded-full animate-spin w-4 h-4 border-2 md:w-6 md:h-6 md:border-4" />
+              <div className="border-[#D1D5DB] border-t-[#1D6EBC] rounded-full animate-spin w-4 h-4 border-2 md:w-6 md:h-6 md:border-4" />
             )}
           </div>
         </button>
