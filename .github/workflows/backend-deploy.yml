@@ -729,8 +729,11 @@ jobs:
             test -f "${JAR_PATH}"
             test -f "${TMP_ENV_PATH}"
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             test -f "${TMP_MONITOR_ENV_PATH}"
             chmod +x "${APP_DIR}/scripts/discord-health-alert.sh"
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 
