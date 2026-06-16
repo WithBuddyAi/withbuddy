@@ -72,6 +72,8 @@ jobs:
           HEALTH_URL="${BACKEND_HEALTH_URL}"
           PROM_HEALTH_URL="http://127.0.0.1:9090/-/healthy"
           PROM_READY_URL="http://127.0.0.1:9090/-/ready"
+          CURL_CONNECT_TIMEOUT=5
+          CURL_MAX_TIME=10
           MONITOR_LOG_DIR="/home/ubuntu/withbuddy/logs"
           MONITOR_LOG_PATH="${MONITOR_LOG_DIR}/product-quality-monitor.log"
           failed=0
@@ -88,9 +90,9 @@ jobs:
             failed=1
           fi
 
-          health_response="$(curl -fsS "${HEALTH_URL}" 2>&1 || true)"
-          prom_health_response="$(curl -fsS "${PROM_HEALTH_URL}" 2>&1 || true)"
-          prom_ready_response="$(curl -fsS "${PROM_READY_URL}" 2>&1 || true)"
+          health_response="$(curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "${HEALTH_URL}" 2>&1 || true)"
+          prom_health_response="$(curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "${PROM_HEALTH_URL}" 2>&1 || true)"
+          prom_ready_response="$(curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "${PROM_READY_URL}" 2>&1 || true)"
 
           [ -n "${health_response}" ] || health_response="request_failed"
           [ -n "${prom_health_response}" ] || prom_health_response="request_failed"
