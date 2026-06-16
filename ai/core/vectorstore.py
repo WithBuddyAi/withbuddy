@@ -188,7 +188,7 @@ def _json_to_docs(data: list) -> List[Document]:
     return [Document(page_content=d["page_content"], metadata=d.get("metadata", {})) for d in data]
 
 
-def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.30, category: str = "") -> List[Document]:
+def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.40, category: str = "") -> List[Document]:
     """
     ST-027: company_code 기준 벡터 DB 격리 검색
     회사 특화 문서(company_code 일치) + 공통 문서(company_code 없음) OR 조건 검색.

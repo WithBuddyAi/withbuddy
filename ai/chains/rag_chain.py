@@ -170,7 +170,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     if not result.docs:
         hr_team, _ = get_hr_contact(company_code)
-        no_result_answer = f"죄송해요, 관련 문서에서 해당 내용을 찾지 못했어요.\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
         save_interaction(user_id, result.question, no_result_answer)
         return no_result_answer, "", [], []
 
@@ -251,7 +251,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     if not result.docs:
         hr_team, _ = get_hr_contact(company_code)
-        no_result_answer = f"죄송해요, 관련 문서에서 해당 내용을 찾지 못했어요.\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
         save_interaction(user_id, result.question, no_result_answer)
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
         yield no_result_answer, None, None, None
