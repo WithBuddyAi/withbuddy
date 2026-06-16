@@ -101,52 +101,60 @@ function DocTemplateAccordion() {
     <div className="border border-[#DEE2E6] rounded-[8px]">
       {/* 아코디언 헤더 */}
       <div
-        className="flex items-center justify-between px-[20px] py-[14px] bg-[#E6EDF266] rounded-[8px] cursor-pointer"
+        className="flex items-center justify-between px-[20px] py-[14px] bg-[#E6EDF266] rounded-[8px] cursor-pointer gap-[8px]"
         onClick={handleToggle}
       >
-        <div className="flex items-center gap-[6px]">
-          <File size={16} className="text-[#1A3A52]" />
-          <span className="md:text-[14px] lg:text-[16px]">
-            필수 온보딩 문서 템플릿
+        {/* 왼쪽: 아이콘 + 제목 (+ lg 미만일 때 설명도 아래에) */}
+        <div className="flex flex-col gap-[2px]">
+          <div className="flex items-center gap-[6px]">
+            <File size={16} className="text-[#1A3A52] shrink-0" />
+            <span className="text-[12px] md:text-[14px] lg:text-[15px]">
+              필수 온보딩 문서 템플릿
+            </span>
+          </div>
+          {/* lg 미만일 때만 설명 텍스트를 제목 아래에 표시 */}
+          <span className="block lg:hidden text-[#495057] text-[12px] pl-[22px]">
+            필요한 양식을 내려받아 작성한 뒤 문서로 업로드해보세요
           </span>
         </div>
-        <div className="flex items-center gap-[10px]">
-          <span className="hidden md:block text-[#495057] md:text-[12px] lg:text-[14px]">
+
+        {/* 오른쪽: lg 이상일 때 설명 + 화살표 / lg 미만일 때 화살표만 */}
+        <div className="flex items-center gap-[10px] shrink-0">
+          <span className="hidden lg:block text-[#495057] text-[12px] lg:text-[14px]">
             필요한 양식을 내려받아 작성한 뒤 문서로 업로드해보세요
           </span>
           {openAccordion ? (
-            <ChevronUp size={18} className="text-[#495057]" />
+            <ChevronUp size={18} className="text-[#495057] shrink-0" />
           ) : (
-            <ChevronDown size={18} className="text-[#495057]" />
+            <ChevronDown size={18} className="text-[#495057] shrink-0" />
           )}
         </div>
       </div>
 
       {/* 아코디언 내용 (열렸을 때만 보임) */}
       {openAccordion && (
-        <div className="border-t border-[#DEE2E6] px-[20px] py-[16px] flex flex-col gap-[16px] lg:grid lg:grid-cols-2 lg:gap-[12px]">
-          {/* 카테고리별 행 */}
+        <div className="border-t border-[#DEE2E6] px-[20px] py-[16px] flex flex-col sm:grid sm:grid-cols-2 gap-[12px]">
           {TEMPLATES.map((t) => (
             <div
               key={t.category}
-              className="flex flex-col gap-[12px] md:flex-row lg:items-center"
+              className="flex items-start gap-[12px]"
             >
               {/* 카테고리 라벨 */}
-              <div className="flex items-center gap-[6px] w-fit bg-[#F8F9FA] text-[#868E96] rounded-[4px] px-[6px]">
+              <div className="flex items-center gap-[6px] shrink-0 bg-[#F8F9FA] text-[#868E96] rounded-[4px] px-[6px] h-[25px]">
                 <span>{t.icon}</span>
                 <span className="text-[12px] md:text-[13px] lg:text-[14px]">
                   {t.category}
                 </span>
               </div>
 
-              {/* 문서 목록 (가로 나열) */}
-              <div className="flex flex-wrap items-center gap-x-[16px] gap-y-[8px]">
+              {/* 문서 목록 (세로 나열) */}
+              <div className="flex flex-wrap gap-x-[16px] gap-y-[6px]">
                 {t.items.map((item) => (
                   <button
                     key={item.documentId}
                     onClick={() => handleDownload(item.documentId, item.title)}
                     disabled={loadingId === item.documentId}
-                    className="flex items-center gap-[4px] py-[2px] text-[13px] disabled:opacity-40 transition-colors group"
+                    className="flex items-center gap-[4px] py-[2px] text-[13px] disabled:opacity-40 transition-colors group text-left"
                   >
                     <span className="group-hover:underline">
                       {loadingId === item.documentId
@@ -155,7 +163,7 @@ function DocTemplateAccordion() {
                     </span>
                     <Download
                       size={13}
-                      className="text-[#495057] group-hover:text-[#000000]"
+                      className="text-[#495057] shrink-0 group-hover:text-[#000000]"
                     />
                   </button>
                 ))}
