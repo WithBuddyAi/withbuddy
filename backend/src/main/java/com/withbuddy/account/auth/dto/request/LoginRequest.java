@@ -25,4 +25,7 @@ public class LoginRequest {
     @NotBlank(message = "이름을 입력해 주세요.")
     @Size(max = 20, message = "이름은 영문, 숫자를 조합하여 20자 이내로 입력해 주세요.")
     private String name;
+
+    @Schema(description = "Cloudflare Turnstile 토큰", example = "0.xxxxxxxxxxxxx")
+    private String turnstileToken;
 }
