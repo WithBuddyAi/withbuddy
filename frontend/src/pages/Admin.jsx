@@ -165,7 +165,7 @@ function Admin({ setIsLoggedIn }) {
         {/* 본문 영역 */}
         <div
           className={`relative z-10 flex flex-1 flex-col md:my-[32px] md:ml-[8px] md:mr-[32px] border-[1px] bg-[#FFFFFF] drop-shadow md:rounded-[32px] justify-between md:p-[40px] overflow-hidden ${
-            view === "new" ? "lg:max-w-[1112px]" : ""
+            view === "new" || view === "documents" ? "lg:max-w-[1112px]" : ""
           }`}
         >
           {/* 모바일 헤더 */}

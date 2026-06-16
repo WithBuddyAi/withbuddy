@@ -7,7 +7,6 @@ on:
       - main
     paths:
       - "backend/**"
-      - "scripts/discord-health-alert.sh"
       - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
 
@@ -120,7 +119,6 @@ jobs:
           AI_SERVER_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_READ_TIMEOUT_MS }}
           AI_SERVER_ASYNC_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_ASYNC_READ_TIMEOUT_MS }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
           RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
@@ -182,7 +180,6 @@ jobs:
             AI_SERVER_READ_TIMEOUT_MS
             AI_SERVER_ASYNC_READ_TIMEOUT_MS
             BACKEND_HEALTH_URL
-            DISCORD_WEBHOOK_URL
             REDIS_URL
             RABBITMQ_URL
             RABBITMQ_EXCHANGE
@@ -290,18 +287,8 @@ jobs:
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         run: |
           set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}/scripts' '${BACKEND_APP_DIR}/logs'"
+          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}/logs'"
           scp app.jar "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/app.jar"
-          scp scripts/discord-health-alert.sh "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/scripts/discord-health-alert.sh"
-
-      - name: Ensure health alert script permissions
-        if: steps.branch_guard.outputs.should_deploy == 'true'
-        env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
-          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
-        run: |
-          set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" "set -euo pipefail; APP_DIR='${BACKEND_APP_DIR}'; mkdir -p \"\${APP_DIR}/scripts\" \"\${APP_DIR}/logs\"; chmod +x \"\${APP_DIR}/scripts/discord-health-alert.sh\""
 
       - name: Repair Flyway failed migrations
         if: steps.branch_guard.outputs.should_deploy == 'true'
@@ -513,12 +500,6 @@ jobs:
           AI_SERVER_CONNECT_TIMEOUT_MS: ${{ secrets.AI_SERVER_CONNECT_TIMEOUT_MS }}
           AI_SERVER_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_READ_TIMEOUT_MS }}
           AI_SERVER_ASYNC_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_ASYNC_READ_TIMEOUT_MS }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          DISCORD_CHECK_NAME: ${{ secrets.DISCORD_CHECK_NAME }}
-          DISCORD_ALERT_COOLDOWN_SECONDS: ${{ secrets.DISCORD_ALERT_COOLDOWN_SECONDS }}
-          DISCORD_REQUIRED_DOWN_COUNT: ${{ secrets.DISCORD_REQUIRED_DOWN_COUNT }}
-          DISCORD_OOM_CHECK_ENABLED: ${{ secrets.DISCORD_OOM_CHECK_ENABLED }}
-          DISCORD_OOM_LOOKBACK: ${{ secrets.DISCORD_OOM_LOOKBACK }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
@@ -573,9 +554,6 @@ jobs:
           APP_DIR="${BACKEND_APP_DIR}"
           LOCAL_ENV_FILE="backend.env.tmp"
           REMOTE_ENV_FILE="${APP_DIR}/backend.env.tmp"
-          LOCAL_MONITOR_ENV_FILE="monitor.env.tmp"
-          REMOTE_MONITOR_ENV_FILE="${APP_DIR}/monitor.env.tmp"
-
           urldecode() {
             local data="${1//+/ }"
             printf '%b' "${data//%/\\x}"
@@ -695,23 +673,8 @@ jobs:
           EOF
           chmod 600 "${LOCAL_ENV_FILE}"
 
-          cat > "${LOCAL_MONITOR_ENV_FILE}" <<EOF
-          HEALTHCHECK_URL=${BACKEND_HEALTH_URL}
-          LOCAL_HEALTHCHECK_URL=http://127.0.0.1:8080/actuator/health/liveness
-          DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
-          CHECK_NAME=${DISCORD_CHECK_NAME:-withbuddy-backend}
-          ALERT_COOLDOWN_SECONDS=${DISCORD_ALERT_COOLDOWN_SECONDS:-600}
-          REQUIRED_DOWN_COUNT=${DISCORD_REQUIRED_DOWN_COUNT:-2}
-          OOM_CHECK_ENABLED=${DISCORD_OOM_CHECK_ENABLED:-1}
-          OOM_LOOKBACK=${DISCORD_OOM_LOOKBACK:-5 minutes ago}
-          STATE_DIR=/tmp/withbuddy-monitor
-          EOF
-          chmod 600 "${LOCAL_MONITOR_ENV_FILE}"
-
           scp "${LOCAL_ENV_FILE}" "${BACKEND_ACCESS_HOST}:${REMOTE_ENV_FILE}"
-          scp "${LOCAL_MONITOR_ENV_FILE}" "${BACKEND_ACCESS_HOST}:${REMOTE_MONITOR_ENV_FILE}"
           rm -f "${LOCAL_ENV_FILE}"
-          rm -f "${LOCAL_MONITOR_ENV_FILE}"
 
           printf -v APP_DIR_Q '%q' "${BACKEND_APP_DIR}"
           printf -v HEALTH_URL_Q '%q' "${BACKEND_HEALTH_URL}"
@@ -721,11 +684,7 @@ jobs:
             APP_DIR="${BACKEND_APP_DIR}"
             JAR_PATH="${APP_DIR}/app.jar"
             ENV_PATH="/etc/withbuddy-backend.env"
-            MONITOR_ENV_PATH="/etc/withbuddy-monitor.env"
             TMP_ENV_PATH="${APP_DIR}/backend.env.tmp"
-            TMP_MONITOR_ENV_PATH="${APP_DIR}/monitor.env.tmp"
-            MONITOR_CRON_FILE="/etc/cron.d/withbuddy-discord-health-alert"
-            MONITOR_LOG_PATH="${APP_DIR}/logs/discord-health-alert.log"
             SERVICE_NAME="withbuddy-backend.service"
             HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8080/actuator/health/liveness}"
             FALLBACK_HEALTH_URL=""
@@ -736,11 +695,9 @@ jobs:
                 ;;
             esac
 
-            mkdir -p "${APP_DIR}" "${APP_DIR}/scripts" "${APP_DIR}/logs"
+            mkdir -p "${APP_DIR}" "${APP_DIR}/logs"
             test -f "${JAR_PATH}"
             test -f "${TMP_ENV_PATH}"
-            test -f "${TMP_MONITOR_ENV_PATH}"
-            chmod +x "${APP_DIR}/scripts/discord-health-alert.sh"
 
             # Read dependency URLs from tmp env before installing the final root-only env file.
             EFFECTIVE_REDIS_URL="$(awk -F= '/^REDIS_URL=/{print substr($0, index($0, "=")+1); exit}' "${TMP_ENV_PATH}")"
@@ -753,15 +710,6 @@ jobs:
 
             sudo install -m 600 "${TMP_ENV_PATH}" "${ENV_PATH}"
             rm -f "${TMP_ENV_PATH}"
-            sudo install -m 600 "${TMP_MONITOR_ENV_PATH}" "${MONITOR_ENV_PATH}"
-            rm -f "${TMP_MONITOR_ENV_PATH}"
-
-            sudo tee "${MONITOR_CRON_FILE}" >/dev/null <<EOF
-* * * * * root /bin/bash -lc 'set -a; source ${MONITOR_ENV_PATH}; set +a; ${APP_DIR}/scripts/discord-health-alert.sh >> ${MONITOR_LOG_PATH} 2>&1'
-EOF
-            sudo chmod 644 "${MONITOR_CRON_FILE}"
-
-            sudo /bin/bash -lc "set -a; source '${MONITOR_ENV_PATH}'; set +a; '${APP_DIR}/scripts/discord-health-alert.sh' || true"
 
             extract_host_port() {
               local url="$1"
@@ -850,12 +798,6 @@ EOF
             for i in {1..12}; do
               if curl -fsS "${HEALTH_URL}"; then
                 echo "Health check succeeded on attempt ${i}"
-                if [ -f "${MONITOR_CRON_FILE}" ] && sudo grep -q "discord-health-alert.sh" "${MONITOR_CRON_FILE}"; then
-                  echo "Discord monitor cron installed: ${MONITOR_CRON_FILE}"
-                else
-                  echo "ERROR: Discord monitor cron missing: ${MONITOR_CRON_FILE}"
-                  exit 1
-                fi
                 exit 0
               fi
               if [ -n "${FALLBACK_HEALTH_URL}" ] && curl -fsS "${FALLBACK_HEALTH_URL}"; then
