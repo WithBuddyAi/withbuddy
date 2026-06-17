@@ -57,7 +57,7 @@ function SessionModal({ modalType, setModalType, handleRetry, setIsLoggedIn }) {
             <div className="flex justify-end mt-[20px]">
               <button
                 onClick={handleButtonClick}
-                className="h-[32px] bg-[#204867] hover:bg-[#183348] px-[12px] rounded-[8px] text-[#FFFFFF] text-[14px]"
+                className="h-[32px] bg-[#336B97] hover:bg-[#183348] px-[12px] rounded-[8px] text-[#FFFFFF] text-[14px]"
               >
                 {content.button}
               </button>
