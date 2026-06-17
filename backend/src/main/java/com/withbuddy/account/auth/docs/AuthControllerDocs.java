@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
@@ -20,6 +21,7 @@ public interface AuthControllerDocs {
         summary = "로그인",
         description = """
             [목적] 회사코드·사번·이름으로 사용자를 인증하고 accessToken을 발급한다.
+            [추가 보안] Turnstile 보호가 활성화된 환경에서는 turnstileToken도 함께 검증한다.
             [베네핏] 발급된 accessToken을 Redis에 저장해 단일 기기 세션을 강제한다. \
             다른 기기에서 재로그인 시 이전 세션이 자동 무효화되어 계정 보안을 강화한다. \
             이후 모든 API 호출에 이 토큰을 사용한다."""
@@ -27,10 +29,16 @@ public interface AuthControllerDocs {
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "로그인 성공 — accessToken 반환",
                 content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "400", description = "보안 검증 실패 — Turnstile 토큰 누락 또는 검증 실패",
+                content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "429", description = "로그인 시도 횟수 초과 — 일시 잠금",
+                content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "503", description = "보안 검증 일시 장애 — Turnstile 검증 서비스 연결 실패",
+                content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "401", description = "로그인 실패 — 회사코드·사번·이름 불일치",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    LoginResponse login(LoginRequest loginRequest);
+    LoginResponse login(LoginRequest loginRequest, @Parameter(hidden = true) HttpServletRequest request);
 
     @Operation(
         summary = "로그아웃",

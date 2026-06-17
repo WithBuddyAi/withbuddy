@@ -11,6 +11,8 @@ import com.withbuddy.account.auth.dto.request.LoginRequest;
 import com.withbuddy.account.auth.dto.response.LoginResponse;
 import com.withbuddy.account.auth.dto.response.LoginUserResponse;
 import com.withbuddy.account.auth.exception.LoginFailedException;
+import com.withbuddy.account.auth.ratelimit.LoginAttemptRateLimitService;
+import com.withbuddy.account.auth.turnstile.TurnstileVerificationService;
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
@@ -38,23 +40,35 @@ public class AuthService {
     private final RmqActivityLogService rmqActivityLogService;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
+    private final TurnstileVerificationService turnstileVerificationService;
+    private final LoginAttemptRateLimitService loginAttemptRateLimitService;
 
     @Transactional
-    public LoginResponse login(LoginRequest request) {
+    public LoginResponse login(LoginRequest request, String clientIp) {
         String normalizedCompanyCode = normalizeCompanyCode(request.getCompanyCode());
         String normalizedEmployeeNumber = normalizeValue(request.getEmployeeNumber());
         String normalizedName = normalizeValue(request.getName());
+        loginAttemptRateLimitService.checkAllowed(normalizedCompanyCode, normalizedEmployeeNumber, clientIp);
+        turnstileVerificationService.verifyLoginToken(request.getTurnstileToken(), clientIp);
 
-        User user = userRepository.findByCompany_CompanyCodeAndNameAndEmployeeNumber(
-                normalizedCompanyCode,
-                normalizedName,
-                normalizedEmployeeNumber
-        ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."));
+        User user;
+        try {
+            user = userRepository.findByCompany_CompanyCodeAndNameAndEmployeeNumber(
+                    normalizedCompanyCode,
+                    normalizedName,
+                    normalizedEmployeeNumber
+            ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."));
+        } catch (LoginFailedException e) {
+            loginAttemptRateLimitService.recordCredentialFailure(normalizedCompanyCode, normalizedEmployeeNumber, clientIp);
+            throw e;
+        }
 
         UserAccountStatus currentAccountStatus = resolveLifecycleAccountStatus(user);
         if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
             user.updateAccountStatus(currentAccountStatus);
         }
+
+        loginAttemptRateLimitService.clearOnSuccess(normalizedCompanyCode, normalizedEmployeeNumber, clientIp);
 
         redisCacheService.get(RedisCacheKeys.userSession(user.getId()))
                 .ifPresent(oldToken -> redisCacheService.delete(RedisCacheKeys.sessionToken(oldToken)));

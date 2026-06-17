@@ -7,7 +7,6 @@ on:
       - main
     paths:
       - "backend/**"
-      - "scripts/discord-health-alert.sh"
       - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
 
@@ -118,6 +117,16 @@ jobs:
           AI_SERVER_CONNECT_TIMEOUT_MS: ${{ secrets.AI_SERVER_CONNECT_TIMEOUT_MS }}
           AI_SERVER_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_READ_TIMEOUT_MS }}
           AI_SERVER_ASYNC_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_ASYNC_READ_TIMEOUT_MS }}
+          TURNSTILE_ENABLED: ${{ secrets.TURNSTILE_ENABLED }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          TURNSTILE_SITEVERIFY_URL: ${{ secrets.TURNSTILE_SITEVERIFY_URL }}
+          TURNSTILE_CONNECT_TIMEOUT_MS: ${{ secrets.TURNSTILE_CONNECT_TIMEOUT_MS }}
+          TURNSTILE_READ_TIMEOUT_MS: ${{ secrets.TURNSTILE_READ_TIMEOUT_MS }}
+          LOGIN_RATE_LIMIT_ENABLED: ${{ secrets.LOGIN_RATE_LIMIT_ENABLED }}
+          LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES: ${{ secrets.LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES }}
+          LOGIN_RATE_LIMIT_IP_MAX_FAILURES: ${{ secrets.LOGIN_RATE_LIMIT_IP_MAX_FAILURES }}
+          LOGIN_RATE_LIMIT_WINDOW_SECONDS: ${{ secrets.LOGIN_RATE_LIMIT_WINDOW_SECONDS }}
+          LOGIN_RATE_LIMIT_LOCK_SECONDS: ${{ secrets.LOGIN_RATE_LIMIT_LOCK_SECONDS }}
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
@@ -220,6 +229,11 @@ jobs:
             exit 1
           fi
 
+          if [ "${TURNSTILE_ENABLED:-false}" = "true" ] && [ -z "${TURNSTILE_SECRET_KEY:-}" ]; then
+            echo "TURNSTILE_ENABLED=true 인데 TURNSTILE_SECRET_KEY가 비어 있습니다."
+            exit 1
+          fi
+
           # RabbitMQ 자격증명 누락/형식 불량 사전 차단
           if [ -z "${RABBITMQ_PASSWORD:-}" ]; then
             if ! printf '%s' "${RABBITMQ_URL}" | grep -Eq '^amqps?://[^:@/]+:[^@/]+@[^/:?#]+(:[0-9]+)?/.+'; then
@@ -287,18 +301,8 @@ jobs:
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
         run: |
           set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}/scripts' '${BACKEND_APP_DIR}/logs'"
+          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}/logs'"
           scp app.jar "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/app.jar"
-          scp scripts/discord-health-alert.sh "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/scripts/discord-health-alert.sh"
-
-      - name: Ensure health alert script permissions
-        if: steps.branch_guard.outputs.should_deploy == 'true'
-        env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
-          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
-        run: |
-          set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" "set -euo pipefail; APP_DIR='${BACKEND_APP_DIR}'; mkdir -p \"\${APP_DIR}/scripts\" \"\${APP_DIR}/logs\"; chmod +x \"\${APP_DIR}/scripts/discord-health-alert.sh\""
 
       - name: Repair Flyway failed migrations
         if: steps.branch_guard.outputs.should_deploy == 'true'
@@ -479,6 +483,16 @@ jobs:
           AI_SERVER_CONNECT_TIMEOUT_MS: ${{ secrets.AI_SERVER_CONNECT_TIMEOUT_MS }}
           AI_SERVER_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_READ_TIMEOUT_MS }}
           AI_SERVER_ASYNC_READ_TIMEOUT_MS: ${{ secrets.AI_SERVER_ASYNC_READ_TIMEOUT_MS }}
+          TURNSTILE_ENABLED: ${{ secrets.TURNSTILE_ENABLED }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          TURNSTILE_SITEVERIFY_URL: ${{ secrets.TURNSTILE_SITEVERIFY_URL }}
+          TURNSTILE_CONNECT_TIMEOUT_MS: ${{ secrets.TURNSTILE_CONNECT_TIMEOUT_MS }}
+          TURNSTILE_READ_TIMEOUT_MS: ${{ secrets.TURNSTILE_READ_TIMEOUT_MS }}
+          LOGIN_RATE_LIMIT_ENABLED: ${{ secrets.LOGIN_RATE_LIMIT_ENABLED }}
+          LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES: ${{ secrets.LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES }}
+          LOGIN_RATE_LIMIT_IP_MAX_FAILURES: ${{ secrets.LOGIN_RATE_LIMIT_IP_MAX_FAILURES }}
+          LOGIN_RATE_LIMIT_WINDOW_SECONDS: ${{ secrets.LOGIN_RATE_LIMIT_WINDOW_SECONDS }}
+          LOGIN_RATE_LIMIT_LOCK_SECONDS: ${{ secrets.LOGIN_RATE_LIMIT_LOCK_SECONDS }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
@@ -601,6 +615,16 @@ jobs:
           AI_SERVER_CONNECT_TIMEOUT_MS=${AI_SERVER_CONNECT_TIMEOUT_MS}
           AI_SERVER_READ_TIMEOUT_MS=${AI_SERVER_READ_TIMEOUT_MS}
           AI_SERVER_ASYNC_READ_TIMEOUT_MS=${AI_SERVER_ASYNC_READ_TIMEOUT_MS}
+          TURNSTILE_ENABLED=${TURNSTILE_ENABLED:-false}
+          TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}
+          TURNSTILE_SITEVERIFY_URL=${TURNSTILE_SITEVERIFY_URL:-https://challenges.cloudflare.com/turnstile/v0/siteverify}
+          TURNSTILE_CONNECT_TIMEOUT_MS=${TURNSTILE_CONNECT_TIMEOUT_MS:-5000}
+          TURNSTILE_READ_TIMEOUT_MS=${TURNSTILE_READ_TIMEOUT_MS:-10000}
+          LOGIN_RATE_LIMIT_ENABLED=${LOGIN_RATE_LIMIT_ENABLED:-true}
+          LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES=${LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES:-5}
+          LOGIN_RATE_LIMIT_IP_MAX_FAILURES=${LOGIN_RATE_LIMIT_IP_MAX_FAILURES:-20}
+          LOGIN_RATE_LIMIT_WINDOW_SECONDS=${LOGIN_RATE_LIMIT_WINDOW_SECONDS:-600}
+          LOGIN_RATE_LIMIT_LOCK_SECONDS=${LOGIN_RATE_LIMIT_LOCK_SECONDS:-900}
           SPRING_DB_URL=${SPRING_DB_URL}
           SPRING_DB_USERNAME=${SPRING_DB_USERNAME}
           SPRING_DB_PASSWORD=${SPRING_DB_PASSWORD}
@@ -675,10 +699,9 @@ jobs:
                 ;;
             esac
 
-            mkdir -p "${APP_DIR}" "${APP_DIR}/scripts" "${APP_DIR}/logs"
+            mkdir -p "${APP_DIR}" "${APP_DIR}/logs"
             test -f "${JAR_PATH}"
             test -f "${TMP_ENV_PATH}"
-            chmod +x "${APP_DIR}/scripts/discord-health-alert.sh"
 
             # Read dependency URLs from tmp env before installing the final root-only env file.
             EFFECTIVE_REDIS_URL="$(awk -F= '/^REDIS_URL=/{print substr($0, index($0, "=")+1); exit}' "${TMP_ENV_PATH}")"
