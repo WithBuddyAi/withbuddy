@@ -16,6 +16,7 @@ function AdminDocumentView({
   onDeleteSuccess,
   onUploadSuccess,
   onUploadError,
+  onUploadDuplicate,
 }) {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -106,10 +107,10 @@ function AdminDocumentView({
   }, [search]);
 
   return (
-    <div className="flex flex-col gap-[24px] min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-[20px]">
+    <div className="flex flex-col gap-[12px] min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-[20px]">
       <AdminDocHeader />
 
-      <div className="flex flex-col gap-[24px]">
+      <div className="flex flex-col gap-[12px]">
         {/* 파일 업로드(파일을 드래그&드롭하면 입력 폼으로 교체) */}
         {uploadFile ? (
           <DocUploadForm
@@ -121,6 +122,7 @@ function AdminDocumentView({
               onUploadSuccess?.();
             }}
             onError={() => onUploadError?.()}
+            onDuplicate={() => onUploadDuplicate?.()}
           />
         ) : (
           <DocUploadZone onFileSelect={(file) => setUploadFile(file)} />
@@ -131,7 +133,7 @@ function AdminDocumentView({
 
         <div>
           {/* 총 문서 수 + 검색 + 필터 */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-[12px] gap-[8px]">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-[6px] gap-[8px]">
             <div className="flex items-center gap-[8px] shrink-0">
               <p className="text-[14px] md:text-[16px] font-medium whitespace-nowrap">등록한 문서 목록</p>
               <p className="rounded-[9999px] px-[8px] md:px-[12px] py-[4px] bg-[#F8F9FA] text-[12px] text-[#868E96] whitespace-nowrap">

@@ -11,6 +11,7 @@ import AdminCreateView from "../components/admin/AdminCreateView";
 import AdminDocumentView from "../components/admin/AdminDocumentView/AdminDocumentView";
 import DocDeleteModal from "../components/admin/AdminDocumentView/DocDeleteModal";
 import DocToast from "../components/admin/AdminDocumentView/DocToast";
+import DocDuplicateModal from "../components/admin/AdminDocumentView/DocDuplicateModal";
 
 function Admin({ setIsLoggedIn }) {
   // 세션 정책
@@ -36,6 +37,9 @@ function Admin({ setIsLoggedIn }) {
 
   // 문서 삭제 메시지 'success' | 'error' | null
   const [docToast, setDocToast] = useState(null);
+
+  // 문서 업로드 중복 안내 모달
+  const [isDuplicateModal, setIsDuplicateModal] = useState(false);
 
   // 로그아웃
   const handleLogout = async () => {
@@ -119,6 +123,11 @@ function Admin({ setIsLoggedIn }) {
             setDocToast("error");
           }}
         />
+      )}
+
+      {/* 문서 업로드 중복 모달 */}
+      {isDuplicateModal && (
+        <DocDuplicateModal onClose={() => setIsDuplicateModal(false)} />
       )}
 
       {/* 문서 토스트 (성공 | 실패) */}
@@ -209,6 +218,7 @@ function Admin({ setIsLoggedIn }) {
                 }}
                 onUploadSuccess={() => setDocToast("uploadSuccess")}
                 onUploadError={() => setDocToast("uploadError")}
+                onUploadDuplicate={() => setIsDuplicateModal(true)}
               />
             )}
             {view === "unanswered" && <div>미답변 질문 준비 중</div>}
