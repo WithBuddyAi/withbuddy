@@ -5,12 +5,34 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: write
+
 concurrency:
   group: product-quality-monitor
   cancel-in-progress: true
 
 jobs:
+  dispatch-monitor-on-main:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Re-dispatch Product Quality Monitor on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api \
+            --method POST \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/product-quality-monitor.yml/dispatches" \
+            -f ref='main'
+          echo "Dispatched Product Quality Monitor on main from ${GITHUB_REF} (${GITHUB_EVENT_NAME})."
+
   monitor-backend:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
