@@ -12,7 +12,6 @@ concurrency:
 jobs:
   monitor-backend:
     runs-on: ubuntu-latest
-    environment: production
     timeout-minutes: 10
 
     steps:
