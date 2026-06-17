@@ -60,7 +60,7 @@ function DocMobileList({
             onClick={onDeleteClick}
             disabled={selectedIds.length === 0}
             className={`${
-              selectedIds.length > 0 ? "text-[#E03131]" : "text-transparent"
+              selectedIds.length > 0 ? "text-[#E03131]" : "text-[#c9c9c9]"
             }`}
           >
             <Trash2 size={16} />

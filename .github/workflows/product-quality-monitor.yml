@@ -1,0 +1,155 @@
+name: Product Quality Monitor
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: product-quality-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor-backend:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+
+    steps:
+      - name: Install cloudflared client on runner
+        run: |
+          set -euo pipefail
+          sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Configure SSH over Cloudflare Access
+        env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
+          BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          cat > ~/.ssh/backend_key <<'KEY_EOF'
+          ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          KEY_EOF
+          chmod 600 ~/.ssh/backend_key
+
+          cat > ~/.ssh/config <<EOF
+          Host ${BACKEND_ACCESS_HOST}
+            HostName ${BACKEND_ACCESS_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/backend_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+          chmod 600 ~/.ssh/config
+          ssh -o BatchMode=yes -o ConnectTimeout=10 "${BACKEND_ACCESS_HOST}" "echo ssh_ok"
+
+      - name: Run Product Quality checks
+        env:
+          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8080/actuator/health/liveness}"
+          printf -v HEALTH_URL_Q '%q' "${HEALTH_URL}"
+
+          ssh "${BACKEND_ACCESS_HOST}" "BACKEND_HEALTH_URL=${HEALTH_URL_Q} bash -s" <<'REMOTE' | tee monitor-summary.md
+          set -euo pipefail
+
+          BACKEND_SERVICE="withbuddy-backend.service"
+          GRAFANA_SERVICE="grafana-server"
+          PROMETHEUS_SERVICE="prometheus"
+          HEALTH_URL="${BACKEND_HEALTH_URL}"
+          PROM_HEALTH_URL="http://127.0.0.1:9090/-/healthy"
+          PROM_READY_URL="http://127.0.0.1:9090/-/ready"
+          MONITOR_LOG_DIR="/home/ubuntu/withbuddy/logs"
+          MONITOR_LOG_PATH="${MONITOR_LOG_DIR}/product-quality-monitor.log"
+          failed=0
+
+          backend_status="$(systemctl is-active "${BACKEND_SERVICE}" 2>/dev/null || true)"
+          grafana_status="$(systemctl is-active "${GRAFANA_SERVICE}" 2>/dev/null || true)"
+          prometheus_status="$(systemctl is-active "${PROMETHEUS_SERVICE}" 2>/dev/null || true)"
+
+          [ -n "${backend_status}" ] || backend_status="unknown"
+          [ -n "${grafana_status}" ] || grafana_status="unknown"
+          [ -n "${prometheus_status}" ] || prometheus_status="unknown"
+
+          if [ "${backend_status}" != "active" ] || [ "${grafana_status}" != "active" ] || [ "${prometheus_status}" != "active" ]; then
+            failed=1
+          fi
+
+          health_response="$(curl -fsS "${HEALTH_URL}" 2>&1 || true)"
+          prom_health_response="$(curl -fsS "${PROM_HEALTH_URL}" 2>&1 || true)"
+          prom_ready_response="$(curl -fsS "${PROM_READY_URL}" 2>&1 || true)"
+
+          [ -n "${health_response}" ] || health_response="request_failed"
+          [ -n "${prom_health_response}" ] || prom_health_response="request_failed"
+          [ -n "${prom_ready_response}" ] || prom_ready_response="request_failed"
+
+          case "${health_response}" in
+            curl:*|*Could\ not\ resolve*|*Connection\ refused*|request_failed)
+              failed=1
+              ;;
+          esac
+          case "${prom_health_response}" in
+            curl:*|*Could\ not\ resolve*|*Connection\ refused*|request_failed)
+              failed=1
+              ;;
+          esac
+          case "${prom_ready_response}" in
+            curl:*|*Could\ not\ resolve*|*Connection\ refused*|request_failed)
+              failed=1
+              ;;
+          esac
+          disk_line="$(df -h / | awk 'NR==2 {print $5 " used on " $1}')"
+          mem_line="$(free -m | awk 'NR==2 {printf "%sMB / %sMB used", $3, $2}')"
+          checked_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          monitor_result="ok"
+
+          if [ "${failed}" -ne 0 ]; then
+            monitor_result="failed"
+          fi
+
+          mkdir -p "${MONITOR_LOG_DIR}"
+          printf '%s | result=%s | backend=%s | grafana=%s | prometheus=%s | backend_health=%s | prom_health=%s | prom_ready=%s | memory=%s | disk=%s\n' \
+            "${checked_at}" \
+            "${monitor_result}" \
+            "${backend_status}" \
+            "${grafana_status}" \
+            "${prometheus_status}" \
+            "${health_response}" \
+            "${prom_health_response}" \
+            "${prom_ready_response}" \
+            "${mem_line}" \
+            "${disk_line}" >> "${MONITOR_LOG_PATH}"
+
+          echo "## Product Quality Monitor"
+          echo "- checked_at_utc: ${checked_at}"
+          echo "- result: ${monitor_result}"
+          echo "- backend_service: ${backend_status}"
+          echo "- grafana_service: ${grafana_status}"
+          echo "- prometheus_service: ${prometheus_status}"
+          echo "- health_url: ${HEALTH_URL}"
+          echo "- backend_health: ${health_response}"
+          echo "- prometheus_health: ${prom_health_response}"
+          echo "- prometheus_ready: ${prom_ready_response}"
+          echo "- memory: ${mem_line}"
+          echo "- root_disk: ${disk_line}"
+          echo "- monitor_log_path: ${MONITOR_LOG_PATH}"
+
+          if [ "${failed}" -ne 0 ]; then
+            exit 1
+          fi
+          REMOTE
+
+          cat monitor-summary.md >> "$GITHUB_STEP_SUMMARY"

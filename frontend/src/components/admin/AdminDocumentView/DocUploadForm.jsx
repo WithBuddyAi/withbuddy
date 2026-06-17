@@ -5,7 +5,7 @@ import { validateFile } from "./validateFile";
 
 const DOC_TYPES = ["POLICY", "GUIDE", "TEMPLATE"];
 
-function DocUploadForm({ file, onCancel, onSuccess, onError }) {
+function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
   const [title, setTitle] = useState(
     file?.name?.replace(/\.[^/.]+$/, "") || "",
   );
@@ -77,16 +77,22 @@ function DocUploadForm({ file, onCancel, onSuccess, onError }) {
       const errorMessages = {
         FILE_001_SIZE: "파일 크기가 너무 커요. (최대 20MB)",
         FILE_001_COUNT: "업로드 가능한 문서 수 제한을 초과했어요. (최대 300개)",
-        FILE_001_CAPACITY: "업로드 가능한 전체 용량 한도를 초과했어요. (최대 2GB)",
+        FILE_001_CAPACITY:
+          "업로드 가능한 전체 용량 한도를 초과했어요. (최대 2GB)",
         FILE_001_EMPTY: "파일이 비어 있거나 존재하지 않아요.",
         FILE_002: "지원하지 않는 파일 형식이에요.",
       };
 
-      const message = errorMessages[code];
-      if (message) {
-        setErrorMessage(message);
+      // 중복 문서 감지 시 모달로 안내
+      if (code === "DOCUMENT_DUPLICATE") {
+        onDuplicate?.();
       } else {
-        onError?.();
+        const message = errorMessages[code];
+        if (message) {
+          setErrorMessage(message);
+        } else {
+          onError?.();
+        }
       }
     } finally {
       setIsLoading(false);
@@ -174,6 +180,9 @@ function DocUploadForm({ file, onCancel, onSuccess, onError }) {
             <div className="flex flex-col gap-[8px] flex-1">
               <label className="text-[14px] md:text-[16px] font-semibold">
                 문서 타입
+                <span className="text-[#F03E3E] text-[12px] md:text-[14px]">
+                  (필수)
+                </span>
               </label>
               <div className="flex flex-wrap gap-[8px]">
                 {DOC_TYPES.map((type) => (
@@ -197,11 +206,14 @@ function DocUploadForm({ file, onCancel, onSuccess, onError }) {
             <div className="flex flex-col gap-[8px] flex-1">
               <label className="text-[14px] md:text-[16px] font-semibold">
                 담당 부서
+                <span className="text-[#F03E3E] text-[12px] md:text-[14px]">
+                  (필수)
+                </span>
               </label>
               <div ref={deptFilterRef} className="relative">
                 <button
                   onClick={() => setShowDeptFilter((prev) => !prev)}
-                  className="flex items-center justify-between gap-[6px] border border-[#CED4DA] rounded-[8px] w-full px-[12px] py-[9px] md:py-[13px] text-[12px] md:text-[14px] text-[#868E96]"
+                  className={`flex items-center justify-between gap-[6px] border border-[#CED4DA] rounded-[8px] w-full px-[10px] py-[9px] md:py-[13px] text-[12px] md:text-[14px] ${department ? "text-[#000000]" : "text-[#868E96]"}`}
                 >
                   {department || "부서를 선택해주세요"}
                   <ChevronDown size={16} />

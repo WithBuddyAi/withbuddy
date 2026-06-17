@@ -45,16 +45,24 @@ function DocTable({
   return (
     <div className="flex flex-col">
       {/* 헤더 */}
-      <div className="min-w-[700px] grid md:grid-cols-[40px_1fr_120px_100px_100px_100px_40px] lg:grid-cols-[40px_500px_220px_220px_220px_220px_80px] items-center px-[2px] py-[12px] text-[12px] lg:text-[14px] text-[#868E96] text-center border-b border-[#F1F3F5]">
+      <div className="min-w-[700px] grid md:grid-cols-[40px_minmax(0,1fr)_100px_100px_100px_100px_40px] items-center px-[2px] py-[12px] text-[12px] lg:text-[14px] text-[#868E96] text-center border-b border-[#F1F3F5]">
         <input
           type="checkbox"
           checked={allChecked}
           onChange={(e) => handleSelectAll(e.target.checked)}
           className="accent-[#4791CA]"
         />
-        <span className="text-left">문서명</span>
-        <span>상태</span>
+        <span className="text-left">
+          문서명
+          {selectedIds.length > 0 && (
+            <span className="text-[#336B97]">
+              {" "}
+              · {selectedIds.length}개 선택됨
+            </span>
+          )}
+        </span>
         <span>문서 타입</span>
+        <span>문서 형태</span>
         <span>담당 부서</span>
         <span>업로드일</span>
 
@@ -65,7 +73,7 @@ function DocTable({
           className={`flex items-center justify-center ${
             selectedIds.length > 0
               ? "text-[#E03131] cursor-pointer"
-              : "text-transparent cursor-default"
+              : "text-[#c9c9c9] cursor-default"
           }`}
         >
           <Trash2 size={16} />
@@ -82,7 +90,7 @@ function DocTable({
           <div className="text-center pt-[32px] text-[14px] text-[#495057]">
             <p>
               {emptyMessage.main}
-              <br/>
+              <br />
               {emptyMessage.sub}
             </p>
           </div>
