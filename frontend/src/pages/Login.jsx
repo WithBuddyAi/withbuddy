@@ -17,7 +17,7 @@ const SUB_COPIES = [
   "회사 문서 속 필요한 정보를 위드버디가 질문에 맞게 찾아드려요.",
 ];
 
-// 최초 마운트 시점의 너비로 결정 (너비 변환 시 타이핑 재시작 없음)
+// 최초 마운트 시점의 너비로만 결정 (리사이즈 시 타이핑 재시작 없음)
 const FULL_TEXT_WIDE =
   "안녕하세요! 저는 위드버디예요😊 입사 초에 자주 헷갈리는 회사 생활 질문을 도와드려요.\n사소하지만 꼭 필요한 것부터 편하게 물어보세요.";
 const FULL_TEXT_NARROW =
@@ -49,6 +49,15 @@ function Login({ setIsLoggedIn }) {
   const [subCopyIndex, setSubCopyIndex] = useState(0);
   const [isSubCopyVisible, setIsSubCopyVisible] = useState(true);
 
+  // 데스크탑(lg, 1024px) 여부 감지
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setIsSubCopyVisible(false);
@@ -63,7 +72,7 @@ function Login({ setIsLoggedIn }) {
   // 말풍선 타이핑 효과
   const [displayedText, setDisplayedText] = useState("");
   const fullText = useRef(
-    window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW,
+    window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW
   );
   const chars = useRef([...fullText.current]);
   const isTypingDone = useRef(false);
@@ -87,8 +96,7 @@ function Login({ setIsLoggedIn }) {
   useEffect(() => {
     const handleResize = () => {
       if (!isTypingDone.current) return;
-      const next =
-        window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW;
+      const next = window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW;
       setDisplayedText(next);
     };
     window.addEventListener("resize", handleResize);
@@ -383,42 +391,47 @@ function Login({ setIsLoggedIn }) {
         </div>
 
         {/* ── 모바일/태블릿: 기존 레이아웃 그대로 ── */}
-        <div className="flex flex-col items-center justify-center lg:hidden">
-          <div className="flex flex-row items-center justify-center mb-[38px] md:mb-[45px]">
-            <img
-              className="w-[35px] h-[35px] mr-[17px] md:w-[38px] md:h-[38px] md:mr-[26px]"
-              src={char}
-              alt="위드버디 캐릭터"
-            />
-            <img
-              className="w-[215px] h-[48px]"
-              src={withbuddy}
-              alt="위드버디 로고"
+        {/* isDesktop 기준으로 폼을 1개만 마운트 (DOM에 form이 2개 존재하는 문제 방지) */}
+        {!isDesktop && (
+          <div className="flex flex-col items-center justify-center">
+            <div className="flex flex-row items-center justify-center mb-[38px] md:mb-[45px]">
+              <img
+                className="w-[35px] h-[35px] mr-[17px] md:w-[38px] md:h-[38px] md:mr-[26px]"
+                src={char}
+                alt="위드버디 캐릭터"
+              />
+              <img
+                className="w-[215px] h-[48px]"
+                src={withbuddy}
+                alt="위드버디 로고"
+              />
+            </div>
+            <MobileForm
+              companyCode={companyCode}
+              companyCodeError={companyCodeError}
+              companyCodeRef={companyCodeRef}
+              handleCompanyCodeChange={handleCompanyCodeChange}
+              employeeNumber={employeeNumber}
+              employeeNumberError={employeeNumberError}
+              employeeNumberRef={employeeNumberRef}
+              handleEmployeeNumberChange={handleEmployeeNumberChange}
+              name={name}
+              nameError={nameError}
+              nameRef={nameRef}
+              handleNameChange={handleNameChange}
+              errorMessage={errorMessage}
+              isLoading={isLoading}
+              isFormValid={isFormValid}
+              handleLogin={handleLogin}
             />
           </div>
-          <MobileForm
-            companyCode={companyCode}
-            companyCodeError={companyCodeError}
-            companyCodeRef={companyCodeRef}
-            handleCompanyCodeChange={handleCompanyCodeChange}
-            employeeNumber={employeeNumber}
-            employeeNumberError={employeeNumberError}
-            employeeNumberRef={employeeNumberRef}
-            handleEmployeeNumberChange={handleEmployeeNumberChange}
-            name={name}
-            nameError={nameError}
-            nameRef={nameRef}
-            handleNameChange={handleNameChange}
-            errorMessage={errorMessage}
-            isLoading={isLoading}
-            isFormValid={isFormValid}
-            handleLogin={handleLogin}
-          />
-        </div>
+        )}
 
         {/* 데스크탑: 우측 로그인 카드 */}
+        {/* isDesktop 기준으로 폼을 1개만 마운트 */}
+        {isDesktop && (
         <div
-          className="hidden lg:flex lg:items-center lg:justify-center lg:shrink-0 lg:w-1/2"
+          className="flex items-center justify-center shrink-0 w-1/2"
           style={{
             padding: "40px clamp(16px, 2.5vw, 48px)",
           }}
@@ -566,6 +579,7 @@ function Login({ setIsLoggedIn }) {
             </p>
           </div>
         </div>
+        )}
       </div>
 
       {/* 모바일 footer */}

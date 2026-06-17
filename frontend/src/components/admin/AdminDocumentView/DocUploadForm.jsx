@@ -5,7 +5,7 @@ import { validateFile } from "./validateFile";
 
 const DOC_TYPES = ["POLICY", "GUIDE", "TEMPLATE"];
 
-function DocUploadForm({ file, onCancel, onSuccess, onError }) {
+function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
   const [title, setTitle] = useState(
     file?.name?.replace(/\.[^/.]+$/, "") || "",
   );
@@ -83,11 +83,16 @@ function DocUploadForm({ file, onCancel, onSuccess, onError }) {
         FILE_002: "지원하지 않는 파일 형식이에요.",
       };
 
-      const message = errorMessages[code];
-      if (message) {
-        setErrorMessage(message);
+      // 중복 문서 감지 시 모달로 안내
+      if (code === "DOCUMENT_DUPLICATE") {
+        onDuplicate?.();
       } else {
-        onError?.();
+        const message = errorMessages[code];
+        if (message) {
+          setErrorMessage(message);
+        } else {
+          onError?.();
+        }
       }
     } finally {
       setIsLoading(false);
@@ -208,7 +213,7 @@ function DocUploadForm({ file, onCancel, onSuccess, onError }) {
               <div ref={deptFilterRef} className="relative">
                 <button
                   onClick={() => setShowDeptFilter((prev) => !prev)}
-                  className="flex items-center justify-between gap-[6px] border border-[#CED4DA] rounded-[8px] w-full px-[10px] py-[9px] md:py-[13px] text-[12px] md:text-[14px] text-[#868E96]"
+                  className={`flex items-center justify-between gap-[6px] border border-[#CED4DA] rounded-[8px] w-full px-[10px] py-[9px] md:py-[13px] text-[12px] md:text-[14px] ${department ? "text-[#000000]" : "text-[#868E96]"}`}
                 >
                   {department || "부서를 선택해주세요"}
                   <ChevronDown size={16} />

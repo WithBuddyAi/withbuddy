@@ -148,7 +148,7 @@ function DocTemplateAccordion() {
               </div>
 
               {/* 문서 목록 (세로 나열) */}
-              <div className="flex flex-wrap gap-x-[16px] gap-y-[6px]">
+              <div className="flex flex-wrap gap-x-[8px] gap-y-[6px]">
                 {t.items.map((item) => (
                   <button
                     key={item.documentId}

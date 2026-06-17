@@ -92,8 +92,8 @@ class LoginAttemptRateLimitServiceTest {
 
         verify(redisCacheService).delete(RedisCacheKeys.loginFailureAccount("WB0001", "20260001"));
         verify(redisCacheService).delete(RedisCacheKeys.loginLockAccount("WB0001", "20260001"));
-        verify(redisCacheService).delete(RedisCacheKeys.loginFailureIp("127.0.0.1"));
-        verify(redisCacheService).delete(RedisCacheKeys.loginLockIp("127.0.0.1"));
+        verify(redisCacheService, never()).delete(RedisCacheKeys.loginFailureIp("127.0.0.1"));
+        verify(redisCacheService, never()).delete(RedisCacheKeys.loginLockIp("127.0.0.1"));
     }
 
     @Test
