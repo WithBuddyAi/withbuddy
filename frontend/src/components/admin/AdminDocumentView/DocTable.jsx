@@ -52,7 +52,15 @@ function DocTable({
           onChange={(e) => handleSelectAll(e.target.checked)}
           className="accent-[#4791CA]"
         />
-        <span className="text-left">문서명</span>
+        <span className="text-left">
+          문서명
+          {selectedIds.length > 0 && (
+            <span className="text-[#336B97]">
+              {" "}
+              · {selectedIds.length}개 선택됨
+            </span>
+          )}
+        </span>
         <span>문서 타입</span>
         <span>문서 형태</span>
         <span>담당 부서</span>
@@ -82,7 +90,7 @@ function DocTable({
           <div className="text-center pt-[32px] text-[14px] text-[#495057]">
             <p>
               {emptyMessage.main}
-              <br/>
+              <br />
               {emptyMessage.sub}
             </p>
           </div>
