@@ -95,6 +95,18 @@ app:
       exposed-headers: ${CORS_EXPOSED_HEADERS:}
       allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
       max-age-seconds: ${CORS_MAX_AGE_SECONDS:3600}
+    turnstile:
+      enabled: ${TURNSTILE_ENABLED:false}
+      secret-key: ${TURNSTILE_SECRET_KEY:}
+      siteverify-url: ${TURNSTILE_SITEVERIFY_URL:https://challenges.cloudflare.com/turnstile/v0/siteverify}
+      connect-timeout-ms: ${TURNSTILE_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${TURNSTILE_READ_TIMEOUT_MS:10000}
+    login-rate-limit:
+      enabled: ${LOGIN_RATE_LIMIT_ENABLED:true}
+      account-max-failures: ${LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES:5}
+      ip-max-failures: ${LOGIN_RATE_LIMIT_IP_MAX_FAILURES:20}
+      window-seconds: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:600}
+      lock-seconds: ${LOGIN_RATE_LIMIT_LOCK_SECONDS:900}
     storage-api:
       enabled: ${STORAGE_API_AUTH_ENABLED:false}
       keys:
