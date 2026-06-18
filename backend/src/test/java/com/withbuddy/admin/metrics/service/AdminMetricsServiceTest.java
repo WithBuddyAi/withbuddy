@@ -10,6 +10,7 @@ import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsRespon
 import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
+import com.withbuddy.infrastructure.ai.client.AiNoResultSummaryClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -27,6 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +39,9 @@ class AdminMetricsServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private AiNoResultSummaryClient aiNoResultSummaryClient;
 
     @InjectMocks
     private AdminMetricsService adminMetricsService;
@@ -60,6 +65,16 @@ class AdminMetricsServiceTest {
                 0L,
                 LocalDateTime.of(2026, 6, 1, 13, 0)
         ))));
+        when(aiNoResultSummaryClient.summarize(
+                "WB0001",
+                List.of("복지카드는 어떻게 신청하나요?")
+        )).thenReturn(new AiNoResultSummaryClient.NoResultSummaryResponse(
+                "WB0001",
+                1,
+                "복지카드 신청 관련 문서가 부족합니다.",
+                List.of("복지카드 신청 절차 문서를 보강하세요."),
+                "A"
+        ));
 
         UnansweredQuestionPatternsResponse response = adminMetricsService.getUnansweredQuestionPatterns(
                 principal,
@@ -72,6 +87,10 @@ class AdminMetricsServiceTest {
         assertThat(response.limit()).isEqualTo(5);
         assertThat(response.patterns()).hasSize(1);
         assertThat(response.patterns().getFirst().questionContent()).isEqualTo("복지카드는 어떻게 신청하나요?");
+        assertThat(response.aiSummary()).isNotNull();
+        assertThat(response.aiSummary().status()).isEqualTo("READY");
+        assertThat(response.aiSummary().summary()).isEqualTo("복지카드 신청 관련 문서가 부족합니다.");
+        assertThat(response.aiSummary().actions()).containsExactly("복지카드 신청 절차 문서를 보강하세요.");
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(adminMetricsRepository).findUnansweredQuestionPatterns(
@@ -144,6 +163,8 @@ class AdminMetricsServiceTest {
         assertThat(response.documentGapRate().companies()).hasSize(1);
         assertThat(response.unstartedUsers().companies()).hasSize(1);
         assertThat(response.unansweredQuestionPatterns().limit()).isEqualTo(5);
+        assertThat(response.unansweredQuestionPatterns().aiSummary().status()).isEqualTo("SKIPPED");
+        verifyNoInteractions(aiNoResultSummaryClient);
     }
 
     @Test
