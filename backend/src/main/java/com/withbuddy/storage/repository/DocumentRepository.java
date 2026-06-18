@@ -90,9 +90,8 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     long countByCompanyCodeAndIsActiveTrue(String companyCode);
 
-    boolean existsByCompanyCodeAndDocumentTypeAndTitleAndIsActiveTrue(
+    boolean existsByCompanyCodeAndTitleAndIsActiveTrue(
             String companyCode,
-            String documentType,
             String title
     );
 
