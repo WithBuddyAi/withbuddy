@@ -23,24 +23,18 @@ from core.vectorstore import search_with_company_fallback, search_legal_docs
 
 # ── 회사별 설정 ───────────────────────────────────────────────
 
-_COMPANY_NAMES: dict[str, str] = {
-    "WB0001": "테크 주식회사",
-    "WB0002": "스튜디오 프리즘",
-}
-
-_COMPANY_HR_CONTACTS: dict[str, dict] = {
-    "WB0001": {"team": "경영지원팀", "contact": "경영지원팀 김지수 매니저"},
-    "WB0002": {"team": "운영팀", "contact": "운영팀 김현아 매니저"},
-}
-
-_COMPANY_IT_CONTACTS: dict[str, str] = {
-    "WB0001": "Slack @minjun.park (IT담당 박민준)으로 문의해 주세요.",
-    "WB0002": "Slack @soyeon.park (운영팀 박소연 담당)으로 문의해 주세요.",
-}
-
-_COMPANY_SPECIFIC_RULES: dict[str, str] = {
-    "WB0001": "    ⚠️ 이 회사 사용자에게는 수습 감액 분기를 적용하지 않습니다. 이 회사는 수습 기간 중에도 급여 100%를 지급합니다.",
-}
+try:
+    from contacts_config import (
+        COMPANY_NAMES as _COMPANY_NAMES,
+        COMPANY_HR_CONTACTS as _COMPANY_HR_CONTACTS,
+        COMPANY_IT_CONTACTS as _COMPANY_IT_CONTACTS,
+        COMPANY_SPECIFIC_RULES as _COMPANY_SPECIFIC_RULES,
+    )
+except ImportError:
+    _COMPANY_NAMES = {}
+    _COMPANY_HR_CONTACTS = {}
+    _COMPANY_IT_CONTACTS = {}
+    _COMPANY_SPECIFIC_RULES = {}
 
 
 def get_company_name(company_code: str) -> str:
