@@ -151,6 +151,98 @@ async def summarize_no_result(req: NoResultSummaryRequest):
         promptStyle=req.promptStyle,
     )
 
+# ── TOP5 통합 요약 엔드포인트 (SCRUM-490) ─────────────────────────
+
+_TOP5_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """당신은 기업 온보딩 문서 보강을 돕는 AI입니다.
+신입 직원들이 반복적으로 질문했지만 문서에서 답을 찾지 못한 TOP5 질문을 분석하여,
+관리자가 어떤 영역의 문서를 보강해야 하는지 즉시 파악할 수 있도록 요약과 액션을 제안합니다.
+
+규칙:
+- 요약은 2~3문장. 마지막 문장은 반드시 "~하면 같은 질문을 줄일 수 있어요." 또는 "~를 추가해 보세요."로 끝내세요.
+- 숫자(건수)는 요약에 포함하지 마세요.
+- 보강 영역은 최대 3개: HR · 인사 / 복지 / 행정 / IT / 근무 제도 중에서 선택.
+- 각 영역 항목은 1줄 이내. 문서명 대신 추가해야 할 내용을 구체적으로 서술.
+- 법적 분쟁, 임금 체불, 신체적 위협 등 민감 질문은 보강 영역에서 제외하고 민감 질문 여부만 표시.
+- 마크다운 볼드(**) 등 특수 기호 사용 금지."""),
+    ("human", """다음 TOP5 미답변 질문을 분석해 아래 형식으로 정확히 출력하세요.
+
+질문 목록:
+{questions}
+
+출력 형식:
+요약:
+[2~3문장 요약]
+
+보강 영역:
+· [파트명] — [추가해야 할 내용]
+· [파트명] — [추가해야 할 내용]
+
+민감 질문: 있음 또는 없음"""),
+])
+
+
+class Top5AnalysisRequest(BaseModel):
+    companyCode: str = Field(..., description="회사 코드")
+    questions: List[str] = Field(..., description="TOP5 미답변 질문 목록")
+
+
+class Top5Action(BaseModel):
+    part: str
+    items: str
+
+
+class Top5AnalysisResponse(BaseModel):
+    companyCode: str
+    summary: str
+    actions: List[Top5Action]
+    hasSensitive: bool
+
+
+def _run_top5_analysis(questions: List[str]) -> tuple:
+    import re as _re
+
+    questions_text = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
+    chain = _TOP5_PROMPT | get_llm() | StrOutputParser()
+    result = chain.invoke({"questions": questions_text})
+
+    summary_match = _re.search(r'요약:\s*\n?(.*?)(?=\n\s*보강 영역)', result, _re.DOTALL)
+    summary = summary_match.group(1).strip() if summary_match else ""
+
+    actions = []
+    for m in _re.finditer(r'·\s*([^—–-]+?)\s*[—–-]+\s*(.+)', result):
+        part = m.group(1).strip()
+        items = m.group(2).strip()
+        if part and items:
+            actions.append(Top5Action(part=part, items=items))
+
+    has_sensitive = bool(_re.search(r'민감 질문:\s*있음', result))
+
+    return summary, actions, has_sensitive
+
+
+@router.post("/no-result/top5-analysis", response_model=Top5AnalysisResponse, tags=["internal"])
+async def analyze_top5(req: Top5AnalysisRequest):
+    """
+    TOP5 미답변 질문을 받아 통합 요약 + 보강 영역 액션 + 민감 질문 여부를 반환합니다.
+    관리자 대시보드 문서 보강 후보 TOP5 카드 하단 AI 분석 섹션에서 사용합니다.
+    """
+    if not req.questions:
+        raise HTTPException(status_code=400, detail="질문 목록이 비어 있습니다.")
+
+    try:
+        summary, actions, has_sensitive = await asyncio.to_thread(_run_top5_analysis, req.questions)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"분석 실패: {str(e)}")
+
+    return Top5AnalysisResponse(
+        companyCode=req.companyCode,
+        summary=summary,
+        actions=actions,
+        hasSensitive=has_sensitive,
+    )
+
+
 _QA_DOC_PATH = Path(__file__).parent.parent / "docs" / "qa_knowledge.md"
 
 # 부적절한 답변 패턴

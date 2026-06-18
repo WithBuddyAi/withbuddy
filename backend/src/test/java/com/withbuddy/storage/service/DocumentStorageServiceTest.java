@@ -215,7 +215,7 @@ class DocumentStorageServiceTest {
     }
 
     @Test
-    void rejectsDuplicatePolicyByCompanyTypeAndTitle() {
+    void rejectsDuplicatePolicyByCompanyAndTitle() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "policy.pdf",
@@ -223,9 +223,8 @@ class DocumentStorageServiceTest {
                 "payload".getBytes()
         );
         when(storageProperties.getMaxDocumentSizeMb()).thenReturn(20);
-        when(documentRepository.existsByCompanyCodeAndDocumentTypeAndTitleAndIsActiveTrue(
+        when(documentRepository.existsByCompanyCodeAndTitleAndIsActiveTrue(
                 "WB0001",
-                "POLICY",
                 "취업규칙"
         )).thenReturn(true);
 
