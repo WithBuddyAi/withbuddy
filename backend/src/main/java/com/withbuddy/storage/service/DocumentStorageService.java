@@ -1230,9 +1230,8 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
 
         boolean duplicate = switch (documentType.toUpperCase(Locale.ROOT)) {
-            case "POLICY", "GUIDE" -> documentRepository.existsByCompanyCodeAndDocumentTypeAndTitleAndIsActiveTrue(
+            case "POLICY", "GUIDE" -> documentRepository.existsByCompanyCodeAndTitleAndIsActiveTrue(
                     companyCode,
-                    documentType,
                     title
             );
             case "TEMPLATE" -> documentRepository.existsActiveTemplateDuplicate(
