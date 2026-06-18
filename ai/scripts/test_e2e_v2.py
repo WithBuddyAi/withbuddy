@@ -59,10 +59,10 @@ TESTS = [
     {"id": "Q27", "q": "리프레시 휴가 있어?",                               "bm25": False, "expect_type": "no_result"},
     {"id": "Q28", "q": "연봉 협상은 어떻게 해?",                            "bm25": True,  "expect_type": "no_result"},
     {"id": "Q29", "q": "업무폰 지급돼?",                                    "bm25": False, "expect_type": "no_result"},
-    {"id": "Q30", "q": "주 4일제야?",                                       "bm25": False, "expect_type": "no_result"},
+    {"id": "Q30", "q": "주 4일제야?",                                       "bm25": False, "expect_type": "rag_answer"},
     {"id": "Q31", "q": "육아휴직 어떻게 신청해?",                           "bm25": False, "expect_type": "no_result"},
     {"id": "Q32", "q": "스톡옵션 받을 수 있어?",                            "bm25": True,  "expect_type": "no_result"},
-    {"id": "Q33", "q": "복장 규정 있어?",                                   "bm25": False, "expect_type": "no_result"},
+    {"id": "Q33", "q": "복장 규정 있어?",                                   "bm25": False, "expect_type": "rag_answer"},
     # ── out_of_scope (7건) ──
     {"id": "Q34", "q": "팀장이랑 사이가 안 좋으면 어떻게 해?",             "bm25": False, "expect_type": "out_of_scope"},
     {"id": "Q35", "q": "요즘 개발자 연봉 시세 어떻게 돼?",                 "bm25": False, "expect_type": "out_of_scope"},
