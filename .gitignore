@@ -50,6 +50,7 @@ datasets/
 ai/docs/
 ai/chroma_db/
 ai/data/
+ai/contacts_config.py
 
 # Python tooling
 .venv/

@@ -19,6 +19,8 @@ import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
+import com.withbuddy.infrastructure.ai.client.AiNoResultSummaryClient;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,7 @@ import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
+@Slf4j
 public class AdminMetricsService {
 
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
@@ -38,13 +41,16 @@ public class AdminMetricsService {
 
     private final AdminMetricsRepository adminMetricsRepository;
     private final UserRepository userRepository;
+    private final AiNoResultSummaryClient aiNoResultSummaryClient;
 
     public AdminMetricsService(
             AdminMetricsRepository adminMetricsRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            AiNoResultSummaryClient aiNoResultSummaryClient
     ) {
         this.adminMetricsRepository = adminMetricsRepository;
         this.userRepository = userRepository;
+        this.aiNoResultSummaryClient = aiNoResultSummaryClient;
     }
 
     public RagExperienceRateResponse getRagExperienceRate(
@@ -316,7 +322,8 @@ public class AdminMetricsService {
                 "unanswered_question_patterns",
                 resolvedAsOfDate,
                 resolvedLimit,
-                patterns
+                patterns,
+                buildAiSummary(scopedCompanyCode, patterns)
         );
     }
 
@@ -420,6 +427,75 @@ public class AdminMetricsService {
             return 1;
         }
         return Math.min(limit, MAX_PATTERN_LIMIT);
+    }
+
+    private UnansweredQuestionPatternsResponse.AiSummary buildAiSummary(
+            String scopedCompanyCode,
+            List<UnansweredQuestionPatternsResponse.PatternItem> patterns
+    ) {
+        String summaryCompanyCode = resolveSummaryCompanyCode(scopedCompanyCode, patterns);
+        List<String> questions = patterns.stream()
+                .map(UnansweredQuestionPatternsResponse.PatternItem::questionContent)
+                .filter(StringUtils::hasText)
+                .toList();
+
+        if (questions.isEmpty()) {
+            return new UnansweredQuestionPatternsResponse.AiSummary(
+                    "SKIPPED",
+                    summaryCompanyCode,
+                    0,
+                    null,
+                    List.of(),
+                    null,
+                    "NO_PATTERNS"
+            );
+        }
+
+        try {
+            AiNoResultSummaryClient.NoResultSummaryResponse response =
+                    aiNoResultSummaryClient.summarize(summaryCompanyCode, questions);
+            return new UnansweredQuestionPatternsResponse.AiSummary(
+                    "READY",
+                    response.companyCode(),
+                    response.questionCount(),
+                    response.summary(),
+                    response.actions(),
+                    response.promptStyle(),
+                    null
+            );
+        } catch (RuntimeException e) {
+            log.warn("Failed to build unanswered question AI summary. companyCode={}, questionCount={}",
+                    summaryCompanyCode, questions.size(), e);
+            return new UnansweredQuestionPatternsResponse.AiSummary(
+                    "FAILED",
+                    summaryCompanyCode,
+                    questions.size(),
+                    null,
+                    List.of(),
+                    null,
+                    "AI 요약 생성에 실패했습니다."
+            );
+        }
+    }
+
+    private String resolveSummaryCompanyCode(
+            String scopedCompanyCode,
+            List<UnansweredQuestionPatternsResponse.PatternItem> patterns
+    ) {
+        if (StringUtils.hasText(scopedCompanyCode)) {
+            return scopedCompanyCode.trim();
+        }
+
+        List<String> companyCodes = patterns.stream()
+                .map(UnansweredQuestionPatternsResponse.PatternItem::companyCode)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+
+        if (companyCodes.size() == 1) {
+            return companyCodes.getFirst();
+        }
+        return "ALL";
     }
 
     private String normalizeCompanyCode(String companyCode) {

@@ -19,41 +19,18 @@ from utils.prompts import RECOMMEND_PROMPT
 
 _recommend_chains: dict = {}
 
-_COMPANY_CONTACTS: dict[str, str] = {
-    "WB0001": (
-        "- 경영지원팀: 김지수 (인사, 연차/휴가, 급여, 복리후생, 근태, 채용, 총무, 경비, 사무용품, 법인카드, 계약, 사내 규정, 온보딩)\n"
-        "- IT담당: 박민준 (IT 장비, 계정 세팅, MFA, VPN, 소프트웨어 설치, IT 장애 대응)"
-    ),
-    "WB0002": (
-        "- 운영팀(HR): 김현아 (입퇴사, 인사, 수습, 연차/휴가, 급여, 복리후생, 온보딩)\n"
-        "- 운영팀(IT): 박소연 (계정, 장비, 권한, Slack, Notion, Adobe, IT 문의)\n"
-        "- 크리에이티브팀: 박서준 (Figma, Canva, 디자인 툴, 크리에이티브 업무)\n"
-        "- 퍼포먼스마케팅팀: 이도윤 (Meta Ads, Google Ads, GA4, 광고 계정)"
-    ),
-}
-
-_COMPANY_DEFAULT_PERSON: dict[str, str] = {
-    "WB0001": "김지수",
-    "WB0002": "김현아",
-}
-
-_COMPANY_DEFAULT_CONTACT: dict[str, dict] = {
-    "WB0001": {"department": "경영지원팀", "name": "김지수", "position": "매니저", "connects": [{"type": "SLACK", "value": "@jisoo.kim"}]},
-    "WB0002": {"department": "운영팀(HR)", "name": "김현아", "position": "매니저", "connects": [{"type": "SLACK", "value": "@hyuna.kim"}, {"type": "EMAIL", "value": "hyuna.kim@studioprism.kr"}]},
-}
-
-_COMPANY_CONTACTS_STRUCTURED: dict[str, list] = {
-    "WB0001": [
-        {"department": "경영지원팀", "name": "김지수", "position": "매니저", "connects": [{"type": "SLACK", "value": "@jisoo.kim"}]},
-        {"department": "IT담당", "name": "박민준", "position": "IT담당", "connects": [{"type": "SLACK", "value": "@minjun.park"}, {"type": "EMAIL", "value": "minjun.park@techco.co.kr"}]},
-    ],
-    "WB0002": [
-        {"department": "운영팀(HR)", "name": "김현아", "position": "매니저", "connects": [{"type": "SLACK", "value": "@hyuna.kim"}, {"type": "EMAIL", "value": "hyuna.kim@studioprism.kr"}]},
-        {"department": "운영팀(IT)", "name": "박소연", "position": "담당자", "connects": [{"type": "SLACK", "value": "@soyeon.park"}, {"type": "EMAIL", "value": "soyeon.park@studioprism.kr"}]},
-        {"department": "크리에이티브팀", "name": "박서준", "position": "리드", "connects": [{"type": "SLACK", "value": "@seojun.park"}, {"type": "EMAIL", "value": "seojun.park@studioprism.kr"}]},
-        {"department": "퍼포먼스마케팅팀", "name": "이도윤", "position": "매니저", "connects": [{"type": "SLACK", "value": "@doyun.lee"}]},
-    ],
-}
+try:
+    from contacts_config import (
+        COMPANY_CONTACTS as _COMPANY_CONTACTS,
+        COMPANY_DEFAULT_PERSON as _COMPANY_DEFAULT_PERSON,
+        COMPANY_DEFAULT_CONTACT as _COMPANY_DEFAULT_CONTACT,
+        COMPANY_CONTACTS_STRUCTURED as _COMPANY_CONTACTS_STRUCTURED,
+    )
+except ImportError:
+    _COMPANY_CONTACTS = {}
+    _COMPANY_DEFAULT_PERSON = {}
+    _COMPANY_DEFAULT_CONTACT = {}
+    _COMPANY_CONTACTS_STRUCTURED = {}
 
 
 async def get_contact_for_question(company_code: str, message: str) -> dict:
