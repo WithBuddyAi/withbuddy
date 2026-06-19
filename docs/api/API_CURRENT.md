@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.2.6
-**최종 업데이트**: 2026-06-16
+**버전**: 2.2.7
+**최종 업데이트**: 2026-06-18
 
 ---
 
@@ -2266,13 +2266,17 @@ Content-Type: multipart/form-data
 - 업로드되는 문서의 `company_code`는 요청 바디가 아니라 현재 로그인한 사용자의 `company_code`로 설정한다.
 - 관리자 계정 페이지에서는 공통 문서(`company_code = null`)를 업로드할 수 없다.
 - 동일한 회사의 활성 문서 중 아래 기준에 해당하는 문서가 이미 존재하면 중복 업로드로 판단한다.
-  - `documentType`이 `POLICY` 또는 `GUIDE`인 경우: `company_code` + `document_type` + `title`
+  - `documentType`이 `POLICY` 또는 `GUIDE`인 경우: `company_code` + `title`
   - `documentType`이 `TEMPLATE`인 경우: `company_code` + `document_type` + `title` + `content_type`
 - 중복 판단에서 파일명은 업로드 파일의 원본 파일명이 아니라 `documents.title`에 저장되는 `title` 값을 의미한다.
 - 중복 문서이면 `409 Conflict`, `DOCUMENT_DUPLICATE`를 반환한다.
 - 문서 파일은 최대 20MB까지 업로드할 수 있다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
+- 업로드가 성공해 `documents`, `document_files` 저장이 커밋된 뒤 백엔드는 AI 서버의 `POST /admin/ingest`를 자동 호출해 신규 문서를 인덱싱해야 한다.
+- AI 자동 인덱싱 요청에는 업로드된 `documentId`와 현재 관리자 회사 코드(`companyCode`)를 전달한다.
+- AI 자동 인덱싱은 업로드 트랜잭션 커밋 이후 수행해야 한다. 커밋 전에 호출하면 AI 서버가 백엔드 문서 상세 조회 또는 다운로드 API에서 신규 문서를 찾지 못할 수 있다.
+- AI 자동 인덱싱 실패는 문서 업로드 저장 성공 자체를 롤백하지 않는다. 백엔드는 실패 응답 또는 예외를 로그로 남기고 재시도 대상 여부를 운영 정책에 따라 관리한다.
 - 업로드 파일이 비어 있거나 `file` 파트가 존재하지 않으면 `400 Bad Request`, `FILE_001_EMPTY`를 반환한다.
 - 단일 파일 크기가 20MB를 초과하면 `400 Bad Request`, `FILE_001_SIZE`를 반환한다.
 - 회사당 활성 문서 수가 300개를 초과하면 `400 Bad Request`, `FILE_001_COUNT`를 반환한다.
@@ -2977,6 +2981,112 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 - 백엔드는 `answer_completed.recommendedContacts`를 담당자 추천 응답 구성 또는 저장에 사용한다.
 - AI 서버가 `answer_completed`를 전송하지 못하거나 필수 메타데이터가 누락된 경우 해당 요청은 실패로 처리한다.
 - `suggestion`은 온보딩 가이드 기반 메시지 유형이므로 내부 AI 답변 응답값으로 사용하지 않는다.
+
+---
+
+### 8-8. AI 문서 자동 인덱싱 연동
+
+관리자 문서 업로드가 완료되면 백엔드는 AI 서버에 문서 인덱싱을 요청한다.  
+이 API는 프론트엔드가 직접 호출하지 않으며, 백엔드와 AI 서버 사이의 내부 연동에만 사용한다.
+
+```http
+POST {AI_SERVER_BASE_URL}/admin/ingest
+Content-Type: application/json
+X-Internal-Key: {internalKey}
+```
+
+#### AI Server Base URL
+
+```text
+Production: https://ai.itsdev.kr
+```
+
+#### Request Body
+
+```json
+{
+  "documentId": 123,
+  "companyCode": "WB0001"
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 |
+|---|---|---|---|---|
+| `documentId` | Number | Y | `123` | 백엔드 `documents.id` |
+| `companyCode` | String | Y | `"WB0001"` | 업로드한 관리자 계정의 회사 코드 |
+
+#### 인증 규칙
+
+- 백엔드는 `X-Internal-Key` 헤더에 내부 연동 키를 담아 AI 서버를 호출한다.
+- AI 서버는 `X-Internal-Key` 값을 검증하고, 유효하지 않으면 `401 Unauthorized`를 반환한다.
+- 백엔드 환경변수의 AI 호출용 내부 키와 AI 서버의 검증 키는 동일해야 한다.
+- AI 서버가 문서 메타데이터와 파일을 다시 조회할 수 있도록, AI 서버에서 백엔드 `/api/v1/documents/{documentId}` 및 `/api/v1/documents/{documentId}/download` 호출에 사용하는 스토리지 API 키도 백엔드 설정과 일치해야 한다.
+
+#### 동작 흐름
+
+```text
+관리자
+  -> POST /api/v1/admin/documents/upload
+백엔드
+  -> documents, document_files 저장
+백엔드
+  -> 업로드 트랜잭션 커밋
+백엔드
+  -> POST {AI_SERVER_BASE_URL}/admin/ingest 호출
+AI 서버
+  -> GET {BACKEND_INTERNAL_URL}/api/v1/documents/{documentId}
+AI 서버
+  -> GET {BACKEND_INTERNAL_URL}/api/v1/documents/{documentId}/download
+AI 서버
+  -> 파일 다운로드
+AI 서버
+  -> 텍스트 추출, 청킹, ChromaDB 인덱싱
+AI 서버
+  -> company_code 기준 BM25 캐시 무효화
+AI 서버
+  -> 인덱싱 성공 또는 실패 응답 반환
+```
+
+#### 백엔드 처리 규칙
+
+- 백엔드는 문서 업로드 저장이 성공한 뒤 AI 인덱싱 API를 자동 호출한다.
+- AI 인덱싱 API 호출은 업로드 트랜잭션 커밋 이후 수행한다.
+- 요청 body의 `companyCode`는 요청자가 임의로 전달한 값이 아니라, 업로드된 문서의 `documents.company_code` 또는 현재 관리자 계정의 회사 코드 기준으로 구성한다.
+- AI 인덱싱이 실패해도 이미 성공한 문서 업로드 저장은 롤백하지 않는다.
+- 백엔드는 AI 서버의 성공/실패 응답을 로그로 남기고, 실패 건은 운영 정책에 따라 재시도할 수 있어야 한다.
+- 동일 문서를 재인덱싱하는 경우 AI 서버는 기존 `doc_id = documentId` 청크를 삭제한 뒤 새 청크를 추가하는 방식으로 처리한다.
+
+#### AI 서버 처리 규칙
+
+- AI 서버는 `documentId`로 백엔드 문서 상세 정보를 조회한다.
+- AI 서버는 백엔드 다운로드 URL 발급 API를 통해 파일을 다운로드한다.
+- AI 서버는 파일에서 텍스트를 추출하고 청킹한 뒤 ChromaDB에 저장한다.
+- ChromaDB 메타데이터에는 `doc_id`, `title`, `source`, `document_type`, `department`, `company_code`를 포함한다.
+- `company_code`는 요청 body의 `companyCode`를 사용하며, 이를 기준으로 회사별 문서 검색 범위를 격리한다.
+- 인덱싱 완료 후 해당 `companyCode`의 BM25 캐시를 무효화한다.
+
+#### Success Response (200 OK)
+
+```json
+{
+  "success": true,
+  "documentId": 123,
+  "chunksIndexed": 8
+}
+```
+
+#### Error Response
+
+AI 서버는 인증 실패, 백엔드 문서 조회 실패, 파일 다운로드 실패, 텍스트 추출 실패, 인덱싱 실패를 실패 응답으로 반환할 수 있다.  
+백엔드는 이 실패를 관리자 문서 업로드 API의 저장 실패로 취급하지 않고, 자동 인덱싱 실패로 기록한다.
+
+```json
+{
+  "detail": "인덱싱 실패: document not found"
+}
+```
 
 ---
 
@@ -3835,3 +3945,7 @@ Authorization: Bearer {accessToken}
 - **v2.2.6 (2026-06-16)**:
   - 관리자 회사 문서 조회 문서 유형 필터(`pdf`, `docs`, `txt`, `md`) 수정
   - 관리자 회사 문서 업로드 중복 판단 기준(`POLICY`/`GUIDE`: `company_code` + `document_type` + `title`, `TEMPLATE`: `company_code` + `document_type` + `title` + `content_type`) 추가
+- **v2.2.7 (2026-06-18)**:
+  - 관리자 문서 업로드 완료 후 백엔드가 AI 서버 `POST /admin/ingest`를 자동 호출하는 내부 연동 규칙을 추가
+  - AI 문서 자동 인덱싱 요청/응답, `X-Internal-Key` 인증, `companyCode` 기준 격리 인덱싱, BM25 캐시 무효화 규칙을 명세에 반영
+  - 관리자 회사 문서 업로드 중복 판단 기준(`POLICY`/`GUIDE`: `company_code` + `title`, `TEMPLATE`: `company_code` + `document_type` + `title` + `content_type`) 정리
