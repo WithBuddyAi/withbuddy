@@ -56,6 +56,11 @@ jwt:
 ai:
   server:
     base-url: ${AI_SERVER_BASE_URL}
+    ingest:
+      connect-timeout-ms: ${AI_SERVER_INGEST_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${AI_SERVER_INGEST_READ_TIMEOUT_MS:60000}
+      internal-header-name: ${AI_SERVER_INTERNAL_HEADER_NAME:X-Internal-Key}
+      internal-key: ${AI_SERVER_INTERNAL_KEY:${INTERNAL_API_TOKEN:${INTERNAL_API_KEY:${STORAGE_API_KEY_VALUE:}}}}
     summary:
       connect-timeout-ms: ${AI_SERVER_SUMMARY_CONNECT_TIMEOUT_MS:3000}
       read-timeout-ms: ${AI_SERVER_SUMMARY_READ_TIMEOUT_MS:10000}
@@ -112,7 +117,7 @@ app:
       window-seconds: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:600}
       lock-seconds: ${LOGIN_RATE_LIMIT_LOCK_SECONDS:900}
     storage-api:
-      enabled: ${STORAGE_API_AUTH_ENABLED:false}
+      enabled: ${STORAGE_API_AUTH_ENABLED:true}
       keys:
         - id: ${STORAGE_API_KEY_ID:storage-admin}
           value: ${STORAGE_API_KEY_VALUE:}

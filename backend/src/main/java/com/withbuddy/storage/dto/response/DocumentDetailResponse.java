@@ -17,6 +17,10 @@ public class DocumentDetailResponse {
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
+    public String getFileName() {
+        return file == null ? null : file.getFileName();
+    }
+
     @Getter
     @AllArgsConstructor
     public static class FileMetadata {
