@@ -16,9 +16,18 @@ public record UnansweredQuestionPatternsResponse(
             String companyCode,
             int questionCount,
             String summary,
-            List<String> actions,
-            String promptStyle,
+            List<AiAction> actions,
+            boolean hasSensitive,
             String errorMessage
+    ) {
+        public AiSummary {
+            actions = actions == null ? List.of() : List.copyOf(actions);
+        }
+    }
+
+    public record AiAction(
+            String part,
+            String items
     ) {
     }
 
