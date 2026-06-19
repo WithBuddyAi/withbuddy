@@ -56,6 +56,10 @@ jwt:
 ai:
   server:
     base-url: ${AI_SERVER_BASE_URL}
+    summary:
+      connect-timeout-ms: ${AI_SERVER_SUMMARY_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${AI_SERVER_SUMMARY_READ_TIMEOUT_MS:10000}
+      prompt-style: ${AI_SERVER_SUMMARY_PROMPT_STYLE:A}
 
 app:
   cache:

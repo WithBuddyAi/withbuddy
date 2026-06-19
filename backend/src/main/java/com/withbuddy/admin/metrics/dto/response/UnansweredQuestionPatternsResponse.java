@@ -8,8 +8,20 @@ public record UnansweredQuestionPatternsResponse(
         String metric,
         LocalDate asOfDate,
         int limit,
-        List<PatternItem> patterns
+        List<PatternItem> patterns,
+        AiSummary aiSummary
 ) {
+    public record AiSummary(
+            String status,
+            String companyCode,
+            int questionCount,
+            String summary,
+            List<String> actions,
+            String promptStyle,
+            String errorMessage
+    ) {
+    }
+
     public record PatternItem(
             String companyCode,
             String questionContent,
