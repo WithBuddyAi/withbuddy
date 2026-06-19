@@ -65,15 +65,17 @@ class AdminMetricsServiceTest {
                 0L,
                 LocalDateTime.of(2026, 6, 1, 13, 0)
         ))));
-        when(aiNoResultSummaryClient.summarize(
+        when(aiNoResultSummaryClient.analyzeTop5(
                 "WB0001",
                 List.of("복지카드는 어떻게 신청하나요?")
-        )).thenReturn(new AiNoResultSummaryClient.NoResultSummaryResponse(
+        )).thenReturn(new AiNoResultSummaryClient.Top5AnalysisResponse(
                 "WB0001",
-                1,
                 "복지카드 신청 관련 문서가 부족합니다.",
-                List.of("복지카드 신청 절차 문서를 보강하세요."),
-                "A"
+                List.of(new AiNoResultSummaryClient.Top5Action(
+                        "복지",
+                        "복지카드 신청 절차와 제출 서류를 정리한 FAQ를 추가해 보세요."
+                )),
+                false
         ));
 
         UnansweredQuestionPatternsResponse response = adminMetricsService.getUnansweredQuestionPatterns(
@@ -89,8 +91,13 @@ class AdminMetricsServiceTest {
         assertThat(response.patterns().getFirst().questionContent()).isEqualTo("복지카드는 어떻게 신청하나요?");
         assertThat(response.aiSummary()).isNotNull();
         assertThat(response.aiSummary().status()).isEqualTo("READY");
+        assertThat(response.aiSummary().questionCount()).isEqualTo(1);
         assertThat(response.aiSummary().summary()).isEqualTo("복지카드 신청 관련 문서가 부족합니다.");
-        assertThat(response.aiSummary().actions()).containsExactly("복지카드 신청 절차 문서를 보강하세요.");
+        assertThat(response.aiSummary().hasSensitive()).isFalse();
+        assertThat(response.aiSummary().actions()).hasSize(1);
+        assertThat(response.aiSummary().actions().getFirst().part()).isEqualTo("복지");
+        assertThat(response.aiSummary().actions().getFirst().items())
+                .isEqualTo("복지카드 신청 절차와 제출 서류를 정리한 FAQ를 추가해 보세요.");
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(adminMetricsRepository).findUnansweredQuestionPatterns(
