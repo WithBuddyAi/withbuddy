@@ -582,9 +582,9 @@ function Login({ setIsLoggedIn }) {
                       <span className="font-semibold text-[16px] text-[#000000]">
                         회사코드
                       </span>
-                      <span className="text-[#F03E3E] text-[12px] font-semibold">
+                      <sup className="text-[#F03E3E] text-[12px] font-semibold">
                         *
-                      </span>
+                      </sup>
                       <Tooltip message="회사코드와 사원번호는 담당자에게 확인해 주세요." />
                     </div>
                     <input
@@ -612,9 +612,9 @@ function Login({ setIsLoggedIn }) {
                       <span className="font-semibold text-[16px] text-[#000000]">
                         사원번호
                       </span>
-                      <span className="text-[#F03E3E] text-[12px] font-semibold">
+                      <sup className="text-[#F03E3E] text-[12px] font-semibold">
                         *
-                      </span>
+                      </sup>
                     </div>
                     <input
                       className={`w-full h-[56px] border rounded-[8px] px-[12px] text-[14px] focus:outline-none ${
@@ -641,9 +641,9 @@ function Login({ setIsLoggedIn }) {
                       <span className="font-semibold text-[16px] text-[#000000]">
                         이름
                       </span>
-                      <span className="text-[#F03E3E] text-[12px] font-semibold">
+                      <sup className="text-[#F03E3E] text-[12px] font-semibold">
                         *
-                      </span>
+                      </sup>
                     </div>
                     <input
                       className={`w-full h-[56px] border rounded-[8px] px-[12px] text-[14px] focus:outline-none ${
@@ -742,7 +742,7 @@ function MobileForm({
         {/* 회사코드 입력칸 */}
         <div className="flex flex-col items-center gap-[10px] rounded-[8px]">
           <div className="flex items-center font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]">
-            회사코드<span className="text-[#EF4444]">*</span>
+            회사코드<sup className="text-[#EF4444]">*</sup>
             <Tooltip message="회사코드와 사원번호는 담당자에게 확인해 주세요." />
           </div>
           <input
@@ -760,7 +760,7 @@ function MobileForm({
         {/* 사원번호 입력칸 */}
         <div className="flex flex-col items-center gap-[10px] rounded-[8px]">
           <div className="font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]">
-            사원번호<span className="text-[#EF4444]">*</span>
+            사원번호<sup className="text-[#EF4444]">*</sup>
           </div>
           <input
             className={`${inputClass} ${employeeNumberError ? "border-[#F03E3E] focus:border-[#F03E3E]" : "border-[#CED4DA] focus:border-[#339AF0]"}`}
@@ -777,7 +777,7 @@ function MobileForm({
         {/* 이름 입력칸 */}
         <div className="flex flex-col items-center gap-[10px] rounded-[8px]">
           <div className="font-bold text-[14px] w-[297px] md:text-[16px] md:w-[430px]">
-            이름<span className="text-[#EF4444]">*</span>
+            이름<sup className="text-[#EF4444]">*</sup>
           </div>
           <input
             className={`${inputClass} ${nameError ? "border-[#F03E3E] focus:border-[#F03E3E]" : "border-[#CED4DA] focus:border-[#339AF0]"}`}
