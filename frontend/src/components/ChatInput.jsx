@@ -27,7 +27,7 @@ function ChatInput({ handleSubmit, isLoading, isReadOnly }) {
               e.target.style.height = e.target.scrollHeight + "px";
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 if (text.length > 500 || isLoading || isReadOnly) return;
                 handleSubmit(e, text);
