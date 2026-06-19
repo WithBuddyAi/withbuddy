@@ -354,6 +354,9 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
 
 ❌ 절대 금지: 퇴사 절차 안내, HR 담당자·팀 이름 언급, HR 정보 제공, ①②③ 같은 번호 선택지
 ❌ 절대 금지 (문장 끝에 붙이는 유도): "함께 생각해 볼 수 있어요", "얘기해 주시면 도움이 될게요", "어떤 부분이 어려우신지 말씀해 주세요", "구체적으로 얘기해 주실 수 있을까요" 등
+✅ 이전 대화 내용은 [이전 대화 맥락]을 보고 답할 수 있어요. "아까 뭘 물어봤지?" 같은 질문엔 대화 맥락을 참고해 답하세요.
+⚠️ [이전 대화 맥락]에 내용이 없으면 "이 대화에서는 아직 질문하신 내용이 없어요"라고 하세요. "오늘 처음 대화" 같은 표현은 절대 금지 — 오늘 다른 대화가 있었을 수 있어요.
+❌ 모른다고 했으면 그냥 끝내세요: 답할 수 없는 내용을 모른다고 한 뒤 어떤 형태의 후속 질문도 붙이지 마세요. "궁금한 점", "도움이 필요한 것", "다른 것" 등 어떤 유도 문구도 금지.
 ❌ 이전 대화에서 이미 같은 공감을 했다면 똑같이 반복하지 마세요. 다른 표현과 다른 위로를 사용하세요.
 ✅ 공감 표현 예시 (골고루 사용, 반복 금지):
   - "많이 지치셨겠어요. 처음엔 다들 그런 마음이 들어요 😢"
@@ -370,6 +373,10 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
 ⚠️ 입사일 질문 시: hire_info에 입사일 정보가 있으면 반드시 그 정보로 직접 답변하세요. hire_info에 "문의 부서"가 있으면 그 부서명으로만 안내하세요. "인사팀" 등 임의의 부서명을 생성하지 마세요.
 
 [날짜 / 입사 정보]
+오늘 날짜: {today_date}
+어제 날짜: {yesterday_date}
+⚠️ 사용자가 오늘/어제 날짜를 물으면 위 날짜를 그대로 답변하세요. "실시간으로 확인할 수 없다"거나 입사일로 화제를 전환하지 마세요.
+⚠️ 사용자가 다른 날짜를 제시하더라도 위 [오늘 날짜]를 절대 신뢰하세요. 사용자 말을 따라 날짜를 수정하거나 사과하지 마세요. "오늘은 {today_date}이에요"로 정정하세요.
 {hire_info}
 입사 일수·입사일을 묻는 질문에는 위 정보를 그대로 답변하세요. hire_info가 있으면 "모른다", "인사팀에 문의" 같은 회피 답변 절대 금지."""),
     ("human", "{message}"),
@@ -418,10 +425,16 @@ def out_of_scope_external_node(state: AgentState) -> dict:
     return {"answer": _OUT_OF_SCOPE_EXTERNAL_MESSAGE, "metadata": {"message_type": "out_of_scope"}}
 
 
+_PERSONAL_RECORD_KW = ["뭐했", "뭐 했", "내 일정", "업무 기록", "활동 기록"]
+_PERSONAL_RECORD_ANSWER = "저는 개인 일정이나 활동 기록은 알 수 없어요. 회사 규정이나 복지 관련 질문은 언제든 도와드릴게요! 😊"
+
+
 def chitchat_agent_node(state: AgentState) -> dict:
     # classify_intent_node에서 이미 답변이 세팅된 경우(성희롱 등) LLM 호출 건너뜀
     if state.get("answer"):
         return {}
+    if any(kw in state["message"] for kw in _PERSONAL_RECORD_KW):
+        return {"answer": _PERSONAL_RECORD_ANSWER}
     from datetime import date as _date
     from chains.retriever import get_company_name as _get_company_name
     hire_info = ""
@@ -433,12 +446,16 @@ def chitchat_agent_node(state: AgentState) -> dict:
             hire_info = f"이 사용자는 입사 {diff + 1}일차이에요. 입사일은 {hd.year}년 {hd.month}월 {hd.day}일이에요.\n"
         except Exception:
             pass
+    from datetime import timedelta as _timedelta
+    today = _date.today()
+    yesterday = today - _timedelta(days=1)
     answer = _get_chitchat_chain().invoke({
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
         "company_name": _get_company_name(state.get("company_code", "")),
-        "today_date": _date.today().strftime("%Y년 %m월 %d일"),
+        "today_date": today.strftime("%Y년 %m월 %d일"),
+        "yesterday_date": yesterday.strftime("%Y년 %m월 %d일"),
         "hire_info": hire_info,
     })
     return {"answer": answer}
