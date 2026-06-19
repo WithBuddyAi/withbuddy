@@ -4,7 +4,8 @@ import withbuddy from "../assets/WithBuddy_web.svg";
 import bot from "../assets/Bot_icon.svg";
 import confetti from "../assets/confetti.svg";
 import { useNavigate, useLocation } from "react-router-dom";
-import { differenceInCalendarDays } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
+import { ko } from "date-fns/locale";
 import Tooltip from "../components/Tooltip";
 import axios from "axios";
 import { useUser } from "../contexts/UserContext";
@@ -112,6 +113,9 @@ function Login({ setIsLoggedIn }) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // 말풍선 시간(실시간 적용)
+  const currentTime = format(new Date(), "a h:mm", { locale: ko });
+
   // ── Turnstile 위젯 렌더링 ──
   // isDesktop이 바뀌면 데스크탑/모바일 폼이 서로 mount/unmount 되면서
   // turnstileContainerRef가 가리키는 실제 DOM 요소도 바뀌기 때문에 isDesktop을 의존성에 둠
@@ -137,6 +141,9 @@ function Login({ setIsLoggedIn }) {
         turnstileContainerRef.current,
         {
           sitekey: TURNSTILE_SITE_KEY,
+          theme: "light", // 밝기 지정
+          size: "flexible",
+
           callback: (token) => setTurnstileToken(token),
           "expired-callback": () => setTurnstileToken(""),
           "error-callback": () => setTurnstileToken(""),
@@ -491,7 +498,7 @@ function Login({ setIsLoggedIn }) {
                   className="text-[#868E96]"
                   style={{ fontSize: "clamp(11px, 1.1vw, 15px)" }}
                 >
-                  오전 11:37
+                  {currentTime}
                 </p>
               </div>
             </div>
