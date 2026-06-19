@@ -23,11 +23,13 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentBackupJob;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.entity.StorageSource;
+import com.withbuddy.storage.event.DocumentUploadedEvent;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentBackupJobRepository;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
+import org.springframework.context.ApplicationEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -103,6 +105,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     private final StorageProperties storageProperties;
     private final RedisCacheService redisCacheService;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public DocumentStorageService(
             DocumentRepository documentRepository,
@@ -111,7 +114,8 @@ public class DocumentStorageService implements DocumentDownloadService {
             ObjectStorageClient objectStorageClient,
             StorageProperties storageProperties,
             RedisCacheService redisCacheService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.documentRepository = documentRepository;
         this.documentFileRepository = documentFileRepository;
@@ -120,6 +124,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         this.storageProperties = storageProperties;
         this.redisCacheService = redisCacheService;
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -223,6 +228,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
 
         executeBackupAttempt(documentFile, payload, "UPLOAD_SYNC");
+        publishDocumentUploadedEvent(document.getId(), finalCompanyCode);
 
         return new DocumentUploadResponse(
                 document.getId(),
@@ -1500,6 +1506,14 @@ public class DocumentStorageService implements DocumentDownloadService {
     private String buildObjectKey(String companyCode, String storedFileName) {
         String tenantSegment = StringUtils.hasText(companyCode) ? companyCode : "COMMON";
         return "companies/" + tenantSegment + "/documents/" + LocalDateTime.now().toLocalDate() + "/" + storedFileName;
+    }
+
+    private void publishDocumentUploadedEvent(Long documentId, String companyCode) {
+        if (!StringUtils.hasText(companyCode)) {
+            log.warn("AI document ingest skipped because companyCode is blank. documentId={}", documentId);
+            return;
+        }
+        eventPublisher.publishEvent(new DocumentUploadedEvent(documentId, companyCode));
     }
 
     private void validateFile(MultipartFile file) {
