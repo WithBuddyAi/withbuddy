@@ -13,13 +13,11 @@ import java.util.List;
 public class AiNoResultSummaryClient {
 
     private final RestClient restClient;
-    private final String promptStyle;
 
     public AiNoResultSummaryClient(
             @Value("${ai.server.base-url}") String aiBaseUrl,
             @Value("${ai.server.summary.connect-timeout-ms:3000}") int connectTimeoutMs,
-            @Value("${ai.server.summary.read-timeout-ms:10000}") int readTimeoutMs,
-            @Value("${ai.server.summary.prompt-style:A}") String promptStyle
+            @Value("${ai.server.summary.read-timeout-ms:10000}") int readTimeoutMs
     ) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(connectTimeoutMs);
@@ -28,23 +26,22 @@ public class AiNoResultSummaryClient {
                 .requestFactory(requestFactory)
                 .baseUrl(aiBaseUrl.endsWith("/") ? aiBaseUrl : aiBaseUrl + "/")
                 .build();
-        this.promptStyle = StringUtils.hasText(promptStyle) ? promptStyle.trim() : "A";
     }
 
-    public NoResultSummaryResponse summarize(String companyCode, List<String> questions) {
+    public Top5AnalysisResponse analyzeTop5(String companyCode, List<String> questions) {
         if (questions == null || questions.isEmpty()) {
             throw new IllegalArgumentException("questions는 비어 있을 수 없습니다.");
         }
 
-        NoResultSummaryResponse response = restClient.post()
-                .uri("knowledge/no-result/summary")
+        Top5AnalysisResponse response = restClient.post()
+                .uri("knowledge/no-result/top5-analysis")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new NoResultSummaryRequest(resolveCompanyCode(companyCode), questions, promptStyle))
+                .body(new Top5AnalysisRequest(resolveCompanyCode(companyCode), questions))
                 .retrieve()
-                .body(NoResultSummaryResponse.class);
+                .body(Top5AnalysisResponse.class);
 
         if (response == null) {
-            throw new IllegalStateException("AI 요약 응답이 비어 있습니다.");
+            throw new IllegalStateException("AI TOP5 분석 응답이 비어 있습니다.");
         }
 
         return response;
@@ -54,22 +51,26 @@ public class AiNoResultSummaryClient {
         return StringUtils.hasText(companyCode) ? companyCode.trim() : "ALL";
     }
 
-    private record NoResultSummaryRequest(
+    private record Top5AnalysisRequest(
             String companyCode,
-            List<String> questions,
-            String promptStyle
+            List<String> questions
     ) {
     }
 
-    public record NoResultSummaryResponse(
+    public record Top5AnalysisResponse(
             String companyCode,
-            int questionCount,
             String summary,
-            List<String> actions,
-            String promptStyle
+            List<Top5Action> actions,
+            boolean hasSensitive
     ) {
-        public NoResultSummaryResponse {
+        public Top5AnalysisResponse {
             actions = actions == null ? List.of() : List.copyOf(actions);
         }
+    }
+
+    public record Top5Action(
+            String part,
+            String items
+    ) {
     }
 }
