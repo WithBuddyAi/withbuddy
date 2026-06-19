@@ -23,6 +23,9 @@ const FULL_TEXT_WIDE =
 const FULL_TEXT_NARROW =
   "안녕하세요! 저는 위드버디예요😊\n입사 초에 자주 헷갈리는 회사 생활 질문을 도와드려요.\n사소하지만 꼭 필요한 것부터 편하게 물어보세요.";
 
+// Cloudflare Turnstile site key
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+
 function Login({ setIsLoggedIn }) {
   // 'redis' 에러
   const [modalType, setModalType] = useState(null);
@@ -39,6 +42,11 @@ function Login({ setIsLoggedIn }) {
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
   const nameRef = useRef(null);
+
+  // ── Turnstile 관련 state ──
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileContainerRef = useRef(null); // 위젯이 렌더링될 DOM 위치
+  const turnstileWidgetIdRef = useRef(null); // turnstile.render()가 반환하는 위젯 id (reset/remove용)
 
   const { setHireDate, setDayOffset, setRole, setAccountStatus } = useUser();
   const location = useLocation();
@@ -72,7 +80,7 @@ function Login({ setIsLoggedIn }) {
   // 말풍선 타이핑 효과
   const [displayedText, setDisplayedText] = useState("");
   const fullText = useRef(
-    window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW
+    window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW,
   );
   const chars = useRef([...fullText.current]);
   const isTypingDone = useRef(false);
@@ -96,12 +104,65 @@ function Login({ setIsLoggedIn }) {
   useEffect(() => {
     const handleResize = () => {
       if (!isTypingDone.current) return;
-      const next = window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW;
+      const next =
+        window.innerWidth >= 1600 ? FULL_TEXT_WIDE : FULL_TEXT_NARROW;
       setDisplayedText(next);
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // ── Turnstile 위젯 렌더링 ──
+  // isDesktop이 바뀌면 데스크탑/모바일 폼이 서로 mount/unmount 되면서
+  // turnstileContainerRef가 가리키는 실제 DOM 요소도 바뀌기 때문에 isDesktop을 의존성에 둠
+  useEffect(() => {
+    let pollTimer;
+    let cancelled = false;
+
+    const renderWidget = () => {
+      if (cancelled || !turnstileContainerRef.current) return;
+
+      // 스크립트가 아직 로드되지 않았으면 100ms마다 재시도
+      if (!window.turnstile) {
+        pollTimer = setTimeout(renderWidget, 100);
+        return;
+      }
+
+      // 이전 위젯이 남아있으면 정리 (중복 렌더링 방지)
+      if (turnstileWidgetIdRef.current) {
+        window.turnstile.remove(turnstileWidgetIdRef.current);
+      }
+
+      turnstileWidgetIdRef.current = window.turnstile.render(
+        turnstileContainerRef.current,
+        {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token) => setTurnstileToken(token),
+          "expired-callback": () => setTurnstileToken(""),
+          "error-callback": () => setTurnstileToken(""),
+        },
+      );
+    };
+
+    renderWidget();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(pollTimer);
+      if (turnstileWidgetIdRef.current && window.turnstile) {
+        window.turnstile.remove(turnstileWidgetIdRef.current);
+        turnstileWidgetIdRef.current = null;
+      }
+    };
+  }, [isDesktop]);
+
+  // 1회용으로 실패 시 위젯 리셋 후 새 토큰을 받아야 함
+  const resetTurnstile = () => {
+    setTurnstileToken("");
+    if (window.turnstile && turnstileWidgetIdRef.current) {
+      window.turnstile.reset(turnstileWidgetIdRef.current);
+    }
+  };
 
   // 로그인 시 서버에 데이터 전송 및 페이지 이동
   const BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -123,12 +184,15 @@ function Login({ setIsLoggedIn }) {
       nameRef.current.focus();
       return;
     }
-
+    if (!turnstileToken) {
+      setErrorMessage("보안 인증을 완료한 뒤 다시 시도해 주세요.");
+      return;
+    }
     setIsLoading(true);
     try {
       const { data } = await axios.post(
         `${BASE_URL}/api/v1/auth/login`,
-        { companyCode, employeeNumber, name },
+        { companyCode, employeeNumber, name, turnstileToken },
         { headers: { "Content-Type": "application/json" } },
       );
       localStorage.setItem("accessToken", data.accessToken);
@@ -166,25 +230,68 @@ function Login({ setIsLoggedIn }) {
       )
         navigate("/admin");
     } catch (error) {
+      // 어떤 에러든 일단 위젯을 리셋해서 새 토큰을 받을 수 있게 함
+      resetTurnstile();
+
+      const status = error.response?.status;
+      const errorCode = error.response?.data?.code;
+
       // 400 에러인 경우
-      if (error.response?.status === 400) {
-        error.response.data.errors.forEach((err) => {
+      if (status === 400 && errorCode === "CAPTCHA_VERIFICATION_FAILED") {
+        // 캡차 토큰 누락/검증 실패
+        setErrorMessage(
+          "보안 인증에 실패했어요. 체크박스를 다시 확인해 주세요.",
+        );
+      } else if (status === 400) {
+        // 기존 필드 검증 에러 (companyCode/employeeNumber/name)
+        error.response.data.errors?.forEach((err) => {
           if (err.field === "companyCode") setCompanyCodeError(err.message);
           else if (err.field === "employeeNumber")
             setEmployeeNumberError(err.message);
           else if (err.field === "name") setNameError(err.message);
         });
         // 401 에러인 경우
-      } else if (error.response?.status === 401) {
-        error.response.data.errors.forEach((err) => {
+      } else if (status === 401) {
+        error.response.data.errors?.forEach((err) => {
           if (["login", "auth", "token"].includes(err.field))
             setErrorMessage(err.message);
         });
+        // 429 에러인 경우 (Redis 기반 레이트리밋, LOGIN_RATE_LIMITED)
+      } else if (status === 429) {
+        const retryAfter = Number(error.response.headers?.["retry-after"]);
+
+        // NaN, 음수 등 비정상적인 경우
+        if (!Number.isFinite(retryAfter) || retryAfter <= 0) {
+          setErrorMessage(
+            "로그인 시도가 너무 많아요. 잠시 후 다시 시도해 주세요.",
+          );
+          return;
+        }
+
+        // 정상적인 경우
+        const minute = Math.floor(retryAfter / 60);
+        const second = retryAfter % 60;
+        let retryText;
+        if (minute === 0) {
+          retryText = `${second}초`;
+        } else if (second === 0) {
+          retryText = `${minute}분`;
+        } else {
+          retryText = `${minute}분 ${second}초`;
+        }
+        setErrorMessage(
+          `로그인 시도가 너무 많아요. ${retryText} 후에 다시 시도해 주세요.`,
+        );
         // 503 에러인 경우
-      } else if (error.response?.status === 503) {
+      } else if (status === 503 && errorCode === "CAPTCHA_UNAVAILABLE") {
+        // Cloudflare 검증 서비스 자체 장애
+        setErrorMessage(
+          "보안 인증 서비스에 일시적인 문제가 발생했어요. 잠시 후 다시 시도해 주세요.",
+        );
+      } else if (status === 503) {
         setModalType("redis");
         // 500 에러인 경우
-      } else if (error.response?.status === 500) {
+      } else if (status === 500) {
         setErrorMessage(
           "일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.",
         );
@@ -229,7 +336,8 @@ function Login({ setIsLoggedIn }) {
     employeeNumber &&
     !employeeNumberError &&
     name &&
-    !nameError;
+    !nameError &&
+    turnstileToken;
 
   return (
     <div className="min-h-screen bg-[#FFFFFF] flex flex-col">
@@ -391,7 +499,7 @@ function Login({ setIsLoggedIn }) {
         </div>
 
         {/* ── 모바일/태블릿: 기존 레이아웃 그대로 ── */}
-        {/* isDesktop 기준으로 폼을 1개만 마운트 (DOM에 form이 2개 존재하는 문제 방지) */}
+        {/* isDesktop 기준으로 폼을 1개만 마운트 */}
         {!isDesktop && (
           <div className="flex flex-col items-center justify-center">
             <div className="flex flex-row items-center justify-center mb-[38px] md:mb-[45px]">
@@ -423,6 +531,7 @@ function Login({ setIsLoggedIn }) {
               isLoading={isLoading}
               isFormValid={isFormValid}
               handleLogin={handleLogin}
+              turnstileContainerRef={turnstileContainerRef}
             />
           </div>
         )}
@@ -430,155 +539,158 @@ function Login({ setIsLoggedIn }) {
         {/* 데스크탑: 우측 로그인 카드 */}
         {/* isDesktop 기준으로 폼을 1개만 마운트 */}
         {isDesktop && (
-        <div
-          className="flex items-center justify-center shrink-0 w-1/2"
-          style={{
-            padding: "40px clamp(16px, 2.5vw, 48px)",
-          }}
-        >
           <div
-            className="bg-[#FFFFFFCC] border border-[#33679B4D] rounded-[28px] shadow-[0px_4px_8px_0px_#00000029] flex flex-col gap-[32px]"
+            className="flex items-center justify-center shrink-0 w-1/2"
             style={{
-              width: "clamp(380px, 90%, 526px)",
-              padding: "clamp(24px, 3.5vw, 48px)",
+              padding: "40px clamp(16px, 2.5vw, 48px)",
             }}
           >
-            {/* 로고 */}
-            <div className="flex items-center gap-[12px]">
-              <img
-                className="w-[29px] h-[29px]"
-                src={char}
-                alt="위드버디 캐릭터"
-              />
-              <span
-                className="text-[#204867] font-extrabold leading-normal"
-                style={{ fontSize: "clamp(22px, 2.5vw, 32px)" }}
-              >
-                WithBuddy
-              </span>
-            </div>
-
-            {/* 입력 폼 */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleLogin();
+            <div
+              className="bg-[#FFFFFFCC] border border-[#33679B4D] rounded-[28px] shadow-[0px_4px_8px_0px_#00000029] flex flex-col gap-[32px]"
+              style={{
+                width: "clamp(380px, 90%, 526px)",
+                padding: "clamp(24px, 3.5vw, 48px)",
               }}
-              className="flex flex-col gap-[24px]"
             >
-              <div className="flex flex-col gap-[16px]">
-                {/* 회사코드 입력칸 */}
-                <div className="flex flex-col gap-[6px]">
-                  <div className="flex items-center gap-[2px] h-[32px]">
-                    <span className="font-semibold text-[16px] text-[#000000]">
-                      회사코드
-                    </span>
-                    <span className="text-[#F03E3E] text-[12px] font-semibold">
-                      *
-                    </span>
-                    <Tooltip message="회사코드와 사원번호는 담당자에게 확인해 주세요." />
-                  </div>
-                  <input
-                    className={`w-full h-[56px] border rounded-[8px] px-[12px] text-[14px] focus:outline-none ${
-                      companyCodeError
-                        ? "border-[#F03E3E] focus:border-[#F03E3E]"
-                        : "border-[#CED4DA] focus:border-[#339AF0]"
-                    }`}
-                    value={companyCode}
-                    ref={companyCodeRef}
-                    onChange={handleCompanyCodeChange}
-                    type="text"
-                    placeholder="회사코드를 입력해 주세요. (예: WITHBUDDY)"
-                  />
-                  {companyCodeError && (
-                    <p className="text-[#F03E3E] text-[12px]">
-                      {companyCodeError}
-                    </p>
-                  )}
-                </div>
-
-                {/* 사원번호 입력칸 */}
-                <div className="flex flex-col gap-[6px]">
-                  <div className="flex items-center gap-[2px] h-[32px]">
-                    <span className="font-semibold text-[16px] text-[#000000]">
-                      사원번호
-                    </span>
-                    <span className="text-[#F03E3E] text-[12px] font-semibold">
-                      *
-                    </span>
-                  </div>
-                  <input
-                    className={`w-full h-[56px] border rounded-[8px] px-[12px] text-[14px] focus:outline-none ${
-                      employeeNumberError
-                        ? "border-[#F03E3E] focus:border-[#F03E3E]"
-                        : "border-[#CED4DA] focus:border-[#339AF0]"
-                    }`}
-                    value={employeeNumber}
-                    ref={employeeNumberRef}
-                    onChange={handleEmployeeNumberChange}
-                    type="text"
-                    placeholder="사원번호를 입력해 주세요."
-                  />
-                  {employeeNumberError && (
-                    <p className="text-[#F03E3E] text-[12px]">
-                      {employeeNumberError}
-                    </p>
-                  )}
-                </div>
-
-                {/* 이름 입력칸 */}
-                <div className="flex flex-col gap-[6px]">
-                  <div className="flex items-center gap-[2px] h-[32px]">
-                    <span className="font-semibold text-[16px] text-[#000000]">
-                      이름
-                    </span>
-                    <span className="text-[#F03E3E] text-[12px] font-semibold">
-                      *
-                    </span>
-                  </div>
-                  <input
-                    className={`w-full h-[56px] border rounded-[8px] px-[12px] text-[14px] focus:outline-none ${
-                      nameError
-                        ? "border-[#F03E3E] focus:border-[#F03E3E]"
-                        : "border-[#CED4DA] focus:border-[#339AF0]"
-                    }`}
-                    value={name}
-                    ref={nameRef}
-                    onChange={handleNameChange}
-                    type="text"
-                    placeholder="실명을 입력해 주세요."
-                  />
-                  {nameError && (
-                    <p className="text-[#F03E3E] text-[12px]">{nameError}</p>
-                  )}
-                </div>
+              {/* 로고 */}
+              <div className="flex items-center gap-[12px]">
+                <img
+                  className="w-[29px] h-[29px]"
+                  src={char}
+                  alt="위드버디 캐릭터"
+                />
+                <span
+                  className="text-[#204867] font-extrabold leading-normal"
+                  style={{ fontSize: "clamp(22px, 2.5vw, 32px)" }}
+                >
+                  WithBuddy
+                </span>
               </div>
 
-              {errorMessage && (
-                <p className="text-[#F03E3E] text-[12px]">{errorMessage}</p>
-              )}
-
-              <button
-                disabled={isLoading}
-                type="submit"
-                className={`w-full h-[56px] rounded-[8px] text-[16px] font-semibold flex items-center justify-center gap-3 transition-colors ${isLoading ? "opacity-50" : ""} ${
-                  isFormValid
-                    ? "bg-[#204867] text-[#FFFFFF] hover:bg-[#183348]"
-                    : "bg-[#F1F3F5] text-[#868E96] cursor-not-allowed"
-                }`}
+              {/* 입력 폼 */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleLogin();
+                }}
+                className="flex flex-col gap-[24px]"
               >
-                <span>시작하기</span>
-                {isLoading && (
-                  <div className="border-[#D1D5DB] border-t-[#1D6EBC] rounded-full animate-spin w-5 h-5 border-2" />
-                )}
-              </button>
-            </form>
+                <div className="flex flex-col gap-[16px]">
+                  {/* 회사코드 입력칸 */}
+                  <div className="flex flex-col gap-[6px]">
+                    <div className="flex items-center gap-[2px] h-[32px]">
+                      <span className="font-semibold text-[16px] text-[#000000]">
+                        회사코드
+                      </span>
+                      <span className="text-[#F03E3E] text-[12px] font-semibold">
+                        *
+                      </span>
+                      <Tooltip message="회사코드와 사원번호는 담당자에게 확인해 주세요." />
+                    </div>
+                    <input
+                      className={`w-full h-[56px] border rounded-[8px] px-[12px] text-[14px] focus:outline-none ${
+                        companyCodeError
+                          ? "border-[#F03E3E] focus:border-[#F03E3E]"
+                          : "border-[#CED4DA] focus:border-[#339AF0]"
+                      }`}
+                      value={companyCode}
+                      ref={companyCodeRef}
+                      onChange={handleCompanyCodeChange}
+                      type="text"
+                      placeholder="회사코드를 입력해 주세요. (예: WITHBUDDY)"
+                    />
+                    {companyCodeError && (
+                      <p className="text-[#F03E3E] text-[12px]">
+                        {companyCodeError}
+                      </p>
+                    )}
+                  </div>
 
-            <p className="text-[12px] text-[#868E96] text-center">
-              © 2026 WithBuddy. A Builders League Project.
-            </p>
+                  {/* 사원번호 입력칸 */}
+                  <div className="flex flex-col gap-[6px]">
+                    <div className="flex items-center gap-[2px] h-[32px]">
+                      <span className="font-semibold text-[16px] text-[#000000]">
+                        사원번호
+                      </span>
+                      <span className="text-[#F03E3E] text-[12px] font-semibold">
+                        *
+                      </span>
+                    </div>
+                    <input
+                      className={`w-full h-[56px] border rounded-[8px] px-[12px] text-[14px] focus:outline-none ${
+                        employeeNumberError
+                          ? "border-[#F03E3E] focus:border-[#F03E3E]"
+                          : "border-[#CED4DA] focus:border-[#339AF0]"
+                      }`}
+                      value={employeeNumber}
+                      ref={employeeNumberRef}
+                      onChange={handleEmployeeNumberChange}
+                      type="text"
+                      placeholder="사원번호를 입력해 주세요."
+                    />
+                    {employeeNumberError && (
+                      <p className="text-[#F03E3E] text-[12px]">
+                        {employeeNumberError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 이름 입력칸 */}
+                  <div className="flex flex-col gap-[6px]">
+                    <div className="flex items-center gap-[2px] h-[32px]">
+                      <span className="font-semibold text-[16px] text-[#000000]">
+                        이름
+                      </span>
+                      <span className="text-[#F03E3E] text-[12px] font-semibold">
+                        *
+                      </span>
+                    </div>
+                    <input
+                      className={`w-full h-[56px] border rounded-[8px] px-[12px] text-[14px] focus:outline-none ${
+                        nameError
+                          ? "border-[#F03E3E] focus:border-[#F03E3E]"
+                          : "border-[#CED4DA] focus:border-[#339AF0]"
+                      }`}
+                      value={name}
+                      ref={nameRef}
+                      onChange={handleNameChange}
+                      type="text"
+                      placeholder="실명을 입력해 주세요."
+                    />
+                    {nameError && (
+                      <p className="text-[#F03E3E] text-[12px]">{nameError}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Turnstile 위젯이 렌더링될 위치 */}
+                <div ref={turnstileContainerRef} />
+
+                {errorMessage && (
+                  <p className="text-[#F03E3E] text-[12px]">{errorMessage}</p>
+                )}
+
+                <button
+                  disabled={isLoading || !isFormValid}
+                  type="submit"
+                  className={`w-full h-[56px] rounded-[8px] text-[16px] font-semibold flex items-center justify-center gap-3 transition-colors ${isLoading ? "opacity-50" : ""} ${
+                    isFormValid
+                      ? "bg-[#204867] text-[#FFFFFF] hover:bg-[#183348]"
+                      : "bg-[#F1F3F5] text-[#868E96] cursor-not-allowed"
+                  }`}
+                >
+                  <span>시작하기</span>
+                  {isLoading && (
+                    <div className="border-[#D1D5DB] border-t-[#1D6EBC] rounded-full animate-spin w-5 h-5 border-2" />
+                  )}
+                </button>
+              </form>
+
+              <p className="text-[12px] text-[#868E96] text-center">
+                © 2026 WithBuddy. A Builders League Project.
+              </p>
+            </div>
           </div>
-        </div>
         )}
       </div>
 
@@ -608,6 +720,7 @@ function MobileForm({
   isLoading,
   isFormValid,
   handleLogin,
+  turnstileContainerRef,
 }) {
   // class 정리
   const inputClass = `w-[297px] h-[42px] py-[6px] px-[12px] text-[12px] mt-[1px] mb-[1px] rounded-[6px]
@@ -676,13 +789,17 @@ function MobileForm({
           />
           {nameError && <div className={errorClass}>{nameError}</div>}
         </div>
+
+        {/* Turnstile 위젯이 렌더링될 위치 */}
+        <div ref={turnstileContainerRef} />
+
         {errorMessage && (
           <div className="text-[#F03E3E] text-[10px] w-[297px] mt-[5px] md:text-[12px] md:w-[430px] md:mt-[10px]">
             {errorMessage}
           </div>
         )}
         <button
-          disabled={isLoading}
+          disabled={isLoading || !isFormValid}
           className={`${buttonClass} ${isLoading ? "opacity-50" : ""} ${
             isFormValid
               ? "bg-[#204867] border-[0.5px] border-[#DEE2E6] text-[#FFFFFF] hover:bg-[#183348]"
