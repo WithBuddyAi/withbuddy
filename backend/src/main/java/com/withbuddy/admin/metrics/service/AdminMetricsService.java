@@ -446,21 +446,26 @@ public class AdminMetricsService {
                     0,
                     null,
                     List.of(),
-                    null,
+                    false,
                     "NO_PATTERNS"
             );
         }
 
         try {
-            AiNoResultSummaryClient.NoResultSummaryResponse response =
-                    aiNoResultSummaryClient.summarize(summaryCompanyCode, questions);
+            AiNoResultSummaryClient.Top5AnalysisResponse response =
+                    aiNoResultSummaryClient.analyzeTop5(summaryCompanyCode, questions);
             return new UnansweredQuestionPatternsResponse.AiSummary(
                     "READY",
                     response.companyCode(),
-                    response.questionCount(),
+                    questions.size(),
                     response.summary(),
-                    response.actions(),
-                    response.promptStyle(),
+                    response.actions().stream()
+                            .map(action -> new UnansweredQuestionPatternsResponse.AiAction(
+                                    action.part(),
+                                    action.items()
+                            ))
+                            .toList(),
+                    response.hasSensitive(),
                     null
             );
         } catch (RuntimeException e) {
@@ -472,7 +477,7 @@ public class AdminMetricsService {
                     questions.size(),
                     null,
                     List.of(),
-                    null,
+                    false,
                     "AI 요약 생성에 실패했습니다."
             );
         }
