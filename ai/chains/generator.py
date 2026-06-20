@@ -215,11 +215,16 @@ async def stream_answer(
         yield chunk
 
 
+def _fix_grammar(text: str) -> str:
+    return text.replace("있아서", "있어서").replace("없아서", "없어서")
+
+
 async def postprocess_answer_async(full_answer: str) -> str:
     """스트리밍 완료 후 비동기 후처리 (이름 교정 + 중복 제거)."""
     import asyncio
     loop = asyncio.get_event_loop()
     fixed = _fix_names(full_answer)
+    fixed = _fix_grammar(fixed)
     fixed = _fix_section_spacing(fixed)
     fixed = await loop.run_in_executor(None, _dedup_answer, fixed)
     return fixed
@@ -228,6 +233,7 @@ async def postprocess_answer_async(full_answer: str) -> str:
 def postprocess_answer(full_answer: str) -> str:
     """동기 후처리 (이름 교정 + 중복 제거)."""
     fixed = _fix_names(full_answer)
+    fixed = _fix_grammar(fixed)
     fixed = _fix_section_spacing(fixed)
     fixed = _dedup_answer(fixed)
     return fixed
