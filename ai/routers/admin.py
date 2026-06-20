@@ -120,10 +120,18 @@ def _extract_text_from_pdf(data: bytes) -> str:
         return "\n".join(p.extract_text() or "" for p in reader.pages).strip()
 
 
+def _extract_text_from_docx(data: bytes) -> str:
+    import io
+    import docx2txt
+    return docx2txt.process(io.BytesIO(data))
+
+
 def _extract_text(filename: str, data: bytes) -> str:
     ext = Path(filename).suffix.lower()
     if ext == ".pdf":
         return _extract_text_from_pdf(data)
+    if ext in (".docx", ".doc"):
+        return _extract_text_from_docx(data)
     return data.decode("utf-8", errors="ignore")
 
 
@@ -436,6 +444,35 @@ async def ingest_from_backend(
     except Exception as e:
         logger.error("자동 인덱싱 실패: documentId=%s, error=%s", doc_id, e)
         raise HTTPException(status_code=500, detail=f"인덱싱 실패: {e}")
+
+
+class DeindexRequest(BaseModel):
+    documentId: int
+    companyCode: str = ""
+
+
+@router.delete("/ingest")
+async def deindex_from_backend(
+    req: DeindexRequest,
+    x_internal_key: Optional[str] = Header(None, alias="X-Internal-Key"),
+):
+    """
+    BE 문서 삭제 시 ChromaDB 청크 제거.
+    BE → AI 내부 호출 전용. X-Internal-Key 검증 필수.
+    """
+    if not _INTERNAL_API_KEY or x_internal_key != _INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    doc_id = req.documentId
+    try:
+        vs = get_vectorstore()
+        vs.delete(where={"doc_id": str(doc_id)})
+        invalidate_bm25_cache(req.companyCode)
+        logger.info("자동 인덱스 삭제 완료: documentId=%s", doc_id)
+        return {"success": True, "documentId": doc_id}
+    except Exception as e:
+        logger.error("자동 인덱스 삭제 실패: documentId=%s, error=%s", doc_id, e)
+        raise HTTPException(status_code=500, detail=f"인덱스 삭제 실패: {e}")
 
 
 @router.delete("/documents/{filename}")
