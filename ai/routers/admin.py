@@ -120,10 +120,18 @@ def _extract_text_from_pdf(data: bytes) -> str:
         return "\n".join(p.extract_text() or "" for p in reader.pages).strip()
 
 
+def _extract_text_from_docx(data: bytes) -> str:
+    import io
+    import docx2txt
+    return docx2txt.process(io.BytesIO(data))
+
+
 def _extract_text(filename: str, data: bytes) -> str:
     ext = Path(filename).suffix.lower()
     if ext == ".pdf":
         return _extract_text_from_pdf(data)
+    if ext in (".docx", ".doc"):
+        return _extract_text_from_docx(data)
     return data.decode("utf-8", errors="ignore")
 
 
