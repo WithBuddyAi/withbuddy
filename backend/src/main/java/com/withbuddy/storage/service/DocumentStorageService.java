@@ -23,6 +23,7 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentBackupJob;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.entity.StorageSource;
+import com.withbuddy.storage.event.DocumentDeletedEvent;
 import com.withbuddy.storage.event.DocumentUploadedEvent;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentBackupJobRepository;
@@ -1119,6 +1120,8 @@ public class DocumentStorageService implements DocumentDownloadService {
         });
         optionalFile.ifPresent(this::deleteObjectsBestEffort);
 
+        publishDocumentDeletedEvent(document.getId(), resolveAiDeindexCompanyCode(requesterScope, document));
+
         return DeleteOutcome.DELETED;
     }
 
@@ -1282,6 +1285,13 @@ public class DocumentStorageService implements DocumentDownloadService {
             case ".md" -> "md";
             default -> null;
         };
+    }
+
+    private String resolveAiDeindexCompanyCode(RequesterScope requesterScope, Document document) {
+        if (StringUtils.hasText(document.getCompanyCode())) {
+            return document.getCompanyCode();
+        }
+        return requesterScope.companyCode();
     }
 
 
@@ -1516,6 +1526,14 @@ public class DocumentStorageService implements DocumentDownloadService {
         eventPublisher.publishEvent(new DocumentUploadedEvent(documentId, companyCode));
     }
 
+    private void publishDocumentDeletedEvent(Long documentId, String companyCode) {
+        if (!StringUtils.hasText(companyCode)) {
+            log.warn("AI document deindex skipped because companyCode is blank. documentId={}", documentId);
+            return;
+        }
+        eventPublisher.publishEvent(new DocumentDeletedEvent(documentId, companyCode));
+    }
+
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_001_EMPTY", "file", "업로드 파일이 비어 있거나 존재하지 않습니다.");
@@ -1590,7 +1608,7 @@ public class DocumentStorageService implements DocumentDownloadService {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm is not available", e);
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
         }
     }
 
