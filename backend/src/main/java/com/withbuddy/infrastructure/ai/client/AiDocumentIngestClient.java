@@ -1,6 +1,7 @@
 package com.withbuddy.infrastructure.ai.client;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -36,13 +37,13 @@ public class AiDocumentIngestClient {
 
     public AiDocumentIngestResponse ingest(Long documentId, String companyCode) {
         if (documentId == null) {
-            throw new IllegalArgumentException("documentId must not be null.");
+            throw new IllegalArgumentException("documentId는 null일 수 없습니다.");
         }
         if (!StringUtils.hasText(companyCode)) {
-            throw new IllegalArgumentException("companyCode must not be blank.");
+            throw new IllegalArgumentException("companyCode는 비어 있을 수 없습니다.");
         }
         if (!StringUtils.hasText(internalKey)) {
-            throw new IllegalStateException("AI document ingest internal key is not configured.");
+            throw new IllegalStateException("AI 문서 인덱싱 내부 키가 설정되어 있지 않습니다.");
         }
 
         AiDocumentIngestResponse response = restClient.post()
@@ -54,7 +55,32 @@ public class AiDocumentIngestClient {
                 .body(AiDocumentIngestResponse.class);
 
         if (response == null) {
-            throw new IllegalStateException("AI document ingest response is empty.");
+            throw new IllegalStateException("AI 문서 인덱싱 응답이 비어 있습니다.");
+        }
+        return response;
+    }
+
+    public AiDocumentDeindexResponse deindex(Long documentId, String companyCode) {
+        if (documentId == null) {
+            throw new IllegalArgumentException("documentId는 null일 수 없습니다.");
+        }
+        if (!StringUtils.hasText(companyCode)) {
+            throw new IllegalArgumentException("companyCode는 비어 있을 수 없습니다.");
+        }
+        if (!StringUtils.hasText(internalKey)) {
+            throw new IllegalStateException("AI 문서 인덱싱 내부 키가 설정되어 있지 않습니다.");
+        }
+
+        AiDocumentDeindexResponse response = restClient.method(HttpMethod.DELETE)
+                .uri("admin/ingest")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(internalHeaderName, internalKey)
+                .body(new AiDocumentIngestRequest(documentId, companyCode))
+                .retrieve()
+                .body(AiDocumentDeindexResponse.class);
+
+        if (response == null) {
+            throw new IllegalStateException("AI 문서 인덱스 삭제 응답이 비어 있습니다.");
         }
         return response;
     }
@@ -69,6 +95,12 @@ public class AiDocumentIngestClient {
             boolean success,
             Long documentId,
             Integer chunksIndexed
+    ) {
+    }
+
+    public record AiDocumentDeindexResponse(
+            boolean success,
+            Long documentId
     ) {
     }
 }

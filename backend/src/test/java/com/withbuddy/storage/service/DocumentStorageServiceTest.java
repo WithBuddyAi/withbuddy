@@ -12,6 +12,7 @@ import com.withbuddy.storage.dto.response.DocumentListResponse;
 import com.withbuddy.storage.entity.BackupStatus;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
+import com.withbuddy.storage.event.DocumentDeletedEvent;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentBackupJobRepository;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -270,6 +272,20 @@ class DocumentStorageServiceTest {
                 });
 
         verify(objectStorageClient, never()).putObject(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void publishesAiDeindexEventAfterCompanyDocumentDelete() {
+        Document document = document(101L, "WB0001", "GUIDE");
+        when(documentRepository.findByIdAndIsActiveTrue(101L)).thenReturn(Optional.of(document));
+        when(documentFileRepository.findByDocumentId(101L)).thenReturn(Optional.empty());
+
+        documentStorageService.deleteCompanyDocument(101L, true);
+
+        ArgumentCaptor<DocumentDeletedEvent> eventCaptor = ArgumentCaptor.forClass(DocumentDeletedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().documentId()).isEqualTo(101L);
+        assertThat(eventCaptor.getValue().companyCode()).isEqualTo("WB0001");
     }
 
     private Document document(Long id, String companyCode, String documentType) {
