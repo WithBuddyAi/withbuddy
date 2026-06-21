@@ -2364,6 +2364,51 @@ Content-Type: application/json
 - 일부 문서만 검증을 통과하면 “일부 문서만 삭제할 수 있습니다. 삭제할 수 없는 문서는 관리자에게 문의해 주세요.” 문구를 표시한다.
 - 일부 문서만 검증을 통과한 경우 프론트엔드는 “삭제 가능한 문서만 삭제하시겠습니까?”를 한 번 더 확인한 뒤, 검증을 통과한 문서 ID만 삭제 요청에 포함한다.
 
+#### AI 검색 DB 삭제 연동
+
+관리자 문서 선택 삭제가 성공하면 백엔드는 삭제된 문서를 AI 검색 DB에서도 제거하도록 AI 서버에 문서 인덱스 삭제를 요청한다.  
+이 API는 프론트엔드가 직접 호출하지 않으며, 백엔드와 AI 서버 사이의 내부 연동에만 사용한다.
+
+```http
+DELETE {AI_SERVER_BASE_URL}/admin/ingest
+Content-Type: application/json
+X-Internal-Key: {internalKey}
+```
+
+##### Request Body
+
+```json
+{
+  "documentId": 123,
+  "companyCode": "WB0001"
+}
+```
+
+##### Request Field
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 |
+|---|---|---|---|---|
+| `documentId` | Number | Y | `123` | 백엔드에서 삭제 처리된 `documents.id` |
+| `companyCode` | String | Y | `"WB0001"` | 삭제한 관리자 계정의 회사 코드 |
+
+##### Success Response (200 OK)
+
+```json
+{
+  "success": true,
+  "documentId": 123
+}
+```
+
+##### 처리 규칙
+
+- 백엔드는 문서 삭제 트랜잭션이 성공한 뒤 삭제된 각 `documentId`에 대해 AI 서버 `DELETE /admin/ingest`를 호출한다.
+- 요청 body의 `companyCode`는 요청자가 임의로 전달한 값이 아니라, 삭제 권한 검증에 사용한 현재 관리자 계정의 회사 코드 기준으로 구성한다.
+- AI 서버는 `X-Internal-Key` 값을 검증하고, 유효하지 않으면 `401 Unauthorized`를 반환한다.
+- AI 서버는 ChromaDB에서 `doc_id = documentId`인 청크를 삭제하고, 해당 `companyCode`의 BM25 캐시를 무효화한다.
+- AI 검색 DB 삭제가 실패해도 이미 성공한 백엔드 문서 삭제 처리는 롤백하지 않는다.
+- 백엔드는 AI 서버의 성공/실패 응답을 로그로 남기고, 실패 건은 운영 정책에 따라 재시도할 수 있어야 한다.
+
 ### 7-8. 대시보드 조회
 
 관리자 대시보드에 필요한 RAG 답변 수신 경험률, 문서 공백률, 미시작 사용자 수, 미답변 질문 패턴을 한 번에 조회한다.
