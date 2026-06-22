@@ -457,15 +457,27 @@ async def ingest_from_backend(
             "company_code": req.companyCode,
         }
         chunks = _split_documents(text, filename, metadata)
-        qa_chunks = _generate_qa_chunks(chunks)
-        all_chunks = chunks + qa_chunks
+        try:
+            qa_chunks = _generate_qa_chunks(chunks)
+        except Exception as qa_err:
+            logger.warning("Q&A 청크 생성 실패 (원본 청크만 인덱싱): %s", qa_err)
+            qa_chunks = []
+        all_chunks = [c for c in chunks + qa_chunks if c.page_content.strip()]
 
         vs = get_vectorstore()
         try:
             vs.delete(where={"doc_id": str(doc_id)})
         except Exception:
             pass  # 최초 인덱싱 시 삭제할 청크 없어도 정상
-        vs.add_documents(all_chunks)
+
+        failed = 0
+        for idx, chunk in enumerate(all_chunks):
+            try:
+                vs.add_documents([chunk])
+            except Exception as chunk_err:
+                logger.warning("청크 %d 인덱싱 실패 (건너뜀): %s", idx, chunk_err)
+                failed += 1
+        logger.info("인덱싱 완료: total=%d, failed=%d", len(all_chunks), failed)
 
         # 5. BM25 + 검색 캐시 무효화
         invalidate_bm25_cache(req.companyCode)
