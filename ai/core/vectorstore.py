@@ -174,9 +174,18 @@ def _rrf_merge(vec_docs: List[Document], bm25_docs: List[Document], k: int) -> L
 
 _SEARCH_CACHE_TTL = 7200  # 2시간 (문서 업로드 빈도 낮음, TTL로만 관리)
 
+# 회사별 캐시 버전 — 문서 삭제/추가 시 증가 → 기존 캐시 키 자동 stale
+_search_cache_versions: dict[str, int] = {}
+
+
+def invalidate_search_cache(company_code: str) -> None:
+    """문서 변경 시 해당 회사 검색 캐시 무효화 (버전 증가)."""
+    _search_cache_versions[company_code] = _search_cache_versions.get(company_code, 0) + 1
+
 
 def _search_cache_key(query: str, company_code: str, category: str, k: int) -> str:
-    raw = f"{query}|{company_code}|{category}|{k}"
+    v = _search_cache_versions.get(company_code, 0)
+    raw = f"{query}|{company_code}|{category}|{k}|v{v}"
     return "search:" + hashlib.md5(raw.encode()).hexdigest()
 
 
@@ -217,9 +226,9 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
 
     vs = get_vectorstore()
 
-    def _filter_by_score(results: List[tuple]) -> List[Document]:
+    def _filter_by_score(results: List[tuple], threshold: float = score_threshold) -> List[Document]:
         """(Document, score) 리스트에서 임계값 이상만 반환."""
-        return [doc for doc, score in results if score >= score_threshold]
+        return [doc for doc, score in results if score >= threshold]
 
     if not company_code:
         f = {"category": category} if category else {}
@@ -254,7 +263,8 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
         common_raw   = f_common.result()
         bm25_results = f_bm25.result() if bm25 else []
 
-    company_docs = _filter_by_score(company_raw)
+    # 회사 문서는 낮은 임계값(0.25) 적용 — 동의어·표현 차이로 유사도가 낮아도 포함
+    company_docs = _filter_by_score(company_raw, threshold=0.25)
     common_docs  = _filter_by_score(common_raw)
 
     # 중복 제거 (page_content 기준)
