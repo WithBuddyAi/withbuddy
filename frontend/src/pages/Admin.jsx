@@ -12,6 +12,7 @@ import AdminDocumentView from "../components/admin/AdminDocumentView/AdminDocume
 import DocDeleteModal from "../components/admin/AdminDocumentView/DocDeleteModal";
 import DocToast from "../components/admin/AdminDocumentView/DocToast";
 import DocDuplicateModal from "../components/admin/AdminDocumentView/DocDuplicateModal";
+import AdminDashboardView from "../components/admin/AdminDashboardView/AdminDashboardView";
 
 function Admin({ setIsLoggedIn }) {
   // 세션 정책
@@ -204,7 +205,7 @@ function Admin({ setIsLoggedIn }) {
                 }}
               />
             )}
-            {view === "dashboard" && <div>대시보드 준비 중</div>}
+            {view === "dashboard" && <AdminDashboardView />}
             {view === "documents" && (
               <AdminDocumentView
                 onDeleteModalOpen={(ids, docs) => {
