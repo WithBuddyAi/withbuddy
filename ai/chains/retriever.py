@@ -78,12 +78,24 @@ _QUERY_EXPANSIONS: list[tuple[str, str]] = [
 ]
 
 
+_PERSONAL_TOKENS = ["본인 ", "저의 ", "나의 ", "내 ", "제 "]
+
+
+def _normalize_query(question: str) -> str:
+    """검색에 노이즈가 되는 인칭 표현 제거 (본인, 내, 제 등)."""
+    q = question
+    for tok in _PERSONAL_TOKENS:
+        q = q.replace(tok, "")
+    return q.strip() or question
+
+
 def _expand_query(question: str) -> str:
+    q = _normalize_query(question)
     extras = []
     for term, expansion in _QUERY_EXPANSIONS:
-        if term in question:
+        if term in q:
             extras.append(expansion)
-    return question + " " + " ".join(extras) if extras else question
+    return q + " " + " ".join(extras) if extras else q
 
 
 def _generate_search_variants(question: str) -> list[str]:
