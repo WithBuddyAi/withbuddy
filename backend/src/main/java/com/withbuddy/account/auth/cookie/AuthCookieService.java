@@ -8,8 +8,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -104,21 +102,7 @@ public class AuthCookieService {
         }
 
         String hostHeader = request.getHeader("Host");
-        if (StringUtils.hasText(hostHeader) && isLoopbackHost(stripPort(hostHeader))) {
-            return true;
-        }
-
-        String origin = request.getHeader("Origin");
-        if (!StringUtils.hasText(origin)) {
-            return false;
-        }
-
-        try {
-            URI originUri = new URI(origin);
-            return isLoopbackHost(originUri.getHost());
-        } catch (URISyntaxException e) {
-            return false;
-        }
+        return StringUtils.hasText(hostHeader) && isLoopbackHost(stripPort(hostHeader));
     }
 
     private boolean isLoopbackHost(String host) {
