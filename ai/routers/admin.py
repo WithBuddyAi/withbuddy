@@ -71,6 +71,36 @@ def _split_text(text: str) -> list[str]:
     return [c for c in chunks if c.strip()]
 
 
+def _generate_qa_chunks(chunks: list[Document]) -> list[Document]:
+    """청크마다 Q&A 5개 자동 생성 — 동의어·구어체 질문의 검색 히트율 향상."""
+    from concurrent.futures import ThreadPoolExecutor
+    from core.llm import get_llm
+    llm = get_llm()
+
+    def _qa_for_chunk(chunk: Document) -> list[Document]:
+        try:
+            prompt = (
+                "다음 사내 HR/복지 문서 내용을 보고, 신입사원이 실제로 물어볼 법한 질문 5개를 만들어주세요.\n"
+                "구어체·다양한 표현으로 작성하세요. 각 줄에 질문 하나씩, 번호나 기호 없이.\n\n"
+                f"문서:\n{chunk.page_content}"
+            )
+            resp = llm.invoke(prompt)
+            questions = [l.strip() for l in resp.content.strip().split('\n') if l.strip()][:5]
+            return [
+                Document(
+                    page_content=f"{q}\n\n{chunk.page_content}",
+                    metadata={**chunk.metadata, "qa_generated": "true"},
+                )
+                for q in questions
+            ]
+        except Exception:
+            return []
+
+    with ThreadPoolExecutor(max_workers=min(len(chunks), 5)) as pool:
+        results = list(pool.map(_qa_for_chunk, chunks))
+    return [doc for docs in results for doc in docs]
+
+
 def _split_documents(text: str, filename: str, metadata: dict) -> list[Document]:
     """헤더 기준(.md) 또는 고정 크기(기타) 청킹 → Document 리스트 반환"""
     title = metadata.get("title", "")
@@ -427,22 +457,23 @@ async def ingest_from_backend(
             "company_code": req.companyCode,
         }
         chunks = _split_documents(text, filename, metadata)
+        qa_chunks = _generate_qa_chunks(chunks)
+        all_chunks = chunks + qa_chunks
 
         vs = get_vectorstore()
         try:
             vs.delete(where={"doc_id": str(doc_id)})
         except Exception:
             pass  # 최초 인덱싱 시 삭제할 청크 없어도 정상
-        for chunk in chunks:
-            vs.add_documents([chunk])
+        vs.add_documents(all_chunks)
 
         # 5. BM25 + 검색 캐시 무효화
         invalidate_bm25_cache(req.companyCode)
         invalidate_search_cache(req.companyCode)
 
         elapsed = time.perf_counter() - t0
-        logger.info("자동 인덱싱 완료: documentId=%s, chunks=%d, elapsed=%.1fs", doc_id, len(chunks), elapsed)
-        print(f"[INGEST] documentId={doc_id} chunks={len(chunks)} elapsed={elapsed:.1f}s", flush=True)
+        logger.info("자동 인덱싱 완료: documentId=%s, chunks=%d, qa_chunks=%d, elapsed=%.1fs", doc_id, len(chunks), len(qa_chunks), elapsed)
+        print(f"[INGEST] documentId={doc_id} chunks={len(chunks)} qa_chunks={len(qa_chunks)} elapsed={elapsed:.1f}s", flush=True)
         return {"success": True, "documentId": doc_id, "chunksIndexed": len(chunks)}
 
     except HTTPException:
