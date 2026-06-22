@@ -14,7 +14,7 @@ import DocToast from "../components/admin/AdminDocumentView/DocToast";
 import DocDuplicateModal from "../components/admin/AdminDocumentView/DocDuplicateModal";
 import AdminDashboardView from "../components/admin/AdminDashboardView/AdminDashboardView";
 
-function Admin({ setIsLoggedIn }) {
+function Admin({ setUser }) {
   // 세션 정책
   const [modalType, setModalType] = useState(null);
   const [retryBt, setRetryBt] = useState(null);
@@ -42,20 +42,12 @@ function Admin({ setIsLoggedIn }) {
   // 문서 업로드 중복 안내 모달
   const [isDuplicateModal, setIsDuplicateModal] = useState(false);
 
-  // 로그아웃
+  // 로그아웃 — 서버가 쿠키 만료 처리
   const handleLogout = async () => {
     try {
       await axiosInstance.post("/api/v1/auth/logout");
     } finally {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("dayCount");
-      localStorage.removeItem("hireDate");
-      localStorage.removeItem("name");
-      localStorage.removeItem("department");
-      localStorage.removeItem("teamName");
-      localStorage.removeItem("role");
-      localStorage.removeItem("accountStatus");
-      setIsLoggedIn(false);
+      setUser(null);
       navigate("/login");
     }
   };
@@ -94,7 +86,7 @@ function Admin({ setIsLoggedIn }) {
         modalType={modalType}
         setModalType={setModalType}
         handleRetry={retryBt}
-        setIsLoggedIn={setIsLoggedIn}
+        setUser={setUser}
       />
 
       {/* 로그아웃 모달 */}

@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axiosInstance from "../../../api/axiosInstance";
 import AdminDashboardHeader from "./AdminDashboardHeader";
 import AdminDashboardCards from "./AdminDashboardCards";
 import AdminDashboardQuestions from "./AdminDashboardQuestions";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function AdminDashboardView() {
   const [dashboard, setDashboard] = useState(null);
@@ -15,13 +13,9 @@ function AdminDashboardView() {
     setIsLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem("accessToken");
-      const { data } = await axios.get(
-        `${BASE_URL}/api/v1/admin/metrics/dashboard`,
-        {
-          params: { unansweredPatternLimit: 5 },
-          headers: { Authorization: `Bearer ${token}` },
-        },
+      const { data } = await axiosInstance.get(
+        "/api/v1/admin/metrics/dashboard",
+        { params: { unansweredPatternLimit: 5 } },
       );
       setDashboard(data);
     } catch (err) {

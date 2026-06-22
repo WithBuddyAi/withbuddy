@@ -1,22 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 
-function Inactive({ setIsLoggedIn }) {
+function Inactive({ setUser }) {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
       await axiosInstance.post("/api/v1/auth/logout");
     } finally {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("dayCount");
-      localStorage.removeItem("hireDate");
-      localStorage.removeItem("name");
-      localStorage.removeItem("department");
-      localStorage.removeItem("teamName");
-      localStorage.removeItem("role");
-      localStorage.removeItem("accountStatus");
-      setIsLoggedIn(false);
+      // 쿠키 기반 인증: 서버가 쿠키 만료 처리, 클라이언트는 전역 상태만 초기화
+      setUser(null);
       navigate("/login");
     }
   };
