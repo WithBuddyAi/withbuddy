@@ -17,9 +17,9 @@ function AdminSidebar({
   setIsLogoutModal,
   currentView,
   handleViewChange,
+  user,
 }) {
-  const name = localStorage.getItem("name") || "";
-
+  const name = user?.name || "";
   const menuItems = [
     {
       view: "dashboard",
