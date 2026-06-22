@@ -9,6 +9,9 @@ import lombok.Getter;
 @Schema(description = "로그인 성공 응답")
 public class LoginResponse {
 
+    @Schema(description = "기존 프론트 하위 호환을 위한 accessToken")
+    private String accessToken;
+
     @Schema(description = "로그인 사용자 정보")
     private LoginUserResponse user;
 }
