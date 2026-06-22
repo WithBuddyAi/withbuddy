@@ -1,5 +1,6 @@
 package com.withbuddy.global.security;
 
+import com.withbuddy.account.auth.cookie.AuthCookieService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.global.dto.ErrorResponse;
 import com.withbuddy.global.dto.FieldValidationError;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -44,10 +46,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final ObjectMapper objectMapper;
+    private final AuthCookieService authCookieService;
 
-    public JwtAuthenticationFilter(JwtService jwtService, ObjectMapper objectMapper) {
+    public JwtAuthenticationFilter(
+            JwtService jwtService,
+            ObjectMapper objectMapper,
+            AuthCookieService authCookieService
+    ) {
         this.jwtService = jwtService;
         this.objectMapper = objectMapper;
+        this.authCookieService = authCookieService;
     }
 
     @Override
@@ -61,14 +69,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        Optional<String> cookieToken = authCookieService.resolveAccessToken(request);
         String authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
-        if (!StringUtils.hasText(authorizationHeader)) {
+        if (cookieToken.isEmpty() && !StringUtils.hasText(authorizationHeader)) {
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            String token = jwtService.extractBearerToken(authorizationHeader);
+            String token = resolveToken(cookieToken, authorizationHeader);
             Claims claims = jwtService.getClaims(token);
 
             Long userId = Long.parseLong(claims.getSubject());
@@ -95,23 +104,50 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         } catch (TokenMissingException e) {
             String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
+            clearCookieIfPresent(request, response, cookieToken);
             writeUnauthorized(response, maskedPath, "TOKEN_MISSING", "auth", e.getMessage());
             return;
         } catch (SessionExpiredException | ExpiredJwtException e) {
             String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
+            clearCookieIfPresent(request, response, cookieToken);
             writeUnauthorized(response, maskedPath, "SESSION_EXPIRED", "session", e.getMessage());
             return;
         } catch (SessionRevokedException e) {
             String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
+            clearCookieIfPresent(request, response, cookieToken);
             writeUnauthorized(response, maskedPath, "SESSION_REVOKED", "session", e.getMessage());
             return;
         } catch (UnauthorizedException | JwtException | IllegalArgumentException e) {
             String maskedPath = RequestUrlMaskingSupport.resolveMaskedPath(request);
+            clearCookieIfPresent(request, response, cookieToken);
             writeUnauthorized(response, maskedPath, "INVALID_TOKEN", "token", e.getMessage());
             return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private String resolveToken(Optional<String> cookieToken, String authorizationHeader) {
+        if (cookieToken.isPresent()) {
+            return cookieToken.get();
+        }
+
+        if (!StringUtils.hasText(authorizationHeader)) {
+            return null;
+        }
+
+        return jwtService.extractBearerToken(authorizationHeader);
+    }
+
+    private void clearCookieIfPresent(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Optional<String> cookieToken
+    ) {
+        if (cookieToken.isEmpty()) {
+            return;
+        }
+        response.addHeader("Set-Cookie", authCookieService.expireAccessTokenCookie(request).toString());
     }
 
     private void writeUnauthorized(
