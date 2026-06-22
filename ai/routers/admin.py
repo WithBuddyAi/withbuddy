@@ -412,7 +412,6 @@ async def ingest_from_backend(
     headers = {"X-API-Key": _INTERNAL_API_KEY}
     doc_id = req.documentId
     t0 = time.perf_counter()
-
     try:
         # 1. 문서 메타데이터 조회
         meta_resp = _requests.get(
