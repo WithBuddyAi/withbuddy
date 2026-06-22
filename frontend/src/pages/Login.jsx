@@ -7,7 +7,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { format, differenceInCalendarDays } from "date-fns";
 import { ko } from "date-fns/locale";
 import Tooltip from "../components/Tooltip";
-import axios from "axios";
+import axiosInstance from "../api/axiosInstance";
 import { useUser } from "../contexts/UserContext";
 import SessionModal from "../components/SessionModal";
 
@@ -27,7 +27,7 @@ const FULL_TEXT_NARROW =
 // Cloudflare Turnstile site key
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
-function Login({ setIsLoggedIn }) {
+function Login({ setUser }) {
   // 'redis' 에러
   const [modalType, setModalType] = useState(null);
   // 로딩 스피너
@@ -172,7 +172,6 @@ function Login({ setIsLoggedIn }) {
   };
 
   // 로그인 시 서버에 데이터 전송 및 페이지 이동
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const navigate = useNavigate();
 
   const handleLogin = async () => {
@@ -197,27 +196,23 @@ function Login({ setIsLoggedIn }) {
     }
     setIsLoading(true);
     try {
-      const { data } = await axios.post(
-        `${BASE_URL}/api/v1/auth/login`,
-        { companyCode, employeeNumber, name, turnstileToken },
-        { headers: { "Content-Type": "application/json" } },
-      );
-      localStorage.setItem("accessToken", data.accessToken);
-      setIsLoggedIn(true);
-      localStorage.setItem("hireDate", data.user.hireDate);
+      const { data } = await axiosInstance.post("/api/v1/auth/login", {
+        companyCode,
+        employeeNumber,
+        name,
+        turnstileToken,
+      });
+
+      // 쿠키 기반 인증: localStorage 저장 없이 전역 상태만 업데이트
+      setUser(data.user);
       setHireDate(data.user.hireDate);
-      localStorage.setItem("name", data.user.name);
-      localStorage.setItem("department", data.user.department);
-      localStorage.setItem("teamName", data.user.teamName);
-      localStorage.setItem("role", data.user.role);
-      localStorage.setItem("accountStatus", data.user.accountStatus);
       setRole(data.user.role);
       setAccountStatus(data.user.accountStatus);
       const today = new Date();
       const hireDate = new Date(data.user.hireDate);
       const dayOffset = differenceInCalendarDays(today, hireDate);
-      localStorage.setItem("dayCount", dayOffset);
       setDayOffset(dayOffset);
+
       if (data.user.role === "USER" && data.user.accountStatus === "ACTIVE")
         navigate("/mybuddy");
       else if (
