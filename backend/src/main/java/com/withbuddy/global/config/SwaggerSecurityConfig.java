@@ -1,5 +1,7 @@
 package com.withbuddy.global.config;
 
+import com.withbuddy.account.auth.cookie.AuthCookieNames;
+import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.models.PathItem;
@@ -13,11 +15,11 @@ import java.util.Set;
 
 @Configuration
 @SecurityScheme(
-        name = "bearerAuth",
-        type = SecuritySchemeType.HTTP,
-        scheme = "bearer",
-        bearerFormat = "JWT",
-        description = "로그인 후 발급된 accessToken을 입력하세요. 'Bearer ' 접두사 없이 토큰만 입력하면 됩니다."
+        name = "sessionCookieAuth",
+        type = SecuritySchemeType.APIKEY,
+        in = SecuritySchemeIn.COOKIE,
+        paramName = AuthCookieNames.ACCESS_TOKEN,
+        description = "로그인 후 브라우저에 저장되는 httpOnly 세션 쿠키를 사용합니다."
 )
 public class SwaggerSecurityConfig {
 
@@ -28,7 +30,7 @@ public class SwaggerSecurityConfig {
     @Bean
     public OpenApiCustomizer globalSecurityCustomizer() {
         return openApi -> {
-            openApi.addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
+            openApi.addSecurityItem(new SecurityRequirement().addList("sessionCookieAuth"));
 
             if (openApi.getPaths() == null) {
                 return;
