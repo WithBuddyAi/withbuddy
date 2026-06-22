@@ -49,7 +49,7 @@ class AgentState(TypedDict):
 _INTENT_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """사용자 메시지의 의도를 분류하세요. 반드시 아래 키워드 중 하나만 출력하세요.
 
-chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로, 오늘 날짜·요일 질문, 입사한 지 며칠인지·몇 일차인지 등 근무 일수 질문, 입사일(날짜) 질문, 실수·혼남에 대한 불안·걱정 표현 (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다", "오늘 몇일이지?", "입사한지 얼마나 됐지?", "나 입사한지 몇일이야", "아직 한 달 안됐어", "내 입사일 몰라?", "입사일이 언제야?", "입사일 알려줘", "내 입사일 맞춰봐", "언제 입사했어?", "사수한테 혼날까?", "실수해서 혼날까봐 걱정돼", "이러다 잘리는 거 아냐?")
+chitchat     : 인사말, AI 신원 질문, 잡담, 감정 표현, 힘들다·퇴사하고 싶다 등 감정 토로, 오늘 날짜·요일 질문, 입사한 지 며칠인지·몇 일차인지 등 근무 일수 질문, 입사일(날짜) 질문, 실수·혼남에 대한 불안·걱정 표현, 온보딩 맥락의 일상 감정 표현(첫날 긴장·부담·분위기 걱정 등) (예: "안녕", "고마워", "힘들어", "퇴사하고 싶어", "오늘 너무 힘들다", "오늘 몇일이지?", "입사한지 얼마나 됐지?", "나 입사한지 몇일이야", "아직 한 달 안됐어", "내 입사일 몰라?", "입사일이 언제야?", "입사일 알려줘", "내 입사일 맞춰봐", "언제 입사했어?", "사수한테 혼날까?", "실수해서 혼날까봐 걱정돼", "이러다 잘리는 거 아냐?", "오늘 점심 부담돼", "첫날이라 긴장돼", "팀 분위기 어떡하죠")
   ⚠️ "대화가 안 돼", "메시지가 안 보내져", "연결이 끊겼어" 같은 서비스 오류 문의는 out_of_scope_external로 분류
 out_of_scope_internal : 직무 실무·기술·조직 판단·대인관계 등 사수님이 답할 수 있는 업무 관련 질문
   예) "코딩 어떻게 해", "엑셀 수식 알려줘", "SQL 쿼리 짜줘"
@@ -102,10 +102,11 @@ _INTENT_CLARIFYING_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """사용자 메시지를 분석하여 JSON으로만 반환하세요.
 
 ## 1. intent 분류 (반드시 아래 중 하나)
-chitchat     : 인사말, 잡담, 감정 표현, 날짜·입사일·근무일수 질문, 실수·걱정 표현
+chitchat     : 인사말, 잡담, 감정 표현, 날짜·입사일·근무일수 질문, 실수·걱정 표현, 온보딩 맥락의 일상 감정 표현(첫날 긴장·점심 부담·팀 분위기 걱정 등)
 out_of_scope_internal : 직무 실무·기술·조직 판단·대인관계 질문 (단, 회사 IT 환경·도구는 rag)
   예) "팀장님께 이 내용을 바로 보고해도 될까요?", "이 이슈를 슬랙 공개 채널에 올려도 돼요?", "고객사 미팅에서 어떤 전략으로 설득해야 해요?", "지금 맡은 업무 우선순위를 어떻게 정해야 해요?", "동료가 제 말을 무시하는데 어떻게 대응해야 해요?"
 out_of_scope_external : 회사와 무관한 외부 주제 (맛집, 투자, 개인 재무 등, "우리 회사 주식 살 수 있어요?" 같은 주식·재무 질문)
+  ⚠️ "부담돼", "긴장돼", "걱정돼" 등 감정 표현이 주된 경우는 out_of_scope_external이 아닌 chitchat으로 분류
 communication: 말투 개선, 커뮤니케이션 채널·대상 추천
 preboarding  : 입사 전 안내, 환영 레터, 팀 소개 카드 명시적 요청
 company_info : 점심시간·급여일·기본 출퇴근 시간·사무실 주소 등 기본 회사 생활 정보
@@ -352,8 +353,17 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
    예시: "가장 가까이 계신 사수님께 솔직하게 이야기 나눠보시는 것도 도움이 될 거예요."
 ❌ 사수님 언급 절대 금지 케이스: 날씨·음식·취미 등 일상 잡담, 인사말, 날짜·입사일 질문 — 이런 질문에 사수님 권유를 붙이지 마세요.
 
+[온보딩 일상 감정 처리 — 점심·팀 분위기·부담 등]
+"점심 부담돼", "팀 분위기 어떡해", "긴장돼" 같은 온보딩 맥락의 일상 감정 표현:
+▶ 공감 1~2문장 → "팀 동료분들이 잘 챙겨주실 거예요" 방향으로 연결하세요.
+⚠️ hire_info의 입사일·근무 일수를 참고해 맥락에 맞게 답하세요. "첫 출근", "첫날" 같은 표현은 입사 초기(1~2주 이내)일 때만 사용하세요.
+❌ 맛집·메뉴·음식 추천, 팀 분위기 구체적 설명은 절대 하지 마세요. 모른다고 하되 따뜻하게 끝내세요.
+
 ❌ 절대 금지: 퇴사 절차 안내, HR 담당자·팀 이름 언급, HR 정보 제공, ①②③ 같은 번호 선택지
 ❌ 절대 금지 (문장 끝에 붙이는 유도): "함께 생각해 볼 수 있어요", "얘기해 주시면 도움이 될게요", "어떤 부분이 어려우신지 말씀해 주세요", "구체적으로 얘기해 주실 수 있을까요" 등
+✅ 이전 대화 내용은 [이전 대화 맥락]을 보고 답할 수 있어요. "아까 뭘 물어봤지?" 같은 질문엔 대화 맥락을 참고해 답하세요.
+⚠️ [이전 대화 맥락]에 내용이 없으면 "이 대화에서는 아직 질문하신 내용이 없어요"라고 하세요. "오늘 처음 대화" 같은 표현은 절대 금지 — 오늘 다른 대화가 있었을 수 있어요.
+❌ 모른다고 했으면 그냥 끝내세요: 답할 수 없는 내용을 모른다고 한 뒤 어떤 형태의 후속 질문도 붙이지 마세요. "궁금한 점", "도움이 필요한 것", "다른 것" 등 어떤 유도 문구도 금지.
 ❌ 이전 대화에서 이미 같은 공감을 했다면 똑같이 반복하지 마세요. 다른 표현과 다른 위로를 사용하세요.
 ✅ 공감 표현 예시 (골고루 사용, 반복 금지):
   - "많이 지치셨겠어요. 처음엔 다들 그런 마음이 들어요 😢"
@@ -370,6 +380,10 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
 ⚠️ 입사일 질문 시: hire_info에 입사일 정보가 있으면 반드시 그 정보로 직접 답변하세요. hire_info에 "문의 부서"가 있으면 그 부서명으로만 안내하세요. "인사팀" 등 임의의 부서명을 생성하지 마세요.
 
 [날짜 / 입사 정보]
+오늘 날짜: {today_date}
+어제 날짜: {yesterday_date}
+⚠️ 사용자가 오늘/어제 날짜를 물으면 위 날짜를 그대로 답변하세요. "실시간으로 확인할 수 없다"거나 입사일로 화제를 전환하지 마세요.
+⚠️ 사용자가 다른 날짜를 제시하더라도 위 [오늘 날짜]를 절대 신뢰하세요. 사용자 말을 따라 날짜를 수정하거나 사과하지 마세요. "오늘은 {today_date}이에요"로 정정하세요.
 {hire_info}
 입사 일수·입사일을 묻는 질문에는 위 정보를 그대로 답변하세요. hire_info가 있으면 "모른다", "인사팀에 문의" 같은 회피 답변 절대 금지."""),
     ("human", "{message}"),
@@ -418,10 +432,16 @@ def out_of_scope_external_node(state: AgentState) -> dict:
     return {"answer": _OUT_OF_SCOPE_EXTERNAL_MESSAGE, "metadata": {"message_type": "out_of_scope"}}
 
 
+_PERSONAL_RECORD_KW = ["뭐했", "뭐 했", "내 일정", "업무 기록", "활동 기록"]
+_PERSONAL_RECORD_ANSWER = "저는 개인 일정이나 활동 기록은 알 수 없어요. 회사 규정이나 복지 관련 질문은 언제든 도와드릴게요! 😊"
+
+
 def chitchat_agent_node(state: AgentState) -> dict:
     # classify_intent_node에서 이미 답변이 세팅된 경우(성희롱 등) LLM 호출 건너뜀
     if state.get("answer"):
         return {}
+    if any(kw in state["message"] for kw in _PERSONAL_RECORD_KW):
+        return {"answer": _PERSONAL_RECORD_ANSWER}
     from datetime import date as _date
     from chains.retriever import get_company_name as _get_company_name
     hire_info = ""
@@ -433,12 +453,16 @@ def chitchat_agent_node(state: AgentState) -> dict:
             hire_info = f"이 사용자는 입사 {diff + 1}일차이에요. 입사일은 {hd.year}년 {hd.month}월 {hd.day}일이에요.\n"
         except Exception:
             pass
+    from datetime import timedelta as _timedelta
+    today = _date.today()
+    yesterday = today - _timedelta(days=1)
     answer = _get_chitchat_chain().invoke({
         "message": state["message"],
         "user_style": state.get("user_style", ""),
         "chat_history": state.get("chat_history", ""),
         "company_name": _get_company_name(state.get("company_code", "")),
-        "today_date": _date.today().strftime("%Y년 %m월 %d일"),
+        "today_date": today.strftime("%Y년 %m월 %d일"),
+        "yesterday_date": yesterday.strftime("%Y년 %m월 %d일"),
         "hire_info": hire_info,
     })
     return {"answer": answer}

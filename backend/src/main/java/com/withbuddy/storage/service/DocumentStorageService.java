@@ -23,11 +23,14 @@ import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentBackupJob;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.entity.StorageSource;
+import com.withbuddy.storage.event.DocumentDeletedEvent;
+import com.withbuddy.storage.event.DocumentUploadedEvent;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentBackupJobRepository;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
+import org.springframework.context.ApplicationEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -103,6 +106,7 @@ public class DocumentStorageService implements DocumentDownloadService {
     private final StorageProperties storageProperties;
     private final RedisCacheService redisCacheService;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public DocumentStorageService(
             DocumentRepository documentRepository,
@@ -111,7 +115,8 @@ public class DocumentStorageService implements DocumentDownloadService {
             ObjectStorageClient objectStorageClient,
             StorageProperties storageProperties,
             RedisCacheService redisCacheService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.documentRepository = documentRepository;
         this.documentFileRepository = documentFileRepository;
@@ -120,6 +125,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         this.storageProperties = storageProperties;
         this.redisCacheService = redisCacheService;
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -223,6 +229,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
 
         executeBackupAttempt(documentFile, payload, "UPLOAD_SYNC");
+        publishDocumentUploadedEvent(document.getId(), finalCompanyCode);
 
         return new DocumentUploadResponse(
                 document.getId(),
@@ -1113,6 +1120,8 @@ public class DocumentStorageService implements DocumentDownloadService {
         });
         optionalFile.ifPresent(this::deleteObjectsBestEffort);
 
+        publishDocumentDeletedEvent(document.getId(), resolveAiDeindexCompanyCode(requesterScope, document));
+
         return DeleteOutcome.DELETED;
     }
 
@@ -1276,6 +1285,13 @@ public class DocumentStorageService implements DocumentDownloadService {
             case ".md" -> "md";
             default -> null;
         };
+    }
+
+    private String resolveAiDeindexCompanyCode(RequesterScope requesterScope, Document document) {
+        if (StringUtils.hasText(document.getCompanyCode())) {
+            return document.getCompanyCode();
+        }
+        return requesterScope.companyCode();
     }
 
 
@@ -1502,6 +1518,22 @@ public class DocumentStorageService implements DocumentDownloadService {
         return "companies/" + tenantSegment + "/documents/" + LocalDateTime.now().toLocalDate() + "/" + storedFileName;
     }
 
+    private void publishDocumentUploadedEvent(Long documentId, String companyCode) {
+        if (!StringUtils.hasText(companyCode)) {
+            log.warn("AI document ingest skipped because companyCode is blank. documentId={}", documentId);
+            return;
+        }
+        eventPublisher.publishEvent(new DocumentUploadedEvent(documentId, companyCode));
+    }
+
+    private void publishDocumentDeletedEvent(Long documentId, String companyCode) {
+        if (!StringUtils.hasText(companyCode)) {
+            log.warn("AI document deindex skipped because companyCode is blank. documentId={}", documentId);
+            return;
+        }
+        eventPublisher.publishEvent(new DocumentDeletedEvent(documentId, companyCode));
+    }
+
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new StorageException(HttpStatus.BAD_REQUEST, "FILE_001_EMPTY", "file", "업로드 파일이 비어 있거나 존재하지 않습니다.");
@@ -1576,7 +1608,7 @@ public class DocumentStorageService implements DocumentDownloadService {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm is not available", e);
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
         }
     }
 
