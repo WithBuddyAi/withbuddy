@@ -75,17 +75,21 @@ _QUERY_EXPANSIONS: list[tuple[str, str]] = [
     ("경조금", "경조 지원 경조사 지원금 축의금"),
     ("건강검진", "건강 검진 의료비 검진 지원"),
     ("복리후생", "복지 혜택 복지포인트 경조금 식대 지원 헬스케어"),
+    ("나와", "지원 있어 가능 제공 됩니다"),
 ]
 
 
 _PERSONAL_TOKENS = ["본인 ", "저의 ", "나의 ", "내 ", "제 "]
+_FILLER_WORDS = ["따로 ", "혹시 ", "혹시나 ", "그냥 ", "좀 "]
 
 
 def _normalize_query(question: str) -> str:
-    """검색에 노이즈가 되는 인칭 표현 제거 (본인, 내, 제 등)."""
+    """검색에 노이즈가 되는 인칭 표현·구어체 노이즈 제거."""
     q = question
     for tok in _PERSONAL_TOKENS:
         q = q.replace(tok, "")
+    for word in _FILLER_WORDS:
+        q = q.replace(word, "")
     return q.strip() or question
 
 
