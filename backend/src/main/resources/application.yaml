@@ -98,7 +98,7 @@ app:
       fallback-burst: ${APP_CACHE_RESILIENCE_FALLBACK_BURST:40}
   security:
     cors:
-      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,https://*.vercel.app,https://withbuddy.itsdev.kr}
+      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://127.0.0.1:5173,https://*.vercel.app,https://withbuddy.itsdev.kr}
       allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
       allowed-headers: ${CORS_ALLOWED_HEADERS:*}
       exposed-headers: ${CORS_EXPOSED_HEADERS:Retry-After}

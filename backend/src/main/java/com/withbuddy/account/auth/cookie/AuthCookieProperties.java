@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.security.auth-cookie")
 public class AuthCookieProperties {
 
-    private String sameSite = "Lax";
+    private String sameSite;
     private String domain;
     private String path = "/";
     private boolean httpOnly = true;
