@@ -8,12 +8,12 @@ import com.withbuddy.admin.activity.log.RmqActivityLogService;
 import com.withbuddy.admin.activity.entity.EventTarget;
 import com.withbuddy.admin.activity.entity.EventType;
 import com.withbuddy.account.auth.dto.request.LoginRequest;
-import com.withbuddy.account.auth.dto.response.LoginResponse;
 import com.withbuddy.account.auth.dto.response.LoginUserResponse;
 import com.withbuddy.account.auth.exception.LoginFailedException;
 import com.withbuddy.account.auth.ratelimit.LoginAttemptRateLimitService;
 import com.withbuddy.account.auth.turnstile.TurnstileVerificationService;
 import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
@@ -44,7 +44,7 @@ public class AuthService {
     private final LoginAttemptRateLimitService loginAttemptRateLimitService;
 
     @Transactional
-    public LoginResponse login(LoginRequest request, String clientIp) {
+    public AuthenticatedSession login(LoginRequest request, String clientIp) {
         String normalizedCompanyCode = normalizeCompanyCode(request.getCompanyCode());
         String normalizedEmployeeNumber = normalizeValue(request.getEmployeeNumber());
         String normalizedName = normalizeValue(request.getName());
@@ -91,21 +91,25 @@ public class AuthService {
             rmqActivityLogService.publish(user.getId(), EventType.SESSION_START, EventTarget.LOGIN);
         }
 
-        LoginUserResponse userResponse = new LoginUserResponse(
-                user.getId(),
-                user.getCompany().getCompanyCode(),
-                user.getCompany().getName(),
-                user.getEmployeeNumber(),
-                user.getName(),
-                user.getDepartment(),
-                user.getTeamName(),
-                user.getRole(),
-                resolveResponseAccountStatus(user, currentAccountStatus),
-                user.getHireDate()
-        );
+        LoginUserResponse userResponse = buildUserResponse(user, currentAccountStatus);
         cacheUserProfile(user.getId(), userResponse);
 
-        return new LoginResponse(accessToken, userResponse);
+        return new AuthenticatedSession(accessToken, userResponse);
+    }
+
+    @Transactional
+    public LoginUserResponse getCurrentUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("사용자 정보를 찾을 수 없습니다."));
+
+        UserAccountStatus currentAccountStatus = resolveLifecycleAccountStatus(user);
+        if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
+            user.updateAccountStatus(currentAccountStatus);
+        }
+
+        LoginUserResponse userResponse = buildUserResponse(user, currentAccountStatus);
+        cacheUserProfile(userId, userResponse);
+        return userResponse;
     }
 
     private UserAccountStatus resolveResponseAccountStatus(User user, UserAccountStatus currentAccountStatus) {
@@ -139,6 +143,21 @@ public class AuthService {
         }
     }
 
+    private LoginUserResponse buildUserResponse(User user, UserAccountStatus currentAccountStatus) {
+        return new LoginUserResponse(
+                user.getId(),
+                user.getCompany().getCompanyCode(),
+                user.getCompany().getName(),
+                user.getEmployeeNumber(),
+                user.getName(),
+                user.getDepartment(),
+                user.getTeamName(),
+                user.getRole(),
+                resolveResponseAccountStatus(user, currentAccountStatus),
+                user.getHireDate()
+        );
+    }
+
     private String normalizeCompanyCode(String value) {
         return normalizeValue(value).toUpperCase(Locale.ROOT);
     }
@@ -166,5 +185,8 @@ public class AuthService {
             return UserAccountStatus.READ_ONLY;
         }
         return UserAccountStatus.ACTIVE;
+    }
+
+    public record AuthenticatedSession(String accessToken, LoginUserResponse user) {
     }
 }
