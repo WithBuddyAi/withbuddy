@@ -66,13 +66,11 @@ function DocTemplateAccordion() {
       );
       const { downloadUrl } = res.data;
 
-      // 2단계: /file은 토큰 없이 일반 fetch로 호출 → blob 받기
+      // 2단계: /file은 credentials: 'include'로 쿠키 자동 전송
       const fileRes = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}${downloadUrl}`,
         {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-          },
+          credentials: "include",
         },
       );
       const blob = await fileRes.blob();

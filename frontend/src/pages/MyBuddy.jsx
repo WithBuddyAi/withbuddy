@@ -14,7 +14,7 @@ import ChatInput from "../components/ChatInput";
 import SessionModal from "../components/SessionModal";
 import { setModalHandler } from "../api/handlers";
 
-function MyBuddy({ setIsLoggedIn }) {
+function MyBuddy({ user, setUser }) {
   // 세션 정책 부분
   // 에러 타입 'redis' | 'sessionExpired' | 'duplicateLogin'
   const [modalType, setModalType] = useState(null);
@@ -22,14 +22,10 @@ function MyBuddy({ setIsLoggedIn }) {
   const [retryBt, setRetryBt] = useState(null);
 
   const { dayOffset, accountStatus: contextAccountStatus } = useUser();
-  const accountStatus =
-    contextAccountStatus ?? localStorage.getItem("accountStatus");
-  const dayCount =
-    dayOffset !== undefined && dayOffset !== null
-      ? dayOffset
-      : localStorage.getItem("dayCount");
-  // 사이드바에 표시되는 정보 state
-  const name = localStorage.getItem("name");
+  const accountStatus = contextAccountStatus ?? user?.accountStatus;
+  const dayCount = dayOffset ?? 0;
+  // 사이드바에 표시되는 정보 — user prop에서 읽기
+  const name = user?.name || "";
   const today = format(new Date(), "yyyy-MM-dd");
   const [selectedDate, setSelectedDate] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
@@ -73,20 +69,12 @@ function MyBuddy({ setIsLoggedIn }) {
     }
   };
 
-  // 로그아웃
+  // 로그아웃 — 서버가 쿠키 만료 처리
   const handleLogout = async () => {
     try {
       await axiosInstance.post("/api/v1/auth/logout");
     } finally {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("dayCount");
-      localStorage.removeItem("hireDate");
-      localStorage.removeItem("name");
-      localStorage.removeItem("department");
-      localStorage.removeItem("teamName");
-      localStorage.removeItem("role");
-      localStorage.removeItem("accountStatus");
-      setIsLoggedIn(false);
+      setUser(null);
       navigate("/login");
     }
   };
@@ -249,13 +237,15 @@ function MyBuddy({ setIsLoggedIn }) {
     ]);
 
     try {
+      // SSE fetch — credentials: 'include'로 쿠키 자동 전송
+      const baseURL = import.meta.env.VITE_API_BASE_URL;
       const response = await fetch(
-        "https://api-wb.itsdev.kr/api/v1/chat/messages/stream",
+        `${baseURL}/api/v1/chat/messages/stream`,
         {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
           },
           body: JSON.stringify({ content: sendText }),
         },
@@ -284,14 +274,7 @@ function MyBuddy({ setIsLoggedIn }) {
             code === "INVALID_TOKEN" ||
             code === "USER_NOT_FOUND"
           ) {
-            localStorage.removeItem("accessToken");
-            localStorage.removeItem("dayCount");
-            localStorage.removeItem("hireDate");
-            localStorage.removeItem("name");
-            localStorage.removeItem("department");
-            localStorage.removeItem("teamName");
-            localStorage.removeItem("role");
-            localStorage.removeItem("accountStatus");
+            setUser(null);
             navigate("/login");
             return;
           }
@@ -538,7 +521,7 @@ function MyBuddy({ setIsLoggedIn }) {
         modalType={modalType}
         setModalType={setModalType}
         handleRetry={retryBt || handleRetry}
-        setIsLoggedIn={setIsLoggedIn}
+        setUser={setUser}
       />
 
       {/* 전송 실패 에러 메시지 - 컴포넌트 분리 완료 */}
