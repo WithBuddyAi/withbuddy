@@ -16,6 +16,7 @@ DELETE /admin/documents/{filename} : 문서 삭제 + RAG에서 제거
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +26,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from pydantic import BaseModel, Field
 
-from core.vectorstore import get_vectorstore, invalidate_bm25_cache
+from core.vectorstore import get_vectorstore, invalidate_bm25_cache, invalidate_search_cache
 
 logger = logging.getLogger(__name__)
 
@@ -339,6 +340,7 @@ async def upload_document(file: UploadFile = File(...), company_code: str = Form
     vs = get_vectorstore()
     vs.add_documents(docs)
     invalidate_bm25_cache(company_code)
+    invalidate_search_cache(company_code)
 
     return {
         "message": f"'{filename}' 업로드 및 인덱싱 완료",
@@ -379,6 +381,7 @@ async def ingest_from_backend(
 
     headers = {"X-API-Key": _INTERNAL_API_KEY}
     doc_id = req.documentId
+    t0 = time.perf_counter()
 
     try:
         # 1. 문서 메타데이터 조회
@@ -433,10 +436,13 @@ async def ingest_from_backend(
         for chunk in chunks:
             vs.add_documents([chunk])
 
-        # 5. BM25 캐시 무효화
+        # 5. BM25 + 검색 캐시 무효화
         invalidate_bm25_cache(req.companyCode)
+        invalidate_search_cache(req.companyCode)
 
-        logger.info("자동 인덱싱 완료: documentId=%s, chunks=%d", doc_id, len(chunks))
+        elapsed = time.perf_counter() - t0
+        logger.info("자동 인덱싱 완료: documentId=%s, chunks=%d, elapsed=%.1fs", doc_id, len(chunks), elapsed)
+        print(f"[INGEST] documentId={doc_id} chunks={len(chunks)} elapsed={elapsed:.1f}s", flush=True)
         return {"success": True, "documentId": doc_id, "chunksIndexed": len(chunks)}
 
     except HTTPException:
@@ -468,6 +474,7 @@ async def deindex_from_backend(
         vs = get_vectorstore()
         vs.delete(where={"doc_id": str(doc_id)})
         invalidate_bm25_cache(req.companyCode)
+        invalidate_search_cache(req.companyCode)
         logger.info("자동 인덱스 삭제 완료: documentId=%s", doc_id)
         return {"success": True, "documentId": doc_id}
     except Exception as e:
@@ -491,5 +498,6 @@ async def delete_document(filename: str):
     # 파일 삭제
     file_path.unlink()
     invalidate_bm25_cache()
+    invalidate_search_cache("")
 
     return {"message": f"'{filename}' 삭제 완료"}
