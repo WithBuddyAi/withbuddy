@@ -20,6 +20,7 @@ from chains.retriever import (
     retrieve, async_retrieve,
     resolve_selection, check_ambiguous,
     get_company_name, get_hr_contact, get_it_contact, get_company_specific_rules,
+    is_legal_question,
 )
 from chains.generator import (
     generate_answer, stream_answer, postprocess_answer, postprocess_answer_async,
@@ -174,6 +175,14 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         save_interaction(user_id, result.question, no_result_answer)
         return no_result_answer, "", [], []
 
+    # 사내 문서 없이 법령 문서만 히트된 비법령 질문 → LLM 호출 없이 no_result 처리
+    if (company_code and not is_legal_question(result.question)
+            and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
+        hr_team, _ = get_hr_contact(company_code)
+        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
+        save_interaction(user_id, result.question, no_result_answer)
+        return no_result_answer, "", [], []
+
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
     hr_team, _ = get_hr_contact(company_code)
@@ -250,6 +259,17 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         return
 
     if not result.docs:
+        hr_team, _ = get_hr_contact(company_code)
+        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
+        save_interaction(user_id, result.question, no_result_answer)
+        asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+        yield no_result_answer, None, None, None
+        yield "", "", [], []
+        return
+
+    # 사내 문서 없이 법령 문서만 히트된 비법령 질문 → LLM 호출 없이 no_result 처리
+    if (company_code and not is_legal_question(result.question)
+            and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
         hr_team, _ = get_hr_contact(company_code)
         no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
         save_interaction(user_id, result.question, no_result_answer)

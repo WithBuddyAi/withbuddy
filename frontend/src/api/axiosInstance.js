@@ -15,14 +15,7 @@ const showToast = (message) => {
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-});
-
-axiosInstance.interceptors.request.use((config) => {
-  const accessToken = localStorage.getItem("accessToken");
-  if (accessToken) {
-    config.headers["Authorization"] = `Bearer ${accessToken}`;
-  }
-  return config;
+  withCredentials: true,
 });
 
 axiosInstance.interceptors.response.use(
@@ -46,14 +39,6 @@ axiosInstance.interceptors.response.use(
         code === "INVALID_TOKEN" ||
         code === "USER_NOT_FOUND"
       ) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("dayCount");
-        localStorage.removeItem("hireDate");
-        localStorage.removeItem("name");
-        localStorage.removeItem("department");
-        localStorage.removeItem("teamName");
-        localStorage.removeItem("role");
-        localStorage.removeItem("accountStatus");
         if (logoutHandler) logoutHandler();
         return Promise.reject(error);
       }

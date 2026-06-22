@@ -37,6 +37,7 @@ WithBuddy는?
 ### 🔐 로그인
 
 - 회사코드 · 사번 · 이름 입력으로 간편 로그인
+- Cloudflare Turnstile 봇 방지 인증
 
 ### 🤝 My Buddy
 
@@ -47,19 +48,22 @@ WithBuddy는?
 
 ### 🛠️ 관리자 페이지
 
-| 기능               | 설명                                         |
-| ------------------ | -------------------------------------------- |
-| **신입 계정 생성** | 이름 · 사번 · 입사일 입력으로 신입 계정 생성 |
+| 기능               | 설명                                                   |
+| ------------------ | ------------------------------------------------------ |
+| **대시보드**       | 활용률 · 문서 보강 필요율 · 미시작 신입 수 통계 + AI 분석 |
+| **계정 관리**      | 신입 계정 생성 · 조회 · 부서/팀 필터                    |
+| **문서 관리**      | 문서 업로드 · 조회 · 삭제                               |
 
 <br>
 
 ## 🖥️ 화면 구성
 
-| 화면            | 설명                           |
-| --------------- | ------------------------------ |
-| 로그인 페이지   | 회사코드 · 사번 · 이름 입력 폼 |
-| 메인 (My Buddy) | Nudge 카드 + Q&A 채팅 영역     |
-| 관리자 페이지   | 신입 계정 생성 폼              |
+| 화면            | 설명                                          |
+| --------------- | --------------------------------------------- |
+| 로그인 페이지   | 회사코드 · 사번 · 이름 입력 폼 + Turnstile 인증 |
+| 메인 (My Buddy) | Nudge 카드 + Q&A 채팅 영역                     |
+| 관리자 페이지   | 대시보드 · 계정 관리 · 문서 관리                |
+| 이용 종료 안내  | 수습 기간 종료 후 안내 화면                     |
 
 <br>
 
@@ -110,20 +114,26 @@ src/
 │       │   ├── Pagination.jsx                 # 페이지네이션
 │       │   ├── LoadingState.jsx               # 로딩 상태 UI
 │       │   └── EmptyState.jsx                 # 빈 상태 UI
-│       └── AdminDocumentView/
-│           ├── AdminDocumentView.jsx          # 문서 관리 메인 화면 (상태 관리, API 호출 담당)
-│           ├── AdminDocHeader.jsx             # 문서 관리 상단 헤더
-│           ├── DocTable.jsx                   # PC / 태블릿 문서 테이블
-│           ├── DocRow.jsx                     # 문서 테이블 행
-│           ├── DocMobileList.jsx              # 모바일 문서 목록
-│           ├── DocMobileCard.jsx              # 모바일 문서 카드
-│           ├── DocUploadZone.jsx              # 파일 드래그앤드롭 업로드 영역
-│           ├── DocUploadForm.jsx              # 파일 업로드 입력 폼
-│           ├── DocDeleteModal.jsx             # 문서 삭제 확인 모달
-│           ├── DocToast.jsx                   # 문서 삭제·업로드 결과 토스트
-│           └── validateFile.js               # 파일 형식·크기 검사 유틸
+│       ├── AdminDocumentView/
+│       │   ├── AdminDocumentView.jsx          # 문서 관리 메인 화면 (상태 관리, API 호출 담당)
+│       │   ├── AdminDocHeader.jsx             # 문서 관리 상단 헤더
+│       │   ├── DocTable.jsx                   # PC / 태블릿 문서 테이블
+│       │   ├── DocRow.jsx                     # 문서 테이블 행
+│       │   ├── DocMobileList.jsx              # 모바일 문서 목록
+│       │   ├── DocMobileCard.jsx              # 모바일 문서 카드
+│       │   ├── DocUploadZone.jsx              # 파일 드래그앤드롭 업로드 영역
+│       │   ├── DocUploadForm.jsx              # 파일 업로드 입력 폼
+│       │   ├── DocDeleteModal.jsx             # 문서 삭제 확인 모달
+│       │   ├── DocDuplicateModal.jsx          # 중복 문서 안내 모달
+│       │   ├── DocToast.jsx                   # 문서 삭제·업로드 결과 토스트
+│       │   └── validateFile.js               # 파일 형식·크기 검사 유틸
+│       └── AdminDashboardView/
+│           ├── AdminDashboardView.jsx         # 대시보드 메인 화면 (API 호출, 데이터 분배)
+│           ├── AdminDashboardHeader.jsx       # 대시보드 헤더 (제목 + 설명)
+│           ├── AdminDashboardCards.jsx        # 통계 카드 3종 (활용률, 보강 필요율, 미시작 수)
+│           └── AdminDashboardQuestions.jsx    # 미답변 질문 TOP5 + AI 분석
 └── pages/
-    ├── Login.jsx                              # 로그인 페이지
+    ├── Login.jsx                              # 로그인 페이지 (Turnstile 봇 방지 포함)
     ├── MyBuddy.jsx                            # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
     ├── Inactive.jsx                           # 이용 기간 종료 안내 페이지
     └── Admin.jsx                              # 관리자 페이지 (뷰 전환 · 레이아웃 담당)
@@ -139,8 +149,9 @@ src/
 
 > 💡 **admin/ 폴더란?**  
 > 관리자 페이지 관련 컴포넌트를 모아둔 폴더.  
-> `AdminCreateView`는 계정 생성에 필요한 state, 유효성 검사, API 호출을 직접 관리함
-> `AdminMainView/`는 계정 관리 화면을 담당하며, 하위 컴포넌트(UserTable, UserRow, UserMobileCard)로 역할을 분리함
+> `AdminCreateView`는 계정 생성에 필요한 state, 유효성 검사, API 호출을 직접 관리함  
+> `AdminMainView/`는 계정 관리 화면을 담당하며, 하위 컴포넌트(UserTable, UserRow, UserMobileCard)로 역할을 분리함  
+> `AdminDashboardView/`는 대시보드 화면을 담당하며, 집계 API 연동 및 통계 카드·질문 랭킹·AI 분석을 렌더링함
 
 <br>
 
@@ -160,6 +171,18 @@ npm install
 npm run dev
 # → http://localhost:5173 에서 확인
 ```
+
+### 환경변수 설정
+
+로컬 개발 시 프로젝트 루트에 `.env.local` 파일을 생성하고 아래 값을 설정합니다.
+
+```bash
+# Cloudflare Turnstile (로컬 테스트용 dummy key)
+VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+```
+
+> 💡 운영 환경(Vercel)에는 실제 Turnstile site key가 별도로 등록되어 있습니다.  
+> 로컬에서는 Cloudflare가 제공하는 dummy key를 사용하면 항상 인증 성공 처리됩니다.
 
 ### 브랜치 전략
 
@@ -218,3 +241,6 @@ git commit -m "ㅇㅇ"
   (`AdminHeader`, `UserTable`, `UserRow`, `UserMobileList`, `UserMobileCard`, `Pagination`, `LoadingState`, `EmptyState`)
 - 2026-06-08: `AdminDocumentView` 폴더 추가 (문서 목록 조회, 삭제 확인 모달, 토스트 포함), 관리자 사이드바 탭 구조 추가 (대시보드·문서 관리·미답변 질문), `Inactive.jsx` 페이지 추가.
 - 2026-06-10: `AdminDocumentView` 문서 업로드 기능 추가 (드래그앤드롭 업로드존, 입력 폼, 파일 검사 유틸), 모바일 문서 목록 추가 (`DocMobileList`, `DocMobileCard`), 업로드·삭제 토스트 통합.
+- 2026-06-17: `DocDuplicateModal.jsx` 추가 (POLICY/GUIDE 중복 업로드 차단 모달).
+- 2026-06-19: 로그인 페이지에 Cloudflare Turnstile 봇 방지 통합. site key 환경변수 분리 (`VITE_TURNSTILE_SITE_KEY`), 429 레이트리밋 NaN 방어 코드 추가 (`Number.isFinite`), Turnstile 토큰을 `isFormValid`에 반영, 위젯 테마·사이즈 설정 (`theme: "light"`, `size: "flexible"`). 로그인 폼 별표 위치 `<sup>` 적용, 챗 목업 시간 동적 표시 (`date-fns` format).
+- 2026-06-22: `AdminDashboardView` 폴더 추가 (대시보드 통계 카드 3종, 미답변 질문 TOP5 막대그래프, AI 분석 섹션). 집계 API 연동 (`GET /api/v1/admin/metrics/dashboard`), 카드별 조건부 dot 색상 처리, 로딩·에러·빈 상태 처리, 다시 시도 버튼 추가.
