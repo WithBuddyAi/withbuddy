@@ -37,7 +37,7 @@ public class AuthController implements AuthControllerDocs {
         AuthService.AuthenticatedSession session = authService.login(loginRequest, resolveClientIp(request));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, authCookieService.createAccessTokenCookie(request, session.accessToken()).toString())
-                .body(new LoginResponse(session.user()));
+                .body(new LoginResponse(session.accessToken(), session.user()));
     }
 
     @Override
