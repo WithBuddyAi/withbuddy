@@ -2216,7 +2216,7 @@ Authorization: Bearer {accessToken}
 * 조회 대상은 현재 로그인한 관리자의 회사(`users.company_code`)와 `documents.company_code`가 일치하는 문서만 포함한다.
 * 공통 문서(`documents.company_code = null`)는 관리자 회사 문서 목록에 포함하지 않는다.
 * `scope`는 향후 조회 범위 확장을 대비한 파라미터이며, 현재는 `COMPANY`만 지원한다. `COMPANY` 외 값은 `400 Bad Request`를 반환한다.
-* `contentType`은 MIME 타입 대신 파일 형식 확장자 값으로 반환한다. 지원 값은 `pdf`, `txt`, `docs`, `md`이다.
+* `contentType`은 MIME 타입 대신 파일 형식 확장자 값으로 반환한다. 지원 값은 `pdf`, `txt`, `docx`, `md`이다.
 * `documentType`이 전달되면 해당 문서 유형만 조회한다.
 * `search`가 전달되면 문서 제목 기준으로 검색한다.
 * 기본 정렬은 최신 등록순(`documents.created_at desc`)이다.
@@ -2363,6 +2363,51 @@ Content-Type: application/json
 - 모든 문서가 검증을 통과하지 못하면 “삭제할 수 없는 문서가 포함되어 있습니다. 관리자에게 문의해 주세요.” 문구를 표시하고 삭제를 진행하지 않는다.
 - 일부 문서만 검증을 통과하면 “일부 문서만 삭제할 수 있습니다. 삭제할 수 없는 문서는 관리자에게 문의해 주세요.” 문구를 표시한다.
 - 일부 문서만 검증을 통과한 경우 프론트엔드는 “삭제 가능한 문서만 삭제하시겠습니까?”를 한 번 더 확인한 뒤, 검증을 통과한 문서 ID만 삭제 요청에 포함한다.
+
+#### AI 검색 DB 삭제 연동
+
+관리자 문서 선택 삭제가 성공하면 백엔드는 삭제된 문서를 AI 검색 DB에서도 제거하도록 AI 서버에 문서 인덱스 삭제를 요청한다.  
+이 API는 프론트엔드가 직접 호출하지 않으며, 백엔드와 AI 서버 사이의 내부 연동에만 사용한다.
+
+```http
+DELETE {AI_SERVER_BASE_URL}/admin/ingest
+Content-Type: application/json
+X-Internal-Key: {internalKey}
+```
+
+##### Request Body
+
+```json
+{
+  "documentId": 123,
+  "companyCode": "WB0001"
+}
+```
+
+##### Request Field
+
+| 필드 | 타입 | 필수 | 예시값 | 설명 |
+|---|---|---|---|---|
+| `documentId` | Number | Y | `123` | 백엔드에서 삭제 처리된 `documents.id` |
+| `companyCode` | String | Y | `"WB0001"` | 삭제한 관리자 계정의 회사 코드 |
+
+##### Success Response (200 OK)
+
+```json
+{
+  "success": true,
+  "documentId": 123
+}
+```
+
+##### 처리 규칙
+
+- 백엔드는 문서 삭제 트랜잭션이 성공한 뒤 삭제된 각 `documentId`에 대해 AI 서버 `DELETE /admin/ingest`를 호출한다.
+- 요청 body의 `companyCode`는 요청자가 임의로 전달한 값이 아니라, 삭제 권한 검증에 사용한 현재 관리자 계정의 회사 코드 기준으로 구성한다.
+- AI 서버는 `X-Internal-Key` 값을 검증하고, 유효하지 않으면 `401 Unauthorized`를 반환한다.
+- AI 서버는 ChromaDB에서 `doc_id = documentId`인 청크를 삭제하고, 해당 `companyCode`의 BM25 캐시를 무효화한다.
+- AI 검색 DB 삭제가 실패해도 이미 성공한 백엔드 문서 삭제 처리는 롤백하지 않는다.
+- 백엔드는 AI 서버의 성공/실패 응답을 로그로 남기고, 실패 건은 운영 정책에 따라 재시도할 수 있어야 한다.
 
 ### 7-8. 대시보드 조회
 
@@ -3943,7 +3988,7 @@ Authorization: Bearer {accessToken}
 - **v2.2.5 (2026-06-11)**:
   - 관리자 대시보드 명세 추가, 관리자 계정 페이지에서 필수 온보딩 문서 템플릿을 다운로드 할 수 있는 `GET /api/v1/admin/organization-options` 명세를 추가.
 - **v2.2.6 (2026-06-16)**:
-  - 관리자 회사 문서 조회 문서 유형 필터(`pdf`, `docs`, `txt`, `md`) 수정
+  - 관리자 회사 문서 조회 문서 유형 필터(`pdf`, `docx`, `txt`, `md`) 수정
   - 관리자 회사 문서 업로드 중복 판단 기준(`POLICY`/`GUIDE`: `company_code` + `document_type` + `title`, `TEMPLATE`: `company_code` + `document_type` + `title` + `content_type`) 추가
 - **v2.2.7 (2026-06-18)**:
   - 관리자 문서 업로드 완료 후 백엔드가 AI 서버 `POST /admin/ingest`를 자동 호출하는 내부 연동 규칙을 추가
