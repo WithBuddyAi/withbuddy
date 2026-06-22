@@ -25,10 +25,24 @@ public interface AuthControllerDocs {
             [추가 보안] Turnstile 보호가 활성화된 환경에서는 turnstileToken도 함께 검증한다.
             [베네핏] 발급된 세션 토큰을 Redis에 저장해 단일 기기 세션을 강제한다. \
             다른 기기에서 재로그인 시 이전 세션이 자동 무효화되어 계정 보안을 강화한다. \
+<<<<<<< Updated upstream
             이후 모든 API 호출은 브라우저가 자동 전송하는 쿠키를 사용한다."""
     )
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "로그인 성공 — 세션 쿠키 발급 및 사용자 정보 반환",
+=======
+<<<<<<< Updated upstream
+            이후 모든 API 호출에 이 토큰을 사용한다."""
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "로그인 성공 — accessToken 반환",
+=======
+            기존 프론트 호환을 위해 accessToken도 응답 바디에 함께 유지한다."""
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "로그인 성공 — 세션 쿠키 발급 및 accessToken/사용자 정보 반환",
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
                 content = @Content(schema = @Schema(implementation = LoginResponse.class))),
         @ApiResponse(responseCode = "400", description = "보안 검증 실패 — Turnstile 토큰 누락 또는 검증 실패",
                 content = @Content(schema = @Schema(implementation = ErrorResponse.class))),

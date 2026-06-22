@@ -33,11 +33,22 @@ public class AuthController implements AuthControllerDocs {
 
     @Override
     @PostMapping("/login")
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+    public LoginResponse login(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request) {
+        return authService.login(loginRequest, resolveClientIp(request));
+=======
+>>>>>>> Stashed changes
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request) {
         AuthService.AuthenticatedSession session = authService.login(loginRequest, resolveClientIp(request));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, authCookieService.createAccessTokenCookie(request, session.accessToken()).toString())
+<<<<<<< Updated upstream
                 .body(new LoginResponse(session.user()));
+=======
+                .body(new LoginResponse(session.accessToken(), session.user()));
+>>>>>>> Stashed changes
     }
 
     @Override
@@ -45,6 +56,10 @@ public class AuthController implements AuthControllerDocs {
     public ResponseEntity<LoginUserResponse> me(Authentication authentication) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         return ResponseEntity.ok(authService.getCurrentUser(principal.userId()));
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
     }
 
     @Override
