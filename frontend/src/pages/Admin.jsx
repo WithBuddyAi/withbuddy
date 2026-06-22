@@ -14,7 +14,7 @@ import DocToast from "../components/admin/AdminDocumentView/DocToast";
 import DocDuplicateModal from "../components/admin/AdminDocumentView/DocDuplicateModal";
 import AdminDashboardView from "../components/admin/AdminDashboardView/AdminDashboardView";
 
-function Admin({ setUser }) {
+function Admin({ user, setUser }) {
   // 세션 정책
   const [modalType, setModalType] = useState(null);
   const [retryBt, setRetryBt] = useState(null);
@@ -162,6 +162,7 @@ function Admin({ setUser }) {
           setIsLogoutModal={setIsLogoutModal}
           currentView={view}
           handleViewChange={handleViewChange}
+          user={user}
         />
 
         {/* 본문 영역 */}

@@ -568,6 +568,7 @@ function MyBuddy({ user, setUser }) {
           handleDateChange={handleDateChange}
           setIsLogoutModal={setIsLogoutModal}
           isReadOnly={accountStatus === "READ_ONLY"}
+          user={user}
         />
 
         {/* 채팅 영역 */}

@@ -36,6 +36,7 @@ function AdminDashboardView() {
     unstarted: dashboard?.unstartedUsers?.companies?.[0] || null,
   };
   const patterns = dashboard?.unansweredQuestionPatterns?.patterns || [];
+  const aiSummary = dashboard?.unansweredQuestionPatterns?.aiSummary || null;
 
   return (
     <div className="flex flex-col gap-[12px] min-h-0 flex-1 overflow-auto pr-[20px]">
@@ -48,6 +49,7 @@ function AdminDashboardView() {
       />
       <AdminDashboardQuestions
         patterns={patterns}
+        aiSummary={aiSummary}
         isLoading={isLoading}
         error={error}
         onRetry={fetchDashboard}
