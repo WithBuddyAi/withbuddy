@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 
-function SessionModal({ modalType, setModalType, handleRetry, setIsLoggedIn }) {
+function SessionModal({ modalType, setModalType, handleRetry, setUser }) {
   const navigate = useNavigate();
 
   const modalContent = {
@@ -27,16 +27,9 @@ function SessionModal({ modalType, setModalType, handleRetry, setIsLoggedIn }) {
       handleRetry();
       setModalType(null);
     } else {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("dayCount");
-      localStorage.removeItem("hireDate");
-      localStorage.removeItem("name");
-      localStorage.removeItem("department");
-      localStorage.removeItem("teamName");
-      localStorage.removeItem("role");
-      localStorage.removeItem("accountStatus");
-      if (setIsLoggedIn) {
-        setIsLoggedIn(false);
+      // 쿠키 기반 인증: 서버가 쿠키 만료 처리, 클라이언트는 전역 상태만 초기화
+      if (setUser) {
+        setUser(null);
       }
       setModalType(null);
       navigate("/login");
