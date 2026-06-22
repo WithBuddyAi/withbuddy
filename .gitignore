@@ -11,6 +11,9 @@ __pycache__/
 .env.production
 *.env
 
+# Server-only config (not in git, must not be deleted by git clean on deploy)
+ai/contacts_config.py
+
 # API Keys & Secrets
 config/secrets.yml
 *.pem
