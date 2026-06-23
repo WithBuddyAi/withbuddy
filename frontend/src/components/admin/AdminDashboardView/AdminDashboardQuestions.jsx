@@ -1,6 +1,6 @@
 import bot from "../../../assets/Bot_icon.svg";
 
-function AdminDashboardQuestions({ patterns, isLoading, error, onRetry }) {
+function AdminDashboardQuestions({ patterns, aiSummary, isLoading, error, onRetry }) {
   // 로딩 상태
   if (isLoading) {
     return (
@@ -42,8 +42,14 @@ function AdminDashboardQuestions({ patterns, isLoading, error, onRetry }) {
         {/* TOP5 에러 */}
         <div className="flex flex-col items-center gap-[16px] py-[40px]">
           <p className="text-[#868E96] text-[14px]">
-            데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
+            데이터를 불러오지 못했어요.
           </p>
+          <button
+            onClick={onRetry}
+            className="flex items-center gap-[6px] text-[13px] rounded-[9999px] py-[8px] px-[16px] bg-[#EAF6FF] text-[#204867] hover:bg-[#D2E2F6]"
+          >
+            다시 시도
+          </button>
         </div>
 
         {/* AI 분석 에러 */}
@@ -84,9 +90,6 @@ function AdminDashboardQuestions({ patterns, isLoading, error, onRetry }) {
 
   // 막대 그래프 최대값
   const maxCount = patterns[0]?.totalCount || 1;
-  const areas = extractAreas(patterns);
-  // TODO: 백엔드 AI 분석 API에서 hasSensitive 플래그 받으면 교체
-  const hasSensitive = false;
 
   return (
     <div className="flex flex-col gap-[20px] md:gap-[32px] bg-[#FFFFFFCC] border px-[16px] py-[20px] md:px-[32px] md:py-[24px] rounded-[16px] shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
@@ -110,6 +113,7 @@ function AdminDashboardQuestions({ patterns, isLoading, error, onRetry }) {
                   {index + 1}
                 </span>
 
+                {/* 모바일: truncate 없이 전체 표시, 데스크탑: 고정 너비 + truncate */}
                 <p className="text-[12px] md:text-[14px] text-[#000000] md:w-[240px] lg:w-[300px] md:shrink-0 md:truncate">
                   {item.questionContent}
                 </p>
@@ -149,202 +153,69 @@ function AdminDashboardQuestions({ patterns, isLoading, error, onRetry }) {
         </div>
       </div>
 
-      {/* AI 분석 */}
-      {/* TODO: 백엔드 AI 분석 API가 생기면 API 응답으로 교체 */}
-      <div className="border border-[#E9ECEF] rounded-[12px] p-[16px] md:p-[24px] bg-[#F7FAFBCC]">
-        {/* 섹션 레이블 */}
-        <h3 className="flex gap-[5px] items-center text-[14px] md:text-[16px] font-medium text-[#000000] mb-[10px] md:mb-[16px]">
-          <img src={bot} alt="Bot" className="w-[18px] md:w-[20px]" /> AI 분석
-        </h3>
+      {/* AI 분석 — API 응답(aiSummary) 기반 렌더링 */}
+      {aiSummary && aiSummary.status === "READY" && (
+        <div className="border border-[#E9ECEF] rounded-[12px] p-[16px] md:p-[24px] bg-[#F7FAFBCC]">
+          {/* 섹션 레이블 */}
+          <h3 className="flex gap-[5px] items-center text-[14px] md:text-[16px] font-medium text-[#000000] mb-[10px] md:mb-[16px]">
+            <img src={bot} alt="Bot" className="w-[18px] md:w-[20px]" /> AI 분석
+          </h3>
 
-        {/* 요약 텍스트 */}
-        <p className="text-[12px] md:text-[14px] lg:text-[16px] text-[#000000] leading-[1.7] mb-[14px] md:mb-[20px]">
-          {generateAISummary(patterns)}
-        </p>
-
-        {/* 액션 리스트 */}
-        {areas.length > 0 && (
-          <div>
-            <p className="text-[12px] md:text-[14px] font-semibold text-[#204867] mb-[8px] md:mb-[12px]">
-              보강이 필요한 영역
-            </p>
-            <ul className="flex flex-col gap-[6px] md:gap-[8px]">
-              {areas.map((area) => (
-                <li
-                  key={area.category}
-                  className="text-[12px] md:text-[14px] lg:text-[15px] text-[#495057]"
-                >
-                  <span className="font-semibold text-[#000000]">
-                    {area.category}
-                  </span>
-                  {"  —  "}
-                  {area.detail}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* 민감 질문 안내 (조건부 노출) */}
-        {/* TODO: 백엔드 AI 분석 API에서 hasSensitive 플래그 받으면 연동 */}
-        {hasSensitive && (
-          <p className="text-[11px] md:text-[13px] text-[#868E96] mt-[14px] md:mt-[20px]">
-            ⚠️ 일부 질문은 문서 보강보다 HR/법무 담당자 직접 상담이 필요한
-            내용입니다.
+          {/* 요약 텍스트 (방식 A) */}
+          <p className="text-[12px] md:text-[14px] lg:text-[16px] text-[#000000] leading-[1.7] mb-[14px] md:mb-[20px]">
+            {aiSummary.summary}
           </p>
-        )}
-      </div>
+
+          {/* 보강 필요 영역 (방식 B) */}
+          {aiSummary.actions?.length > 0 && (
+            <div>
+              <p className="text-[12px] md:text-[14px] font-semibold text-[#204867] mb-[8px] md:mb-[12px]">
+                보강이 필요한 영역
+              </p>
+              <ul className="flex flex-col gap-[6px] md:gap-[8px]">
+                {aiSummary.actions.map((action) => (
+                  <li
+                    key={action.part}
+                    className="text-[12px] md:text-[14px] lg:text-[15px] text-[#000000]"
+                  >
+                    <span
+              className="w-[8px] h-[8px] rounded-full shrink-0"
+            />
+
+                    <span className="font-semibold">
+                      {action.part}
+                    </span>
+                    {"  —  "}
+                    {action.items}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* 민감 질문 안내 (조건부 노출) */}
+          {aiSummary.hasSensitive && (
+            <p className="text-[11px] md:text-[13px] text-[#868E96] mt-[14px] md:mt-[20px]">
+              ⚠️ 일부 질문은 문서 보강보다 HR/법무 담당자 직접 상담이 필요한
+              내용입니다.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* AI 분석 에러 상태 */}
+      {aiSummary && aiSummary.status !== "READY" && aiSummary.errorMessage && (
+        <div className="border border-[#E9ECEF] rounded-[12px] p-[16px] md:p-[24px] bg-[#F7FAFBCC]">
+          <h3 className="flex gap-[5px] items-center text-[14px] md:text-[16px] font-medium text-[#000000] mb-[10px] md:mb-[16px]">
+            <img src={bot} alt="Bot" className="w-[18px] md:w-[20px]" /> AI 분석
+          </h3>
+          <p className="text-[12px] md:text-[14px] text-[#868E96]">
+            {aiSummary.errorMessage}
+          </p>
+        </div>
+      )}
     </div>
   );
-}
-
-// AI 분석 요약 텍스트 생성 (방식 A: 맥락 요약)
-// TODO: 백엔드 AI 분석 API가 생기면 이 함수를 API 응답으로 교체
-function generateAISummary(patterns) {
-  if (!patterns || patterns.length === 0) {
-    return "분석할 미답변 질문이 없습니다.";
-  }
-
-  // 질문 1건일 때 단수 처리
-  if (patterns.length === 1) {
-    const q = patterns[0].questionContent;
-    return `${q.replace("?", "")} 관련 질문이 있었습니다. 해당 내용을 온보딩 문서에 추가하면 같은 질문을 줄일 수 있어요.`;
-  }
-
-  // 카테고리별 그룹핑 후 요약 생성
-  const grouped = groupByCategory(patterns);
-  const summaryParts = [];
-
-  for (const [category, questions] of Object.entries(grouped)) {
-    const keywords = questions
-      .map((q) => extractKeyword(q))
-      .filter(Boolean)
-      .slice(0, 2);
-    if (keywords.length > 0) {
-      summaryParts.push(`${category}(${keywords.join(", ")})`);
-    }
-  }
-
-  // 그룹핑 실패 시 질문 직접 나열
-  if (summaryParts.length === 0) {
-    const topQuestions = patterns
-      .slice(0, 3)
-      .map((p) => p.questionContent)
-      .join(", ");
-    return `"${topQuestions}" 등의 질문이 반복되고 있습니다. 해당 내용을 온보딩 문서에 추가하면 같은 질문을 줄일 수 있어요.`;
-  }
-
-  const joined =
-    summaryParts.length <= 2
-      ? summaryParts.join("과 ")
-      : summaryParts.slice(0, -1).join(", ") +
-        ", " +
-        summaryParts[summaryParts.length - 1];
-
-  return `${joined}에 대한 질문이 반복되고 있습니다. 해당 내용을 온보딩 문서에 추가하면 같은 질문을 줄일 수 있어요.`;
-}
-
-// 질문에서 핵심 키워드 추출 (간단한 규칙 기반)
-function extractKeyword(questionContent) {
-  const removePatterns = [
-    /은\s*어떻게/,
-    /는\s*어떻게/,
-    /어떻게\s*(되|하|신청|받)/,
-    /있나요\??/,
-    /인가요\??/,
-    /하나요\??/,
-    /되나요\??/,
-    /받을\s*수/,
-    /쓸\s*수/,
-    /운영해요\??/,
-    /신청/,
-    /\?/,
-  ];
-
-  let keyword = questionContent;
-  removePatterns.forEach((pattern) => {
-    keyword = keyword.replace(pattern, "");
-  });
-
-  return keyword.trim();
-}
-
-// 질문을 카테고리별로 그룹핑
-function groupByCategory(patterns) {
-  const categoryMap = {
-    "보상 조건": ["스톡옵션", "사이닝", "보너스", "급여", "연봉"],
-    "근무 제도": ["4일제", "리프레시", "휴가", "연차", "재택", "출퇴근"],
-    "사내 복리후생": ["동호회", "복지", "식대", "건강검진", "경조"],
-    행정: ["비품", "장비", "회의실", "경비", "출장"],
-    IT: ["이메일", "계정", "장비", "보안", "VPN", "프린터"],
-  };
-
-  const grouped = {};
-
-  patterns.forEach((p) => {
-    for (const [category, keywords] of Object.entries(categoryMap)) {
-      if (keywords.some((kw) => p.questionContent.includes(kw))) {
-        if (!grouped[category]) grouped[category] = [];
-        grouped[category].push(p.questionContent);
-        return;
-      }
-    }
-  });
-
-  return grouped;
-}
-
-// 패턴 데이터에서 보강 필요 영역 추출 (방식 B: 액션 리스트)
-// TODO: 백엔드 AI 분석 API가 생기면 이 함수를 API 응답으로 교체
-function extractAreas(patterns) {
-  if (!patterns || patterns.length === 0) return [];
-
-  // 파트 분류 기준 (기획 문서 4-4 기준)
-  const categoryMap = {
-    "HR · 인사": [
-      "스톡옵션",
-      "사이닝",
-      "보너스",
-      "급여",
-      "연봉",
-      "경조사",
-      "근로계약",
-      "수습",
-      "정규직",
-    ],
-    복지: [
-      "동호회",
-      "복지",
-      "식대",
-      "건강검진",
-      "경조금",
-      "자기계발",
-      "복지카드",
-    ],
-    행정: ["비품", "장비", "회의실", "경비", "출장"],
-    IT: ["이메일", "계정", "보안", "VPN", "프린터", "업무 도구"],
-    "근무 제도": ["4일제", "리프레시", "휴가", "연차", "재택", "출퇴근"],
-  };
-
-  const matched = {};
-
-  patterns.forEach((p) => {
-    for (const [category, keywords] of Object.entries(categoryMap)) {
-      if (keywords.some((kw) => p.questionContent.includes(kw))) {
-        if (!matched[category]) matched[category] = [];
-        matched[category].push(extractKeyword(p.questionContent));
-        break;
-      }
-    }
-  });
-
-  // 최대 3개 파트로 제한
-  return Object.entries(matched)
-    .slice(0, 3)
-    .map(([category, keywords]) => ({
-      category,
-      detail: keywords.join(", "),
-    }));
 }
 
 export default AdminDashboardQuestions;

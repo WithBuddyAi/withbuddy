@@ -22,9 +22,10 @@ function Sidebar({
   handleDateChange,
   setIsLogoutModal,
   isReadOnly,
+  user,
 }) {
-  const department = localStorage.getItem("department");
-  const teamName = localStorage.getItem("teamName");
+  const department = user?.department || "";
+  const teamName = user?.teamName || "";
   const [activeStartDate, setActiveStartDate] = useState(new Date());
   const [view, setView] = useState("month");
 
@@ -69,7 +70,7 @@ function Sidebar({
                     )}
                   </div>
                   {department && teamName && (
-                    <p className="text-[#495057] text-[12px]">
+                    <p className="w-[140px] lg:w-[160px] text-[#495057] text-[12px] truncate">
                       {department} · {teamName}
                     </p>
                   )}

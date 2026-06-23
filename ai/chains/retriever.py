@@ -58,6 +58,66 @@ def get_company_specific_rules(company_code: str) -> str:
 
 _DIRECT_LEGAL_KEYWORDS = ["배우자출산휴가", "배우자 출산휴가"]
 
+# ── 쿼리 동의어 확장 ───────────────────────────────────────────
+_QUERY_EXPANSIONS: list[tuple[str, str]] = [
+    ("출근시간", "근무시간 업무 시작 시간 근무 시작"),
+    ("출근 시간", "근무시간 업무 시작 시간 근무 시작"),
+    ("퇴근시간", "근무시간 업무 종료 시간 퇴근"),
+    ("퇴근 시간", "근무시간 업무 종료 시간 퇴근"),
+    ("헬스케어 앱", "건강관리 앱 앱 구독 복지 헬스케어"),
+    ("건강관리 앱", "헬스케어 앱 앱 구독 복지"),
+    ("자기계발비", "자기계발 지원 교육비 자기개발"),
+    ("자기 계발비", "자기계발 지원 교육비"),
+    ("식대지원", "식대 지원 식사비 식사 지원 중식비 밥값"),
+    ("식대", "식대 지원 식사비 중식비 밥값"),
+    ("밥값", "식대 식대 지원 식사비 중식비"),
+    ("복지포인트", "복지 포인트 복리후생 포인트 지급"),
+    ("경조금", "경조 지원 경조사 지원금 축의금"),
+    ("건강검진", "건강 검진 의료비 검진 지원"),
+    ("복리후생", "복지 혜택 복지포인트 경조금 식대 지원 헬스케어"),
+    ("나와", "지원 있어 가능 제공 됩니다"),
+]
+
+
+_PERSONAL_TOKENS = ["본인 ", "저의 ", "나의 ", "내 ", "제 "]
+_FILLER_WORDS = ["따로 ", "혹시 ", "혹시나 ", "그냥 ", "좀 "]
+
+
+def _normalize_query(question: str) -> str:
+    """검색에 노이즈가 되는 인칭 표현·구어체 노이즈 제거."""
+    q = question
+    for tok in _PERSONAL_TOKENS:
+        q = q.replace(tok, "")
+    for word in _FILLER_WORDS:
+        q = q.replace(word, "")
+    return q.strip() or question
+
+
+def _expand_query(question: str) -> str:
+    q = _normalize_query(question)
+    extras = []
+    for term, expansion in _QUERY_EXPANSIONS:
+        if term in q:
+            extras.append(expansion)
+    return q + " " + " ".join(extras) if extras else q
+
+
+def _generate_search_variants(question: str) -> list[str]:
+    """Haiku로 검색 쿼리 변형 2개 생성 — 문서 표현과 다른 표현 간 격차 보완. 실패 시 빈 리스트."""
+    try:
+        from core.llm import get_llm
+        prompt = (
+            "다음 질문에서 사내 HR/복지 문서 검색에 쓸 핵심 키워드를 다른 표현으로 2가지 만들어주세요.\n"
+            "띄어쓰기를 정확하게 하고, 실제 문서에 나올 법한 표현을 사용하세요.\n"
+            "각 줄에 키워드 문자열 하나씩, 번호나 설명 없이 키워드만 출력하세요.\n\n"
+            f"질문: {question}"
+        )
+        resp = get_llm().invoke(prompt)
+        return [l.strip() for l in resp.content.strip().split('\n') if l.strip()][:2]
+    except Exception:
+        return []
+
+
 _LEGAL_KEYWORDS = [
     "최저임금", "최저시급", "퇴직금", "퇴직급여", "육아휴직", "산재", "임금체불",
     "근로계약", "해고", "근로기준법", "노동법", "연장근로", "야간수당",
@@ -251,20 +311,45 @@ def match_template_docs(company_code: str, question: str) -> tuple[list[int], li
 
 # ── 서브 질문 검색 ─────────────────────────────────────────────
 
+def _multi_query_search(sub_q: str, company_code: str, k: int) -> List[Document]:
+    """원본 쿼리 + LLM 변형 쿼리 병렬 검색 후 dedup 반환."""
+    expanded = _expand_query(sub_q)
+
+    # 원본 검색 + 변형 생성 동시 실행
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_docs = pool.submit(search_with_company_fallback, expanded, k, company_code)
+        f_vars = pool.submit(_generate_search_variants, sub_q)
+        original_docs = f_docs.result()
+        variants = f_vars.result()
+
+    seen: set[str] = {d.page_content[:80] for d in original_docs}
+    all_docs: List[Document] = list(original_docs)
+
+    if variants:
+        with ThreadPoolExecutor(max_workers=len(variants)) as pool:
+            futures = [pool.submit(search_with_company_fallback, v, k, company_code) for v in variants]
+            for f in futures:
+                for doc in f.result():
+                    key = doc.page_content[:80]
+                    if key not in seen:
+                        seen.add(key)
+                        all_docs.append(doc)
+
+    return all_docs
+
+
 def _search_sub_q(sub_q: str, company_code: str) -> List[Document]:
     k = get_k_for_question(sub_q)
     if is_legal_question(sub_q):
-        docs = search_legal_docs(sub_q, k=k * 2)
-    else:
-        docs = search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
-    return docs[:k]
+        return search_legal_docs(_expand_query(sub_q), k=k * 2)[:k]
+    return _multi_query_search(sub_q, company_code, k)[:k]
 
 
 def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
     k = get_k_for_question(sub_q)
     if is_legal_question(sub_q):
-        return search_legal_docs(sub_q, k=k * 2)
-    return search_with_company_fallback(sub_q, k=k * 2, company_code=company_code)
+        return search_legal_docs(_expand_query(sub_q), k=k * 2)
+    return _multi_query_search(sub_q, company_code, k)
 
 
 _SUB_Q_SPLIT_PATTERN = re.compile(

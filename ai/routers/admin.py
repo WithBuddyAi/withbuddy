@@ -16,6 +16,7 @@ DELETE /admin/documents/{filename} : 문서 삭제 + RAG에서 제거
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +26,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from pydantic import BaseModel, Field
 
-from core.vectorstore import get_vectorstore, invalidate_bm25_cache
+from core.vectorstore import get_vectorstore, invalidate_bm25_cache, invalidate_search_cache
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,36 @@ def _split_text(text: str) -> list[str]:
         chunks.append(text[start:end])
         start += _CHUNK_SIZE - _CHUNK_OVERLAP
     return [c for c in chunks if c.strip()]
+
+
+def _generate_qa_chunks(chunks: list[Document]) -> list[Document]:
+    """청크마다 Q&A 5개 자동 생성 — 동의어·구어체 질문의 검색 히트율 향상."""
+    from concurrent.futures import ThreadPoolExecutor
+    from core.llm import get_llm
+    llm = get_llm()
+
+    def _qa_for_chunk(chunk: Document) -> list[Document]:
+        try:
+            prompt = (
+                "다음 사내 HR/복지 문서 내용을 보고, 신입사원이 실제로 물어볼 법한 질문 5개를 만들어주세요.\n"
+                "구어체·다양한 표현으로 작성하세요. 각 줄에 질문 하나씩, 번호나 기호 없이.\n\n"
+                f"문서:\n{chunk.page_content}"
+            )
+            resp = llm.invoke(prompt)
+            questions = [l.strip() for l in resp.content.strip().split('\n') if l.strip()][:5]
+            return [
+                Document(
+                    page_content=f"{q}\n\n{chunk.page_content}",
+                    metadata={**chunk.metadata, "qa_generated": "true"},
+                )
+                for q in questions
+            ]
+        except Exception:
+            return []
+
+    with ThreadPoolExecutor(max_workers=min(len(chunks), 5)) as pool:
+        results = list(pool.map(_qa_for_chunk, chunks))
+    return [doc for docs in results for doc in docs]
 
 
 def _split_documents(text: str, filename: str, metadata: dict) -> list[Document]:
@@ -339,6 +370,7 @@ async def upload_document(file: UploadFile = File(...), company_code: str = Form
     vs = get_vectorstore()
     vs.add_documents(docs)
     invalidate_bm25_cache(company_code)
+    invalidate_search_cache(company_code)
 
     return {
         "message": f"'{filename}' 업로드 및 인덱싱 완료",
@@ -379,7 +411,7 @@ async def ingest_from_backend(
 
     headers = {"X-API-Key": _INTERNAL_API_KEY}
     doc_id = req.documentId
-
+    t0 = time.perf_counter()
     try:
         # 1. 문서 메타데이터 조회
         meta_resp = _requests.get(
@@ -424,19 +456,35 @@ async def ingest_from_backend(
             "company_code": req.companyCode,
         }
         chunks = _split_documents(text, filename, metadata)
+        try:
+            qa_chunks = _generate_qa_chunks(chunks)
+        except Exception as qa_err:
+            logger.warning("Q&A 청크 생성 실패 (원본 청크만 인덱싱): %s", qa_err)
+            qa_chunks = []
+        all_chunks = [c for c in chunks + qa_chunks if c.page_content.strip()]
 
         vs = get_vectorstore()
         try:
             vs.delete(where={"doc_id": str(doc_id)})
         except Exception:
             pass  # 최초 인덱싱 시 삭제할 청크 없어도 정상
-        for chunk in chunks:
-            vs.add_documents([chunk])
 
-        # 5. BM25 캐시 무효화
+        failed = 0
+        for idx, chunk in enumerate(all_chunks):
+            try:
+                vs.add_documents([chunk])
+            except Exception as chunk_err:
+                logger.warning("청크 %d 인덱싱 실패 (건너뜀): %s", idx, chunk_err)
+                failed += 1
+        logger.info("인덱싱 완료: total=%d, failed=%d", len(all_chunks), failed)
+
+        # 5. BM25 + 검색 캐시 무효화
         invalidate_bm25_cache(req.companyCode)
+        invalidate_search_cache(req.companyCode)
 
-        logger.info("자동 인덱싱 완료: documentId=%s, chunks=%d", doc_id, len(chunks))
+        elapsed = time.perf_counter() - t0
+        logger.info("자동 인덱싱 완료: documentId=%s, chunks=%d, qa_chunks=%d, elapsed=%.1fs", doc_id, len(chunks), len(qa_chunks), elapsed)
+        print(f"[INGEST] documentId={doc_id} chunks={len(chunks)} qa_chunks={len(qa_chunks)} elapsed={elapsed:.1f}s", flush=True)
         return {"success": True, "documentId": doc_id, "chunksIndexed": len(chunks)}
 
     except HTTPException:
@@ -468,6 +516,7 @@ async def deindex_from_backend(
         vs = get_vectorstore()
         vs.delete(where={"doc_id": str(doc_id)})
         invalidate_bm25_cache(req.companyCode)
+        invalidate_search_cache(req.companyCode)
         logger.info("자동 인덱스 삭제 완료: documentId=%s", doc_id)
         return {"success": True, "documentId": doc_id}
     except Exception as e:
@@ -491,5 +540,6 @@ async def delete_document(filename: str):
     # 파일 삭제
     file_path.unlink()
     invalidate_bm25_cache()
+    invalidate_search_cache("")
 
     return {"message": f"'{filename}' 삭제 완료"}

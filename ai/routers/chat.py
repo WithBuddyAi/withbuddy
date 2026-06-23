@@ -79,7 +79,7 @@ async def chat_agent(request: ChatRequest):
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
     try:
-        answer, source, related_docs, _ = run_rag_chain(str(request.user.userId), request.content, request.user.name, request.user.companyCode)
+        answer, source, related_docs, _ = run_rag_chain(str(request.user.userId), request.content, request.user.name, request.user.companyCode, hire_date=request.user.hireDate)
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")

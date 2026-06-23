@@ -79,7 +79,7 @@ function App() {
                 <Navigate to="/mybuddy" />
               )
             ) : (
-              <Login setUser={setUser} />
+              <Login user={user} setUser={setUser} />
             )
           }
         />
@@ -104,7 +104,7 @@ function App() {
           element={
             isLoggedIn ? (
               role === "USER" && accountStatus === "INACTIVE" ? (
-                <Inactive setUser={setUser} />
+                <Inactive user={user} setUser={setUser} />
               ) : (
                 <Navigate to="/mybuddy" />
               )
@@ -119,7 +119,7 @@ function App() {
           element={
             isLoggedIn ? (
               role === "ADMIN" && accountStatus === "ACTIVE" ? (
-                <Admin setUser={setUser} />
+                <Admin user={user} setUser={setUser} />
               ) : (
                 <Navigate to="/mybuddy" />
               )
