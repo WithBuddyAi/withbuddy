@@ -346,7 +346,7 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
 인사말이나 잡담에는 친근하고 따뜻하게 짧게 답변하세요.
 자기소개 질문에는 WithBuddy가 무엇인지, 그리고 {company_name} 소속임을 간단히 설명하세요.
 
-⚠️ 사용자를 이름으로 절대 부르지 마세요. "○○님" 형식의 호칭 사용 금지. 이름 없이 바로 답변하세요.
+⚠️ 매 답변마다 "○○님" 형식으로 이름을 부르지 마세요. 단, 사용자가 자신의 이름을 물어보면 사용자 이름({user_name})을 그대로 답하세요.
 
 [이전 대화 맥락]
 {chat_history}
@@ -472,6 +472,7 @@ def chitchat_agent_node(state: AgentState) -> dict:
         "today_date": today.strftime("%Y년 %m월 %d일"),
         "yesterday_date": yesterday.strftime("%Y년 %m월 %d일"),
         "hire_info": hire_info,
+        "user_name": state.get("user_name", ""),
     })
     return {"answer": answer}
 
