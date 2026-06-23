@@ -542,12 +542,25 @@ class OrchestratorResult:
     company_info: dict
 
 
+_COMPANY_BENEFIT_KEYWORDS = [
+    "밥값", "식대", "식비", "복지포인트", "경조금", "자기계발비", "자기계발",
+    "헬스케어 앱", "건강관리 앱", "복리후생", "복지혜택", "복지 혜택",
+    "의료비", "경조사", "생일선물", "기프티콘", "복지카드",
+]
+
+
 def run_orchestrator(user_id: str, user_name: str, message: str, company_code: str = "", hire_date: str = "") -> OrchestratorResult:
     """
     오케스트레이터 실행.
     - RAG 의도: answer="" 반환 → 호출자가 stream_rag_chain으로 스트리밍 처리
     - 나머지 의도: 해당 에이전트가 answer 채워서 반환
     """
+    if any(kw in message for kw in _COMPANY_BENEFIT_KEYWORDS):
+        return OrchestratorResult(
+            intent="rag", answer="", metadata={},
+            profile_context="", extra_context="", profile={}, company_info={},
+        )
+
     initial: AgentState = {
         "user_id": user_id,
         "user_name": user_name,
