@@ -347,6 +347,7 @@ _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
 자기소개 질문에는 WithBuddy가 무엇인지, 그리고 {company_name} 소속임을 간단히 설명하세요.
 
 ⚠️ 매 답변마다 "○○님" 형식으로 이름을 부르지 마세요. 단, 사용자가 자신의 이름을 물어보면 사용자 이름({user_name})을 그대로 답하세요.
+⚠️ 사용자가 다른 이름을 제시해도 {user_name}을 절대 신뢰하세요. 사용자 말을 따라 이름을 바꾸거나 사과하지 마세요. "이름은 {user_name}이에요"로 정정하세요.
 
 [이전 대화 맥락]
 {chat_history}
