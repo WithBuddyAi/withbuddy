@@ -95,7 +95,7 @@ class DocumentStorageServiceTest {
 
         User admin = mock(User.class);
         Company company = mock(Company.class);
-        when(admin.isActiveAdmin()).thenReturn(true);
+        lenient().when(admin.isActiveAdmin()).thenReturn(true);
         when(admin.getCompany()).thenReturn(company);
         when(admin.getId()).thenReturn(1L);
         when(company.getCompanyCode()).thenReturn("WB0001");
@@ -163,6 +163,23 @@ class DocumentStorageServiceTest {
 
         assertThat(response.getDownloadUrl())
                 .startsWith("/api/v1/documents/56/file?source=PRIMARY&token=");
+    }
+
+    @Test
+    void downloadsFileDirectlyAfterConsumingToken() {
+        Document document = document(56L, "WB0001", "TEMPLATE");
+        DocumentFile file = documentFile(56L);
+        byte[] payload = "payload".getBytes();
+        when(documentRepository.findByIdAndIsActiveTrue(56L)).thenReturn(Optional.of(document));
+        when(documentFileRepository.findByDocumentId(56L)).thenReturn(Optional.of(file));
+        when(redisCacheService.consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"))).thenReturn(0L);
+        when(objectStorageClient.getObject("primary-ns", "primary-bucket", "documents/56.pdf")).thenReturn(payload);
+
+        byte[] downloaded = documentStorageService.downloadFile(56L, com.withbuddy.storage.entity.StorageSource.PRIMARY, "download-token");
+
+        assertThat(downloaded).isEqualTo(payload);
+        verify(redisCacheService).consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"));
+        verify(objectStorageClient).getObject("primary-ns", "primary-bucket", "documents/56.pdf");
     }
 
     @Test
