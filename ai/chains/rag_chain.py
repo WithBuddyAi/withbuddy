@@ -123,13 +123,17 @@ def _build_hire_info(hire_date: str) -> str:
     if not hire_date:
         return ""
     try:
-        diff = (_date.today() - _date.fromisoformat(hire_date)).days
+        today = _date.today()
+        hd = _date.fromisoformat(hire_date)
+        diff = (today - hd).days
         days = diff + 1
+        months = diff // 30
         return (
             f"\n[입사 일차 계산]\n"
-            f"입사일: {hire_date} / 오늘: {_date.today().isoformat()}\n"
-            f"날짜 차이: {diff}일 → 입사 당일을 1일차로 계산하므로 {diff}+1 = {days}일차\n"
-            f"※ 반드시 입사 {days}일차로 답하세요."
+            f"입사일: {hire_date} / 오늘: {today.isoformat()}\n"
+            f"날짜 차이: {diff}일 → 입사 당일을 1일차로 계산하므로 {diff}+1 = {days}일차 (약 {months}개월 경과)\n"
+            f"※ 반드시 입사 {days}일차로 답하세요.\n"
+            f"※ 문서에 '입사 N개월 후부터' 조건이 있을 때, 위 경과 개월수를 기준으로 판단하세요. 이미 조건을 충족했으면 '현재 지원 가능'으로 답하세요."
         )
     except Exception:
         return ""
