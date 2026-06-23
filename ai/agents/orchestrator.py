@@ -570,6 +570,16 @@ def run_orchestrator(user_id: str, user_name: str, message: str, company_code: s
             profile_context="", extra_context="", profile={}, company_info={},
         )
 
+    try:
+        from memory.chat_history import get_chat_history as _get_hist
+        _hist = _get_hist(user_id)
+        _chat_history = "\n".join(
+            f"{'사용자' if m.type == 'human' else 'AI'}: {m.content}"
+            for m in _hist[-6:]
+        ) if _hist else ""
+    except Exception:
+        _chat_history = ""
+
     initial: AgentState = {
         "user_id": user_id,
         "user_name": user_name,
@@ -580,7 +590,7 @@ def run_orchestrator(user_id: str, user_name: str, message: str, company_code: s
         "company_info": {},
         "profile_context": "",
         "extra_context": "",
-        "chat_history": "",
+        "chat_history": _chat_history,
         "user_style": "",
         "answer": "",
         "metadata": {},
