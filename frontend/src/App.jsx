@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import axiosInstance from "./api/axiosInstance";
 import Login from "./pages/Login";
 import MyBuddy from "./pages/MyBuddy";
 import Admin from "./pages/Admin";
@@ -8,24 +9,37 @@ import { setLogoutHandler, setToastHandler } from "./api/handlers";
 import ErrorToast from "./components/ErrorToast";
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    !!localStorage.getItem("accessToken"),
-  );
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
-  const role = isLoggedIn ? localStorage.getItem("role") : null;
-  const accountStatus = isLoggedIn
-    ? localStorage.getItem("accountStatus")
-    : null;
+
+  // 앱 시작 시 로그인 상태 복원 (쿠키 기반)
+  useEffect(() => {
+    axiosInstance
+      .get("/api/v1/auth/me")
+      .then((res) => setUser(res.data))
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   useEffect(() => {
     setLogoutHandler(() => {
-      setIsLoggedIn(false);
+      setUser(null);
     });
     setToastHandler((message) => {
       setToastMessage(message);
       setTimeout(() => setToastMessage(""), 3000);
     });
   }, []);
+
+  const isLoggedIn = !!user;
+  const role = user?.role || null;
+  const accountStatus = user?.accountStatus || null;
+
+  // API 응답 오기 전에는 라우팅하지 않음
+  if (isLoading) {
+    return null;
+  }
 
   return (
     <div>
@@ -65,7 +79,7 @@ function App() {
                 <Navigate to="/mybuddy" />
               )
             ) : (
-              <Login setIsLoggedIn={setIsLoggedIn} />
+              <Login user={user} setUser={setUser} />
             )
           }
         />
@@ -77,7 +91,7 @@ function App() {
               role === "ADMIN" && accountStatus === "ACTIVE" ? (
                 <Navigate to="/admin" />
               ) : (
-                <MyBuddy setIsLoggedIn={setIsLoggedIn} />
+                <MyBuddy user={user} setUser={setUser} />
               )
             ) : (
               <Navigate to="/login" />
@@ -90,7 +104,7 @@ function App() {
           element={
             isLoggedIn ? (
               role === "USER" && accountStatus === "INACTIVE" ? (
-                <Inactive setIsLoggedIn={setIsLoggedIn} />
+                <Inactive user={user} setUser={setUser} />
               ) : (
                 <Navigate to="/mybuddy" />
               )
@@ -105,7 +119,7 @@ function App() {
           element={
             isLoggedIn ? (
               role === "ADMIN" && accountStatus === "ACTIVE" ? (
-                <Admin setIsLoggedIn={setIsLoggedIn} />
+                <Admin user={user} setUser={setUser} />
               ) : (
                 <Navigate to="/mybuddy" />
               )

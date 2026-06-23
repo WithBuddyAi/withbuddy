@@ -58,9 +58,10 @@ public class AuthCookieService {
                 ""
         );
 
+        String sameSite = resolveSameSite(request);
         builder.httpOnly(authCookieProperties.isHttpOnly());
-        builder.secure(resolveSecure(request));
-        builder.sameSite(authCookieProperties.getSameSite());
+        builder.secure(resolveSecure(request, sameSite));
+        builder.sameSite(sameSite);
         builder.path(authCookieProperties.getPath());
 
         if (StringUtils.hasText(authCookieProperties.getDomain())) {
@@ -70,9 +71,21 @@ public class AuthCookieService {
         return builder;
     }
 
-    private boolean resolveSecure(HttpServletRequest request) {
+    private String resolveSameSite(HttpServletRequest request) {
+        if (StringUtils.hasText(authCookieProperties.getSameSite())) {
+            return authCookieProperties.getSameSite().trim();
+        }
+
+        return isLocalRequest(request) ? "Lax" : "None";
+    }
+
+    private boolean resolveSecure(HttpServletRequest request, String sameSite) {
         if (authCookieProperties.getSecure() != null) {
             return authCookieProperties.getSecure();
+        }
+
+        if ("None".equalsIgnoreCase(sameSite) && !isLocalRequest(request)) {
+            return true;
         }
 
         if (request.isSecure()) {
@@ -81,5 +94,37 @@ public class AuthCookieService {
 
         String forwardedProto = request.getHeader("X-Forwarded-Proto");
         return "https".equalsIgnoreCase(forwardedProto);
+    }
+
+    private boolean isLocalRequest(HttpServletRequest request) {
+        if (isLoopbackHost(request.getServerName())) {
+            return true;
+        }
+
+        String hostHeader = request.getHeader("Host");
+        return StringUtils.hasText(hostHeader) && isLoopbackHost(stripPort(hostHeader));
+    }
+
+    private boolean isLoopbackHost(String host) {
+        if (!StringUtils.hasText(host)) {
+            return false;
+        }
+
+        String normalized = stripPort(host).trim().toLowerCase();
+        return "localhost".equals(normalized)
+                || "127.0.0.1".equals(normalized)
+                || "::1".equals(normalized)
+                || "[::1]".equals(normalized);
+    }
+
+    private String stripPort(String host) {
+        if (!StringUtils.hasText(host)) {
+            return host;
+        }
+        if (host.startsWith("[") && host.contains("]")) {
+            return host.substring(0, host.indexOf(']') + 1);
+        }
+        int colonIndex = host.indexOf(':');
+        return colonIndex >= 0 ? host.substring(0, colonIndex) : host;
     }
 }
