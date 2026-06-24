@@ -61,6 +61,7 @@ def _fix_names(text: str) -> str:
     text = re.sub(r'^[ \t]*[-•*]?[ \t]*\*{0,2}담당자\*{0,2}\s*:.*$', '', text, flags=re.MULTILINE)
     text = re.sub(r'^\*{1,2}\s*$', '', text, flags=re.MULTILINE)
     text = re.sub(r'\s*/?Slack\s*:?\s*@[\w.]+', '', text)
+    text = re.sub(r'\s*\(@[\w.]+\)', '', text)
     text = re.sub(r'\s*/\s*[\w.+-]+@[\w.]+\.[a-z]+', '', text)
     if any(kw in text for kw in ["확인되지 않", "문서에서 확인"]):
         text = re.sub(r'[^\n]*(?:있을 수 있어요|있을 수도 있어요|다를 수 있으니|다를 수 있어요)[^\n]*\n?', '', text)
