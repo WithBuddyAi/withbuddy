@@ -230,8 +230,13 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     vs = get_vectorstore()
 
     def _filter_by_score(results: List[tuple], threshold: float = score_threshold) -> List[Document]:
-        """(Document, score) 리스트에서 임계값 이상만 반환."""
-        return [doc for doc, score in results if score >= threshold]
+        """(Document, score) 리스트에서 임계값 이상만 반환. score를 metadata에 저장."""
+        filtered = []
+        for doc, score in results:
+            if score >= threshold:
+                doc.metadata["_score"] = score
+                filtered.append(doc)
+        return filtered
 
     if not company_code:
         f = {"category": category} if category else {}
