@@ -18,6 +18,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -144,11 +145,25 @@ public class DocumentController {
 
     @Operation(summary = "문서 파일 다운로드 (302 Redirect)")
     @GetMapping("/{documentId}/file")
-    public ResponseEntity<Void> file(
+    public ResponseEntity<?> file(
             @PathVariable Long documentId,
             @RequestParam(defaultValue = "PRIMARY") StorageSource source,
             @RequestParam("token") String token
     ) {
+        if (!documentStorageService.supportsRedirectDownload()) {
+            byte[] payload = documentStorageService.downloadFile(documentId, source, token);
+            String fileName = documentStorageService.resolveDownloadFileName(documentId);
+            String contentType = documentStorageService.resolveContentType(documentId);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
+                    .header("Pragma", "no-cache")
+                    .header("X-Content-Type-Options", "nosniff")
+                    .body(new ByteArrayResource(payload));
+        }
+
         String redirectUrl = documentStorageService.issueRedirectDownloadUrl(documentId, source, token);
 
         return ResponseEntity.status(HttpStatus.FOUND)
