@@ -55,6 +55,15 @@ def _fix_names(text: str) -> str:
     text = re.sub(r'(\d+)~(\d+)영업일', r'영업일 기준 \1일~\2일', text)
     text = text.replace("다만 참고로,", "참고로,").replace("다만 참고로", "참고로")
     text = re.sub(r'\*{0,2}직접 확인하세요\s*:\*{0,2}\s*\n?', '', text)
+    text = re.sub(r'/?\s*내선\s*:?\s*\d+', '', text)
+    text = re.sub(r'^[ \t]*[-•*]?[ \t]*\*{0,2}운영\s*시간\*{0,2}\s*:\s*[^\n]+$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^[ \t]*\**\s*문의처\s*[:\*]*[ \t]*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^[ \t]*[-•*]?[ \t]*\*{0,2}담당자\*{0,2}\s*:.*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\*{1,2}\s*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\s*/?Slack\s*:?\s*@[\w.]+', '', text)
+    text = re.sub(r'\s*/\s*[\w.+-]+@[\w.]+\.[a-z]+', '', text)
+    if any(kw in text for kw in ["확인되지 않", "문서에서 확인"]):
+        text = re.sub(r'[^\n]*(?:있을 수 있어요|있을 수도 있어요|다를 수 있으니|다를 수 있어요)[^\n]*\n?', '', text)
     return text
 
 
@@ -143,7 +152,7 @@ def build_contact_suffix(answer: str, docs: List[Document], hr_team: str, questi
         return ""
     contact = extract_contact_from_docs(docs)
     if contact:
-        return f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
+        return f"\n\n관련 문의는 **{contact}** 에 여쭤보시면 가장 빠를 거예요! 😊"
     if it_card:
         dept = it_card.get("department", hr_team)
         return f"\n\n**{dept} 담당자**님께 문의하시면 가장 정확한 답을 얻으실 수 있어요!"
