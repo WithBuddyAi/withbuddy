@@ -12,7 +12,7 @@ jobs:
   autofill:
     runs-on: ubuntu-latest
     env:
-      DISCORD_PR_WEBHOOK_URL: ${{ secrets.DISCORD_PR_WEBHOOK_URL }}
+      DISCORD_PR_WEBHOOK_URL: ${{ secrets.DISCORD_PR_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}
     steps:
       - name: Generate PR body from commit messages
         id: autofill_body
