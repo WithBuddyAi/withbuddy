@@ -35,7 +35,7 @@ public class CreateUserRequest {
     @Size(max = 100, message = "팀명은 최대 100자까지 입력할 수 있습니다.")
     private String teamName;
 
-    @Schema(description = "입사일", example = "2026-03-01", type = "string", format = "date")
+    @Schema(description = "입사일. 계정 생성일 기준 -6개월~+6개월(양 끝 포함)", example = "2026-03-01", type = "string", format = "date")
     @NotNull(message = "입사일은 필수입니다.")
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate hireDate;
