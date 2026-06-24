@@ -51,6 +51,7 @@ const TEMPLATES = [
 function DocTemplateAccordion() {
   const [openAccordion, setOpenAccordion] = useState(false);
   const [loadingId, setLoadingId] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleToggle = () => {
     setOpenAccordion(!openAccordion);
@@ -59,6 +60,7 @@ function DocTemplateAccordion() {
   // 다운로드 버튼 클릭 시 URL 발급 → 파일 다운로드
   const handleDownload = async (documentId, title) => {
     setLoadingId(documentId);
+    setErrorMessage("");
     try {
       // 1단계: 다운로드 URL 발급
       const res = await axiosInstance.get(
@@ -66,30 +68,13 @@ function DocTemplateAccordion() {
       );
       const { downloadUrl } = res.data;
 
-      // 2단계: /file은 credentials: 'include'로 쿠키 자동 전송
-      const fileRes = await fetch(
+      // 2단계: 브라우저 네비게이션으로 다운로드 (302 리다이렉트 자동 처리)
+      window.open(
         `${import.meta.env.VITE_API_BASE_URL}${downloadUrl}`,
-        {
-          credentials: "include",
-        },
+        "_blank",
       );
-      const blob = await fileRes.blob();
-
-      // 3단계: 브라우저 다운로드 트리거
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-
-      // 파일명 지정 추가
-      const fileName = title + ".docx";
-      link.setAttribute("download", fileName);
-
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("다운로드 실패", error);
+      setErrorMessage("다운로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoadingId(null);
     }
@@ -133,10 +118,7 @@ function DocTemplateAccordion() {
       {openAccordion && (
         <div className="border-t border-[#DEE2E6] px-[20px] py-[16px] flex flex-col sm:grid sm:grid-cols-2 gap-[12px]">
           {TEMPLATES.map((t) => (
-            <div
-              key={t.category}
-              className="flex items-start gap-[12px]"
-            >
+            <div key={t.category} className="flex items-start gap-[12px]">
               {/* 카테고리 라벨 */}
               <div className="flex items-center gap-[6px] shrink-0 bg-[#F8F9FA] text-[#868E96] rounded-[4px] px-[6px] h-[25px]">
                 <span>{t.icon}</span>
@@ -168,6 +150,11 @@ function DocTemplateAccordion() {
               </div>
             </div>
           ))}
+          {errorMessage && (
+            <p className="text-[12px] text-[#F03E3E] sm:col-span-2">
+              {errorMessage}
+            </p>
+          )}
         </div>
       )}
     </div>
