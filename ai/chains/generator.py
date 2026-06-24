@@ -60,7 +60,7 @@ def _fix_names(text: str) -> str:
     text = re.sub(r'^[ \t]*\**\s*문의처\s*[:\*]*[ \t]*$', '', text, flags=re.MULTILINE)
     text = re.sub(r'^[ \t]*[-•*]?[ \t]*\*{0,2}담당자\*{0,2}\s*:.*$', '', text, flags=re.MULTILINE)
     text = re.sub(r'^\*{1,2}\s*$', '', text, flags=re.MULTILINE)
-    text = re.sub(r'\s*/?Slack\s*:?\s*@[\w.]+', '', text)
+    text = re.sub(r'\s*/?Slack(?:에서)?\s*:?\s*@[\w.]+(?:[로을를]\s*찾아)?', '', text)
     text = re.sub(r'\s*\(@[\w.]+\)', '', text)
     text = re.sub(r'\s*/\s*[\w.+-]+@[\w.]+\.[a-z]+', '', text)
     text = re.sub(r'\s*\(\s*\)', '', text)
@@ -116,7 +116,7 @@ _NO_ANSWER_KEYWORDS = [
     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "문서에 없어서", "안내드리기 어려워",
     "없는 것 같아요", "나와있지 않", "명시되어 있지 않", "기재되어 있지 않",
     "확인되지 않", "나와 있지 않", "관련 내용이 없",
-    "찾지 못했", "드리기 어렵", "확인하지 못했",
+    "찾지 못했", "드리기 어렵", "확인하지 못했", "아직 없어", "사내 문서에 아직",
 ]
 
 _LABOR_LAW_KEYWORDS = ["근로기준법", "노동법", "최저임금법", "산업안전보건법", "고용노동부", "노동자 권리", "근로자 권리"]
