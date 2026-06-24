@@ -46,6 +46,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -180,7 +181,8 @@ class DocumentStorageServiceTest {
                 "primary-ns",
                 "primary-bucket",
                 "documents/56.pdf",
-                30
+                30,
+                "document-56.pdf"
         )).thenReturn("https://objectstorage.example.com/presigned");
 
         String redirectUrl = documentStorageService.issueRedirectDownloadUrl(
@@ -190,14 +192,44 @@ class DocumentStorageServiceTest {
         );
 
         assertThat(redirectUrl).isEqualTo("https://objectstorage.example.com/presigned");
+        inOrder(redisCacheService, objectStorageClient)
+                .verify(redisCacheService)
+                .consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"));
+        inOrder(redisCacheService, objectStorageClient)
+                .verify(objectStorageClient)
+                .createPreSignedGetUrl(
+                        "primary-ns",
+                        "primary-bucket",
+                        "documents/56.pdf",
+                        30,
+                        "document-56.pdf"
+                );
+        verify(objectStorageClient, never()).getObject(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void downloadsFileDirectlyAfterConsumingToken() {
+        Document document = document(56L, "WB0001", "TEMPLATE");
+        DocumentFile file = documentFile(56L);
+        byte[] payload = "payload".getBytes();
+        when(documentRepository.findByIdAndIsActiveTrue(56L)).thenReturn(Optional.of(document));
+        when(documentFileRepository.findByDocumentId(56L)).thenReturn(Optional.of(file));
+        when(redisCacheService.consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"))).thenReturn(0L);
+        when(objectStorageClient.getObject("primary-ns", "primary-bucket", "documents/56.pdf")).thenReturn(payload);
+
+        byte[] downloaded = documentStorageService.downloadFile(
+                56L,
+                com.withbuddy.storage.entity.StorageSource.PRIMARY,
+                "download-token"
+        );
+
+        assertThat(downloaded).isEqualTo(payload);
         verify(redisCacheService).consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"));
-        verify(objectStorageClient).createPreSignedGetUrl(
+        verify(objectStorageClient).getObject(
                 "primary-ns",
                 "primary-bucket",
-                "documents/56.pdf",
-                30
+                "documents/56.pdf"
         );
-        verify(objectStorageClient, never()).getObject(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -337,6 +369,7 @@ class DocumentStorageServiceTest {
         when(file.getPrimaryNamespace()).thenReturn("primary-ns");
         when(file.getPrimaryBucket()).thenReturn("primary-bucket");
         when(file.getPrimaryObjectKey()).thenReturn("documents/" + documentId + ".pdf");
+        lenient().when(file.getOriginalFileName()).thenReturn("document-" + documentId + ".pdf");
         return file;
     }
 }
