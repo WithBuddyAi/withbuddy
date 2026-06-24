@@ -19,6 +19,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/v1/documents")
@@ -154,9 +156,13 @@ public class DocumentController {
             byte[] payload = documentStorageService.downloadFile(documentId, source, token);
             String fileName = documentStorageService.resolveDownloadFileName(documentId);
             String contentType = documentStorageService.resolveContentType(documentId);
+            String contentDisposition = ContentDisposition.attachment()
+                    .filename(fileName, StandardCharsets.UTF_8)
+                    .build()
+                    .toString();
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
                     .contentType(MediaType.parseMediaType(contentType))
                     .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
                     .header("Pragma", "no-cache")
