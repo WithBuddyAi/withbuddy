@@ -138,7 +138,7 @@ jobs:
             const prefix = [
               `📌 PR 업데이트: #${pr.number} ${pr.title}`,
               `Base: \`${pr.base.ref}\` ← Head: \`${pr.head.ref}\``,
-              pr.html_url,
+              `<${pr.html_url}>`,
               ""
             ].join("\n");
 
