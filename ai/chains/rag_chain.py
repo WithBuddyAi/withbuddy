@@ -198,13 +198,6 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
         return _NO_RESULT_TEMPLATE, "", [], []
 
-    # 점수 기반 사전 감지: 벡터 유사도가 전부 낮으면 LLM 없이 no_result 처리
-    if company_code and result.docs:
-        _scored = [d.metadata["_score"] for d in result.docs if "_score" in d.metadata]
-        if _scored and max(_scored) < 0.50:
-            save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
-            return _NO_RESULT_TEMPLATE, "", [], []
-
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
     hr_team, _ = get_hr_contact(company_code)
@@ -304,16 +297,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", "", [], []
         return
 
-    # 점수 기반 사전 감지: 벡터 유사도가 전부 낮으면 LLM 없이 no_result 처리 (스트리밍 중 교체 방지)
-    if company_code and result.docs:
-        _scored = [d.metadata["_score"] for d in result.docs if "_score" in d.metadata]
-        if _scored and max(_scored) < 0.50:
-            save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
-            asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
-            yield _NO_RESULT_TEMPLATE, None, None, None
-            yield "", "", [], []
-            return
-
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
 
@@ -382,8 +365,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         fixed += case_a_msg
 
     if is_unanswered(full_answer, result.docs):
-        fixed = _NO_RESULT_TEMPLATE
-        yield "\x00" + fixed, None, None, None
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
 
     global _last_category
