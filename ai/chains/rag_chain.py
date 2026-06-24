@@ -29,6 +29,19 @@ from chains.generator import (
     build_contact_suffix, build_case_a_suffix,
 )
 
+try:
+    from contacts_config import COMPANY_CONTACTS_STRUCTURED as _CCS
+except ImportError:
+    _CCS = {}
+
+def _get_it_card(company_code: str) -> dict | None:
+    return next((c for c in _CCS.get(company_code, []) if "IT" in c.get("department", "")), None)
+
+_IT_SUPPORT_KW = [
+    "VPN", "MFA", "계정", "권한", "접속", "설치", "소프트웨어", "네트워크", "서버",
+    "IT", "사내망", "와이파이", "WiFi", "프린터", "인터넷", "USB", "보안", "장비", "노트북",
+]
+
 
 class _TokenCounter(BaseCallbackHandler):
     def __init__(self):
@@ -262,9 +275,16 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", result.source_names, related_docs, result.doc_ids
         return
 
+    hr_team, _ = get_hr_contact(company_code)
+    _it_card = _get_it_card(company_code)
+    if _it_card and any(kw in result.question for kw in _IT_SUPPORT_KW):
+        _dept = _it_card.get("department", hr_team)
+        _no_result_team = "IT팀" if _dept == "IT" else _dept
+    else:
+        _no_result_team = hr_team
+
     if not result.docs:
-        hr_team, _ = get_hr_contact(company_code)
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
+        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{_no_result_team}**에 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
         save_interaction(user_id, result.question, no_result_answer)
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
         yield no_result_answer, None, None, None
@@ -274,8 +294,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     # 사내 문서 없이 법령 문서만 히트된 비법령 질문 → LLM 호출 없이 no_result 처리
     if (company_code and not is_legal_question(result.question)
             and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
-        hr_team, _ = get_hr_contact(company_code)
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
+        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{_no_result_team}**에 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
         save_interaction(user_id, result.question, no_result_answer)
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
         yield no_result_answer, None, None, None
@@ -284,7 +303,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
-    hr_team, _ = get_hr_contact(company_code)
 
     yield "__STAGE__generating", None, None, None
 
@@ -304,7 +322,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         user_style=_detect_user_style(chat_history, result.question),
         user_name=user_name,
         company_name=company_name,
-        hr_team=hr_team,
+        hr_team=_no_result_team,
         it_contact=get_it_contact(company_code),
         company_specific_rules=get_company_specific_rules(company_code),
         today_date=_date.today().strftime("%Y년 %m월 %d일"),
@@ -351,7 +369,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         fixed += case_a_msg
 
     if is_unanswered(full_answer, result.docs):
-        contact_msg = build_contact_suffix(fixed, result.docs, hr_team)
+        contact_msg = build_contact_suffix(fixed, result.docs, _no_result_team, question=result.question, it_card=_it_card)
         if contact_msg:
             yield contact_msg, None, None, None
             fixed += contact_msg
