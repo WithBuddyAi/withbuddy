@@ -47,7 +47,7 @@ async def get_contact_for_question(company_code: str, message: str) -> dict:
         contacts_info = _COMPANY_CONTACTS.get(code, _COMPANY_CONTACTS["WB0001"])
         raw = await _recommend_chains[code].ainvoke({"message": message, "contacts_info": contacts_info})
         parsed = _parse_recommendation(raw)
-        person_name = parsed.get("person", "")
+        person_name = parsed.get("person", "").replace("님", "").strip()
         for contact in contacts:
             if contact["name"] == person_name:
                 return contact

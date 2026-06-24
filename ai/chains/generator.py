@@ -137,7 +137,7 @@ def extract_contact_from_docs(docs: List[Document]) -> str | None:
 
 def build_contact_suffix(answer: str, docs: List[Document], hr_team: str) -> str:
     """미답변 시 담당자 안내 문구를 반환합니다. 이미 포함된 경우 빈 문자열."""
-    _CONTACT_HINTS = ["문의하시면", "여쭤보시면", "연락하시면", "담당자에게"]
+    _CONTACT_HINTS = ["문의하시면", "여쭤보시면", "연락하시면", "담당자에게", "연락해보세요", "연락 주세요", "연락주세요"]
     if any(hint in answer for hint in _CONTACT_HINTS):
         return ""
     contact = extract_contact_from_docs(docs)
