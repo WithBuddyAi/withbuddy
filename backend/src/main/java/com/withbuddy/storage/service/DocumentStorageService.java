@@ -745,6 +745,36 @@ public class DocumentStorageService implements DocumentDownloadService {
         return issuedUrl;
     }
 
+    public byte[] downloadFile(Long documentId, StorageSource source, String downloadToken) {
+        RequesterScope requesterScope = resolveDocumentAccessScope();
+        if (!StringUtils.hasText(downloadToken)) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "BAD_REQUEST",
+                    "token",
+                    "다운로드 토큰이 필요합니다."
+            );
+        }
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+
+        validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        if (!requesterScope.globalAccess()) {
+            validateTemplateDocument(document);
+        }
+
+        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
+
+        StorageSource resolvedSource = source == null ? resolveSource(file) : source;
+        consumeDownloadToken(downloadToken, documentId, resolvedSource);
+
+        byte[] payload = readDocumentPayload(file, resolvedSource);
+        logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, resolvedSource, null, payload.length, "DIRECT");
+        return payload;
+    }
+
     private String createAndCacheDownloadUrl(
             Long documentId,
             DocumentFile file,
@@ -845,18 +875,19 @@ public class DocumentStorageService implements DocumentDownloadService {
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
 
+        byte[] payload = readDocumentPayload(file, source);
+        logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, source, null, payload.length, "DIRECT");
+        return payload;
+    }
+
+    private byte[] readDocumentPayload(DocumentFile file, StorageSource source) {
         if (source == StorageSource.BACKUP) {
             if (!StringUtils.hasText(file.getBackupObjectKey())) {
                 throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
             }
-            byte[] payload = objectStorageClient.getObject(file.getBackupNamespace(), file.getBackupBucket(), file.getBackupObjectKey());
-            logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, source, null, payload.length, "DIRECT");
-            return payload;
+            return objectStorageClient.getObject(file.getBackupNamespace(), file.getBackupBucket(), file.getBackupObjectKey());
         }
-
-        byte[] payload = objectStorageClient.getObject(file.getPrimaryNamespace(), file.getPrimaryBucket(), file.getPrimaryObjectKey());
-        logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, source, null, payload.length, "DIRECT");
-        return payload;
+        return objectStorageClient.getObject(file.getPrimaryNamespace(), file.getPrimaryBucket(), file.getPrimaryObjectKey());
     }
 
     public String resolveDownloadFileName(Long documentId) {
