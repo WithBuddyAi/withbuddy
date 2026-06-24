@@ -109,6 +109,7 @@ def _detect_user_style(history: List[BaseMessage], current_question: str) -> str
 
 # ── no_result / fallback 헬퍼 ──────────────────────────────────
 _NO_ANSWER_KEYWORDS = [
+    "[NO_RESULT]",
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
     "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
     "찾을 수 없습니다", "포함되어 있지 않", "정보가 없", "문서에 없어서", "안내드리기 어려워",
