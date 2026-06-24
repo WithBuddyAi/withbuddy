@@ -18,6 +18,11 @@ public class LocalObjectStorageClient implements ObjectStorageClient {
     }
 
     @Override
+    public boolean supportsPreSignedGetUrl() {
+        return false;
+    }
+
+    @Override
     public void putObject(String namespace, String bucket, String objectKey, byte[] payload) {
         Path path = resolvePath(namespace, bucket, objectKey);
         try {

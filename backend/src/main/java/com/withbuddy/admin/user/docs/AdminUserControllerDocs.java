@@ -23,6 +23,7 @@ public interface AdminUserControllerDocs {
                 [목적] 현재 로그인한 사용자의 회사 범위에서 신입 사원 계정을 생성한다.
                 [동작] JWT의 companyCode를 기준으로 회사를 식별하고, users.company_code에 매핑해 저장한다.
                 생성되는 계정의 role은 항상 USER이고 accountStatus는 ACTIVE이다.
+                입사일은 계정 생성일 기준 -6개월~+6개월(양 끝 포함) 범위만 허용한다.
                 동일 회사 내 `employeeNumber`가 이미 존재하면 `409 DUPLICATE_EMPLOYEE_NUMBER`를 반환한다.
                 생성된 계정은 회사코드, 사번, 이름으로 로그인할 수 있다."""
     )
