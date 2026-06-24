@@ -42,6 +42,8 @@ _IT_SUPPORT_KW = [
     "IT", "사내망", "와이파이", "WiFi", "프린터", "인터넷", "USB", "보안", "장비", "노트북",
 ]
 
+_NO_RESULT_TEMPLATE = "아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.😅\n\n정확한 안내를 위해 아래 담당자에게 문의해 주세요."
+
 
 class _TokenCounter(BaseCallbackHandler):
     def __init__(self):
@@ -187,18 +189,21 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         return result.direct_legal_answer, result.source_names, related_docs, result.doc_ids
 
     if not result.docs:
-        hr_team, _ = get_hr_contact(company_code)
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
-        save_interaction(user_id, result.question, no_result_answer)
-        return no_result_answer, "", [], []
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+        return _NO_RESULT_TEMPLATE, "", [], []
 
     # 사내 문서 없이 법령 문서만 히트된 비법령 질문 → LLM 호출 없이 no_result 처리
     if (company_code and not is_legal_question(result.question)
             and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
-        hr_team, _ = get_hr_contact(company_code)
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
-        save_interaction(user_id, result.question, no_result_answer)
-        return no_result_answer, "", [], []
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+        return _NO_RESULT_TEMPLATE, "", [], []
+
+    # 점수 기반 사전 감지: 벡터 유사도가 전부 낮으면 LLM 없이 no_result 처리
+    if company_code and result.docs:
+        _scored = [d.metadata["_score"] for d in result.docs if "_score" in d.metadata]
+        if _scored and max(_scored) < 0.50:
+            save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+            return _NO_RESULT_TEMPLATE, "", [], []
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
@@ -226,7 +231,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         answer += build_case_a_suffix(hr_team)
 
     if is_unanswered(answer, result.docs):
-        answer += build_contact_suffix(answer, result.docs, hr_team)
+        answer = _NO_RESULT_TEMPLATE
 
     global _last_category
     _last_category = _extract_category(result.docs)
@@ -284,22 +289,30 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         _no_result_team = hr_team
 
     if not result.docs:
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{_no_result_team}**에 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
-        save_interaction(user_id, result.question, no_result_answer)
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
-        yield no_result_answer, None, None, None
+        yield _NO_RESULT_TEMPLATE, None, None, None
         yield "", "", [], []
         return
 
     # 사내 문서 없이 법령 문서만 히트된 비법령 질문 → LLM 호출 없이 no_result 처리
     if (company_code and not is_legal_question(result.question)
             and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{_no_result_team}**에 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
-        save_interaction(user_id, result.question, no_result_answer)
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
-        yield no_result_answer, None, None, None
+        yield _NO_RESULT_TEMPLATE, None, None, None
         yield "", "", [], []
         return
+
+    # 점수 기반 사전 감지: 벡터 유사도가 전부 낮으면 LLM 없이 no_result 처리 (스트리밍 중 교체 방지)
+    if company_code and result.docs:
+        _scored = [d.metadata["_score"] for d in result.docs if "_score" in d.metadata]
+        if _scored and max(_scored) < 0.50:
+            save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+            asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+            yield _NO_RESULT_TEMPLATE, None, None, None
+            yield "", "", [], []
+            return
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
@@ -369,10 +382,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         fixed += case_a_msg
 
     if is_unanswered(full_answer, result.docs):
-        contact_msg = build_contact_suffix(fixed, result.docs, _no_result_team, question=result.question, it_card=_it_card)
-        if contact_msg:
-            yield contact_msg, None, None, None
-            fixed += contact_msg
+        fixed = _NO_RESULT_TEMPLATE
+        yield "\x00" + fixed, None, None, None
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
 
     global _last_category
