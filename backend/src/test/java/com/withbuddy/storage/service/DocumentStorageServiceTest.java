@@ -46,6 +46,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -166,6 +167,47 @@ class DocumentStorageServiceTest {
     }
 
     @Test
+    void issuesRedirectDownloadUrlAfterConsumingToken() {
+        Document document = document(56L, "WB0001", "TEMPLATE");
+        DocumentFile file = documentFile(56L);
+        StorageProperties.OciCli ociCli = new StorageProperties.OciCli();
+        ociCli.setPreauthTtlSeconds(30);
+        when(documentRepository.findByIdAndIsActiveTrue(56L)).thenReturn(Optional.of(document));
+        when(documentFileRepository.findByDocumentId(56L)).thenReturn(Optional.of(file));
+        when(storageProperties.getOciCli()).thenReturn(ociCli);
+        when(redisCacheService.get(anyString())).thenReturn(Optional.empty());
+        when(redisCacheService.consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"))).thenReturn(0L);
+        when(objectStorageClient.createPreSignedGetUrl(
+                "primary-ns",
+                "primary-bucket",
+                "documents/56.pdf",
+                30,
+                "document-56.pdf"
+        )).thenReturn("https://objectstorage.example.com/presigned");
+
+        String redirectUrl = documentStorageService.issueRedirectDownloadUrl(
+                56L,
+                com.withbuddy.storage.entity.StorageSource.PRIMARY,
+                "download-token"
+        );
+
+        assertThat(redirectUrl).isEqualTo("https://objectstorage.example.com/presigned");
+        inOrder(redisCacheService, objectStorageClient)
+                .verify(redisCacheService)
+                .consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"));
+        inOrder(redisCacheService, objectStorageClient)
+                .verify(objectStorageClient)
+                .createPreSignedGetUrl(
+                        "primary-ns",
+                        "primary-bucket",
+                        "documents/56.pdf",
+                        30,
+                        "document-56.pdf"
+                );
+        verify(objectStorageClient, never()).getObject(anyString(), anyString(), anyString());
+    }
+
+    @Test
     void downloadsFileDirectlyAfterConsumingToken() {
         Document document = document(56L, "WB0001", "TEMPLATE");
         DocumentFile file = documentFile(56L);
@@ -175,11 +217,19 @@ class DocumentStorageServiceTest {
         when(redisCacheService.consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"))).thenReturn(0L);
         when(objectStorageClient.getObject("primary-ns", "primary-bucket", "documents/56.pdf")).thenReturn(payload);
 
-        byte[] downloaded = documentStorageService.downloadFile(56L, com.withbuddy.storage.entity.StorageSource.PRIMARY, "download-token");
+        byte[] downloaded = documentStorageService.downloadFile(
+                56L,
+                com.withbuddy.storage.entity.StorageSource.PRIMARY,
+                "download-token"
+        );
 
         assertThat(downloaded).isEqualTo(payload);
         verify(redisCacheService).consumeDownloadToken(anyString(), eq("56"), eq("PRIMARY"));
-        verify(objectStorageClient).getObject("primary-ns", "primary-bucket", "documents/56.pdf");
+        verify(objectStorageClient).getObject(
+                "primary-ns",
+                "primary-bucket",
+                "documents/56.pdf"
+        );
     }
 
     @Test
@@ -315,9 +365,11 @@ class DocumentStorageServiceTest {
 
     private DocumentFile documentFile(Long documentId) {
         DocumentFile file = mock(DocumentFile.class);
+        lenient().when(file.getId()).thenReturn(documentId);
         when(file.getPrimaryNamespace()).thenReturn("primary-ns");
         when(file.getPrimaryBucket()).thenReturn("primary-bucket");
         when(file.getPrimaryObjectKey()).thenReturn("documents/" + documentId + ".pdf");
+        lenient().when(file.getOriginalFileName()).thenReturn("document-" + documentId + ".pdf");
         return file;
     }
 }

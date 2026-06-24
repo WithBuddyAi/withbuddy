@@ -99,6 +99,14 @@ public class DocumentStorageService implements DocumentDownloadService {
     ) {
     }
 
+    private record AuthorizedDownload(
+            RequesterScope requesterScope,
+            Document document,
+            DocumentFile file,
+            StorageSource source
+    ) {
+    }
+
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
     private final DocumentBackupJobRepository documentBackupJobRepository;
@@ -698,38 +706,18 @@ public class DocumentStorageService implements DocumentDownloadService {
         );
     }
 
+    public boolean supportsRedirectDownload() {
+        return objectStorageClient.supportsPreSignedGetUrl();
+    }
+
     public String issueRedirectDownloadUrl(Long documentId, StorageSource source, String downloadToken) {
-        RequesterScope requesterScope = resolveDocumentAccessScope();
-        if (!StringUtils.hasText(downloadToken)) {
-            throw new StorageException(
-                    HttpStatus.BAD_REQUEST,
-                    "BAD_REQUEST",
-                    "token",
-                    "다운로드 토큰이 필요합니다."
-            );
-        }
-
-        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
-                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
-
-        validateCompanyBoundary(requesterScope, document.getCompanyCode());
-        if (!requesterScope.globalAccess()) {
-            validateTemplateDocument(document);
-        }
-
-        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
-                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
-
-        StorageSource resolvedSource = source == null ? resolveSource(file) : source;
-        if (resolvedSource == StorageSource.BACKUP && !StringUtils.hasText(file.getBackupObjectKey())) {
-            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
-        }
+        AuthorizedDownload download = authorizeDownload(documentId, source, downloadToken);
 
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
-        String redisKey = RedisCacheKeys.presignedUrl(file.getId(), resolvedSource.name());
+        String redisKey = RedisCacheKeys.presignedUrl(download.file().getId(), download.source().name());
         String issuedUrl = redisCacheService.get(redisKey)
                 .filter(StringUtils::hasText)
-                .orElseGet(() -> createAndCacheDownloadUrl(documentId, file, resolvedSource, redisKey, preauthTtlSeconds));
+                .orElseGet(() -> createAndCacheDownloadUrl(documentId, download.file(), download.source(), redisKey, preauthTtlSeconds));
 
         if (!StringUtils.hasText(issuedUrl) || !issuedUrl.startsWith("http")) {
             throw new StorageException(
@@ -740,38 +728,30 @@ public class DocumentStorageService implements DocumentDownloadService {
             );
         }
 
-        consumeDownloadToken(downloadToken, documentId, resolvedSource);
-        logDownloadAuditEvent("DOWNLOAD_URL_ISSUED", requesterScope, document, resolvedSource, preauthTtlSeconds, null, "REDIRECT");
+        logDownloadAuditEvent(
+                "DOWNLOAD_URL_ISSUED",
+                download.requesterScope(),
+                download.document(),
+                download.source(),
+                preauthTtlSeconds,
+                null,
+                "REDIRECT"
+        );
         return issuedUrl;
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source, String downloadToken) {
-        RequesterScope requesterScope = resolveDocumentAccessScope();
-        if (!StringUtils.hasText(downloadToken)) {
-            throw new StorageException(
-                    HttpStatus.BAD_REQUEST,
-                    "BAD_REQUEST",
-                    "token",
-                    "다운로드 토큰이 필요합니다."
-            );
-        }
-
-        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
-                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
-
-        validateCompanyBoundary(requesterScope, document.getCompanyCode());
-        if (!requesterScope.globalAccess()) {
-            validateTemplateDocument(document);
-        }
-
-        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
-                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
-
-        StorageSource resolvedSource = source == null ? resolveSource(file) : source;
-        consumeDownloadToken(downloadToken, documentId, resolvedSource);
-
-        byte[] payload = readDocumentPayload(file, resolvedSource);
-        logDownloadAuditEvent("DOWNLOAD_CONTENT_ACCESSED", requesterScope, document, resolvedSource, null, payload.length, "DIRECT");
+        AuthorizedDownload download = authorizeDownload(documentId, source, downloadToken);
+        byte[] payload = readDocumentPayload(download.file(), download.source());
+        logDownloadAuditEvent(
+                "DOWNLOAD_CONTENT_ACCESSED",
+                download.requesterScope(),
+                download.document(),
+                download.source(),
+                null,
+                payload.length,
+                "DIRECT"
+        );
         return payload;
     }
 
@@ -788,13 +768,15 @@ public class DocumentStorageService implements DocumentDownloadService {
                     file.getBackupNamespace(),
                     file.getBackupBucket(),
                     file.getBackupObjectKey(),
-                    preauthTtlSeconds
+                    preauthTtlSeconds,
+                    file.getOriginalFileName()
             )
                     : objectStorageClient.createPreSignedGetUrl(
                     file.getPrimaryNamespace(),
                     file.getPrimaryBucket(),
                     file.getPrimaryObjectKey(),
-                    preauthTtlSeconds
+                    preauthTtlSeconds,
+                    file.getOriginalFileName()
             );
 
             if (StringUtils.hasText(preSignedUrl)) {
@@ -859,6 +841,37 @@ public class DocumentStorageService implements DocumentDownloadService {
                 "token",
                 "다운로드 토큰이 만료되었거나 사용 횟수를 초과했습니다."
         );
+    }
+
+    private AuthorizedDownload authorizeDownload(Long documentId, StorageSource source, String downloadToken) {
+        RequesterScope requesterScope = resolveDocumentAccessScope();
+        if (!StringUtils.hasText(downloadToken)) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "BAD_REQUEST",
+                    "token",
+                    "다운로드 토큰이 필요합니다."
+            );
+        }
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+
+        validateCompanyBoundary(requesterScope, document.getCompanyCode());
+        if (!requesterScope.globalAccess()) {
+            validateTemplateDocument(document);
+        }
+
+        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
+
+        StorageSource resolvedSource = source == null ? resolveSource(file) : source;
+        if (resolvedSource == StorageSource.BACKUP && !StringUtils.hasText(file.getBackupObjectKey())) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
+        }
+
+        consumeDownloadToken(downloadToken, documentId, resolvedSource);
+        return new AuthorizedDownload(requesterScope, document, file, resolvedSource);
     }
 
     public byte[] downloadFile(Long documentId, StorageSource source) {

@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.2.8
-**최종 업데이트**: 2026-06-23
+**버전**: 2.2.9
+**최종 업데이트**: 2026-06-24
 
 ---
 
@@ -1939,7 +1939,7 @@ Content-Type: application/json
 | `employeeNumber` | `String` | Y | `"20260001"`   | 신입 사원 사번 | 길이: 4~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 | `department` | `String` | Y | `"개발팀"`        | 신입 사원 부서 | 길이: 1~100자 / 공백만 입력 불가 |
 | `teamName` | `String` | Y | `"백엔드팀"`       | 신입 사원 팀명 | 길이: 1~100자 / 공백만 입력 불가 |
-| `hireDate` | `LocalDate` | Y | `"2026-03-01"` | 입사일 | `yyyy-MM-dd` 형식 |
+| `hireDate` | `LocalDate` | Y | `"2026-03-01"` | 입사일 | `yyyy-MM-dd` 형식 / 계정 생성일 기준 -6개월~+6개월(양 끝 포함) |
 
 #### 동작 규칙
 
@@ -1949,6 +1949,7 @@ Content-Type: application/json
 - 서버는 인증 토큰에서 현재 관리자의 `companyCode`를 확인한다.
 - 서버는 현재 로그인한 관리자 사용자의 `companyCode`를 기준으로 신입 계정의 `users.company_code`를 저장한다.
 - 입력받은 `name`, `employeeNumber`, `department`, `teamName`, `hireDate`를 `users` 테이블에 저장한다.
+- `hireDate`는 계정 생성일 기준 6개월 전 날짜부터 6개월 후 날짜까지 입력할 수 있으며, 양 끝 날짜를 포함한다. 예: 2026-06-17에 계정을 생성하는 경우 2025-12-17~2026-12-17까지 허용한다.
 - 생성되는 신입 계정의 `role`은 항상 `USER`, `account_status`는 항상 `ACTIVE`로 저장한다.
 - 동일 회사 내에서 같은 사원번호로 계정을 중복 생성할 수 없다.
 - DB에는 `company_code + employee_number` 복합 UNIQUE 제약조건을 둔다.
@@ -2029,6 +2030,10 @@ ALTER TABLE users
     {
       "field": "hireDate",
       "message": "입사일은 필수입니다."
+    },
+    {
+      "field": "hireDate",
+      "message": "입사일은 오늘 기준 ±6개월 이내로 입력해 주세요."
     }
   ],
   "path": "/api/v1/admin/users"
@@ -2077,7 +2082,9 @@ ALTER TABLE users
 - `name`, `employeeNumber`, `department`, `teamName`은 공백만 입력할 수 없다.
 - `department`, `teamName`은 각각 최대 100자까지 입력할 수 있다.
 - `hireDate`는 `yyyy-MM-dd` 형식이어야 한다.
-- 길이 제한 또는 형식 검증에 실패하면 `400 Bad Request`를 반환한다.
+- `hireDate`는 계정 생성일 기준 6개월 전 날짜부터 6개월 후 날짜까지 입력할 수 있으며, 양 끝 날짜를 포함한다.
+- `hireDate`가 허용 범위를 벗어나면 `400 Bad Request`와 함께 `hireDate` 필드 오류 메시지 `"입사일은 오늘 기준 ±6개월 이내로 입력해 주세요."`를 반환한다.
+- 길이 제한, 형식 검증 또는 입사일 범위 검증에 실패하면 `400 Bad Request`를 반환한다.
 - 중복 사번 검증은 현재 로그인한 관리자 사용자의 회사 범위 안에서 수행한다.
 - 이 API의 권한 검증은 `users.role = ADMIN` 그리고 `users.account_status = ACTIVE` 기준으로 수행한다.
 - 응답 형식은 **4. 표준 응답 형식 > 에러 응답**을 따른다.
@@ -4263,4 +4270,6 @@ Authorization: Bearer {accessToken}
   - 관리자 문서 삭제 후 백엔드가 AI 서버 `DELETE /admin/ingest`를 자동 호출해 ChromaDB 문서 청크 삭제 및 BM25 캐시 무효화를 요청하는 내부 연동 규칙을 추가
   - 로그인 API 상태 코드 설명에 `429 Too Many Requests`, `503 Service Unavailable`을 추가하고, Turnstile 검증 실패/장애 및 로그인 시도 제한 응답 규칙을 실제 구현 기준으로 반영
   - 현재 로그인 사용자 정보를 조회하고 새로고침 이후 서버 기준 세션 상태를 복원하는 `GET /api/v1/auth/me` 명세를 추가
+- **v2.2.9 (2026-06-24)**:
+  - 신입 계정 생성 API의 `hireDate` 입력 가능 범위를 계정 생성일 기준 -6개월~+6개월(양 끝 포함)로 제한하고, 범위 초과 시 `400 Bad Request` 및 `"입사일은 오늘 기준 ±6개월 이내로 입력해 주세요."` 메시지를 반환하도록 명세를 반영
 

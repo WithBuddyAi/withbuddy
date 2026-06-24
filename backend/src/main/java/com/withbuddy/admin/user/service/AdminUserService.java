@@ -7,6 +7,7 @@ import com.withbuddy.admin.user.dto.response.CreateUserResponse;
 import com.withbuddy.admin.user.dto.response.UserListItemResponse;
 import com.withbuddy.admin.user.dto.response.UserListResponse;
 import com.withbuddy.admin.user.exception.DuplicateEmployeeNumberException;
+import com.withbuddy.admin.user.exception.InvalidHireDateRangeException;
 import com.withbuddy.admin.user.repository.AdminUserRepository;
 import com.withbuddy.account.company.entity.Company;
 import com.withbuddy.account.company.repository.CompanyRepository;
@@ -20,6 +21,7 @@ import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -45,17 +48,36 @@ public class AdminUserService {
     private final CompanyRepository companyRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final UserActivityLogRepository userActivityLogRepository;
+    private final Clock clock;
 
+    @Autowired
     public AdminUserService(
             AdminUserRepository adminUserRepository,
             CompanyRepository companyRepository,
             ChatMessageRepository chatMessageRepository,
             UserActivityLogRepository userActivityLogRepository
     ) {
+        this(
+                adminUserRepository,
+                companyRepository,
+                chatMessageRepository,
+                userActivityLogRepository,
+                Clock.system(KST)
+        );
+    }
+
+    AdminUserService(
+            AdminUserRepository adminUserRepository,
+            CompanyRepository companyRepository,
+            ChatMessageRepository chatMessageRepository,
+            UserActivityLogRepository userActivityLogRepository,
+            Clock clock
+    ) {
         this.adminUserRepository = adminUserRepository;
         this.companyRepository = companyRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.userActivityLogRepository = userActivityLogRepository;
+        this.clock = clock;
     }
 
     @Transactional
@@ -69,6 +91,7 @@ public class AdminUserService {
         String normalizedEmployeeNumber = request.getEmployeeNumber().trim();
         String normalizedDepartment = request.getDepartment().trim();
         String normalizedTeamName = request.getTeamName().trim();
+        validateHireDateRange(request.getHireDate());
 
         Company company = companyRepository.findByCompanyCode(companyCode)
                 .orElseThrow(() -> new UnauthorizedException("사용자 회사 정보를 확인할 수 없습니다."));
@@ -269,7 +292,17 @@ public class AdminUserService {
     }
 
     private long calculateHireDay(LocalDate hireDate) {
-        return ChronoUnit.DAYS.between(hireDate, LocalDate.now(KST)) + 1;
+        return ChronoUnit.DAYS.between(hireDate, LocalDate.now(clock)) + 1;
+    }
+
+    private void validateHireDateRange(LocalDate hireDate) {
+        LocalDate today = LocalDate.now(clock);
+        LocalDate minHireDate = today.minusMonths(6);
+        LocalDate maxHireDate = today.plusMonths(6);
+
+        if (hireDate.isBefore(minHireDate) || hireDate.isAfter(maxHireDate)) {
+            throw new InvalidHireDateRangeException();
+        }
     }
 
     private boolean isDuplicateEmployeeNumberConstraint(DataIntegrityViolationException exception) {

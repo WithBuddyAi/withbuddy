@@ -17,6 +17,7 @@ import com.withbuddy.infrastructure.cache.CacheFallbackRateLimitException;
 import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.admin.user.exception.DuplicateEmployeeNumberException;
+import com.withbuddy.admin.user.exception.InvalidHireDateRangeException;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -587,6 +588,27 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(InvalidHireDateRangeException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidHireDateRangeException(
+            InvalidHireDateRangeException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("hireDate", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "BAD_REQUEST",
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(ForbiddenException.class)

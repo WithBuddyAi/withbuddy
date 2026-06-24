@@ -19,7 +19,9 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -33,6 +35,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/v1/documents")
@@ -140,23 +145,39 @@ public class DocumentController {
         return ResponseEntity.ok(documentStorageService.deleteAllDocuments(confirm));
     }
 
-    @Operation(summary = "문서 파일 다운로드")
+    @Operation(summary = "문서 파일 다운로드 (302 Redirect)")
     @GetMapping("/{documentId}/file")
-    public ResponseEntity<ByteArrayResource> file(
+    public ResponseEntity<?> file(
             @PathVariable Long documentId,
             @RequestParam(defaultValue = "PRIMARY") StorageSource source,
             @RequestParam("token") String token
     ) {
-        byte[] payload = documentStorageService.downloadFile(documentId, source, token);
-        String fileName = documentStorageService.resolveDownloadFileName(documentId);
-        String contentType = documentStorageService.resolveContentType(documentId);
+        if (!documentStorageService.supportsRedirectDownload()) {
+            byte[] payload = documentStorageService.downloadFile(documentId, source, token);
+            String fileName = documentStorageService.resolveDownloadFileName(documentId);
+            String contentType = documentStorageService.resolveContentType(documentId);
+            String contentDisposition = ContentDisposition.attachment()
+                    .filename(fileName, StandardCharsets.UTF_8)
+                    .build()
+                    .toString();
 
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
-                .contentType(MediaType.parseMediaType(contentType))
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
+                    .header("Pragma", "no-cache")
+                    .header("X-Content-Type-Options", "nosniff")
+                    .body(new ByteArrayResource(payload));
+        }
+
+        String redirectUrl = documentStorageService.issueRedirectDownloadUrl(documentId, source, token);
+
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(redirectUrl))
                 .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
                 .header("Pragma", "no-cache")
+                .header("Referrer-Policy", "no-referrer")
                 .header("X-Content-Type-Options", "nosniff")
-                .body(new ByteArrayResource(payload));
+                .build();
     }
 }
