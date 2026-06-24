@@ -54,6 +54,7 @@ def _fix_names(text: str) -> str:
     text = re.sub(r'어떤 부분이 필요한지에 따라 연락하[^\n\.\!]*[\.\!]?', '필요한 부분 확인 후 연락해보세요!', text)
     text = re.sub(r'(\d+)~(\d+)영업일', r'영업일 기준 \1일~\2일', text)
     text = text.replace("다만 참고로,", "참고로,").replace("다만 참고로", "참고로")
+    text = re.sub(r'\*{0,2}직접 확인하세요\s*:\*{0,2}\s*\n?', '', text)
     return text
 
 
@@ -135,15 +136,18 @@ def extract_contact_from_docs(docs: List[Document]) -> str | None:
     return None
 
 
-def build_contact_suffix(answer: str, docs: List[Document], hr_team: str) -> str:
+def build_contact_suffix(answer: str, docs: List[Document], hr_team: str, question: str = "", it_card: dict = None) -> str:
     """미답변 시 담당자 안내 문구를 반환합니다. 이미 포함된 경우 빈 문자열."""
-    _CONTACT_HINTS = ["문의하시면", "여쭤보시면", "연락하시면", "담당자에게", "연락해보세요", "연락 주세요", "연락주세요"]
+    _CONTACT_HINTS = ["문의하시면", "여쭤보시면", "연락하시면", "담당자에게"]
     if any(hint in answer for hint in _CONTACT_HINTS):
         return ""
     contact = extract_contact_from_docs(docs)
     if contact:
         return f"\n\n관련 문의는 **{contact}** 에 직접 여쭤보시면 가장 빠를 거예요! 😊"
-    return f"\n\n이 부분은 **{hr_team}**에 직접 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
+    if it_card:
+        dept = it_card.get("department", hr_team)
+        return f"\n\n**{dept} 담당자**님께 문의하시면 가장 정확한 답을 얻으실 수 있어요!"
+    return f"\n\n이 부분은 **{hr_team}**에 여쭤보시면 가장 정확한 답을 얻으실 수 있어요!"
 
 
 def build_case_a_suffix(hr_team: str) -> str:
