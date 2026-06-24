@@ -97,7 +97,7 @@ function AdminDocumentView({
   useEffect(() => {
     if (onDeleteSuccess)
       onDeleteSuccess(fetchDocuments, () => setSelectedIds([]));
-  }, []);
+  }, [search, selectedIds, currentPage]);
 
   useEffect(() => {
     if (search === "") {
