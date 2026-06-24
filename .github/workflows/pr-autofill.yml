@@ -133,12 +133,24 @@ jobs:
               .replace(/<!-- AUTO_FILL_COMMITS_END -->/g, "")
               .trim();
 
-            const commentBody = [
+            const commentPrefix = [
               `PR 업데이트: #${pr.number} ${pr.title}`,
               `Base: \`${pr.base.ref}\` ← Head: \`${pr.head.ref}\``,
-              "",
-              cleanedBody || "(본문 없음)"
+              ""
             ].join("\n");
+
+            const maxCommentLength = 65000;
+            const fallbackBody = cleanedBody || "(본문 없음)";
+            const budget = Math.max(0, maxCommentLength - commentPrefix.length - 1);
+            const ellipsis = "...";
+
+            let commentText = fallbackBody;
+            if (commentText.length > budget) {
+              const take = Math.max(0, budget - ellipsis.length);
+              commentText = `${commentText.slice(0, take)}${ellipsis}`;
+            }
+
+            const commentBody = `${commentPrefix}\n${commentText}`.slice(0, maxCommentLength);
 
             await github.rest.issues.createComment({
               owner,
