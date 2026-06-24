@@ -311,7 +311,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     # 선행 버퍼 방식: 첫 120자까지 버퍼링하며 no_result 키워드 감지
     # 감지 시 → 고정문구 직접 출력(swap 없음) / 미감지 시 → 버퍼 flush 후 정상 스트리밍
-    _PEEK = 120
+    _PEEK = 300
     raw_answer = ""
     _pre = ""
     _streaming = False
