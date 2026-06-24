@@ -309,8 +309,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         text = text.replace('\x00', '\n\n')
         return text
 
-    full_answer = ""
-    _buf = ""
+    # LLM 전체 버퍼링 후 is_unanswered 판단 — \x00 교체 없이 고정문구 또는 정상 답변 한 번만 출력
+    raw_answer = ""
     async for _raw in stream_answer(
         question=result.question,
         context=formatted_context,
@@ -324,47 +324,19 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         today_date=_date.today().strftime("%Y년 %m월 %d일"),
         hire_info=_build_hire_info(hire_date),
     ):
-        _buf += _raw
-        while True:
-            idx = _buf.find('\n\n')
-            if idx == -1:
-                break
-            after = idx + 2
-            if after >= len(_buf):
-                break  # \n\n이 버퍼 끝 — 다음 청크 기다림
-            if _buf[after:after + 2] == '**':
-                out = _fmt(_buf[:idx]) + '\n\n'
-            else:
-                out = _fmt(_buf[:after])
-            full_answer += out
-            yield out, None, None, None
-            _buf = _buf[after:]
-        if len(_buf) > 2:
-            safe = _fmt(_buf[:-2])
-            full_answer += safe
-            yield safe, None, None, None
-            _buf = _buf[-2:]
-    if _buf:
-        final = _fmt(_buf)
-        full_answer += final
-        yield final, None, None, None
+        raw_answer += _raw
 
-    fixed = await postprocess_answer_async(full_answer)
-    if fixed != full_answer:
-        yield "\x00" + fixed, None, None, None
+    fixed = await postprocess_answer_async(raw_answer)
 
     if needs_labor_law_fallback(result.question, fixed):
-        labor_fallback = get_labor_law_fallback(hr_team)
-        yield labor_fallback, None, None, None
-        fixed += labor_fallback
+        fixed += get_labor_law_fallback(hr_team)
 
     if (company_code and result.docs and not is_unanswered(fixed, result.docs)
             and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
-        case_a_msg = build_case_a_suffix(hr_team)
-        yield case_a_msg, None, None, None
-        fixed += case_a_msg
+        fixed += build_case_a_suffix(hr_team)
 
-    if is_unanswered(full_answer, result.docs):
+    if is_unanswered(fixed, result.docs):
+        fixed = _NO_RESULT_TEMPLATE
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
 
     global _last_category
@@ -373,4 +345,6 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     save_interaction(user_id, result.question, fixed)
     related_docs = find_related_docs(result.question)
 
+    out = fixed if fixed == _NO_RESULT_TEMPLATE else _fmt(fixed)
+    yield out, None, None, None
     yield "", result.source_names, related_docs, result.doc_ids
