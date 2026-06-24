@@ -7,9 +7,12 @@ LLM 응답에서 JSON을 파싱하여 구조화된 결과를 반환합니다.
 """
 
 import json
+import logging
 import re
 
 from fastapi import APIRouter, HTTPException
+
+logger = logging.getLogger(__name__)
 from langchain_core.output_parsers import StrOutputParser
 from pydantic import BaseModel, Field
 
@@ -33,6 +36,18 @@ except ImportError:
     _COMPANY_CONTACTS_STRUCTURED = {}
 
 
+_IT_KEYWORDS = {"pc", "노트북", "모니터", "장비", "계정", "mfa", "vpn", "소프트웨어", "설치", "인터넷", "와이파이", "프린터", "교체", "수리", "it문의", "it장애"}
+
+
+def _keyword_route(message: str, contacts: list) -> dict | None:
+    q = message.lower()
+    if any(kw in q for kw in _IT_KEYWORDS):
+        for c in contacts:
+            if "IT" in c.get("department", ""):
+                return c
+    return None
+
+
 async def get_contact_for_question(company_code: str, message: str) -> dict:
     code = company_code or "WB0001"
     contacts = _COMPANY_CONTACTS_STRUCTURED.get(code, [])
@@ -40,6 +55,11 @@ async def get_contact_for_question(company_code: str, message: str) -> dict:
 
     if not contacts:
         return default
+
+    # 키워드 기반 빠른 라우팅 (IT 질문)
+    keyword_match = _keyword_route(message, contacts)
+    if keyword_match:
+        return keyword_match
 
     try:
         if code not in _recommend_chains:
@@ -51,8 +71,9 @@ async def get_contact_for_question(company_code: str, message: str) -> dict:
         for contact in contacts:
             if contact["name"] == person_name:
                 return contact
-    except Exception:
-        pass
+        logger.warning("[recommend] name mismatch: parsed=%r, available=%s", person_name, [c["name"] for c in contacts])
+    except Exception as e:
+        logger.exception("[recommend] get_contact_for_question failed for %s: %s", code, e)
 
     return default
 

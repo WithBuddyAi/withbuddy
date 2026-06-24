@@ -26,7 +26,7 @@ from chains.generator import (
     generate_answer, stream_answer, postprocess_answer, postprocess_answer_async,
     _fix_names, _detect_user_style,
     is_unanswered, needs_labor_law_fallback, get_labor_law_fallback,
-    build_contact_suffix, build_case_a_suffix,
+    build_contact_suffix, build_case_a_suffix, _NO_ANSWER_KEYWORDS,
 )
 
 try:
@@ -41,6 +41,8 @@ _IT_SUPPORT_KW = [
     "VPN", "MFA", "계정", "권한", "접속", "설치", "소프트웨어", "네트워크", "서버",
     "IT", "사내망", "와이파이", "WiFi", "프린터", "인터넷", "USB", "보안", "장비", "노트북",
 ]
+
+_NO_RESULT_TEMPLATE = "아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.😅\n\n정확한 안내를 위해 아래 담당자에게 문의해 주세요."
 
 
 class _TokenCounter(BaseCallbackHandler):
@@ -187,18 +189,14 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         return result.direct_legal_answer, result.source_names, related_docs, result.doc_ids
 
     if not result.docs:
-        hr_team, _ = get_hr_contact(company_code)
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
-        save_interaction(user_id, result.question, no_result_answer)
-        return no_result_answer, "", [], []
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+        return _NO_RESULT_TEMPLATE, "", [], []
 
     # 사내 문서 없이 법령 문서만 히트된 비법령 질문 → LLM 호출 없이 no_result 처리
     if (company_code and not is_legal_question(result.question)
             and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
-        hr_team, _ = get_hr_contact(company_code)
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{hr_team}**에 직접 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
-        save_interaction(user_id, result.question, no_result_answer)
-        return no_result_answer, "", [], []
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+        return _NO_RESULT_TEMPLATE, "", [], []
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
@@ -226,7 +224,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         answer += build_case_a_suffix(hr_team)
 
     if is_unanswered(answer, result.docs):
-        answer += build_contact_suffix(answer, result.docs, hr_team)
+        answer = _NO_RESULT_TEMPLATE
 
     global _last_category
     _last_category = _extract_category(result.docs)
@@ -284,20 +282,18 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         _no_result_team = hr_team
 
     if not result.docs:
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{_no_result_team}**에 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
-        save_interaction(user_id, result.question, no_result_answer)
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
-        yield no_result_answer, None, None, None
+        yield _NO_RESULT_TEMPLATE, None, None, None
         yield "", "", [], []
         return
 
     # 사내 문서 없이 법령 문서만 히트된 비법령 질문 → LLM 호출 없이 no_result 처리
     if (company_code and not is_legal_question(result.question)
             and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
-        no_result_answer = f"아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.\n정확한 확인이 필요한 내용이라 **{_no_result_team}**에 문의하시거나, 관리자에게 관련 문서 추가를 요청해 주세요."
-        save_interaction(user_id, result.question, no_result_answer)
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
-        yield no_result_answer, None, None, None
+        yield _NO_RESULT_TEMPLATE, None, None, None
         yield "", "", [], []
         return
 
@@ -313,8 +309,14 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         text = text.replace('\x00', '\n\n')
         return text
 
-    full_answer = ""
+    # 선행 버퍼 방식: 첫 120자까지 버퍼링하며 no_result 키워드 감지
+    # 감지 시 → 고정문구 직접 출력(swap 없음) / 미감지 시 → 버퍼 flush 후 정상 스트리밍
+    _PEEK = 300
+    raw_answer = ""
+    _pre = ""
+    _streaming = False
     _buf = ""
+
     async for _raw in stream_answer(
         question=result.question,
         context=formatted_context,
@@ -328,33 +330,53 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         today_date=_date.today().strftime("%Y년 %m월 %d일"),
         hire_info=_build_hire_info(hire_date),
     ):
-        _buf += _raw
-        while True:
-            idx = _buf.find('\n\n')
-            if idx == -1:
-                break
-            after = idx + 2
-            if after >= len(_buf):
-                break  # \n\n이 버퍼 끝 — 다음 청크 기다림
-            if _buf[after:after + 2] == '**':
-                out = _fmt(_buf[:idx]) + '\n\n'
-            else:
-                out = _fmt(_buf[:after])
-            full_answer += out
-            yield out, None, None, None
-            _buf = _buf[after:]
-        if len(_buf) > 2:
-            safe = _fmt(_buf[:-2])
-            full_answer += safe
-            yield safe, None, None, None
-            _buf = _buf[-2:]
-    if _buf:
-        final = _fmt(_buf)
-        full_answer += final
-        yield final, None, None, None
+        raw_answer += _raw
+        if _streaming:
+            _buf += _raw
+            while True:
+                idx = _buf.find('\n\n')
+                if idx == -1:
+                    break
+                after = idx + 2
+                if after >= len(_buf):
+                    break
+                out = (_fmt(_buf[:idx]) + '\n\n') if _buf[after:after + 2] == '**' else _fmt(_buf[:after])
+                yield out, None, None, None
+                _buf = _buf[after:]
+            if len(_buf) > 2:
+                yield _fmt(_buf[:-2]), None, None, None
+                _buf = _buf[-2:]
+        elif not any(kw in _pre for kw in _NO_ANSWER_KEYWORDS):
+            _pre += _raw
+            if len(_pre) >= _PEEK:
+                # no_result 키워드 없음 → 정상 답변 확정, 스트리밍 시작
+                _streaming = True
+                _buf = _pre
+                _pre = ""
+                while True:
+                    idx = _buf.find('\n\n')
+                    if idx == -1:
+                        break
+                    after = idx + 2
+                    if after >= len(_buf):
+                        break
+                    out = (_fmt(_buf[:idx]) + '\n\n') if _buf[after:after + 2] == '**' else _fmt(_buf[:after])
+                    yield out, None, None, None
+                    _buf = _buf[after:]
+                if len(_buf) > 2:
+                    yield _fmt(_buf[:-2]), None, None, None
+                    _buf = _buf[-2:]
+        # else: no_result 키워드 감지 상태 → raw_answer에만 누적, yield 안 함
 
-    fixed = await postprocess_answer_async(full_answer)
-    if fixed != full_answer:
+    if _streaming and _buf:
+        yield _fmt(_buf), None, None, None
+    elif not _streaming and _pre and not any(kw in _pre for kw in _NO_ANSWER_KEYWORDS):
+        # 전체 길이가 _PEEK 미만인 짧은 정상 답변
+        yield _fmt(_pre), None, None, None
+        _streaming = True
+
+    fixed = await postprocess_answer_async(raw_answer)
+    if _streaming and fixed != raw_answer:
         yield "\x00" + fixed, None, None, None
 
     if needs_labor_law_fallback(result.question, fixed):
@@ -368,12 +390,13 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield case_a_msg, None, None, None
         fixed += case_a_msg
 
-    if is_unanswered(full_answer, result.docs):
-        contact_msg = build_contact_suffix(fixed, result.docs, _no_result_team, question=result.question, it_card=_it_card)
-        if contact_msg:
-            yield contact_msg, None, None, None
-            fixed += contact_msg
+    if is_unanswered(fixed, result.docs):
+        fixed = _NO_RESULT_TEMPLATE
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+        if _streaming:
+            yield "\x00" + fixed, None, None, None  # 드문 케이스: 120자 이후 no_result 감지
+        else:
+            yield fixed, None, None, None  # swap 없이 바로 출력
 
     global _last_category
     _last_category = _extract_category(result.docs)
