@@ -7,13 +7,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Component
@@ -143,6 +146,17 @@ public class OciCliObjectStorageClient implements ObjectStorageClient {
 
     @Override
     public String createPreSignedGetUrl(String namespace, String bucket, String objectKey, int expiresInSeconds) {
+        return createPreSignedGetUrl(namespace, bucket, objectKey, expiresInSeconds, null);
+    }
+
+    @Override
+    public String createPreSignedGetUrl(
+            String namespace,
+            String bucket,
+            String objectKey,
+            int expiresInSeconds,
+            String downloadFileName
+    ) {
         String profile = resolveProfile(namespace, bucket);
         String expiresAt = OffsetDateTime.now(ZoneOffset.UTC)
                 .plusSeconds(Math.max(1, expiresInSeconds))
@@ -169,10 +183,53 @@ public class OciCliObjectStorageClient implements ObjectStorageClient {
             if (!StringUtils.hasText(accessUri)) {
                 throw new IllegalStateException("OCI pre-auth URL access-uri 응답이 비어 있습니다.");
             }
-            return resolveObjectStorageEndpoint() + accessUri;
+            return appendResponseContentDisposition(resolveObjectStorageEndpoint() + accessUri, downloadFileName);
         } catch (IOException e) {
             throw new IllegalStateException("OCI pre-auth URL 응답 파싱 실패", e);
         }
+    }
+
+    private String appendResponseContentDisposition(String url, String downloadFileName) {
+        if (!StringUtils.hasText(downloadFileName)) {
+            return url;
+        }
+
+        String contentDisposition = buildContentDisposition(downloadFileName);
+        String separator = url.contains("?") ? "&" : "?";
+        return url + separator + "httpResponseContentDisposition=" + urlEncode(contentDisposition);
+    }
+
+    private String buildContentDisposition(String downloadFileName) {
+        String asciiFallback = buildAsciiFallbackFileName(downloadFileName);
+        return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodeRfc5987(downloadFileName);
+    }
+
+    private String buildAsciiFallbackFileName(String downloadFileName) {
+        String normalized = Normalizer.normalize(downloadFileName, Normalizer.Form.NFKD)
+                .replaceAll("\\p{M}+", "")
+                .replaceAll("[^\\x20-\\x7E]", "");
+        String sanitized = normalized
+                .replace("\\", "_")
+                .replace("/", "_")
+                .replace("\"", "")
+                .replace(";", "_")
+                .trim();
+
+        if (StringUtils.hasText(sanitized)) {
+            return sanitized;
+        }
+
+        int dotIndex = downloadFileName.lastIndexOf('.');
+        String extension = dotIndex >= 0 ? downloadFileName.substring(dotIndex).toLowerCase(Locale.ROOT) : "";
+        return "download" + extension;
+    }
+
+    private String encodeRfc5987(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+    }
+
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private String resolveProfile(String namespace, String bucket) {
