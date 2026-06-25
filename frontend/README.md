@@ -95,7 +95,10 @@ src/
 │   ├── useDesktop.js                          # 반응형 브레이크포인트 감지 공용 훅
 │   ├── useLoginForm.js                        # 로그인 폼 상태 + 유효성 검사 + API 호출 훅
 │   ├── useTurnstile.js                        # Cloudflare Turnstile CAPTCHA 위젯 관리 훅
-│   └── useTypingEffect.js                     # 타이핑 애니메이션 + 서브 카피 순환 훅
+│   ├── useTypingEffect.js                     # 타이핑 애니메이션 + 서브 카피 순환 훅
+│   ├── useChat.js                             # SSE 스트리밍 + 메시지 상태 + 전송/재시도/다운로드 훅
+│   ├── useSession.js                          # 세션 모달 + 로그아웃 관리 훅
+│   └── useSidebar.js                          # 사이드바 + 달력 날짜 조회 훅
 ├── utils/
 │   └── validators.js                          # 공용 유효성 검사 함수 (정규식 + 에러 메시지)
 ├── components/
@@ -145,15 +148,16 @@ src/
 │           └── AdminDashboardQuestions.jsx    # 미답변 질문 TOP5 + AI 분석
 └── pages/
     ├── Login.jsx                              # 로그인 페이지 (훅 + 컴포넌트 조합)
-    ├── MyBuddy.jsx                            # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
+    ├── MyBuddy.jsx                            # 메인 페이지 (훅 + 컴포넌트 조합)
     ├── Inactive.jsx                           # 이용 기간 종료 안내 페이지
     └── Admin.jsx                              # 관리자 페이지 (뷰 전환 · 레이아웃 담당)
 ```
 
 > 💡 **hooks/ 폴더란?**  
 > 여러 컴포넌트에서 재사용 가능한 로직을 Custom Hook으로 분리한 폴더.  
-> `useLoginForm`은 로그인 폼 상태·검증·API 호출을, `useTurnstile`은 CAPTCHA 위젯 관리를,  
-> `useTypingEffect`는 타이핑 애니메이션을, `useDesktop`은 반응형 브레이크포인트 감지를 담당함
+> 로그인: `useLoginForm`(폼 상태·검증·API), `useTurnstile`(CAPTCHA), `useTypingEffect`(타이핑 애니메이션)  
+> 마이버디: `useChat`(SSE 스트리밍·메시지·전송·재시도), `useSession`(세션 모달·로그아웃), `useSidebar`(사이드바·달력)  
+> 공용: `useDesktop`(반응형 브레이크포인트 감지)
 
 > 💡 **utils/ 폴더란?**  
 > React에 의존하지 않는 순수 유틸리티 함수 모음.  
@@ -273,3 +277,4 @@ git commit -m "ㅇㅇ"
 - 2026-06-19: 로그인 페이지에 Cloudflare Turnstile 봇 방지 통합. site key 환경변수 분리 (`VITE_TURNSTILE_SITE_KEY`), 429 레이트리밋 NaN 방어 코드 추가 (`Number.isFinite`), Turnstile 토큰을 `isFormValid`에 반영, 위젯 테마·사이즈 설정 (`theme: "light"`, `size: "flexible"`). 로그인 폼 별표 위치 `<sup>` 적용, 챗 목업 시간 동적 표시 (`date-fns` format).
 - 2026-06-22: `AdminDashboardView` 폴더 추가 (대시보드 통계 카드 3종, 미답변 질문 TOP5 막대그래프, AI 분석 섹션). 집계 API 연동 (`GET /api/v1/admin/metrics/dashboard`), 카드별 조건부 dot 색상 처리, 로딩·에러·빈 상태 처리, 다시 시도 버튼 추가.
 - 2026-06-24: Login.jsx 컴포넌트 모듈 분리. `hooks/` 폴더 추가 (useDesktop, useLoginForm, useTurnstile, useTypingEffect), `utils/validators.js` 공용 유효성 검사 유틸 추출, `components/login/` 폴더 추가 (LoginForm, HeroSection, LoginBackground). Login.jsx 823줄 → 111줄로 축소.
+- 2026-06-25: MyBuddy.jsx 컴포넌트 모듈 분리. `hooks/` 폴더에 useChat, useSession, useSidebar 추가. SSE 스트리밍·메시지·전송/재시도 로직을 useChat으로, 세션 모달·로그아웃을 useSession으로, 사이드바·달력 조회를 useSidebar로 분리. botClass·navItems 컴포넌트 외부 상수로 이동. handleDownload blob → window.open 변경 (CORS 해결). 달력 날짜 선택 시 맨 위 스크롤 기능 추가. 로그인 에러 메시지 3단계 분리 (500/서버 연결 불가/인터넷 끊김). MyBuddy.jsx 663줄 → 227줄로 축소.
