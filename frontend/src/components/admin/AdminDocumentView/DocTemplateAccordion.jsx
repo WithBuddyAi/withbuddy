@@ -58,7 +58,7 @@ function DocTemplateAccordion() {
   };
 
   // 다운로드 버튼 클릭 시 URL 발급 → 파일 다운로드
-  const handleDownload = async (documentId, title) => {
+  const handleDownload = async (documentId) => {
     setLoadingId(documentId);
     setErrorMessage("");
     try {
