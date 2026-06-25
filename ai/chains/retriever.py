@@ -287,6 +287,7 @@ def extract_sources(docs: List[Document], max_sources: int = 2) -> str:
 
 _TEMPLATE_STOPWORDS = {"신청", "신청서", "방법", "처리", "서류", "안내", "가이드", "작성", "주세요", "알려줘"}
 _KO_PARTICLE_RE = re.compile(r"(은|는|이|가|을|를|의|에서|에게|에|으로|로|과|와|도|만|부터|까지)$")
+_DOWNLOAD_KEYWORDS = {"다운로드", "양식", "파일", "서식", "폼", "첨부", "받기", "내려받기"}
 
 
 def match_template_docs(company_code: str, question: str) -> tuple[list[int], list[str]]:
@@ -304,7 +305,22 @@ def match_template_docs(company_code: str, question: str) -> tuple[list[int], li
         for doc in templates:
             target = f"{doc.get('title', '')} {doc.get('fileName', '')}"
             t_words = {w for w in re.split(r"[\s_\-\.]+", target) if len(w) >= 2} - _TEMPLATE_STOPWORDS
-            if any(qw in tw or tw in qw for qw in q_words for tw in t_words):
+            # 1) 템플릿 단어가 질문 원문에 직접 포함되는지 (4글자 이상만 — 짧은 단어 오매칭 방지)
+            matched = any(tw in question for tw in t_words if len(tw) >= 4)
+            # 2) 단어 집합 교차 체크 (fallback)
+            if not matched:
+                matched = any(qw in tw or tw in qw for qw in q_words for tw in t_words)
+            # 3) 앞 4글자 prefix 일치 (출장신청서 vs 출장신청정산서 등)
+            if not matched:
+                matched = any(
+                    len(qw) >= 4 and len(tw) >= 4 and qw[:4] == tw[:4]
+                    for qw in q_words for tw in t_words
+                )
+            if matched:
+                ids.append(doc["documentId"])
+                titles.append(doc.get("title") or doc.get("fileName") or "")
+        if not ids and q_words & _DOWNLOAD_KEYWORDS:
+            for doc in templates:
                 ids.append(doc["documentId"])
                 titles.append(doc.get("title") or doc.get("fileName") or "")
         return ids, titles
@@ -420,11 +436,13 @@ def retrieve(
 
     docs, _ = _do_search(question, company_code)
     template_ids, template_titles = match_template_docs(company_code, question)
-    doc_ids = list(
-        {int(d.metadata["doc_id"]) for d in docs
-         if d.metadata.get("doc_id") and d.metadata.get("company_code", "") == company_code}
-        | set(template_ids)
-    )
+    _tmpl_set = set(template_ids)
+    _rag_ids = [
+        int(d.metadata["doc_id"]) for d in docs
+        if d.metadata.get("doc_id") and d.metadata.get("company_code", "") == company_code
+        and int(d.metadata["doc_id"]) not in _tmpl_set
+    ]
+    doc_ids = list(dict.fromkeys(template_ids + _rag_ids))
 
     if is_direct_legal_question(question):
         return RetrievalResult(
@@ -434,7 +452,14 @@ def retrieve(
             direct_legal_answer=format_legal_answer(docs, question, company_code),
         )
 
-    formatted_context, included_docs = _build_context(docs, template_titles, question)
+    try:
+        from core.be_client import get_template_docs as _get_tpls
+        _all_t = _get_tpls(company_code) if company_code else []
+        all_template_titles = [t.get("title") or t.get("fileName", "") for t in _all_t if t.get("title") or t.get("fileName")]
+    except Exception:
+        all_template_titles = []
+
+    formatted_context, included_docs = _build_context(docs, template_titles, question, all_template_titles)
     return RetrievalResult(
         question=question, docs=docs, source_names=extract_sources(included_docs),
         template_ids=template_ids, template_titles=template_titles,
@@ -462,11 +487,13 @@ async def async_retrieve(
     loop = asyncio.get_event_loop()
     docs, _ = await loop.run_in_executor(None, _do_search, question, company_code)
     template_ids, template_titles = match_template_docs(company_code, question)
-    doc_ids = list(
-        {int(d.metadata["doc_id"]) for d in docs
-         if d.metadata.get("doc_id") and d.metadata.get("company_code", "") == company_code}
-        | set(template_ids)
-    )
+    _tmpl_set = set(template_ids)
+    _rag_ids = [
+        int(d.metadata["doc_id"]) for d in docs
+        if d.metadata.get("doc_id") and d.metadata.get("company_code", "") == company_code
+        and int(d.metadata["doc_id"]) not in _tmpl_set
+    ]
+    doc_ids = list(dict.fromkeys(template_ids + _rag_ids))
 
     if is_direct_legal_question(question):
         return RetrievalResult(
@@ -476,7 +503,14 @@ async def async_retrieve(
             direct_legal_answer=format_legal_answer(docs, question, company_code),
         )
 
-    formatted_context, included_docs = _build_context(docs, template_titles, question)
+    try:
+        from core.be_client import get_template_docs as _get_tpls
+        _all_t = _get_tpls(company_code) if company_code else []
+        all_template_titles = [t.get("title") or t.get("fileName", "") for t in _all_t if t.get("title") or t.get("fileName")]
+    except Exception:
+        all_template_titles = []
+
+    formatted_context, included_docs = _build_context(docs, template_titles, question, all_template_titles)
     return RetrievalResult(
         question=question, docs=docs, source_names=extract_sources(included_docs),
         template_ids=template_ids, template_titles=template_titles,
@@ -484,10 +518,18 @@ async def async_retrieve(
     )
 
 
-def _build_context(docs: List[Document], template_titles: List[str], question: str) -> tuple[str, List[Document]]:
+def _build_context(docs: List[Document], template_titles: List[str], question: str, all_template_titles: List[str] | None = None) -> tuple[str, List[Document]]:
     ctx, included = format_docs(docs)
     if template_titles:
-        ctx = f"📎 이 답변 하단 카드에 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n\n" + ctx
+        header = f"📎 이 답변 하단 카드에 양식 파일이 첨부됩니다: {', '.join(template_titles)}\n"
+        footer = f"\n\n🚨 [필수] '{', '.join(template_titles)}' 파일이 제공됩니다. '신청서가 없다', '양식이 없다', '서류가 없다'는 표현을 절대 사용하지 말고, 반드시 '하단 카드에서 다운로드하세요'라고 안내하세요."
+        ctx = header + ctx + footer
+    elif all_template_titles:
+        avail = ", ".join(all_template_titles)
+        ctx = (
+            f"[이 회사에서 제공 가능한 양식 목록: {avail}]\n"
+            f"관련 양식이 있으면 양식명을 언급해 안내하세요. 단, 이 답변에는 다운로드 카드가 첨부되지 않습니다.\n\n"
+        ) + ctx
     else:
         ctx = "⛔ 이 답변에는 첨부 파일이 없습니다. '파일이 첨부됐다', '카드에서 다운로드', '파일을 직접 제공할 수 없다' 같은 파일 관련 언급은 일절 하지 마세요.\n\n" + ctx
     if is_legal_question(question):
