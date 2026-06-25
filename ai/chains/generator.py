@@ -117,6 +117,7 @@ _NO_ANSWER_KEYWORDS = [
     "없는 것 같아요", "나와있지 않", "명시되어 있지 않", "기재되어 있지 않",
     "확인되지 않", "나와 있지 않", "관련 내용이 없",
     "찾지 못했", "드리기 어렵", "확인하지 못했", "아직 없어", "사내 문서에 아직",
+    "찾을 수 없어요", "확인할 수 없어요",
 ]
 
 _LABOR_LAW_KEYWORDS = ["근로기준법", "노동법", "최저임금법", "산업안전보건법", "고용노동부", "노동자 권리", "근로자 권리"]
@@ -233,7 +234,11 @@ async def stream_answer(
 
 
 def _fix_grammar(text: str) -> str:
-    return text.replace("있아서", "있어서").replace("없아서", "없어서")
+    import re
+    text = text.replace("있아서", "있어서").replace("없아서", "없어서")
+    text = re.sub(r'\n- *\n', '\n', text)
+    text = re.sub(r'\n- *$', '', text)
+    return text
 
 
 async def postprocess_answer_async(full_answer: str) -> str:
