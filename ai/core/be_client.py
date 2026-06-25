@@ -244,14 +244,10 @@ def get_template_docs(company_code: str) -> list[dict]:
                 return "WB0003"
             return "WB0001"
 
-        def _is_admin_guide(d: dict) -> bool:
-            name = d.get("title", "") or d.get("fileName", "")
-            return "안내" in name
-
         candidates = [
             {"documentId": d["documentId"], "title": d.get("title", ""), "fileName": d.get("fileName", "")}
             for d in docs
-            if _infer_cc(d) == company_code and not _is_admin_guide(d)
+            if _infer_cc(d) == company_code
         ]
 
         from concurrent.futures import ThreadPoolExecutor
