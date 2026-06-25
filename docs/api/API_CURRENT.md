@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.2.9
-**최종 업데이트**: 2026-06-24
+**버전**: 2.3.0
+**최종 업데이트**: 2026-06-25
 
 ---
 
@@ -194,6 +194,7 @@ AI Swagger UI: https://ai.itsdev.kr/docs
 | `errors` | `Array<Object>` | 상세 에러 목록 |
 | `errors[].field` | `String` | 오류가 발생한 필드명 또는 오류 대상 |
 | `errors[].message` | `String` | 상세 오류 메시지 |
+| `errors[].details` | `Object 또는 null` | 오류별 부가 정보. 필요한 에러에서만 포함하며, 없으면 응답에서 생략될 수 있음 |
 | `path` | `String` | 요청 경로 |
 
 ### HTTP 상태 코드
@@ -256,6 +257,7 @@ AI Swagger UI: https://ai.itsdev.kr/docs
 - `ACCESS_DENIED`: 요청 권한 없음
 - `NOT_FOUND`: 리소스 없음
 - `DUPLICATE_EMPLOYEE_NUMBER`: 동일 회사 내 중복 사원번호
+- `DOCUMENT_DUPLICATE`: 동일 회사 내 활성 문서와 제목 또는 콘텐츠 해시가 중복됨
 - `INTERNAL_SERVER_ERROR`: 서버 내부 오류
 - `AI_TIMEOUT`: AI 답변 생성 시간 초과
 - `AI_STREAM_FAILED`: SSE 스트리밍 중 AI 답변 생성 실패
@@ -1949,7 +1951,7 @@ Content-Type: application/json
 - 서버는 인증 토큰에서 현재 관리자의 `companyCode`를 확인한다.
 - 서버는 현재 로그인한 관리자 사용자의 `companyCode`를 기준으로 신입 계정의 `users.company_code`를 저장한다.
 - 입력받은 `name`, `employeeNumber`, `department`, `teamName`, `hireDate`를 `users` 테이블에 저장한다.
-- `hireDate`는 계정 생성일 기준 6개월 전 날짜부터 6개월 후 날짜까지 입력할 수 있으며, 양 끝 날짜를 포함한다. 예: 2026-06-17에 계정을 생성하는 경우 2025-12-17~2026-12-17까지 허용한다.
+- `hireDate`는 계정 생성일 기준 6개월 전 날짜부터 6개월 후 날짜까지 입력할 수 있으며, 양 끝 날짜를 포함한다.
 - 생성되는 신입 계정의 `role`은 항상 `USER`, `account_status`는 항상 `ACTIVE`로 저장한다.
 - 동일 회사 내에서 같은 사원번호로 계정을 중복 생성할 수 없다.
 - DB에는 `company_code + employee_number` 복합 UNIQUE 제약조건을 둔다.
@@ -2436,14 +2438,17 @@ Content-Type: multipart/form-data
 - 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)만 호출할 수 있다.
 - 업로드되는 문서의 `company_code`는 요청 바디가 아니라 현재 로그인한 사용자의 `company_code`로 설정한다.
 - 관리자 계정 페이지에서는 공통 문서(`company_code = null`)를 업로드할 수 없다.
-- 동일한 회사의 활성 문서 중 아래 기준에 해당하는 문서가 이미 존재하면 중복 업로드로 판단한다.
-  - `documentType`이 `POLICY` 또는 `GUIDE`인 경우: `company_code` + `title`
-  - `documentType`이 `TEMPLATE`인 경우: `company_code` + `document_type` + `title` + `content_type`
-- 중복 판단에서 파일명은 업로드 파일의 원본 파일명이 아니라 `documents.title`에 저장되는 `title` 값을 의미한다.
-- 중복 문서이면 `409 Conflict`, `DOCUMENT_DUPLICATE`를 반환한다.
 - 문서 파일은 최대 20MB까지 업로드할 수 있다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
+- 업로드 파일의 텍스트 추출 결과를 기준으로 SHA-256 `content_hash`를 계산한다.
+- 중복 판단 기준은 `company_code` + `title` + `활성 상태` 또는 `company_code` + `content_hash` + `활성 상태`다.
+- 동일 회사의 활성 문서 중 같은 `title`이 존재하면 제목 중복 문서로 판단한다.
+- 동일 회사의 활성 문서 중 같은 `content_hash`가 존재하면 콘텐츠 중복 문서로 판단한다.
+- 원본 파일명은 중복 판단 기준이 아니며, `title`은 제목 중복 판단 기준이자 관리자 안내 메시지에 표시하기 위한 값으로 사용한다.
+- `inactive`, `archived`, `deleted` 상태 문서는 중복 비교 대상에서 제외한다. 삭제된 문서를 비교 대상에 포함하면 관리자가 삭제 후 동일 문서를 재업로드할 수 없기 때문이다.
+- 제목 또는 콘텐츠 중복 문서이면 `409 Conflict`, `DOCUMENT_DUPLICATE`를 반환하고 업로드를 차단한다.
+- 중복 검사를 통과해 업로드가 완료되면 신규 문서의 `content_hash`를 `documents.content_hash`에 저장한다.
 - 업로드가 성공해 `documents`, `document_files` 저장이 커밋된 뒤 백엔드는 AI 서버의 `POST /admin/ingest`를 자동 호출해 신규 문서를 인덱싱해야 한다.
 - AI 자동 인덱싱 요청에는 업로드된 `documentId`와 현재 관리자 회사 코드(`companyCode`)를 전달한다.
 - AI 자동 인덱싱은 업로드 트랜잭션 커밋 이후 수행해야 한다. 커밋 전에 호출하면 AI 서버가 백엔드 문서 상세 조회 또는 다운로드 API에서 신규 문서를 찾지 못할 수 있다.
@@ -2454,6 +2459,93 @@ Content-Type: multipart/form-data
 - 기존 업로드 총 용량과 신규 파일 크기의 합이 2GB를 초과하면 `400 Bad Request`, `FILE_001_CAPACITY`를 반환한다.
 - 지원하지 않는 파일 확장자이면 `400 Bad Request`, `FILE_002`를 반환한다.
 - 응답은 `201 Created`와 `DocumentUploadResponse` 형식을 따른다.
+
+#### 제목 및 콘텐츠 해시 기반 중복 검사
+
+문서 업로드 중복 검사는 문서 제목과 RAG 파이프라인에서 추출한 텍스트 내용을 기준으로 수행한다. 파일 바이트 기준 해시는 워드 재저장, 메타데이터 변경, 파일 형식 차이만으로 값이 달라질 수 있으므로 콘텐츠 중복 판단에는 사용하지 않는다.
+
+| 항목 | 기준 |
+|---|---|
+| 해시 대상 | 텍스트 추출 결과 |
+| 해시 알고리즘 | SHA-256 |
+| 해시 생성 시점 | 업로드 시 RAG 텍스트 추출 직후 |
+| 저장 위치 | `documents.content_hash` |
+| 제목 비교 범위 | `company_code` + `title` + `활성 상태` |
+| 콘텐츠 비교 범위 | `company_code` + `content_hash` + `활성 상태` |
+
+문서 상태별 중복 비교 대상 포함 여부는 다음과 같다.
+
+| 문서 상태 | 중복 비교 대상 |
+|---|---|
+| `active` | 포함 |
+| `inactive` / `archived` | 제외 |
+| `deleted` | 제외 |
+
+처리 흐름은 다음과 같다.
+
+```text
+파일 업로드
+  -> 동일 company_code 내 active 문서의 title과 비교
+  -> title 일치: 업로드 차단 + 409 DOCUMENT_DUPLICATE 반환
+  -> 텍스트 추출
+  -> SHA-256 content_hash 계산
+  -> 동일 company_code 내 active 문서의 content_hash와 비교
+  -> content_hash 일치: 업로드 차단 + 409 DOCUMENT_DUPLICATE 반환
+  -> 불일치: documents.content_hash 저장 + 정상 업로드
+```
+
+#### Error Response (409 Conflict - 제목 중복)
+
+```json
+{
+  "timestamp": "2026-06-25T09:30:00",
+  "status": 409,
+  "error": "Conflict",
+  "code": "DOCUMENT_DUPLICATE",
+  "errors": [
+    {
+      "field": "title",
+      "message": "동일한 파일명의 문서가 이미 등록되어 있어요.",
+      "details": {
+        "duplicateType": "TITLE",
+        "duplicateDocumentTitle": "복지카드 신청 안내"
+      }
+    }
+  ],
+  "path": "/api/v1/admin/documents/upload"
+}
+```
+
+#### Error Response (409 Conflict - 콘텐츠 중복)
+
+```json
+{
+  "timestamp": "2026-06-25T09:30:00",
+  "status": 409,
+  "error": "Conflict",
+  "code": "DOCUMENT_DUPLICATE",
+  "errors": [
+    {
+      "field": "contentHash",
+      "message": "이미 동일한 내용의 문서가 등록되어 있어요.",
+      "details": {
+        "duplicateType": "CONTENT",
+        "duplicateDocumentTitle": "복지카드 신청 안내"
+      }
+    }
+  ],
+  "path": "/api/v1/admin/documents/upload"
+}
+```
+
+`DOCUMENT_DUPLICATE`의 `errors[].details`는 다음 필드를 포함한다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `duplicateType` | String | 중복 유형. 제목 중복은 `TITLE`, 콘텐츠 중복은 `CONTENT` |
+| `duplicateDocumentTitle` | String | 중복으로 판단된 기존 활성 문서의 제목 |
+
+백엔드는 `errors[].message`에 핵심 에러 문장만 담는다. 줄바꿈, `기존 문서명: {duplicateDocumentTitle}`, 삭제 후 재업로드 안내 문구 조합은 프론트엔드에서 `errors[].details` 값을 사용해 처리한다.
 
 ### 7-7. 문서 선택 삭제
 
@@ -3246,6 +3338,8 @@ Production: https://ai.itsdev.kr
 관리자
   -> POST /api/v1/admin/documents/upload
 백엔드
+  -> 텍스트 추출 및 content_hash 중복 검사
+백엔드
   -> documents, document_files 저장
 백엔드
   -> 업로드 트랜잭션 커밋
@@ -3268,6 +3362,7 @@ AI 서버
 #### 백엔드 처리 규칙
 
 - 백엔드는 문서 업로드 저장이 성공한 뒤 AI 인덱싱 API를 자동 호출한다.
+- 콘텐츠 해시 중복 검사에서 차단된 문서는 `documents`, `document_files`에 저장하지 않으며 AI 인덱싱도 요청하지 않는다.
 - AI 인덱싱 API 호출은 업로드 트랜잭션 커밋 이후 수행한다.
 - 요청 body의 `companyCode`는 요청자가 임의로 전달한 값이 아니라, 업로드된 문서의 `documents.company_code` 또는 현재 관리자 계정의 회사 코드 기준으로 구성한다.
 - AI 인덱싱이 실패해도 이미 성공한 문서 업로드 저장은 롤백하지 않는다.
@@ -3417,6 +3512,7 @@ AI 서버는 인증 실패, 문서 인덱스 삭제 실패, 캐시 무효화 실
 
 | 코드 | HTTP 상태 | 발생 조건 |
 |---|---:|---|
+| `DOCUMENT_DUPLICATE` | 409 | 동일 `company_code` 내 활성 문서의 `title` 또는 `content_hash`와 일치하는 경우 |
 | `FILE_001_EMPTY` | 400 | 업로드 파일이 비어 있거나 `file` 파트가 존재하지 않는 경우 |
 | `FILE_001_SIZE` | 400 | 단일 업로드 파일 크기가 20MB를 초과한 경우 |
 | `FILE_001_COUNT` | 400 | 회사당 업로드 가능한 활성 문서 수가 300개를 초과한 경우 |
@@ -4272,4 +4368,8 @@ Authorization: Bearer {accessToken}
   - 현재 로그인 사용자 정보를 조회하고 새로고침 이후 서버 기준 세션 상태를 복원하는 `GET /api/v1/auth/me` 명세를 추가
 - **v2.2.9 (2026-06-24)**:
   - 신입 계정 생성 API의 `hireDate` 입력 가능 범위를 계정 생성일 기준 -6개월~+6개월(양 끝 포함)로 제한하고, 범위 초과 시 `400 Bad Request` 및 `"입사일은 오늘 기준 ±6개월 이내로 입력해 주세요."` 메시지를 반환하도록 명세를 반영
+- **v2.3.0 (2026-06-25)**:
+  - 관리자 문서 업로드 중복 판단 기준을 동일 `company_code` 내 활성 문서의 `title` 또는 텍스트 추출 결과의 SHA-256 `content_hash` 기준으로 정리, `title` 또는 `content_hash`가 일치하면 `409 Conflict`, `DOCUMENT_DUPLICATE`로 업로드를 차단하도록 명세 반영
+  - `DOCUMENT_DUPLICATE` 응답의 `errors[].details`에 `duplicateType`, `duplicateDocumentTitle`을 포함하도록 에러 응답 구조 반영
+  - `documents.content_hash` 저장 규칙, 기존 문서 마이그레이션, 콘텐츠 중복 차단 시 AI 인덱싱 미호출 규칙 추가
 
