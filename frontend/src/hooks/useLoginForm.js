@@ -31,7 +31,7 @@ function useLoginForm({ setUser, turnstileToken, resetTurnstile }) {
 
   // 유저 정보 저장
   const { setHireDate, setDayOffset, setRole, setAccountStatus } = useUser();
-  
+
   const location = useLocation();
 
   // 에러 메시지
@@ -166,7 +166,13 @@ function useLoginForm({ setUser, turnstileToken, resetTurnstile }) {
           "일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.",
         );
       } else {
-        setErrorMessage("인터넷 연결을 확인하고 다시 시도해 주세요.");
+        if (!navigator.onLine) {
+          setErrorMessage("인터넷 연결을 확인하고 다시 시도해 주세요.");
+        } else {
+          setErrorMessage(
+            "서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.",
+          );
+        }
       }
     } finally {
       setIsLoading(false);

@@ -288,18 +288,18 @@ class DocumentStorageServiceTest {
     }
 
     @Test
-    void rejectsDuplicatePolicyByCompanyAndTitle() {
+    void rejectsDuplicateDocumentByCompanyAndTitle() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "policy.pdf",
                 "application/pdf",
                 "payload".getBytes()
         );
+        Document existingDocument = document(101L, "WB0001", "GUIDE");
+        lenient().when(existingDocument.getTitle()).thenReturn("취업규칙");
         when(storageProperties.getMaxDocumentSizeMb()).thenReturn(20);
-        when(documentRepository.existsByCompanyCodeAndTitleAndIsActiveTrue(
-                "WB0001",
-                "취업규칙"
-        )).thenReturn(true);
+        when(documentRepository.findFirstByCompanyCodeAndTitleAndIsActiveTrue("WB0001", "취업규칙"))
+                .thenReturn(Optional.of(existingDocument));
 
         assertThatThrownBy(() ->
                 documentStorageService.uploadCompanyDocument(file, "취업규칙", "POLICY", "HR")
@@ -308,37 +308,91 @@ class DocumentStorageServiceTest {
                     assertThat(exception.getStatus()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(exception.getCode()).isEqualTo("DOCUMENT_DUPLICATE");
                     assertThat(exception.getField()).isEqualTo("title");
+                    assertThat(exception.getMessage()).isEqualTo("동일한 파일명의 문서가 이미 등록되어 있어요.");
+                    assertThat(exception.getDetails())
+                            .containsEntry("duplicateType", "TITLE")
+                            .containsEntry("duplicateDocumentTitle", "취업규칙");
+                });
+
+        verify(documentRepository, never()).findFirstByCompanyCodeAndContentHashAndIsActiveTrue(anyString(), anyString());
+        verify(objectStorageClient, never()).putObject(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void rejectsDuplicateDocumentByCompanyAndContentHash() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "policy.pdf",
+                "application/pdf",
+                "payload".getBytes()
+        );
+        Document existingDocument = document(101L, "WB0001", "GUIDE");
+        lenient().when(existingDocument.getTitle()).thenReturn("기존 복지 안내");
+        when(storageProperties.getMaxDocumentSizeMb()).thenReturn(20);
+        when(documentRepository.findFirstByCompanyCodeAndTitleAndIsActiveTrue("WB0001", "취업규칙"))
+                .thenReturn(Optional.empty());
+        when(documentRepository.findFirstByCompanyCodeAndContentHashAndIsActiveTrue(eq("WB0001"), anyString()))
+                .thenReturn(Optional.of(existingDocument));
+
+        assertThatThrownBy(() ->
+                documentStorageService.uploadCompanyDocument(file, "취업규칙", "POLICY", "HR")
+        )
+                .isInstanceOfSatisfying(StorageException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getCode()).isEqualTo("DOCUMENT_DUPLICATE");
+                    assertThat(exception.getField()).isEqualTo("contentHash");
+                    assertThat(exception.getMessage()).isEqualTo("이미 동일한 내용의 문서가 등록되어 있어요.");
+                    assertThat(exception.getDetails())
+                            .containsEntry("duplicateType", "CONTENT")
+                            .containsEntry("duplicateDocumentTitle", "기존 복지 안내");
                 });
 
         verify(objectStorageClient, never()).putObject(anyString(), anyString(), anyString(), any());
     }
 
     @Test
-    void rejectsDuplicateTemplateByCompanyTypeTitleAndContentType() {
+    void storesContentHashWhenUploadSucceeds() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "template.pdf",
-                "application/pdf",
-                "payload".getBytes()
+                "guide.txt",
+                "text/plain",
+                "same content".getBytes()
         );
         when(storageProperties.getMaxDocumentSizeMb()).thenReturn(20);
-        when(documentRepository.existsActiveTemplateDuplicate(
-                "WB0001",
-                "TEMPLATE",
-                "근로계약서",
-                "application/pdf"
-        )).thenReturn(true);
+        when(documentRepository.findFirstByCompanyCodeAndTitleAndIsActiveTrue("WB0001", "가이드"))
+                .thenReturn(Optional.empty());
+        when(documentRepository.findFirstByCompanyCodeAndContentHashAndIsActiveTrue(eq("WB0001"), anyString()))
+                .thenReturn(Optional.empty());
+        when(documentRepository.countByCompanyCodeAndIsActiveTrue("WB0001")).thenReturn(0L);
+        when(documentFileRepository.sumActiveFileSizeByCompanyCode("WB0001")).thenReturn(0L);
 
-        assertThatThrownBy(() ->
-                documentStorageService.uploadCompanyDocument(file, "근로계약서", "TEMPLATE", "HR")
-        )
-                .isInstanceOfSatisfying(StorageException.class, exception -> {
-                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(exception.getCode()).isEqualTo("DOCUMENT_DUPLICATE");
-                    assertThat(exception.getField()).isEqualTo("title");
-                });
+        StorageProperties.Bucket primary = new StorageProperties.Bucket();
+        primary.setNamespace("primary-ns");
+        primary.setBucket("primary-bucket");
+        StorageProperties.Bucket backup = new StorageProperties.Bucket();
+        backup.setNamespace("backup-ns");
+        backup.setBucket("backup-bucket");
+        when(storageProperties.getPrimary()).thenReturn(primary);
+        when(storageProperties.getBackup()).thenReturn(backup);
 
-        verify(objectStorageClient, never()).putObject(anyString(), anyString(), anyString(), any());
+        Document savedDocument = document(201L, "WB0001", "GUIDE");
+        lenient().when(savedDocument.getTitle()).thenReturn("가이드");
+        lenient().when(savedDocument.getCreatedAt()).thenReturn(LocalDateTime.of(2026, 6, 25, 9, 30));
+        when(documentRepository.save(any(Document.class))).thenReturn(savedDocument);
+
+        DocumentFile savedFile = mock(DocumentFile.class);
+        when(savedFile.getOriginalFileName()).thenReturn("guide.txt");
+        when(savedFile.getContentType()).thenReturn("text/plain");
+        when(savedFile.getFileSize()).thenReturn(12L);
+        when(savedFile.getBackupStatus()).thenReturn(BackupStatus.PENDING);
+        when(documentFileRepository.save(any(DocumentFile.class))).thenReturn(savedFile);
+
+        documentStorageService.uploadCompanyDocument(file, "가이드", "GUIDE", "HR");
+
+        ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
+        verify(documentRepository).save(documentCaptor.capture());
+        assertThat(documentCaptor.getValue().getContentHash()).hasSize(64);
+        verify(eventPublisher).publishEvent(any());
     }
 
     @Test
