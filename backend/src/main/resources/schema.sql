@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS documents (
     file_path VARCHAR(500) NOT NULL,
     document_type VARCHAR(50) NOT NULL,
     department VARCHAR(50) NOT NULL,
+    content_hash CHAR(64) NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -67,6 +68,9 @@ CREATE TABLE IF NOT EXISTS documents (
         FOREIGN KEY (company_code) REFERENCES companies (company_code)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
+
+CREATE INDEX idx_documents_company_content_hash_active
+    ON documents (company_code, content_hash, is_active);
 
 CREATE TABLE IF NOT EXISTS document_files (
     id BIGINT NOT NULL AUTO_INCREMENT,
