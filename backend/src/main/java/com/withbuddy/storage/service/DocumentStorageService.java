@@ -49,7 +49,9 @@ import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -62,7 +64,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Service
 public class DocumentStorageService implements DocumentDownloadService {
@@ -75,6 +81,8 @@ public class DocumentStorageService implements DocumentDownloadService {
     private static final String DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     private static final String MD_CONTENT_TYPE = "text/markdown";
     private static final String DEFAULT_DOCUMENT_CONTENT = "Object Storage 업로드 문서";
+    private static final Pattern PDF_LITERAL_TEXT_PATTERN = Pattern.compile("\\((?:\\\\.|[^\\\\()])*\\)");
+    private static final Pattern PRINTABLE_TEXT_RUN_PATTERN = Pattern.compile("[\\p{L}\\p{N}\\p{Punct}\\p{Space}]{4,}");
     private static final Set<Long> REQUIRED_ONBOARDING_TEMPLATE_IDS = Set.of(
             56L, 57L, 58L, 59L, 60L, 61L, 62L, 63L, 64L
     );
@@ -163,11 +171,13 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
 
         String contentType = Optional.ofNullable(file.getContentType()).orElse("application/octet-stream");
-        validateDuplicateDocument(finalCompanyCode, documentType, title, contentType);
-        validateCompanyUploadQuota(finalCompanyCode, file.getSize());
-
+        validateDuplicateTitle(finalCompanyCode, title);
         byte[] payload = toBytes(file);
         String extension = resolveExtension(file.getOriginalFilename());
+        String contentHash = sha256(extractNormalizedText(payload, extension).getBytes(StandardCharsets.UTF_8));
+        validateDuplicateContent(finalCompanyCode, contentHash);
+        validateCompanyUploadQuota(finalCompanyCode, file.getSize());
+
         String storedFileName = UUID.randomUUID() + extension;
         String objectKey = buildObjectKey(finalCompanyCode, storedFileName);
 
@@ -203,6 +213,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                             .content(DEFAULT_DOCUMENT_CONTENT)
                             .documentType(documentType)
                             .department(department)
+                            .contentHash(contentHash)
                             .isActive(true)
                             .build()
             );
@@ -1242,7 +1253,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                                 (existing, replacement) -> replacement
                         ));
             } catch (RuntimeException e) {
-                log.warn("臾몄꽌 ?뚯씪 硫뷀??곗씠??議고쉶 ?ㅽ뙣, 硫뷀??곗씠???놁씠 紐⑸줉??諛섑솚?⑸땲?? reason={}", safeMessage(e));
+                log.warn("문서 목록 조회 중 파일 메타데이터 조회에 실패했습니다. 파일 메타데이터 없이 목록을 반환합니다. documentCount={}, reason={}", safeMessage(e));
             }
         }
 
@@ -1270,40 +1281,142 @@ public class DocumentStorageService implements DocumentDownloadService {
         return contentType == null ? file.getContentType() : contentType;
     }
 
-    private void validateDuplicateDocument(
-            String companyCode,
-            String documentType,
-            String title,
-            String contentType
-    ) {
-        if (!StringUtils.hasText(companyCode)
-                || !StringUtils.hasText(documentType)
-                || !StringUtils.hasText(title)) {
+    private void validateDuplicateTitle(String companyCode, String title) {
+        if (!StringUtils.hasText(companyCode) || !StringUtils.hasText(title)) {
             return;
         }
 
-        boolean duplicate = switch (documentType.toUpperCase(Locale.ROOT)) {
-            case "POLICY", "GUIDE" -> documentRepository.existsByCompanyCodeAndTitleAndIsActiveTrue(
-                    companyCode,
-                    title
-            );
-            case "TEMPLATE" -> documentRepository.existsActiveTemplateDuplicate(
-                    companyCode,
-                    documentType,
-                    title,
-                    contentType
-            );
-            default -> false;
-        };
+        documentRepository.findFirstByCompanyCodeAndTitleAndIsActiveTrue(companyCode, title)
+                .ifPresent(existingDocument -> {
+                    throw new StorageException(
+                            HttpStatus.CONFLICT,
+                            "DOCUMENT_DUPLICATE",
+                            "title",
+                            "동일한 파일명의 문서가 이미 등록되어 있어요.",
+                            duplicateDocumentDetails("TITLE", existingDocument.getTitle())
+                    );
+                });
+    }
 
-        if (duplicate) {
+    private void validateDuplicateContent(String companyCode, String contentHash) {
+        if (!StringUtils.hasText(companyCode) || !StringUtils.hasText(contentHash)) {
+            return;
+        }
+
+        documentRepository.findFirstByCompanyCodeAndContentHashAndIsActiveTrue(companyCode, contentHash)
+                .ifPresent(existingDocument -> {
+                    throw new StorageException(
+                            HttpStatus.CONFLICT,
+                            "DOCUMENT_DUPLICATE",
+                            "contentHash",
+                            "이미 동일한 내용의 문서가 등록되어 있어요.",
+                            duplicateDocumentDetails("CONTENT", existingDocument.getTitle())
+                    );
+                });
+    }
+
+    private Map<String, Object> duplicateDocumentDetails(String duplicateType, String duplicateDocumentTitle) {
+        return Map.of(
+                "duplicateType", duplicateType,
+                "duplicateDocumentTitle", Optional.ofNullable(duplicateDocumentTitle).orElse("")
+        );
+    }
+
+    private String extractNormalizedText(byte[] payload, String extension) {
+        String text = extractText(payload, extension);
+        String normalized = text
+                .replace('\u00A0', ' ')
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        if (!StringUtils.hasText(normalized)) {
             throw new StorageException(
-                    HttpStatus.CONFLICT,
-                    "DOCUMENT_DUPLICATE",
-                    "title",
-                    "이미 업로드된 문서입니다."
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "FILE_003",
+                    "file",
+                    "문서 텍스트 추출에 실패했습니다."
             );
         }
+        return normalized;
+    }
+
+    private String extractText(byte[] payload, String extension) {
+        String normalizedExtension = Optional.ofNullable(extension)
+                .orElse("")
+                .toLowerCase(Locale.ROOT);
+
+        return switch (normalizedExtension) {
+            case ".txt", ".md" -> new String(payload, StandardCharsets.UTF_8);
+            case ".docx" -> extractDocxText(payload);
+            case ".pdf" -> extractPdfText(payload);
+            default -> new String(payload, StandardCharsets.UTF_8);
+        };
+    }
+
+    private String extractDocxText(byte[] payload) {
+        StringBuilder text = new StringBuilder();
+        try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(payload))) {
+            ZipEntry entry;
+            while ((entry = zipInputStream.getNextEntry()) != null) {
+                String entryName = entry.getName();
+                if (entryName.startsWith("word/")
+                        && entryName.endsWith(".xml")
+                        && (entryName.contains("document")
+                        || entryName.contains("header")
+                        || entryName.contains("footer")
+                        || entryName.contains("footnotes")
+                        || entryName.contains("endnotes"))) {
+                    String xml = new String(zipInputStream.readAllBytes(), StandardCharsets.UTF_8);
+                    text.append(' ')
+                            .append(xml
+                                    .replaceAll("<w:tab\\s*/>", " ")
+                                    .replaceAll("</w:p>", " ")
+                                    .replaceAll("<[^>]+>", " "));
+                }
+            }
+        } catch (IOException e) {
+            throw new StorageException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "FILE_003",
+                    "file",
+                    "DOCX 텍스트 추출에 실패했습니다."
+            );
+        }
+        return text.toString();
+    }
+
+    private String extractPdfText(byte[] payload) {
+        String raw = new String(payload, StandardCharsets.ISO_8859_1);
+        StringBuilder text = new StringBuilder();
+
+        Matcher literalMatcher = PDF_LITERAL_TEXT_PATTERN.matcher(raw);
+        while (literalMatcher.find()) {
+            String literal = literalMatcher.group();
+            text.append(' ')
+                    .append(unescapePdfLiteral(literal.substring(1, literal.length() - 1)));
+        }
+
+        if (StringUtils.hasText(text.toString())) {
+            return text.toString();
+        }
+
+        Matcher printableMatcher = PRINTABLE_TEXT_RUN_PATTERN.matcher(raw);
+        while (printableMatcher.find()) {
+            text.append(' ').append(printableMatcher.group());
+        }
+        return text.toString();
+    }
+
+    private String unescapePdfLiteral(String value) {
+        return value
+                .replace("\\n", " ")
+                .replace("\\r", " ")
+                .replace("\\t", " ")
+                .replace("\\b", " ")
+                .replace("\\f", " ")
+                .replace("\\(", "(")
+                .replace("\\)", ")")
+                .replace("\\\\", "\\");
     }
 
     private String resolveContentTypeByMimeType(String mimeType) {

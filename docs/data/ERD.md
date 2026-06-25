@@ -1,7 +1,7 @@
 # ERD
 
-**현재 버전: v2.4**
-**최종 수정일: 2026-06-04**
+**현재 버전: v2.5**
+**최종 수정일: 2026-06-25**
 
 ## 개요
 **ERD(Entity Relationship Diagram)** 를 텍스트로 정리한 문서이다.
@@ -101,15 +101,22 @@
 - `file_path` : 문서 경로, varchar
 - `document_type` : 문서 유형, varchar
 - `department` : 관련 부서, varchar
+- `content_hash` : 정규화된 문서 텍스트 기반 SHA-256 해시값, char(64), nullable
 - `is_active` : 사용 여부, boolean
 - `created_at` : 생성 일시, datetime
 - `updated_at` : 수정 일시, datetime
+
+### 인덱스
+- `idx_documents_company_content_hash_active` : `(company_code, content_hash, is_active)`
 
 ### 설명
 - 인사, 행정, 정책, 사규 등 사내 문서 데이터를 저장한다.
 - `company_code`가 `null`인 경우 회사 공통 문서로 사용한다.
 - `company_code`에 특정 회사코드가 들어 있는 경우 해당 회사 전용 문서로 사용한다.
 - `file_path`는 문서의 기본 경로 정보를 저장한다.
+- `content_hash`는 업로드 파일에서 추출한 텍스트를 정규화한 뒤 SHA-256으로 해싱한 값이다.
+- `content_hash`는 같은 회사 안에서 동일한 내용의 활성 문서가 이미 등록되어 있는지 검사하는 데 사용한다.
+- `(company_code, content_hash, is_active)` 인덱스는 회사별 활성 문서의 내용 중복 조회 성능을 높이기 위해 사용한다.
 - `document_type`은 문서의 유형을 구분하기 위한 표준 분류값이며, `POLICY`, `GUIDE`, `NOTICE`, `FAQ`, `LEGAL`, `TEMPLATE` 값을 사용한다.
 - `department`는 문서의 관련 부서 또는 업무 영역을 구분하기 위한 표준 분류값이며, `HR`, `FINANCE`, `IT`, `OPS`, `LEGAL`, `GENERAL` 값을 사용한다.
 - 실제 업로드 파일의 상세 메타데이터와 백업 상태 정보는 `document_files` 테이블에서 별도로 관리한다.
@@ -343,6 +350,7 @@
 - v2.2 (2026-05-27): `chat_messages.answer_to_message_id`, `chat_messages.latency_ms` 컬럼 추가, 질문-답변 직접 연결을 위한 자기참조 외래키 및 답변 생성 소요 시간 저장 구조 반영
 - v2.3 (2026-05-28): `companies` 테이블에 `probation_period` 컬럼 추가
 - v2.4 (2026-06-04): `users.account_status` 컬럼 추가, nullable, `ACTIVE`/`READ_ONLY`/`INACTIVE` 상태값 반영
+- v2.5 (2026-06-25): `documents.content_hash` 컬럼 추가 및 `(company_code, content_hash, is_active)` 복합 인덱스 반영, 회사별 활성 문서의 내용 기반 중복 검사 구조 추가
 
 ---
 
