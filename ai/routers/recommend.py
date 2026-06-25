@@ -67,11 +67,12 @@ async def get_contact_for_question(company_code: str, message: str) -> dict:
         contacts_info = _COMPANY_CONTACTS.get(code, _COMPANY_CONTACTS["WB0001"])
         raw = await _recommend_chains[code].ainvoke({"message": message, "contacts_info": contacts_info})
         parsed = _parse_recommendation(raw)
-        person_name = parsed.get("person", "")
+        person_raw = parsed.get("person", "")
+        person_name = re.sub(r'(님|담당자|매니저|리드|팀장|과장|대리|차장|부장)\s*$', '', person_raw).strip()
         for contact in contacts:
-            if contact["name"] == person_name:
+            if contact["name"] == person_name or contact["name"] in person_raw:
                 return contact
-        logger.warning("[recommend] name mismatch: parsed=%r, available=%s", person_name, [c["name"] for c in contacts])
+        logger.warning("[recommend] name mismatch: parsed=%r, available=%s", person_raw, [c["name"] for c in contacts])
     except Exception as e:
         logger.exception("[recommend] get_contact_for_question failed for %s: %s", code, e)
 

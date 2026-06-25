@@ -240,6 +240,8 @@ def get_template_docs(company_code: str) -> list[dict]:
             if (fn.startswith("prism_") or fn.startswith("sp-")
                     or "프리즘" in title or "prism" in title.lower()):
                 return "WB0002"
+            if "메디케어" in fn or "메디케어" in title or "medicares" in fn:
+                return "WB0003"
             return "WB0001"
 
         candidates = [
@@ -254,8 +256,9 @@ def get_template_docs(company_code: str) -> list[dict]:
             urls = list(pool.map(lambda did: get_presigned_url(did, timeout=1.0), doc_ids))
 
         if doc_ids and all(url is None for url in urls):
-            logger.warning("get_template_docs: presigned URL 전부 실패 (company=%s), 빈 배열 반환", company_code)
-            return []
+            logger.warning("get_template_docs: presigned URL 전부 실패 (company=%s), URL 검증 없이 반환", company_code)
+            _template_cache[company_code] = (now, candidates)
+            return candidates
 
         def _url_belongs(url: str | None) -> bool:
             if url is None:
