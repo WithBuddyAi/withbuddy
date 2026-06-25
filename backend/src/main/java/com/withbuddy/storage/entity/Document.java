@@ -35,6 +35,9 @@ public class Document {
     @Column(name = "department", nullable = false, length = 50)
     private String department;
 
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive;
 
@@ -53,6 +56,7 @@ public class Document {
             String content,
             String documentType,
             String department,
+            String contentHash,
             boolean isActive
     ) {
         this.companyCode = companyCode;
@@ -60,6 +64,7 @@ public class Document {
         this.content = content;
         this.documentType = documentType;
         this.department = department;
+        this.contentHash = contentHash;
         this.isActive = isActive;
     }
 

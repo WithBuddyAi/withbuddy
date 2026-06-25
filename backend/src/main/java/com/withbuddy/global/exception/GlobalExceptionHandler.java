@@ -373,7 +373,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         List<FieldValidationError> errors = List.of(
-                new FieldValidationError(e.getField(), e.getMessage())
+                new FieldValidationError(e.getField(), e.getMessage(), e.getDetails())
         );
 
         ErrorResponse response = new ErrorResponse(
