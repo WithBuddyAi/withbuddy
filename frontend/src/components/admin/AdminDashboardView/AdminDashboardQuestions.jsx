@@ -173,9 +173,9 @@ function AdminDashboardQuestions({ patterns, aiSummary, isLoading, error, onRetr
                 보강이 필요한 영역
               </p>
               <ul className="flex flex-col gap-[6px] md:gap-[8px]">
-                {aiSummary.actions.map((action) => (
+                {aiSummary.actions.map((action, index) => (
                   <li
-                    key={action.part}
+                    key={index}
                     className="text-[12px] md:text-[14px] lg:text-[15px] text-[#000000]"
                   >
                     <span

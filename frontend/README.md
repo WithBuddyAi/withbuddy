@@ -87,10 +87,17 @@ WithBuddy는?
 src/
 ├── App.jsx                                    # 라우팅 설정, 전체 앱 진입점
 ├── api/
-│   ├── axiosInstance.js                       # axios 공통 설정 (토큰 자동 첨부, 401 자동 로그아웃)
+│   ├── axiosInstance.js                       # axios 공통 설정 (쿠키 기반 인증, 401 자동 로그아웃)
 │   └── handlers.js                            # API 에러 핸들러
 ├── contexts/
-│   └── UserContext.jsx                        # 사용자 정보 전역 상태 관리 (hireDate, dayOffset)
+│   └── UserContext.jsx                        # 사용자 정보 전역 상태 관리 (hireDate, dayOffset, role, accountStatus)
+├── hooks/
+│   ├── useDesktop.js                          # 반응형 브레이크포인트 감지 공용 훅
+│   ├── useLoginForm.js                        # 로그인 폼 상태 + 유효성 검사 + API 호출 훅
+│   ├── useTurnstile.js                        # Cloudflare Turnstile CAPTCHA 위젯 관리 훅
+│   └── useTypingEffect.js                     # 타이핑 애니메이션 + 서브 카피 순환 훅
+├── utils/
+│   └── validators.js                          # 공용 유효성 검사 함수 (정규식 + 에러 메시지)
 ├── components/
 │   ├── Tooltip.jsx                            # 툴팁 공통 컴포넌트
 │   ├── Sidebar.jsx                            # 사이드바 (사용자 정보, 메뉴, 대화기록 달력)
@@ -100,6 +107,10 @@ src/
 │   ├── QuickQuestions.jsx                     # 빠른 질문 버튼 목록
 │   ├── ChatInput.jsx                          # 채팅 입력창
 │   ├── SessionModal.jsx                       # 세션 만료 모달
+│   ├── login/
+│   │   ├── LoginForm.jsx                      # 로그인 폼 (데스크탑/모바일 통합)
+│   │   ├── HeroSection.jsx                    # 로그인 좌측 소개 영역 (타이핑 말풍선)
+│   │   └── LoginBackground.jsx                # 로그인 데스크탑 배경 (그라디언트 + 점 패턴)
 │   └── admin/
 │       ├── AdminSidebar.jsx                   # 관리자 사이드바 (탭 네비게이션 포함)
 │       ├── AdminCreateView.jsx                # 신입 계정 생성 화면 (폼 + 유효성 검사 + API 호출)
@@ -133,18 +144,33 @@ src/
 │           ├── AdminDashboardCards.jsx        # 통계 카드 3종 (활용률, 보강 필요율, 미시작 수)
 │           └── AdminDashboardQuestions.jsx    # 미답변 질문 TOP5 + AI 분석
 └── pages/
-    ├── Login.jsx                              # 로그인 페이지 (Turnstile 봇 방지 포함)
+    ├── Login.jsx                              # 로그인 페이지 (훅 + 컴포넌트 조합)
     ├── MyBuddy.jsx                            # 메인 페이지 (Q&A 채팅 + Buddy Nudge)
     ├── Inactive.jsx                           # 이용 기간 종료 안내 페이지
     └── Admin.jsx                              # 관리자 페이지 (뷰 전환 · 레이아웃 담당)
 ```
 
+> 💡 **hooks/ 폴더란?**  
+> 여러 컴포넌트에서 재사용 가능한 로직을 Custom Hook으로 분리한 폴더.  
+> `useLoginForm`은 로그인 폼 상태·검증·API 호출을, `useTurnstile`은 CAPTCHA 위젯 관리를,  
+> `useTypingEffect`는 타이핑 애니메이션을, `useDesktop`은 반응형 브레이크포인트 감지를 담당함
+
+> 💡 **utils/ 폴더란?**  
+> React에 의존하지 않는 순수 유틸리티 함수 모음.  
+> `validators.js`는 회사코드·사원번호·이름의 정규식 검증과 에러 메시지를 한 곳에서 관리하여  
+> Login과 AdminCreateView 등 여러 화면에서 중복 없이 공유함
+
+> 💡 **components/login/ 폴더란?**  
+> 로그인 페이지 관련 UI 컴포넌트를 모아둔 폴더.  
+> `LoginForm`은 데스크탑/모바일 통합 폼, `HeroSection`은 좌측 소개 영역,  
+> `LoginBackground`는 데스크탑 배경 장식을 담당함
+
 > 💡 **axiosInstance란?**  
-> 모든 API 요청에 토큰을 자동으로 첨부하고,  
+> 모든 API 요청에 쿠키를 자동으로 첨부하고,  
 > 토큰 만료 등 401 에러 발생 시 자동으로 로그아웃 처리하는 axios 공통 설정 파일
 
 > 💡 **UserContext란?**  
-> 로그인한 사용자의 hireDate, dayOffset 등을 전역으로 관리하여  
+> 로그인한 사용자의 hireDate, dayOffset, role, accountStatus 등을 전역으로 관리하여  
 > 여러 컴포넌트에서 공통으로 사용할 수 있도록 하는 Context API 파일
 
 > 💡 **admin/ 폴더란?**  
@@ -223,10 +249,12 @@ git commit -m "ㅇㅇ"
 ### 코드 스타일
 
 - 컴포넌트 파일명: **PascalCase** (`MyBuddy.jsx`, `LoginForm.jsx`)
+- 훅 파일명: **camelCase + use 접두사** (`useDesktop.js`, `useLoginForm.js`)
+- 유틸 파일명: **camelCase** (`validators.js`, `validateFile.js`)
 - 변수 · 함수명: **camelCase** (`userName`, `handleSubmit`)
 - 스타일링: **Tailwind CSS** 클래스 사용 (별도 CSS 파일 최소화)
-- 하나의 파일이 너무 길어지면 컴포넌트로 분리
-- 관련 컴포넌트는 폴더로 묶어서 관리 (예: `components/admin/`)
+- 하나의 파일이 너무 길어지면 컴포넌트 또는 커스텀 훅으로 분리
+- 관련 컴포넌트는 폴더로 묶어서 관리 (예: `components/admin/`, `components/login/`)
 
 <br>
 
@@ -244,3 +272,4 @@ git commit -m "ㅇㅇ"
 - 2026-06-17: `DocDuplicateModal.jsx` 추가 (POLICY/GUIDE 중복 업로드 차단 모달).
 - 2026-06-19: 로그인 페이지에 Cloudflare Turnstile 봇 방지 통합. site key 환경변수 분리 (`VITE_TURNSTILE_SITE_KEY`), 429 레이트리밋 NaN 방어 코드 추가 (`Number.isFinite`), Turnstile 토큰을 `isFormValid`에 반영, 위젯 테마·사이즈 설정 (`theme: "light"`, `size: "flexible"`). 로그인 폼 별표 위치 `<sup>` 적용, 챗 목업 시간 동적 표시 (`date-fns` format).
 - 2026-06-22: `AdminDashboardView` 폴더 추가 (대시보드 통계 카드 3종, 미답변 질문 TOP5 막대그래프, AI 분석 섹션). 집계 API 연동 (`GET /api/v1/admin/metrics/dashboard`), 카드별 조건부 dot 색상 처리, 로딩·에러·빈 상태 처리, 다시 시도 버튼 추가.
+- 2026-06-24: Login.jsx 컴포넌트 모듈 분리. `hooks/` 폴더 추가 (useDesktop, useLoginForm, useTurnstile, useTypingEffect), `utils/validators.js` 공용 유효성 검사 유틸 추출, `components/login/` 폴더 추가 (LoginForm, HeroSection, LoginBackground). Login.jsx 823줄 → 111줄로 축소.
