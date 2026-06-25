@@ -3,9 +3,10 @@ package com.withbuddy.infrastructure.mq.consumer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
- import com.withbuddy.global.security.InternalApiSecurityProperties;
+import com.withbuddy.global.security.InternalApiSecurityProperties;
 import com.withbuddy.internal.api.InternalTaskApiService;
 import com.withbuddy.internal.api.InternalTaskTypePolicy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,7 @@ public class InternalTaskAiNudgeAnalysisHandler implements InternalTaskHandler {
     private final InternalApiSecurityProperties internalApiSecurityProperties;
     private final HttpClient httpClient;
 
+    @Autowired
     public InternalTaskAiNudgeAnalysisHandler(
             ObjectMapper objectMapper,
             InternalApiSecurityProperties internalApiSecurityProperties
