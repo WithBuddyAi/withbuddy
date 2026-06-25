@@ -12,6 +12,8 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class GlobalExceptionHandlerTest {
@@ -69,6 +71,33 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getStatus()).isEqualTo(404);
         assertThat(response.getBody().getCode()).isEqualTo("NOT_FOUND");
         assertThat(response.getBody().getPath()).isEqualTo("/api/v1/admin/documents/999");
+    }
+
+    @Test
+    void includesStorageExceptionDetailsInFieldError() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/admin/documents/upload");
+
+        ResponseEntity<ErrorResponse> response = handler.handleStorageException(
+                new StorageException(
+                        HttpStatus.CONFLICT,
+                        "DOCUMENT_DUPLICATE",
+                        "contentHash",
+                        "이미 동일한 내용의 문서가 등록되어 있어요.",
+                        Map.of(
+                                "duplicateType", "CONTENT",
+                                "duplicateDocumentTitle", "복지카드 신청 안내"
+                        )
+                ),
+                request
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getErrors()).isNotEmpty();
+        assertThat(response.getBody().getErrors().get(0).getDetails())
+                .containsEntry("duplicateType", "CONTENT")
+                .containsEntry("duplicateDocumentTitle", "복지카드 신청 안내");
     }
 
     @Test
