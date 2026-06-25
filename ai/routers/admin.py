@@ -424,6 +424,9 @@ async def ingest_from_backend(
         filename = doc_meta.get("fileName", f"document_{doc_id}.pdf")
         title = doc_meta.get("title", filename)
 
+        if doc_meta.get("documentType") == "TEMPLATE":
+            return {"message": f"'{filename}' TEMPLATE 타입은 인덱싱 제외", "chunks_indexed": 0}
+
         # 2. 다운로드 URL 조회
         dl_url_resp = _requests.get(
             f"{_BACKEND_INTERNAL_URL}/api/v1/documents/{doc_id}/download",
