@@ -410,18 +410,22 @@ function useChat({
   };
 
   // 파일 다운로드
-  const handleDownload = async (downloadUrl) => {
-    try {
-      const { data } = await axiosInstance.get(downloadUrl);
-      window.open(data.downloadUrl);
-    } catch (error) {
-      if (error.response?.status === 404) {
-        setErrorMessage("해당 문서를 찾을 수 없어요.");
-      } else {
-        setErrorMessage("파일 다운로드에 실패했어요. 다시 시도해 주세요.");
-      }
+const handleDownload = async (downloadUrl) => {
+  try {
+    const { data } = await axiosInstance.get(downloadUrl);
+
+    window.open(
+      `${import.meta.env.VITE_API_BASE_URL}${data.downloadUrl}`,
+      "_blank",
+    );
+  } catch (error) {
+    if (error.response?.status === 404) {
+      setErrorMessage("해당 문서를 찾을 수 없어요.");
+    } else {
+      setErrorMessage("파일 다운로드에 실패했어요. 다시 시도해 주세요.");
     }
-  };
+  }
+};
 
   return {
     messageList,
