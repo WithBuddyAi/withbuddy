@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/v1/documents")
@@ -154,9 +155,10 @@ public class DocumentController {
             byte[] payload = documentStorageService.downloadFile(documentId, source, token);
             String fileName = documentStorageService.resolveDownloadFileName(documentId);
             String contentType = documentStorageService.resolveContentType(documentId);
+            String contentDisposition = buildContentDisposition(fileName);
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
                     .contentType(MediaType.parseMediaType(contentType))
                     .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
                     .header("Pragma", "no-cache")
@@ -173,5 +175,63 @@ public class DocumentController {
                 .header("Referrer-Policy", "no-referrer")
                 .header("X-Content-Type-Options", "nosniff")
                 .build();
+    }
+
+    private String buildContentDisposition(String fileName) {
+        String safeFallback = buildAsciiFallbackFileName(fileName);
+        String encodedFileName = encodeRfc5987(fileName);
+        return "attachment; filename=\"" + safeFallback + "\"; filename*=UTF-8''" + encodedFileName;
+    }
+
+    private String buildAsciiFallbackFileName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return "download";
+        }
+
+        String fallback = fileName.replaceAll("[^A-Za-z0-9._-]", "_");
+        fallback = fallback.replaceAll("_+", "_");
+        fallback = fallback.replaceAll("^_+|_+$", "");
+
+        if (fallback.isBlank()) {
+            return "download";
+        }
+
+        return fallback;
+    }
+
+    private String encodeRfc5987(String value) {
+        StringBuilder encoded = new StringBuilder();
+        for (byte b : value.getBytes(StandardCharsets.UTF_8)) {
+            int c = b & 0xff;
+            if (isRfc5987AttrChar(c)) {
+                encoded.append((char) c);
+            } else {
+                encoded.append('%');
+                String hex = Integer.toHexString(c).toUpperCase();
+                if (hex.length() == 1) {
+                    encoded.append('0');
+                }
+                encoded.append(hex);
+            }
+        }
+        return encoded.toString();
+    }
+
+    private boolean isRfc5987AttrChar(int c) {
+        return (c >= 'A' && c <= 'Z')
+                || (c >= 'a' && c <= 'z')
+                || (c >= '0' && c <= '9')
+                || c == '!'
+                || c == '#'
+                || c == '$'
+                || c == '&'
+                || c == '+'
+                || c == '-'
+                || c == '.'
+                || c == '^'
+                || c == '_'
+                || c == '`'
+                || c == '|'
+                || c == '~';
     }
 }
