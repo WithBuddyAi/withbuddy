@@ -66,7 +66,6 @@ jobs:
           GREEN_BACKEND_SERVER_SSH_KEY: ${{ secrets.GREEN_BACKEND_SERVER_SSH_KEY }}
           BLUE_BACKEND_HEALTH_URL: ${{ secrets.BLUE_BACKEND_HEALTH_URL }}
           GREEN_BACKEND_HEALTH_URL: ${{ secrets.GREEN_BACKEND_HEALTH_URL }}
-          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
         shell: bash
         run: |
           set -euo pipefail
@@ -77,13 +76,13 @@ jobs:
               ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
               SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
               SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
-              HEALTH_URL="${BLUE_BACKEND_HEALTH_URL:-${BACKEND_HEALTH_URL:-}}"
+              HEALTH_URL="${BLUE_BACKEND_HEALTH_URL:-}"
               ;;
             green)
               ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
               SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
               SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
-              HEALTH_URL="${GREEN_BACKEND_HEALTH_URL:-${BACKEND_HEALTH_URL:-}}"
+              HEALTH_URL="${GREEN_BACKEND_HEALTH_URL:-}"
               ;;
             *)
               echo "Unsupported target slot: ${SLOT}"
@@ -100,7 +99,7 @@ jobs:
             exit 1
           fi
           if [ -z "${HEALTH_URL}" ]; then
-            echo "Slot ${SLOT} is missing slot-specific health URL and shared BACKEND_HEALTH_URL"
+            echo "Slot ${SLOT} is missing *_BACKEND_HEALTH_URL"
             exit 1
           fi
 
@@ -271,7 +270,6 @@ jobs:
             RABBITMQ_EXCHANGE
             RABBITMQ_QUEUE_REPORT
             RABBITMQ_QUEUE_DLQ
-            RABBITMQ_QUEUE_INTERNAL_TASKS
             STORAGE_API_AUTH_ENABLED
             STORAGE_API_KEY_VALUE
             STORAGE_API_GLOBAL_ACCESS
@@ -295,7 +293,6 @@ jobs:
             STORAGE_PRIMARY_BUCKET
             STORAGE_BACKUP_NAMESPACE
             STORAGE_BACKUP_BUCKET
-            CORS_ALLOWED_ORIGIN_PATTERNS
           )
           missing_vars=()
           for v in "${required_vars[@]}"; do
