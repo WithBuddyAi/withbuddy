@@ -31,7 +31,7 @@
   - 빈 섹션은 출력하지 않도록 정리
 - PR 템플릿을 간소화했다.
   - `PR 요약은 자동으로 생성됩니다. 제목만 적어주세요.` 안내 문구 적용
-- `devjobcollector`의 배포 패턴을 참고해 Backend 자동배포 워크플로(`.github/workflows/backend-deploy.yml`)를 재작성했다.
+- WithBuddy 운영 기준에 맞춰 Backend 자동배포 워크플로(`.github/workflows/backend-deploy.yml`)를 재작성했다.
   - bootJar 빌드 → app.jar 업로드 → 원격 env 주입 → 백엔드 재시작 → 헬스체크
 - 문서 메타데이터(최종 업데이트/버전)와 상대 링크를 전수 점검해 깨진 링크를 정리했다.
 
