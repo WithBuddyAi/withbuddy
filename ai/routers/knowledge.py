@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from core.llm import get_llm
 from core.vectorstore import get_vectorstore
 from memory.unanswered_store import answer_question, delete_question, get_all
+from utils.question_clusterer import compute_clusters
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -240,6 +241,38 @@ async def analyze_top5(req: Top5AnalysisRequest):
         summary=summary,
         actions=actions,
         hasSensitive=has_sensitive,
+    )
+
+
+# ── 미답변 질문 군집화 엔드포인트 (SCRUM-551) ─────────────────────
+
+class ClusterItem(BaseModel):
+    representative: str
+    variantCount: int
+    totalCount: int
+    variants: List[str]
+
+
+class ClustersResponse(BaseModel):
+    companyCode: str
+    clusters: List[ClusterItem]
+
+
+@router.get("/no-result/clusters", response_model=ClustersResponse, tags=["internal"])
+async def get_no_result_clusters(companyCode: str, topN: int = 5):
+    """
+    미답변 질문 의미 군집 TOP N 반환.
+    동일 의미 질문을 묶어 대표 질문 + 변형 수 + 발생 횟수를 제공합니다.
+    결과는 24시간 캐시됩니다.
+    """
+    try:
+        clusters = await asyncio.to_thread(compute_clusters, companyCode, topN)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"군집화 실패: {str(e)}")
+
+    return ClustersResponse(
+        companyCode=companyCode,
+        clusters=[ClusterItem(**c) for c in clusters],
     )
 
 
