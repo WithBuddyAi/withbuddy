@@ -1,17 +1,19 @@
 name: Deploy Backend
-# Flyway repair step runs on DB server via DB_SERVER_* production secrets. (secret-refresh trigger)
+# Flyway repair step runs on DB server via DB_SERVER_* environment secrets.
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
+    inputs:
+      target_slot:
+        description: "Deploy target slot (must be the non-live slot)"
+        required: true
+        type: choice
+        options:
+          - blue
+          - green
 
 concurrency:
-  group: backend-deploy-${{ github.ref }}
+  group: backend-deploy-${{ github.ref }}-${{ github.event.inputs.target_slot }}
   cancel-in-progress: true
 
 jobs:
@@ -25,15 +27,91 @@ jobs:
         id: branch_guard
         shell: bash
         run: |
-          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+          if [ "${GITHUB_REF}" = "refs/heads/main" ] && [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             echo "Production deploy enabled for ${GITHUB_REF}"
+            echo "target_slot=${{ github.event.inputs.target_slot }}" >> "$GITHUB_OUTPUT"
           else
             echo "should_deploy=false" >> "$GITHUB_OUTPUT"
             echo "Deploy Backend is production-only."
             echo "Use main branch for production deployment."
             echo "Current ref: ${GITHUB_REF}"
           fi
+
+      - name: Print deployment target
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ steps.branch_guard.outputs.target_slot }}" in
+            blue|green)
+              echo "Deploying backend to slot=${{ steps.branch_guard.outputs.target_slot }}"
+              echo "GitHub environment=production"
+              ;;
+            *)
+              echo "Invalid target_slot: ${{ steps.branch_guard.outputs.target_slot }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Resolve slot-specific deploy settings
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        id: slot_config
+        env:
+          BLUE_BACKEND_ACCESS_HOST: ${{ secrets.BLUE_BACKEND_ACCESS_HOST }}
+          GREEN_BACKEND_ACCESS_HOST: ${{ secrets.GREEN_BACKEND_ACCESS_HOST }}
+          BLUE_BACKEND_SERVER_HOST: ${{ secrets.BLUE_BACKEND_SERVER_HOST }}
+          GREEN_BACKEND_SERVER_HOST: ${{ secrets.GREEN_BACKEND_SERVER_HOST }}
+          BLUE_BACKEND_SERVER_SSH_KEY: ${{ secrets.BLUE_BACKEND_SERVER_SSH_KEY }}
+          GREEN_BACKEND_SERVER_SSH_KEY: ${{ secrets.GREEN_BACKEND_SERVER_SSH_KEY }}
+          BLUE_BACKEND_HEALTH_URL: ${{ secrets.BLUE_BACKEND_HEALTH_URL }}
+          GREEN_BACKEND_HEALTH_URL: ${{ secrets.GREEN_BACKEND_HEALTH_URL }}
+          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SLOT="${{ steps.branch_guard.outputs.target_slot }}"
+          case "${SLOT}" in
+            blue)
+              ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
+              SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
+              SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
+              HEALTH_URL="${BLUE_BACKEND_HEALTH_URL:-${BACKEND_HEALTH_URL:-}}"
+              ;;
+            green)
+              ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
+              SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
+              SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
+              HEALTH_URL="${GREEN_BACKEND_HEALTH_URL:-${BACKEND_HEALTH_URL:-}}"
+              ;;
+            *)
+              echo "Unsupported target slot: ${SLOT}"
+              exit 1
+              ;;
+          esac
+
+          if [ -z "${SERVER_HOST}" ]; then
+            echo "Slot ${SLOT} is missing *_BACKEND_SERVER_HOST"
+            exit 1
+          fi
+          if [ -z "${SSH_KEY}" ]; then
+            echo "Slot ${SLOT} is missing *_BACKEND_SERVER_SSH_KEY"
+            exit 1
+          fi
+          if [ -z "${HEALTH_URL}" ]; then
+            echo "Slot ${SLOT} is missing slot-specific health URL and shared BACKEND_HEALTH_URL"
+            exit 1
+          fi
+
+          echo "backend_access_host=${ACCESS_HOST}" >> "$GITHUB_OUTPUT"
+          echo "backend_server_host=${SERVER_HOST}" >> "$GITHUB_OUTPUT"
+          echo "backend_health_url=${HEALTH_URL}" >> "$GITHUB_OUTPUT"
+          {
+            echo "backend_server_ssh_key<<__SSHKEY__"
+            printf '%s\n' "${SSH_KEY}"
+            echo "__SSHKEY__"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         if: steps.branch_guard.outputs.should_deploy == 'true'
@@ -101,10 +179,10 @@ jobs:
       - name: Validate required environment secrets
         if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
-          BACKEND_SERVER_HOST: ${{ secrets.BACKEND_SERVER_HOST }}
+          BACKEND_ACCESS_HOST: ${{ steps.slot_config.outputs.backend_access_host }}
+          BACKEND_SERVER_HOST: ${{ steps.slot_config.outputs.backend_server_host }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
-          BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          BACKEND_SERVER_SSH_KEY: ${{ steps.slot_config.outputs.backend_server_ssh_key }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
@@ -128,7 +206,7 @@ jobs:
           LOGIN_RATE_LIMIT_IP_MAX_FAILURES: ${{ secrets.LOGIN_RATE_LIMIT_IP_MAX_FAILURES }}
           LOGIN_RATE_LIMIT_WINDOW_SECONDS: ${{ secrets.LOGIN_RATE_LIMIT_WINDOW_SECONDS }}
           LOGIN_RATE_LIMIT_LOCK_SECONDS: ${{ secrets.LOGIN_RATE_LIMIT_LOCK_SECONDS }}
-          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
+          BACKEND_HEALTH_URL: ${{ steps.slot_config.outputs.backend_health_url }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
           RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
@@ -140,6 +218,7 @@ jobs:
           RABBITMQ_QUEUE_REPORT: ${{ secrets.RABBITMQ_QUEUE_REPORT }}
           RABBITMQ_QUEUE_DLQ: ${{ secrets.RABBITMQ_QUEUE_DLQ }}
           RABBITMQ_QUEUE_INTERNAL_TASKS: ${{ secrets.RABBITMQ_QUEUE_INTERNAL_TASKS }}
+          RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY: ${{ secrets.RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY }}
           INTERNAL_TASK_CONSUMER_ENABLED: ${{ secrets.INTERNAL_TASK_CONSUMER_ENABLED }}
           INTERNAL_TASK_CONSUMER_DRY_RUN: ${{ secrets.INTERNAL_TASK_CONSUMER_DRY_RUN }}
           INTERNAL_TASK_CONSUMER_CONCURRENCY: ${{ secrets.INTERNAL_TASK_CONSUMER_CONCURRENCY }}
@@ -169,15 +248,13 @@ jobs:
           STORAGE_PRIMARY_BUCKET: ${{ secrets.STORAGE_PRIMARY_BUCKET }}
           STORAGE_BACKUP_NAMESPACE: ${{ secrets.STORAGE_BACKUP_NAMESPACE }}
           STORAGE_BACKUP_BUCKET: ${{ secrets.STORAGE_BACKUP_BUCKET }}
+          CORS_ALLOWED_ORIGIN_PATTERNS: ${{ secrets.CORS_ALLOWED_ORIGIN_PATTERNS }}
         run: |
           set -euo pipefail
           required_vars=(
             BACKEND_SERVER_HOST
             BACKEND_SERVER_USER
             BACKEND_SERVER_SSH_KEY
-            BACKEND_ACCESS_HOST
-            CF_ACCESS_CLIENT_ID
-            CF_ACCESS_CLIENT_SECRET
             BACKEND_APP_DIR
             SPRING_DB_URL
             SPRING_DB_USERNAME
@@ -195,6 +272,7 @@ jobs:
             RABBITMQ_EXCHANGE
             RABBITMQ_QUEUE_REPORT
             RABBITMQ_QUEUE_DLQ
+            RABBITMQ_QUEUE_INTERNAL_TASKS
             STORAGE_API_AUTH_ENABLED
             STORAGE_API_KEY_VALUE
             STORAGE_API_GLOBAL_ACCESS
@@ -218,6 +296,7 @@ jobs:
             STORAGE_PRIMARY_BUCKET
             STORAGE_BACKUP_NAMESPACE
             STORAGE_BACKUP_BUCKET
+            CORS_ALLOWED_ORIGIN_PATTERNS
           )
           missing_vars=()
           for v in "${required_vars[@]}"; do
@@ -228,6 +307,16 @@ jobs:
           if [ "${#missing_vars[@]}" -gt 0 ]; then
             echo "Missing required secrets: ${missing_vars[*]}"
             exit 1
+          fi
+
+          if [ -n "${BACKEND_ACCESS_HOST:-}" ]; then
+            if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+              echo "BACKEND_ACCESS_HOST is set, so CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are also required."
+              exit 1
+            fi
+            echo "SSH mode: Cloudflare Access (${BACKEND_ACCESS_HOST})"
+          else
+            echo "SSH mode: direct SSH fallback (${BACKEND_SERVER_HOST})"
           fi
 
           if [ "${TURNSTILE_ENABLED:-false}" = "true" ] && [ -z "${TURNSTILE_SECRET_KEY:-}" ]; then
@@ -257,18 +346,26 @@ jobs:
 
       - name: Install cloudflared client on runner
         if: steps.branch_guard.outputs.should_deploy == 'true'
+        env:
+          BACKEND_ACCESS_HOST: ${{ steps.slot_config.outputs.backend_access_host }}
         run: |
           set -euo pipefail
+          if [ -z "${BACKEND_ACCESS_HOST:-}" ]; then
+            echo "BACKEND_ACCESS_HOST not set. Skipping cloudflared installation."
+            exit 0
+          fi
           sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
           sudo chmod +x /usr/local/bin/cloudflared
           cloudflared --version
 
-      - name: Configure SSH over Cloudflare Access
+      - name: Configure SSH connection
         if: steps.branch_guard.outputs.should_deploy == 'true'
+        id: ssh_config
         env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
+          BACKEND_ACCESS_HOST: ${{ steps.slot_config.outputs.backend_access_host }}
+          BACKEND_SERVER_HOST: ${{ steps.slot_config.outputs.backend_server_host }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
-          BACKEND_SERVER_SSH_KEY: ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          BACKEND_SERVER_SSH_KEY: ${{ steps.slot_config.outputs.backend_server_ssh_key }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
@@ -277,12 +374,13 @@ jobs:
           chmod 700 ~/.ssh
 
           cat > ~/.ssh/backend_key <<'KEY_EOF'
-          ${{ secrets.BACKEND_SERVER_SSH_KEY }}
+          ${{ steps.slot_config.outputs.backend_server_ssh_key }}
           KEY_EOF
           chmod 600 ~/.ssh/backend_key
 
-          cat > ~/.ssh/config <<EOF
-          Host ${BACKEND_ACCESS_HOST}
+          if [ -n "${BACKEND_ACCESS_HOST:-}" ]; then
+            cat > ~/.ssh/config <<EOF
+          Host backend-target
             HostName ${BACKEND_ACCESS_HOST}
             User ${BACKEND_SERVER_USER}
             Port 22
@@ -292,28 +390,44 @@ jobs:
             ServerAliveInterval 30
             ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
           EOF
+            echo "target_host=backend-target" >> "$GITHUB_OUTPUT"
+            echo "Configured Cloudflare Access SSH for ${BACKEND_ACCESS_HOST}"
+          else
+            cat > ~/.ssh/config <<EOF
+          Host backend-target
+            HostName ${BACKEND_SERVER_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/backend_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+          EOF
+            echo "target_host=backend-target" >> "$GITHUB_OUTPUT"
+            echo "Configured direct SSH for ${BACKEND_SERVER_HOST}"
+          fi
           chmod 600 ~/.ssh/config
-          ssh -o BatchMode=yes -o ConnectTimeout=10 "${BACKEND_ACCESS_HOST}" "echo ssh_ok"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 backend-target "echo ssh_ok"
 
       - name: Upload artifacts to server (Cloudflare SSH)
         if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
+          TARGET_SSH_HOST: ${{ steps.ssh_config.outputs.target_host }}
         run: |
           set -euo pipefail
-          ssh "${BACKEND_ACCESS_HOST}" "mkdir -p '${BACKEND_APP_DIR}/logs'"
-          scp app.jar "${BACKEND_ACCESS_HOST}:${BACKEND_APP_DIR}/app.jar"
+          ssh "${TARGET_SSH_HOST}" "mkdir -p '${BACKEND_APP_DIR}/logs'"
+          scp app.jar "${TARGET_SSH_HOST}:${BACKEND_APP_DIR}/app.jar"
 
       - name: Repair Flyway failed migrations
         if: steps.branch_guard.outputs.should_deploy == 'true'
         continue-on-error: true
         env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
           SPRING_DB_URL: ${{ secrets.SPRING_DB_URL }}
           SPRING_DB_USERNAME: ${{ secrets.SPRING_DB_USERNAME }}
           SPRING_DB_PASSWORD: ${{ secrets.SPRING_DB_PASSWORD }}
           FLYWAY_V19_CHECKSUM: ${{ steps.v19_checksum.outputs.value }}
+          TARGET_SSH_HOST: ${{ steps.ssh_config.outputs.target_host }}
         run: |
             set -euo pipefail
             SPRING_DB_URL_B64="$(printf '%s' "${SPRING_DB_URL}" | base64 | tr -d '\n')"
@@ -321,7 +435,7 @@ jobs:
             SPRING_DB_PASSWORD_B64="$(printf '%s' "${SPRING_DB_PASSWORD}" | base64 | tr -d '\n')"
             FLYWAY_V19_CHECKSUM_B64="$(printf '%s' "${FLYWAY_V19_CHECKSUM}" | base64 | tr -d '\n')"
 
-            ssh "${BACKEND_ACCESS_HOST}" \
+            ssh "${TARGET_SSH_HOST}" \
               "SPRING_DB_URL_B64='${SPRING_DB_URL_B64}' SPRING_DB_USERNAME_B64='${SPRING_DB_USERNAME_B64}' SPRING_DB_PASSWORD_B64='${SPRING_DB_PASSWORD_B64}' FLYWAY_V19_CHECKSUM_B64='${FLYWAY_V19_CHECKSUM_B64}' bash -se" <<'REMOTE'
             set -euo pipefail
             SPRING_DB_URL="$(printf '%s' "${SPRING_DB_URL_B64}" | base64 -d)"
@@ -505,10 +619,9 @@ jobs:
       - name: Restart backend (Cloudflare SSH)
         if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
-          BACKEND_ACCESS_HOST: ${{ secrets.BACKEND_ACCESS_HOST }}
-          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
+          BACKEND_HEALTH_URL: ${{ steps.slot_config.outputs.backend_health_url }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          TARGET_SSH_HOST: ${{ steps.ssh_config.outputs.target_host }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_ACCESS_EXPIRATION: ${{ secrets.JWT_ACCESS_EXPIRATION }}
           AI_SERVER_BASE_URL: ${{ secrets.AI_SERVER_BASE_URL }}
@@ -542,6 +655,7 @@ jobs:
           RABBITMQ_QUEUE_REPORT: ${{ secrets.RABBITMQ_QUEUE_REPORT }}
           RABBITMQ_QUEUE_DLQ: ${{ secrets.RABBITMQ_QUEUE_DLQ }}
           RABBITMQ_QUEUE_INTERNAL_TASKS: ${{ secrets.RABBITMQ_QUEUE_INTERNAL_TASKS }}
+          RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY: ${{ secrets.RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY }}
           INTERNAL_TASK_CONSUMER_ENABLED: ${{ secrets.INTERNAL_TASK_CONSUMER_ENABLED }}
           INTERNAL_TASK_CONSUMER_DRY_RUN: ${{ secrets.INTERNAL_TASK_CONSUMER_DRY_RUN }}
           INTERNAL_TASK_CONSUMER_CONCURRENCY: ${{ secrets.INTERNAL_TASK_CONSUMER_CONCURRENCY }}
@@ -639,7 +753,6 @@ jobs:
           fi
 
           cat > "${LOCAL_ENV_FILE}" <<EOF
-          DB_PASSWORD=${DB_PASSWORD}
           JWT_SECRET=${JWT_SECRET}
           JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
           AI_SERVER_BASE_URL=${AI_SERVER_BASE_URL}
@@ -673,6 +786,7 @@ jobs:
           RABBITMQ_QUEUE_REPORT=${RABBITMQ_QUEUE_REPORT}
           RABBITMQ_QUEUE_DLQ=${RABBITMQ_QUEUE_DLQ}
           RABBITMQ_QUEUE_INTERNAL_TASKS=${RABBITMQ_QUEUE_INTERNAL_TASKS:-q.internal.tasks}
+          RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY=${RABBITMQ_INTERNAL_TASKS_DLQ_ROUTING_KEY:-internal.tasks.dlq}
           INTERNAL_TASK_CONSUMER_ENABLED=${INTERNAL_TASK_CONSUMER_ENABLED:-false}
           INTERNAL_TASK_CONSUMER_DRY_RUN=${INTERNAL_TASK_CONSUMER_DRY_RUN:-true}
           INTERNAL_TASK_CONSUMER_CONCURRENCY=${INTERNAL_TASK_CONSUMER_CONCURRENCY:-1}
@@ -703,17 +817,17 @@ jobs:
           STORAGE_PRIMARY_BUCKET=${STORAGE_PRIMARY_BUCKET}
           STORAGE_BACKUP_NAMESPACE=${STORAGE_BACKUP_NAMESPACE}
           STORAGE_BACKUP_BUCKET=${STORAGE_BACKUP_BUCKET}
-          CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS:-}
+          CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS:-https://withbuddy.itsdev.kr,https://*.vercel.app}
           SPRING_PROFILES_ACTIVE=prod
           EOF
           chmod 600 "${LOCAL_ENV_FILE}"
 
-          scp "${LOCAL_ENV_FILE}" "${BACKEND_ACCESS_HOST}:${REMOTE_ENV_FILE}"
+          scp "${LOCAL_ENV_FILE}" "${TARGET_SSH_HOST}:${REMOTE_ENV_FILE}"
           rm -f "${LOCAL_ENV_FILE}"
 
           printf -v APP_DIR_Q '%q' "${BACKEND_APP_DIR}"
           printf -v HEALTH_URL_Q '%q' "${BACKEND_HEALTH_URL}"
-          ssh "${BACKEND_ACCESS_HOST}" "BACKEND_APP_DIR=${APP_DIR_Q} BACKEND_HEALTH_URL=${HEALTH_URL_Q} bash -s" <<'REMOTE_EOF'
+          ssh "${TARGET_SSH_HOST}" "BACKEND_APP_DIR=${APP_DIR_Q} BACKEND_HEALTH_URL=${HEALTH_URL_Q} bash -s" <<'REMOTE_EOF'
             set -euo pipefail
 
             APP_DIR="${BACKEND_APP_DIR}"
