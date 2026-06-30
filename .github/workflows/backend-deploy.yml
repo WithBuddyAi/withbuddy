@@ -143,6 +143,50 @@ jobs:
             echo "__SSHKEY__"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Resolve live slot validation settings
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        id: live_slot_validation
+        env:
+          BLUE_BACKEND_ACCESS_HOST: ${{ secrets.BLUE_BACKEND_ACCESS_HOST }}
+          BLUE_BACKEND_SERVER_HOST: ${{ secrets.BLUE_BACKEND_SERVER_HOST }}
+          BLUE_BACKEND_SERVER_SSH_KEY: ${{ secrets.BLUE_BACKEND_SERVER_SSH_KEY }}
+          TRAFFIC_SWITCH_ACCESS_HOST: ${{ secrets.TRAFFIC_SWITCH_ACCESS_HOST }}
+          TRAFFIC_SWITCH_SERVER_HOST: ${{ secrets.TRAFFIC_SWITCH_SERVER_HOST }}
+          TRAFFIC_SWITCH_SERVER_SSH_KEY: ${{ secrets.TRAFFIC_SWITCH_SERVER_SSH_KEY }}
+          NGINX_ACTIVE_UPSTREAM_LINK: ${{ secrets.NGINX_ACTIVE_UPSTREAM_LINK }}
+          NGINX_BLUE_UPSTREAM_CONF: ${{ secrets.NGINX_BLUE_UPSTREAM_CONF }}
+          NGINX_GREEN_UPSTREAM_CONF: ${{ secrets.NGINX_GREEN_UPSTREAM_CONF }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROUTER_ACCESS_HOST="${TRAFFIC_SWITCH_ACCESS_HOST:-${BLUE_BACKEND_ACCESS_HOST:-}}"
+          ROUTER_SERVER_HOST="${TRAFFIC_SWITCH_SERVER_HOST:-${BLUE_BACKEND_SERVER_HOST:-}}"
+          ROUTER_SSH_KEY="${TRAFFIC_SWITCH_SERVER_SSH_KEY:-${BLUE_BACKEND_SERVER_SSH_KEY:-}}"
+          ACTIVE_UPSTREAM_LINK="${NGINX_ACTIVE_UPSTREAM_LINK:-/etc/nginx/conf.d/upstream-active.conf}"
+          BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-blue.conf}"
+          GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-green.conf}"
+
+          if [ -z "${ROUTER_SERVER_HOST}" ]; then
+            echo "Live slot validation host is missing. Set TRAFFIC_SWITCH_SERVER_HOST or BLUE_BACKEND_SERVER_HOST."
+            exit 1
+          fi
+          if [ -z "${ROUTER_SSH_KEY}" ]; then
+            echo "Live slot validation SSH key is missing. Set TRAFFIC_SWITCH_SERVER_SSH_KEY or BLUE_BACKEND_SERVER_SSH_KEY."
+            exit 1
+          fi
+
+          echo "router_access_host=${ROUTER_ACCESS_HOST}" >> "$GITHUB_OUTPUT"
+          echo "router_server_host=${ROUTER_SERVER_HOST}" >> "$GITHUB_OUTPUT"
+          echo "router_active_upstream_link=${ACTIVE_UPSTREAM_LINK}" >> "$GITHUB_OUTPUT"
+          echo "router_blue_upstream_conf=${BLUE_UPSTREAM_CONF}" >> "$GITHUB_OUTPUT"
+          echo "router_green_upstream_conf=${GREEN_UPSTREAM_CONF}" >> "$GITHUB_OUTPUT"
+          {
+            echo "router_ssh_key<<__ROUTER_VALIDATION_SSHKEY__"
+            printf '%s\n' "${ROUTER_SSH_KEY}"
+            echo "__ROUTER_VALIDATION_SSHKEY__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         if: steps.branch_guard.outputs.should_deploy == 'true'
         uses: actions/checkout@v4
@@ -378,10 +422,11 @@ jobs:
         if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
           BACKEND_ACCESS_HOST: ${{ steps.slot_config.outputs.backend_access_host }}
+          ROUTER_ACCESS_HOST: ${{ steps.live_slot_validation.outputs.router_access_host }}
         run: |
           set -euo pipefail
-          if [ -z "${BACKEND_ACCESS_HOST:-}" ]; then
-            echo "BACKEND_ACCESS_HOST not set. Skipping cloudflared installation."
+          if [ -z "${BACKEND_ACCESS_HOST:-}" ] && [ -z "${ROUTER_ACCESS_HOST:-}" ]; then
+            echo "No Cloudflare Access hosts configured. Skipping cloudflared installation."
             exit 0
           fi
           sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
@@ -396,6 +441,9 @@ jobs:
           BACKEND_SERVER_HOST: ${{ steps.slot_config.outputs.backend_server_host }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
           BACKEND_SERVER_SSH_KEY: ${{ steps.slot_config.outputs.backend_server_ssh_key }}
+          ROUTER_ACCESS_HOST: ${{ steps.live_slot_validation.outputs.router_access_host }}
+          ROUTER_SERVER_HOST: ${{ steps.live_slot_validation.outputs.router_server_host }}
+          ROUTER_SSH_KEY: ${{ steps.live_slot_validation.outputs.router_ssh_key }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
@@ -407,6 +455,11 @@ jobs:
           ${{ steps.slot_config.outputs.backend_server_ssh_key }}
           KEY_EOF
           chmod 600 ~/.ssh/backend_key
+
+          cat > ~/.ssh/router_key <<'KEY_EOF'
+          ${{ steps.live_slot_validation.outputs.router_ssh_key }}
+          KEY_EOF
+          chmod 600 ~/.ssh/router_key
 
           if [ -n "${BACKEND_ACCESS_HOST:-}" ]; then
             cat > ~/.ssh/config <<EOF
@@ -437,8 +490,90 @@ jobs:
             echo "Configured direct SSH for ${BACKEND_SERVER_HOST}"
           fi
 
+          if [ -n "${ROUTER_ACCESS_HOST:-}" ]; then
+            cat >> ~/.ssh/config <<EOF
+
+          Host router-target
+            HostName ${ROUTER_ACCESS_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/router_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+            echo "Configured Cloudflare Access SSH for router ${ROUTER_ACCESS_HOST}"
+          else
+            cat >> ~/.ssh/config <<EOF
+
+          Host router-target
+            HostName ${ROUTER_SERVER_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/router_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+          EOF
+            echo "Configured direct SSH for router ${ROUTER_SERVER_HOST}"
+          fi
+
           chmod 600 ~/.ssh/config
+          echo "router_host=router-target" >> "$GITHUB_OUTPUT"
           ssh -o BatchMode=yes -o ConnectTimeout=10 backend-target "echo ssh_ok"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 router-target "echo ssh_ok"
+
+      - name: Validate current live slot on router
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        env:
+          EXPECTED_LIVE_SLOT: ${{ github.event.inputs.live_slot }}
+          ROUTER_SSH_HOST: ${{ steps.ssh_config.outputs.router_host }}
+          ACTIVE_UPSTREAM_LINK: ${{ steps.live_slot_validation.outputs.router_active_upstream_link }}
+          BLUE_UPSTREAM_CONF: ${{ steps.live_slot_validation.outputs.router_blue_upstream_conf }}
+          GREEN_UPSTREAM_CONF: ${{ steps.live_slot_validation.outputs.router_green_upstream_conf }}
+        run: |
+          set -euo pipefail
+          printf -v EXPECTED_LIVE_SLOT_Q '%q' "${EXPECTED_LIVE_SLOT}"
+          printf -v ACTIVE_UPSTREAM_LINK_Q '%q' "${ACTIVE_UPSTREAM_LINK}"
+          printf -v BLUE_UPSTREAM_CONF_Q '%q' "${BLUE_UPSTREAM_CONF}"
+          printf -v GREEN_UPSTREAM_CONF_Q '%q' "${GREEN_UPSTREAM_CONF}"
+
+          ssh "${ROUTER_SSH_HOST}" \
+            "EXPECTED_LIVE_SLOT=${EXPECTED_LIVE_SLOT_Q} ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} BLUE_UPSTREAM_CONF=${BLUE_UPSTREAM_CONF_Q} GREEN_UPSTREAM_CONF=${GREEN_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
+            set -euo pipefail
+
+            if [ ! -e "${ACTIVE_UPSTREAM_LINK}" ]; then
+              echo "Missing active upstream file: ${ACTIVE_UPSTREAM_LINK}"
+              exit 1
+            fi
+            if [ ! -f "${BLUE_UPSTREAM_CONF}" ] || [ ! -f "${GREEN_UPSTREAM_CONF}" ]; then
+              echo "Missing blue/green upstream reference files."
+              exit 1
+            fi
+
+            ACTIVE_REALPATH="$(sudo readlink -f "${ACTIVE_UPSTREAM_LINK}" 2>/dev/null || true)"
+            CURRENT_LIVE_SLOT=""
+
+            if [ -n "${ACTIVE_REALPATH}" ] && [ "${ACTIVE_REALPATH}" = "${BLUE_UPSTREAM_CONF}" ]; then
+              CURRENT_LIVE_SLOT="blue"
+            elif [ -n "${ACTIVE_REALPATH}" ] && [ "${ACTIVE_REALPATH}" = "${GREEN_UPSTREAM_CONF}" ]; then
+              CURRENT_LIVE_SLOT="green"
+            elif sudo cmp -s "${ACTIVE_UPSTREAM_LINK}" "${BLUE_UPSTREAM_CONF}"; then
+              CURRENT_LIVE_SLOT="blue"
+            elif sudo cmp -s "${ACTIVE_UPSTREAM_LINK}" "${GREEN_UPSTREAM_CONF}"; then
+              CURRENT_LIVE_SLOT="green"
+            else
+              echo "Unable to determine current live slot from ${ACTIVE_UPSTREAM_LINK}"
+              exit 1
+            fi
+
+            echo "Router reports current live slot=${CURRENT_LIVE_SLOT}"
+            if [ "${CURRENT_LIVE_SLOT}" != "${EXPECTED_LIVE_SLOT}" ]; then
+              echo "Stale live_slot input. expected=${EXPECTED_LIVE_SLOT} actual=${CURRENT_LIVE_SLOT}"
+              exit 1
+            fi
+          REMOTE_EOF
 
       - name: Upload artifacts to server (Cloudflare SSH)
         if: steps.branch_guard.outputs.should_deploy == 'true'
