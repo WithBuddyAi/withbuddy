@@ -24,14 +24,15 @@ on:
         default: true
         type: boolean
 
+concurrency:
+  group: backend-deploy-${{ github.ref }}-${{ github.event.inputs.target_slot }}
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
-    concurrency:
-      group: backend-deploy-${{ github.ref }}-${{ github.event.inputs.target_slot }}
-      cancel-in-progress: true
 
     steps:
       - name: Branch guard
