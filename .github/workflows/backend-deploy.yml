@@ -24,15 +24,14 @@ on:
         default: true
         type: boolean
 
-concurrency:
-  group: backend-deploy-${{ github.ref }}-${{ github.event.inputs.target_slot }}
-  cancel-in-progress: true
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
+    concurrency:
+      group: backend-deploy-${{ github.ref }}-${{ github.event.inputs.target_slot }}
+      cancel-in-progress: true
 
     steps:
       - name: Branch guard
@@ -617,6 +616,9 @@ jobs:
       - name: Restart backend (Cloudflare SSH)
         if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+          DEPLOY_RUN_ATTEMPT: ${{ github.run_attempt }}
+          TARGET_SLOT: ${{ github.event.inputs.target_slot }}
           BACKEND_HEALTH_URL: ${{ steps.slot_config.outputs.backend_health_url }}
           BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
           TARGET_SSH_HOST: ${{ steps.ssh_config.outputs.target_host }}
@@ -826,7 +828,10 @@ jobs:
 
           printf -v APP_DIR_Q '%q' "${BACKEND_APP_DIR}"
           printf -v HEALTH_URL_Q '%q' "${BACKEND_HEALTH_URL}"
-          ssh "${TARGET_SSH_HOST}" "BACKEND_APP_DIR=${APP_DIR_Q} BACKEND_HEALTH_URL=${HEALTH_URL_Q} bash -s" <<'REMOTE_EOF'
+          printf -v DEPLOY_RUN_ID_Q '%q' "${DEPLOY_RUN_ID}"
+          printf -v DEPLOY_RUN_ATTEMPT_Q '%q' "${DEPLOY_RUN_ATTEMPT}"
+          printf -v TARGET_SLOT_Q '%q' "${TARGET_SLOT}"
+          ssh "${TARGET_SSH_HOST}" "BACKEND_APP_DIR=${APP_DIR_Q} BACKEND_HEALTH_URL=${HEALTH_URL_Q} DEPLOY_RUN_ID=${DEPLOY_RUN_ID_Q} DEPLOY_RUN_ATTEMPT=${DEPLOY_RUN_ATTEMPT_Q} TARGET_SLOT=${TARGET_SLOT_Q} bash -s" <<'REMOTE_EOF'
             set -euo pipefail
 
             APP_DIR="${BACKEND_APP_DIR}"
@@ -834,6 +839,7 @@ jobs:
             CANDIDATE_JAR_PATH="${APP_DIR}/app.jar.candidate"
             ENV_PATH="/etc/withbuddy-backend.env"
             TMP_ENV_PATH="${APP_DIR}/backend.env.tmp"
+            DEPLOY_METADATA_PATH="${APP_DIR}/deploy-metadata.env"
             SERVICE_NAME="withbuddy-backend.service"
             RELEASE_ID="$(date +%Y%m%d%H%M%S)"
             BACKUP_DIR="${APP_DIR}/releases/${RELEASE_ID}"
@@ -1062,6 +1068,14 @@ jobs:
 
             if health_check_with_retries; then
               DEPLOYMENT_COMPLETED="true"
+              printf '%s\n' \
+                "DEPLOY_RUN_ID=${DEPLOY_RUN_ID}" \
+                "DEPLOY_RUN_ATTEMPT=${DEPLOY_RUN_ATTEMPT}" \
+                "TARGET_SLOT=${TARGET_SLOT}" \
+                "DEPLOY_RELEASE_ID=${RELEASE_ID}" \
+                "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                > "${DEPLOY_METADATA_PATH}.tmp"
+              mv "${DEPLOY_METADATA_PATH}.tmp" "${DEPLOY_METADATA_PATH}"
               cleanup_old_releases
               echo "Deployment succeeded."
               exit 0
@@ -1094,8 +1108,11 @@ jobs:
         id: traffic_switch_config
         env:
           BLUE_BACKEND_ACCESS_HOST: ${{ secrets.BLUE_BACKEND_ACCESS_HOST }}
+          GREEN_BACKEND_ACCESS_HOST: ${{ secrets.GREEN_BACKEND_ACCESS_HOST }}
           BLUE_BACKEND_SERVER_HOST: ${{ secrets.BLUE_BACKEND_SERVER_HOST }}
+          GREEN_BACKEND_SERVER_HOST: ${{ secrets.GREEN_BACKEND_SERVER_HOST }}
           BLUE_BACKEND_SERVER_SSH_KEY: ${{ secrets.BLUE_BACKEND_SERVER_SSH_KEY }}
+          GREEN_BACKEND_SERVER_SSH_KEY: ${{ secrets.GREEN_BACKEND_SERVER_SSH_KEY }}
           TRAFFIC_SWITCH_ACCESS_HOST: ${{ secrets.TRAFFIC_SWITCH_ACCESS_HOST }}
           TRAFFIC_SWITCH_SERVER_HOST: ${{ secrets.TRAFFIC_SWITCH_SERVER_HOST }}
           TRAFFIC_SWITCH_SERVER_SSH_KEY: ${{ secrets.TRAFFIC_SWITCH_SERVER_SSH_KEY }}
@@ -1138,9 +1155,15 @@ jobs:
 
           case "${TARGET_SLOT}" in
             blue)
+              TARGET_BACKEND_ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
+              TARGET_BACKEND_SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
+              TARGET_BACKEND_SERVER_SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
               TARGET_UPSTREAM_CONF="${BLUE_UPSTREAM_CONF}"
               ;;
             green)
+              TARGET_BACKEND_ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
+              TARGET_BACKEND_SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
+              TARGET_BACKEND_SERVER_SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
               TARGET_UPSTREAM_CONF="${GREEN_UPSTREAM_CONF}"
               ;;
             *)
@@ -1148,6 +1171,15 @@ jobs:
               exit 1
               ;;
           esac
+
+          if [ -z "${TARGET_BACKEND_SERVER_HOST}" ]; then
+            echo "Target slot ${TARGET_SLOT} is missing *_BACKEND_SERVER_HOST."
+            exit 1
+          fi
+          if [ -z "${TARGET_BACKEND_SERVER_SSH_KEY}" ]; then
+            echo "Target slot ${TARGET_SLOT} is missing *_BACKEND_SERVER_SSH_KEY."
+            exit 1
+          fi
 
           case "${LIVE_SLOT}" in
             blue)
@@ -1168,20 +1200,28 @@ jobs:
           echo "traffic_switch_active_upstream_link=${ACTIVE_UPSTREAM_LINK}" >> "$GITHUB_OUTPUT"
           echo "traffic_switch_target_upstream_conf=${TARGET_UPSTREAM_CONF}" >> "$GITHUB_OUTPUT"
           echo "traffic_switch_previous_upstream_conf=${PREVIOUS_UPSTREAM_CONF}" >> "$GITHUB_OUTPUT"
+          echo "target_backend_access_host=${TARGET_BACKEND_ACCESS_HOST}" >> "$GITHUB_OUTPUT"
+          echo "target_backend_server_host=${TARGET_BACKEND_SERVER_HOST}" >> "$GITHUB_OUTPUT"
           echo "target_slot=${TARGET_SLOT}" >> "$GITHUB_OUTPUT"
           echo "live_slot=${LIVE_SLOT}" >> "$GITHUB_OUTPUT"
           {
-            echo "traffic_switch_ssh_key<<__SSHKEY__"
+            echo "traffic_switch_ssh_key<<__ROUTER_SSHKEY__"
             printf '%s\n' "${ROUTER_SSH_KEY}"
-            echo "__SSHKEY__"
+            echo "__ROUTER_SSHKEY__"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "target_backend_ssh_key<<__TARGET_BACKEND_SSHKEY__"
+            printf '%s\n' "${TARGET_BACKEND_SERVER_SSH_KEY}"
+            echo "__TARGET_BACKEND_SSHKEY__"
           } >> "$GITHUB_OUTPUT"
 
       - name: Install cloudflared client on runner
         env:
+          TARGET_BACKEND_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.target_backend_access_host }}
           TRAFFIC_SWITCH_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_access_host }}
         run: |
           set -euo pipefail
-          if [ -z "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ]; then
+          if [ -z "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ] && [ -z "${TARGET_BACKEND_ACCESS_HOST:-}" ]; then
             echo "No Cloudflare Access hosts configured. Skipping cloudflared installation."
             exit 0
           fi
@@ -1196,6 +1236,9 @@ jobs:
           TRAFFIC_SWITCH_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_server_host }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
           TRAFFIC_SWITCH_SSH_KEY: ${{ steps.traffic_switch_config.outputs.traffic_switch_ssh_key }}
+          TARGET_BACKEND_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.target_backend_access_host }}
+          TARGET_BACKEND_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.target_backend_server_host }}
+          TARGET_BACKEND_SSH_KEY: ${{ steps.traffic_switch_config.outputs.target_backend_ssh_key }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
@@ -1207,6 +1250,11 @@ jobs:
           ${{ steps.traffic_switch_config.outputs.traffic_switch_ssh_key }}
           KEY_EOF
           chmod 600 ~/.ssh/traffic_switch_key
+
+          cat > ~/.ssh/target_backend_key <<'KEY_EOF'
+          ${{ steps.traffic_switch_config.outputs.target_backend_ssh_key }}
+          KEY_EOF
+          chmod 600 ~/.ssh/target_backend_key
 
           if [ -n "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ]; then
             cat > ~/.ssh/config <<EOF
@@ -1235,9 +1283,77 @@ jobs:
             echo "Configured direct SSH for traffic switch host ${TRAFFIC_SWITCH_SERVER_HOST}"
           fi
 
+          if [ -n "${TARGET_BACKEND_ACCESS_HOST:-}" ]; then
+            cat >> ~/.ssh/config <<EOF
+
+          Host target-backend
+            HostName ${TARGET_BACKEND_ACCESS_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/target_backend_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+            echo "Configured Cloudflare Access SSH for target backend ${TARGET_BACKEND_ACCESS_HOST}"
+          else
+            cat >> ~/.ssh/config <<EOF
+
+          Host target-backend
+            HostName ${TARGET_BACKEND_SERVER_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/target_backend_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+          EOF
+            echo "Configured direct SSH for target backend ${TARGET_BACKEND_SERVER_HOST}"
+          fi
+
           chmod 600 ~/.ssh/config
           echo "traffic_switch_host=traffic-switch-target" >> "$GITHUB_OUTPUT"
+          echo "target_backend_host=target-backend" >> "$GITHUB_OUTPUT"
           ssh -o BatchMode=yes -o ConnectTimeout=10 traffic-switch-target "echo ssh_ok"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 target-backend "echo ssh_ok"
+
+      - name: Verify target slot still matches this deployment
+        env:
+          BACKEND_APP_DIR: ${{ secrets.BACKEND_APP_DIR }}
+          EXPECTED_RUN_ID: ${{ github.run_id }}
+          EXPECTED_TARGET_SLOT: ${{ steps.traffic_switch_config.outputs.target_slot }}
+          TARGET_BACKEND_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.target_backend_host }}
+        run: |
+          set -euo pipefail
+          printf -v APP_DIR_Q '%q' "${BACKEND_APP_DIR}"
+          printf -v EXPECTED_RUN_ID_Q '%q' "${EXPECTED_RUN_ID}"
+          printf -v EXPECTED_TARGET_SLOT_Q '%q' "${EXPECTED_TARGET_SLOT}"
+
+          ssh "${TARGET_BACKEND_SSH_HOST}" \
+            "BACKEND_APP_DIR=${APP_DIR_Q} EXPECTED_RUN_ID=${EXPECTED_RUN_ID_Q} EXPECTED_TARGET_SLOT=${EXPECTED_TARGET_SLOT_Q} bash -s" <<'REMOTE_EOF'
+            set -euo pipefail
+
+            DEPLOY_METADATA_PATH="${BACKEND_APP_DIR}/deploy-metadata.env"
+            if [ ! -f "${DEPLOY_METADATA_PATH}" ]; then
+              echo "Missing deploy metadata: ${DEPLOY_METADATA_PATH}"
+              exit 1
+            fi
+
+            # shellcheck disable=SC1090
+            source "${DEPLOY_METADATA_PATH}"
+
+            if [ "${DEPLOY_RUN_ID:-}" != "${EXPECTED_RUN_ID}" ]; then
+              echo "Target slot was superseded by another deployment. expected=${EXPECTED_RUN_ID} actual=${DEPLOY_RUN_ID:-missing}"
+              exit 1
+            fi
+            if [ "${TARGET_SLOT:-}" != "${EXPECTED_TARGET_SLOT}" ]; then
+              echo "Target slot metadata mismatch. expected=${EXPECTED_TARGET_SLOT} actual=${TARGET_SLOT:-missing}"
+              exit 1
+            fi
+
+            echo "Target slot deployment marker matches current run."
+          REMOTE_EOF
 
       - name: Switch production traffic to deployed slot
         env:
