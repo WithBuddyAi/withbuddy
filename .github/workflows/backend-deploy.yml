@@ -11,6 +11,18 @@ on:
         options:
           - blue
           - green
+      live_slot:
+        description: "Current live slot receiving production traffic"
+        required: true
+        type: choice
+        options:
+          - blue
+          - green
+      switch_traffic:
+        description: "Switch production traffic to target_slot after deploy"
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: backend-deploy-${{ github.ref }}-${{ github.event.inputs.target_slot }}
@@ -31,6 +43,8 @@ jobs:
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             echo "Production deploy enabled for ${GITHUB_REF}"
             echo "target_slot=${{ github.event.inputs.target_slot }}" >> "$GITHUB_OUTPUT"
+            echo "live_slot=${{ github.event.inputs.live_slot }}" >> "$GITHUB_OUTPUT"
+            echo "switch_traffic=${{ github.event.inputs.switch_traffic }}" >> "$GITHUB_OUTPUT"
           else
             echo "should_deploy=false" >> "$GITHUB_OUTPUT"
             echo "Deploy Backend is production-only."
@@ -46,6 +60,8 @@ jobs:
           case "${{ steps.branch_guard.outputs.target_slot }}" in
             blue|green)
               echo "Deploying backend to slot=${{ steps.branch_guard.outputs.target_slot }}"
+              echo "Current live slot=${{ steps.branch_guard.outputs.live_slot }}"
+              echo "Traffic switch requested=${{ steps.branch_guard.outputs.switch_traffic }}"
               echo "GitHub environment=production"
               ;;
             *)
@@ -53,6 +69,20 @@ jobs:
               exit 1
               ;;
           esac
+
+          case "${{ steps.branch_guard.outputs.live_slot }}" in
+            blue|green)
+              ;;
+            *)
+              echo "Invalid live_slot: ${{ steps.branch_guard.outputs.live_slot }}"
+              exit 1
+              ;;
+          esac
+
+          if [ "${{ steps.branch_guard.outputs.target_slot }}" = "${{ steps.branch_guard.outputs.live_slot }}" ]; then
+            echo "target_slot and live_slot must be different for blue/green deployment."
+            exit 1
+          fi
 
       - name: Resolve slot-specific deploy settings
         if: steps.branch_guard.outputs.should_deploy == 'true'
@@ -406,6 +436,7 @@ jobs:
             echo "target_host=backend-target" >> "$GITHUB_OUTPUT"
             echo "Configured direct SSH for ${BACKEND_SERVER_HOST}"
           fi
+
           chmod 600 ~/.ssh/config
           ssh -o BatchMode=yes -o ConnectTimeout=10 backend-target "echo ssh_ok"
 
@@ -417,7 +448,8 @@ jobs:
         run: |
           set -euo pipefail
           ssh "${TARGET_SSH_HOST}" "mkdir -p '${BACKEND_APP_DIR}/logs'"
-          scp app.jar "${TARGET_SSH_HOST}:${BACKEND_APP_DIR}/app.jar"
+          ssh "${TARGET_SSH_HOST}" "rm -f '${BACKEND_APP_DIR}/app.jar.candidate'"
+          scp app.jar "${TARGET_SSH_HOST}:${BACKEND_APP_DIR}/app.jar.candidate"
 
       - name: Repair Flyway failed migrations
         if: steps.branch_guard.outputs.should_deploy == 'true'
@@ -832,21 +864,39 @@ jobs:
 
             APP_DIR="${BACKEND_APP_DIR}"
             JAR_PATH="${APP_DIR}/app.jar"
+            CANDIDATE_JAR_PATH="${APP_DIR}/app.jar.candidate"
             ENV_PATH="/etc/withbuddy-backend.env"
             TMP_ENV_PATH="${APP_DIR}/backend.env.tmp"
             SERVICE_NAME="withbuddy-backend.service"
+            RELEASE_ID="$(date +%Y%m%d%H%M%S)"
+            BACKUP_DIR="${APP_DIR}/releases/${RELEASE_ID}"
+            BACKUP_JAR_PATH="${BACKUP_DIR}/app.jar"
+            BACKUP_ENV_PATH="${BACKUP_DIR}/withbuddy-backend.env"
+            RELEASE_RETENTION_COUNT="${RELEASE_RETENTION_COUNT:-5}"
             HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8080/actuator/health/liveness}"
             FALLBACK_HEALTH_URL=""
             LOCAL_HEALTH_URL="http://127.0.0.1:8080/actuator/health/liveness"
+            HAS_PREVIOUS_JAR="false"
+            HAS_PREVIOUS_ENV="false"
+            DEPLOYMENT_COMPLETED="false"
             case "${HEALTH_URL}" in
               */actuator/health)
                 FALLBACK_HEALTH_URL="${HEALTH_URL}/liveness"
                 ;;
             esac
 
-            mkdir -p "${APP_DIR}" "${APP_DIR}/logs"
-            test -f "${JAR_PATH}"
+            mkdir -p "${APP_DIR}" "${APP_DIR}/logs" "${APP_DIR}/releases"
+            test -f "${CANDIDATE_JAR_PATH}"
             test -f "${TMP_ENV_PATH}"
+
+            cleanup_on_exit() {
+              if [ "${DEPLOYMENT_COMPLETED}" != "true" ]; then
+                rm -f "${CANDIDATE_JAR_PATH}" || true
+              fi
+              rm -f "${TMP_ENV_PATH}" || true
+            }
+
+            trap cleanup_on_exit EXIT
 
             # Read dependency URLs from tmp env before installing the final root-only env file.
             EFFECTIVE_REDIS_URL="$(awk -F= '/^REDIS_URL=/{print substr($0, index($0, "=")+1); exit}' "${TMP_ENV_PATH}")"
@@ -856,9 +906,6 @@ jobs:
               echo "ERROR: Missing REDIS_URL or RABBITMQ_URL in ${TMP_ENV_PATH}"
               exit 1
             fi
-
-            sudo install -m 600 "${TMP_ENV_PATH}" "${ENV_PATH}"
-            rm -f "${TMP_ENV_PATH}"
 
             extract_host_port() {
               local url="$1"
@@ -905,13 +952,102 @@ jobs:
             wait_for_dependency "Redis" "${REDIS_HOST}" "${REDIS_PORT}"
             wait_for_dependency "RabbitMQ" "${RABBITMQ_HOST}" "${RABBITMQ_PORT}"
 
-            sudo systemctl restart "${SERVICE_NAME}"
-            sudo systemctl is-active --quiet "${SERVICE_NAME}"
-
             collect_diagnostics() {
               echo "Collecting service diagnostics..."
               sudo systemctl status "${SERVICE_NAME}" --no-pager -l || true
               sudo journalctl -u "${SERVICE_NAME}" -n 300 --no-pager || true
+            }
+
+            health_check_with_retries() {
+              for i in {1..12}; do
+                if curl -fsS "${HEALTH_URL}"; then
+                  echo "Health check succeeded on attempt ${i}"
+                  return 0
+                fi
+                if [ -n "${FALLBACK_HEALTH_URL}" ] && curl -fsS "${FALLBACK_HEALTH_URL}"; then
+                  echo "Health check succeeded on attempt ${i} (liveness fallback)"
+                  return 0
+                fi
+                if [ "${LOCAL_HEALTH_URL}" != "${HEALTH_URL}" ] && [ "${LOCAL_HEALTH_URL}" != "${FALLBACK_HEALTH_URL}" ] && curl -fsS "${LOCAL_HEALTH_URL}"; then
+                  echo "Health check succeeded on attempt ${i} (local liveness fallback)"
+                  return 0
+                fi
+
+                if ! sudo systemctl is-active --quiet "${SERVICE_NAME}"; then
+                  echo "Service became inactive while waiting for health check (attempt ${i})."
+                  return 1
+                fi
+
+                echo "Health check failed on attempt ${i}, retrying in 5s..."
+                sleep 5
+              done
+
+              echo "Health check failed after retries."
+              return 1
+            }
+
+            backup_current_release() {
+              mkdir -p "${BACKUP_DIR}"
+              if [ -f "${JAR_PATH}" ]; then
+                cp "${JAR_PATH}" "${BACKUP_JAR_PATH}"
+                HAS_PREVIOUS_JAR="true"
+              fi
+              if sudo test -f "${ENV_PATH}"; then
+                sudo cp "${ENV_PATH}" "${BACKUP_ENV_PATH}"
+                sudo chown "$(id -un)":"$(id -gn)" "${BACKUP_ENV_PATH}"
+                HAS_PREVIOUS_ENV="true"
+              fi
+            }
+
+            cleanup_old_releases() {
+              if ! [[ "${RELEASE_RETENTION_COUNT}" =~ ^[0-9]+$ ]] || [ "${RELEASE_RETENTION_COUNT}" -lt 1 ]; then
+                echo "Invalid RELEASE_RETENTION_COUNT=${RELEASE_RETENTION_COUNT}, skipping release cleanup."
+                return 0
+              fi
+
+              mapfile -t release_dirs < <(find "${APP_DIR}/releases" -mindepth 1 -maxdepth 1 -type d | sort)
+              release_count="${#release_dirs[@]}"
+              if [ "${release_count}" -le "${RELEASE_RETENTION_COUNT}" ]; then
+                return 0
+              fi
+
+              delete_count=$((release_count - RELEASE_RETENTION_COUNT))
+              for ((idx=0; idx<delete_count; idx++)); do
+                rm -rf "${release_dirs[$idx]}"
+              done
+            }
+
+            restore_previous_release() {
+              echo "Attempting automatic rollback to previous backend release..."
+              if [ "${HAS_PREVIOUS_JAR}" != "true" ] && [ "${HAS_PREVIOUS_ENV}" != "true" ]; then
+                echo "No previous release backup available. Skipping rollback attempt."
+                return 1
+              fi
+
+              if [ "${HAS_PREVIOUS_JAR}" = "true" ] && [ -f "${BACKUP_JAR_PATH}" ]; then
+                cp "${BACKUP_JAR_PATH}" "${JAR_PATH}"
+              else
+                echo "No previous app.jar backup available."
+              fi
+
+              if [ "${HAS_PREVIOUS_ENV}" = "true" ] && [ -f "${BACKUP_ENV_PATH}" ]; then
+                sudo install -m 600 "${BACKUP_ENV_PATH}" "${ENV_PATH}"
+              else
+                echo "No previous env backup available."
+              fi
+
+              if ! sudo systemctl restart "${SERVICE_NAME}"; then
+                echo "Service restart failed during rollback."
+                return 1
+              fi
+              if health_check_with_retries; then
+                echo "Automatic rollback succeeded."
+                print_flyway_recovery_hint_if_needed
+                return 0
+              fi
+
+              echo "Automatic rollback failed."
+              return 1
             }
 
             print_flyway_recovery_hint_if_needed() {
@@ -944,34 +1080,290 @@ jobs:
               fi
             }
 
-            for i in {1..12}; do
-              if curl -fsS "${HEALTH_URL}"; then
-                echo "Health check succeeded on attempt ${i}"
-                exit 0
-              fi
-              if [ -n "${FALLBACK_HEALTH_URL}" ] && curl -fsS "${FALLBACK_HEALTH_URL}"; then
-                echo "Health check succeeded on attempt ${i} (liveness fallback)"
-                exit 0
-              fi
-              if [ "${LOCAL_HEALTH_URL}" != "${HEALTH_URL}" ] && [ "${LOCAL_HEALTH_URL}" != "${FALLBACK_HEALTH_URL}" ] && curl -fsS "${LOCAL_HEALTH_URL}"; then
-                echo "Health check succeeded on attempt ${i} (local liveness fallback)"
-                exit 0
-              fi
+            backup_current_release
 
-              if ! sudo systemctl is-active --quiet "${SERVICE_NAME}"; then
-                echo "Service became inactive while waiting for health check (attempt ${i})."
-                collect_diagnostics
-                print_flyway_recovery_hint_if_needed
+            mv "${CANDIDATE_JAR_PATH}" "${JAR_PATH}"
+            sudo install -m 600 "${TMP_ENV_PATH}" "${ENV_PATH}"
+            rm -f "${TMP_ENV_PATH}"
+
+            if ! sudo systemctl restart "${SERVICE_NAME}"; then
+              echo "Service restart failed immediately after deployment."
+              collect_diagnostics
+              print_flyway_recovery_hint_if_needed
+              if restore_previous_release; then
                 exit 1
               fi
+              collect_diagnostics
+              print_flyway_recovery_hint_if_needed
+              exit 1
+            fi
 
-              echo "Health check failed on attempt ${i}, retrying in 5s..."
-              sleep 5
-            done
+            if health_check_with_retries; then
+              DEPLOYMENT_COMPLETED="true"
+              cleanup_old_releases
+              echo "Deployment succeeded."
+              exit 0
+            fi
 
-            echo "Health check failed after retries. Collecting diagnostics..."
             collect_diagnostics
             print_flyway_recovery_hint_if_needed
+
+            if restore_previous_release; then
+              exit 1
+            fi
+
+            collect_diagnostics
+            print_flyway_recovery_hint_if_needed
+            exit 1
+          REMOTE_EOF
+
+  switch-traffic:
+    needs: build-and-deploy
+    if: needs.build-and-deploy.result == 'success' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.event.inputs.switch_traffic == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    concurrency:
+      group: backend-traffic-switch
+      cancel-in-progress: false
+
+    steps:
+      - name: Resolve traffic switch settings
+        id: traffic_switch_config
+        env:
+          BLUE_BACKEND_ACCESS_HOST: ${{ secrets.BLUE_BACKEND_ACCESS_HOST }}
+          BLUE_BACKEND_SERVER_HOST: ${{ secrets.BLUE_BACKEND_SERVER_HOST }}
+          BLUE_BACKEND_SERVER_SSH_KEY: ${{ secrets.BLUE_BACKEND_SERVER_SSH_KEY }}
+          TRAFFIC_SWITCH_ACCESS_HOST: ${{ secrets.TRAFFIC_SWITCH_ACCESS_HOST }}
+          TRAFFIC_SWITCH_SERVER_HOST: ${{ secrets.TRAFFIC_SWITCH_SERVER_HOST }}
+          TRAFFIC_SWITCH_SERVER_SSH_KEY: ${{ secrets.TRAFFIC_SWITCH_SERVER_SSH_KEY }}
+          TRAFFIC_SWITCH_PUBLIC_HEALTH_URL: ${{ secrets.TRAFFIC_SWITCH_PUBLIC_HEALTH_URL }}
+          NGINX_ACTIVE_UPSTREAM_LINK: ${{ secrets.NGINX_ACTIVE_UPSTREAM_LINK }}
+          NGINX_BLUE_UPSTREAM_CONF: ${{ secrets.NGINX_BLUE_UPSTREAM_CONF }}
+          NGINX_GREEN_UPSTREAM_CONF: ${{ secrets.NGINX_GREEN_UPSTREAM_CONF }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_SLOT="${{ github.event.inputs.target_slot }}"
+          LIVE_SLOT="${{ github.event.inputs.live_slot }}"
+
+          if [ "${TARGET_SLOT}" = "${LIVE_SLOT}" ]; then
+            echo "target_slot and live_slot must be different for blue/green deployment."
+            exit 1
+          fi
+
+          ROUTER_ACCESS_HOST="${TRAFFIC_SWITCH_ACCESS_HOST:-${BLUE_BACKEND_ACCESS_HOST:-}}"
+          ROUTER_SERVER_HOST="${TRAFFIC_SWITCH_SERVER_HOST:-${BLUE_BACKEND_SERVER_HOST:-}}"
+          ROUTER_SSH_KEY="${TRAFFIC_SWITCH_SERVER_SSH_KEY:-${BLUE_BACKEND_SERVER_SSH_KEY:-}}"
+          PUBLIC_HEALTH_URL="${TRAFFIC_SWITCH_PUBLIC_HEALTH_URL:-}"
+          ACTIVE_UPSTREAM_LINK="${NGINX_ACTIVE_UPSTREAM_LINK:-/etc/nginx/conf.d/upstream-active.conf}"
+          BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-blue.conf}"
+          GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-green.conf}"
+
+          if [ -z "${ROUTER_SERVER_HOST}" ]; then
+            echo "Traffic switch host is missing. Set TRAFFIC_SWITCH_SERVER_HOST or BLUE_BACKEND_SERVER_HOST."
+            exit 1
+          fi
+          if [ -z "${ROUTER_SSH_KEY}" ]; then
+            echo "Traffic switch SSH key is missing. Set TRAFFIC_SWITCH_SERVER_SSH_KEY or BLUE_BACKEND_SERVER_SSH_KEY."
+            exit 1
+          fi
+          if [ -z "${PUBLIC_HEALTH_URL}" ]; then
+            echo "TRAFFIC_SWITCH_PUBLIC_HEALTH_URL secret is required when switch_traffic=true."
+            exit 1
+          fi
+
+          case "${TARGET_SLOT}" in
+            blue)
+              TARGET_UPSTREAM_CONF="${BLUE_UPSTREAM_CONF}"
+              ;;
+            green)
+              TARGET_UPSTREAM_CONF="${GREEN_UPSTREAM_CONF}"
+              ;;
+            *)
+              echo "Unsupported target slot: ${TARGET_SLOT}"
+              exit 1
+              ;;
+          esac
+
+          case "${LIVE_SLOT}" in
+            blue)
+              PREVIOUS_UPSTREAM_CONF="${BLUE_UPSTREAM_CONF}"
+              ;;
+            green)
+              PREVIOUS_UPSTREAM_CONF="${GREEN_UPSTREAM_CONF}"
+              ;;
+            *)
+              echo "Unsupported live slot: ${LIVE_SLOT}"
+              exit 1
+              ;;
+          esac
+
+          echo "traffic_switch_access_host=${ROUTER_ACCESS_HOST}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_server_host=${ROUTER_SERVER_HOST}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_public_health_url=${PUBLIC_HEALTH_URL}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_active_upstream_link=${ACTIVE_UPSTREAM_LINK}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_target_upstream_conf=${TARGET_UPSTREAM_CONF}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_previous_upstream_conf=${PREVIOUS_UPSTREAM_CONF}" >> "$GITHUB_OUTPUT"
+          echo "target_slot=${TARGET_SLOT}" >> "$GITHUB_OUTPUT"
+          echo "live_slot=${LIVE_SLOT}" >> "$GITHUB_OUTPUT"
+          {
+            echo "traffic_switch_ssh_key<<__SSHKEY__"
+            printf '%s\n' "${ROUTER_SSH_KEY}"
+            echo "__SSHKEY__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install cloudflared client on runner
+        env:
+          TRAFFIC_SWITCH_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_access_host }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ]; then
+            echo "No Cloudflare Access hosts configured. Skipping cloudflared installation."
+            exit 0
+          fi
+          sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Configure SSH connection
+        id: traffic_switch_ssh
+        env:
+          TRAFFIC_SWITCH_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_access_host }}
+          TRAFFIC_SWITCH_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_server_host }}
+          BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
+          TRAFFIC_SWITCH_SSH_KEY: ${{ steps.traffic_switch_config.outputs.traffic_switch_ssh_key }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          cat > ~/.ssh/traffic_switch_key <<'KEY_EOF'
+          ${{ steps.traffic_switch_config.outputs.traffic_switch_ssh_key }}
+          KEY_EOF
+          chmod 600 ~/.ssh/traffic_switch_key
+
+          if [ -n "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ]; then
+            cat > ~/.ssh/config <<EOF
+          Host traffic-switch-target
+            HostName ${TRAFFIC_SWITCH_ACCESS_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/traffic_switch_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+            echo "Configured Cloudflare Access SSH for traffic switch host ${TRAFFIC_SWITCH_ACCESS_HOST}"
+          else
+            cat > ~/.ssh/config <<EOF
+          Host traffic-switch-target
+            HostName ${TRAFFIC_SWITCH_SERVER_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/traffic_switch_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+          EOF
+            echo "Configured direct SSH for traffic switch host ${TRAFFIC_SWITCH_SERVER_HOST}"
+          fi
+
+          chmod 600 ~/.ssh/config
+          echo "traffic_switch_host=traffic-switch-target" >> "$GITHUB_OUTPUT"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 traffic-switch-target "echo ssh_ok"
+
+      - name: Switch production traffic to deployed slot
+        env:
+          TARGET_SLOT: ${{ steps.traffic_switch_config.outputs.target_slot }}
+          LIVE_SLOT: ${{ steps.traffic_switch_config.outputs.live_slot }}
+          PUBLIC_HEALTH_URL: ${{ steps.traffic_switch_config.outputs.traffic_switch_public_health_url }}
+          ACTIVE_UPSTREAM_LINK: ${{ steps.traffic_switch_config.outputs.traffic_switch_active_upstream_link }}
+          TARGET_UPSTREAM_CONF: ${{ steps.traffic_switch_config.outputs.traffic_switch_target_upstream_conf }}
+          PREVIOUS_UPSTREAM_CONF: ${{ steps.traffic_switch_config.outputs.traffic_switch_previous_upstream_conf }}
+          TRAFFIC_SWITCH_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.traffic_switch_host }}
+        run: |
+          set -euo pipefail
+
+          printf -v TARGET_SLOT_Q '%q' "${TARGET_SLOT}"
+          printf -v LIVE_SLOT_Q '%q' "${LIVE_SLOT}"
+          printf -v PUBLIC_HEALTH_URL_Q '%q' "${PUBLIC_HEALTH_URL}"
+          printf -v ACTIVE_UPSTREAM_LINK_Q '%q' "${ACTIVE_UPSTREAM_LINK}"
+          printf -v TARGET_UPSTREAM_CONF_Q '%q' "${TARGET_UPSTREAM_CONF}"
+          printf -v PREVIOUS_UPSTREAM_CONF_Q '%q' "${PREVIOUS_UPSTREAM_CONF}"
+
+          ssh "${TRAFFIC_SWITCH_SSH_HOST}" \
+            "TARGET_SLOT=${TARGET_SLOT_Q} LIVE_SLOT=${LIVE_SLOT_Q} PUBLIC_HEALTH_URL=${PUBLIC_HEALTH_URL_Q} ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} TARGET_UPSTREAM_CONF=${TARGET_UPSTREAM_CONF_Q} PREVIOUS_UPSTREAM_CONF=${PREVIOUS_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
+            set -euo pipefail
+
+            collect_nginx_diagnostics() {
+              echo "Collecting nginx diagnostics..."
+              sudo nginx -t || true
+              sudo systemctl status nginx --no-pager -l || true
+              sudo journalctl -u nginx -n 200 --no-pager || true
+            }
+
+            verify_public_health() {
+              for i in {1..12}; do
+                if curl -fsS "${PUBLIC_HEALTH_URL}" >/dev/null; then
+                  echo "Public health check succeeded on attempt ${i}"
+                  return 0
+                fi
+                echo "Public health check failed on attempt ${i}, retrying in 5s..."
+                sleep 5
+              done
+              echo "Public health check failed after retries."
+              return 1
+            }
+
+            rollback_traffic() {
+              echo "Rolling back Nginx upstream from ${TARGET_SLOT} to ${LIVE_SLOT}"
+              sudo ln -sfn "${PREVIOUS_UPSTREAM_CONF}" "${ACTIVE_UPSTREAM_LINK}"
+              sudo nginx -t
+              sudo systemctl reload nginx
+            }
+
+            sudo test -f "${TARGET_UPSTREAM_CONF}"
+            sudo test -f "${PREVIOUS_UPSTREAM_CONF}"
+
+            echo "Switching production traffic from ${LIVE_SLOT} to ${TARGET_SLOT}"
+            echo "Target upstream: ${TARGET_UPSTREAM_CONF}"
+            echo "Active link: ${ACTIVE_UPSTREAM_LINK}"
+
+            sudo ln -sfn "${TARGET_UPSTREAM_CONF}" "${ACTIVE_UPSTREAM_LINK}"
+            if ! sudo nginx -t; then
+              echo "Nginx config test failed after switching upstream."
+              collect_nginx_diagnostics
+              rollback_traffic
+              exit 1
+            fi
+
+            if ! sudo systemctl reload nginx; then
+              echo "Nginx reload failed after switching upstream."
+              collect_nginx_diagnostics
+              rollback_traffic
+              exit 1
+            fi
+
+            if verify_public_health; then
+              echo "Production traffic now points to ${TARGET_SLOT}"
+              sudo readlink -f "${ACTIVE_UPSTREAM_LINK}" || true
+              exit 0
+            fi
+
+            echo "Public health failed after traffic switch."
+            collect_nginx_diagnostics
+            rollback_traffic
+            if verify_public_health; then
+              echo "Traffic rollback to ${LIVE_SLOT} succeeded."
+            else
+              echo "Traffic rollback to ${LIVE_SLOT} failed health verification."
+              collect_nginx_diagnostics
+            fi
             exit 1
           REMOTE_EOF
 

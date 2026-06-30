@@ -287,7 +287,7 @@ def extract_sources(docs: List[Document], max_sources: int = 2) -> str:
 
 _TEMPLATE_STOPWORDS = {"신청", "신청서", "방법", "처리", "서류", "안내", "가이드", "작성", "주세요", "알려줘"}
 _KO_PARTICLE_RE = re.compile(r"(은|는|이|가|을|를|의|에서|에게|에|으로|로|과|와|도|만|부터|까지)$")
-_DOWNLOAD_KEYWORDS = {"다운로드", "양식", "파일", "서식", "폼", "첨부", "받기", "내려받기"}
+_DOWNLOAD_KEYWORDS = {"다운로드", "양식", "서식", "폼", "첨부", "받기", "내려받기"}
 
 
 def match_template_docs(company_code: str, question: str) -> tuple[list[int], list[str]]:
