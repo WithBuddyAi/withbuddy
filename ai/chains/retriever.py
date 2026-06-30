@@ -78,6 +78,7 @@ _QUERY_EXPANSIONS: list[tuple[str, str]] = [
     ("명절선물", "명절 선물 설 추석 상품권"),
     ("명절 선물", "명절선물 설 추석 상품권"),
     ("명절", "설날 추석 명절 선물 상품권 기념품"),
+    ("명함", "명함 주문 제작 신청 경영지원 총무 ADMIN"),
     ("나와", "지원 있어 가능 제공 됩니다"),
 ]
 
@@ -319,7 +320,8 @@ def match_template_docs(company_code: str, question: str) -> tuple[list[int], li
             if matched:
                 ids.append(doc["documentId"])
                 titles.append(doc.get("title") or doc.get("fileName") or "")
-        if not ids and q_words & _DOWNLOAD_KEYWORDS:
+        substantive_words = q_words - _DOWNLOAD_KEYWORDS
+        if not ids and q_words & _DOWNLOAD_KEYWORDS and not substantive_words:
             for doc in templates:
                 ids.append(doc["documentId"])
                 titles.append(doc.get("title") or doc.get("fileName") or "")
@@ -372,7 +374,7 @@ def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
 
 
 _SUB_Q_SPLIT_PATTERN = re.compile(
-    r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|이\s*궁금하고,?\s*'
+    r'[?？]\s*그리고|그리고\s*[?？]?|[?？]\s+|이랑\s+|랑\s+|이\s*궁금하고,?\s*'
 )
 
 

@@ -254,6 +254,7 @@ jobs:
         if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
           BACKEND_ACCESS_HOST: ${{ steps.slot_config.outputs.backend_access_host }}
+          ROUTER_ACCESS_HOST: ${{ steps.live_slot_validation.outputs.router_access_host }}
           BACKEND_SERVER_HOST: ${{ steps.slot_config.outputs.backend_server_host }}
           BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
           BACKEND_SERVER_SSH_KEY: ${{ steps.slot_config.outputs.backend_server_ssh_key }}
@@ -383,12 +384,18 @@ jobs:
             exit 1
           fi
 
-          if [ -n "${BACKEND_ACCESS_HOST:-}" ]; then
+          if [ -n "${BACKEND_ACCESS_HOST:-}" ] || [ -n "${ROUTER_ACCESS_HOST:-}" ]; then
             if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
-              echo "BACKEND_ACCESS_HOST is set, so CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are also required."
+              echo "Cloudflare Access host configured, so CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are required."
               exit 1
             fi
-            echo "SSH mode: Cloudflare Access (${BACKEND_ACCESS_HOST})"
+            if [ -n "${BACKEND_ACCESS_HOST:-}" ] && [ -n "${ROUTER_ACCESS_HOST:-}" ]; then
+              echo "SSH mode: backend + router via Cloudflare Access"
+            elif [ -n "${BACKEND_ACCESS_HOST:-}" ]; then
+              echo "SSH mode: backend via Cloudflare Access (${BACKEND_ACCESS_HOST})"
+            else
+              echo "SSH mode: router via Cloudflare Access (${ROUTER_ACCESS_HOST})"
+            fi
           else
             echo "SSH mode: direct SSH fallback (${BACKEND_SERVER_HOST})"
           fi
@@ -543,11 +550,11 @@ jobs:
             "EXPECTED_LIVE_SLOT=${EXPECTED_LIVE_SLOT_Q} ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} BLUE_UPSTREAM_CONF=${BLUE_UPSTREAM_CONF_Q} GREEN_UPSTREAM_CONF=${GREEN_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
             set -euo pipefail
 
-            if [ ! -e "${ACTIVE_UPSTREAM_LINK}" ]; then
+            if ! sudo test -e "${ACTIVE_UPSTREAM_LINK}"; then
               echo "Missing active upstream file: ${ACTIVE_UPSTREAM_LINK}"
               exit 1
             fi
-            if [ ! -f "${BLUE_UPSTREAM_CONF}" ] || [ ! -f "${GREEN_UPSTREAM_CONF}" ]; then
+            if ! sudo test -f "${BLUE_UPSTREAM_CONF}" || ! sudo test -f "${GREEN_UPSTREAM_CONF}"; then
               echo "Missing blue/green upstream reference files."
               exit 1
             fi
@@ -1417,6 +1424,12 @@ jobs:
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
+          if [ -n "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ] || [ -n "${TARGET_BACKEND_ACCESS_HOST:-}" ]; then
+            if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+              echo "Cloudflare Access host configured for switch-traffic, so CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are required."
+              exit 1
+            fi
+          fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 

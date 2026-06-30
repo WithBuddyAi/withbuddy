@@ -143,12 +143,18 @@ def _build_hire_info(hire_date: str) -> str:
         diff = (today - hd).days
         days = diff + 1
         months = diff // 30
+        leave_note = (
+            f"※ 연차는 입사 후 매월 1일씩 발생합니다. 현재 {months}개월이 경과했으므로 연차 {months}일이 이미 발생한 상태입니다."
+            if months > 0 else
+            f"※ 아직 1개월이 경과하지 않아 연차가 발생하지 않았습니다."
+        )
         return (
             f"\n[입사 일차 계산]\n"
             f"입사일: {hire_date} / 오늘: {today.isoformat()}\n"
-            f"날짜 차이: {diff}일 → 입사 당일을 1일차로 계산하므로 {diff}+1 = {days}일차 (약 {months}개월 경과)\n"
+            f"날짜 차이: {diff}일 → 입사 당일을 1일차로 계산하므로 {diff}+1 = {days}일차 ({months}개월 경과)\n"
             f"※ 반드시 입사 {days}일차로 답하세요.\n"
-            f"※ 문서에 '입사 N개월 후부터' 조건이 있을 때, 위 경과 개월수를 기준으로 판단하세요. 이미 조건을 충족했으면 '현재 지원 가능'으로 답하세요."
+            f"※ 문서에 '입사 N개월 후부터' 조건이 있을 때: 현재 {months}개월이 경과했으므로 N≤{months}인 조건(예: '입사 1개월 후부터', '입사 {months}개월 후부터')은 이미 충족됐습니다. 반드시 '지금 바로 신청/이용 가능합니다'로 답하세요. '곧', '조만간', '예정' 같은 미래형 표현 절대 금지.\n"
+            f"{leave_note}"
         )
     except Exception:
         return ""

@@ -22,6 +22,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # .env 파일에서 환경변수 로드 (ANTHROPIC_API_KEY, SLACK_BOT_TOKEN 등)
 # 라우터 import 전에 호출해야 be_client 등 모듈 초기화 시 env var 반영됨
@@ -133,6 +134,9 @@ app.include_router(knowledge.router)
 app.include_router(mybuddy.router)
 app.include_router(profile.router)
 app.include_router(preboarding.router)
+
+# ── Prometheus metrics ───────────────────────
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 # ── Static 파일 서빙 ─────────────────────────
 app.mount("/static", StaticFiles(directory="static"), name="static")
