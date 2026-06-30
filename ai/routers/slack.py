@@ -1,22 +1,13 @@
 """
-Slack 리포트 수동 트리거 API
-────────────────────────────────────────────
-테스트 또는 즉시 전송이 필요할 때 사용합니다.
-스케줄러가 자동으로 평일 17:00에 호출하지만,
-이 엔드포인트로 언제든 수동 전송할 수 있습니다.
+Slack 스케줄 관리 API
 """
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from tasks.scheduler import get_schedule_time, reschedule
-from tasks.slack_notifier import send_all_reports, send_single_report
+from tasks.scheduler import get_schedule_time, reschedule, _send_weekly_no_result_summary
 
 router = APIRouter(prefix="/slack", tags=["slack"])
-
-
-class SendReportResponse(BaseModel):
-    message: str
 
 
 class ScheduleRequest(BaseModel):
@@ -29,32 +20,6 @@ class ScheduleResponse(BaseModel):
     minute: int
     message: str
 
-
-@router.post("/send-report", response_model=SendReportResponse)
-async def trigger_all_reports():
-    """
-    전체 팀 수습사원 진척도 리포트를 Slack으로 즉시 전송합니다.
-    team_config.json에 등록된 모든 리더에게 전송됩니다.
-    """
-    try:
-        await send_all_reports()
-        return SendReportResponse(message="전체 팀 리포트 전송이 완료되었습니다.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/send-report/{user_id}", response_model=SendReportResponse)
-async def trigger_single_report(user_id: str):
-    """
-    특정 수습사원(user_id)의 진척도 리포트만 해당 리더에게 Slack으로 즉시 전송합니다.
-    """
-    try:
-        await send_single_report(user_id)
-        return SendReportResponse(message=f"{user_id} 리포트 전송이 완료되었습니다.")
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/schedule", response_model=ScheduleResponse)
@@ -78,5 +43,15 @@ def update_schedule(req: ScheduleRequest):
             minute=req.minute,
             message=f"스케줄 변경 완료: 평일 {req.hour:02d}:{req.minute:02d}",
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/trigger-summary")
+async def trigger_summary():
+    """미답변 질문 요약 리포트를 즉시 Slack으로 발송합니다."""
+    try:
+        await _send_weekly_no_result_summary()
+        return {"message": "요약 리포트 발송 완료"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
