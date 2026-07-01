@@ -9,6 +9,7 @@ import com.withbuddy.infrastructure.cache.CachePayloadCodec;
 import com.withbuddy.infrastructure.cache.CacheResilienceGuard;
 import com.withbuddy.infrastructure.cache.CacheTtlPolicy;
 import com.withbuddy.infrastructure.cache.InternalApiLocalCacheValue;
+import com.withbuddy.infrastructure.cache.PromptCacheMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -46,6 +47,7 @@ public class InternalCacheApiService {
     private final CacheTtlPolicy cacheTtlPolicy;
     private final CacheResilienceGuard cacheResilienceGuard;
     private final CacheInvalidationPublisher cacheInvalidationPublisher;
+    private final PromptCacheMetrics promptCacheMetrics;
 
     @Qualifier("internalApiLocalCache")
     private final Cache<String, InternalApiLocalCacheValue> internalApiLocalCache;
@@ -55,8 +57,9 @@ public class InternalCacheApiService {
     public CacheGetResponse get(CacheGetRequest request) {
         String namespace = normalizeNamespace(request.namespace());
         String resolvedKey = buildRedisKey(namespace, request.key());
-        InternalApiLocalCacheValue cached = resolveLocalValue(resolvedKey);
-        return new CacheGetResponse(request.key(), namespace, cached.found(), cached.value());
+        CacheLookupResult lookup = resolveLocalValue(resolvedKey);
+        promptCacheMetrics.recordLookup(namespace, lookup.value().found(), lookup.source());
+        return new CacheGetResponse(request.key(), namespace, lookup.value().found(), lookup.value().value());
     }
 
     public CacheGetMultiResponse getMulti(CacheGetMultiRequest request) {
@@ -69,8 +72,9 @@ public class InternalCacheApiService {
         List<CacheGetResponse> items = new ArrayList<>();
         for (int i = 0; i < originalKeys.size(); i++) {
             String resolvedKey = resolvedKeys.get(i);
-            InternalApiLocalCacheValue cached = resolveLocalValue(resolvedKey);
-            items.add(new CacheGetResponse(originalKeys.get(i), namespace, cached.found(), cached.value()));
+            CacheLookupResult lookup = resolveLocalValue(resolvedKey);
+            promptCacheMetrics.recordLookup(namespace, lookup.value().found(), lookup.source());
+            items.add(new CacheGetResponse(originalKeys.get(i), namespace, lookup.value().found(), lookup.value().value()));
         }
         return new CacheGetMultiResponse(namespace, items);
     }
@@ -149,7 +153,7 @@ public class InternalCacheApiService {
         return new CacheWriteResponse(namespace, Boolean.TRUE.equals(deleted) ? 1 : 0);
     }
 
-    private InternalApiLocalCacheValue resolveLocalValue(String resolvedKey) {
+    private CacheLookupResult resolveLocalValue(String resolvedKey) {
         if (!isL1Enabled()) {
             return loadFromRedis(resolvedKey);
         }
@@ -162,28 +166,33 @@ public class InternalCacheApiService {
                 && !cached.isNegativeExpired(now, negativeTtlMillis)
                 && !cached.isPositiveExpired(now)) {
             triggerSWRIfNeeded(resolvedKey, cached, now);
-            return cached;
+            if (cached.found()) {
+                return new CacheLookupResult(cached, "l1");
+            }
+            return new CacheLookupResult(cached, "l1_negative");
         }
         if (cached != null) {
             internalApiLocalCache.invalidate(resolvedKey);
         }
-        return internalApiLocalCache.get(resolvedKey, this::loadFromRedis);
+        CacheLookupResult loaded = loadFromRedis(resolvedKey);
+        internalApiLocalCache.put(resolvedKey, loaded.value());
+        return loaded;
     }
 
-    private InternalApiLocalCacheValue loadFromRedis(String resolvedKey) {
+    private CacheLookupResult loadFromRedis(String resolvedKey) {
         return cacheResilienceGuard.execute(
                 "get",
                 () -> {
                     String raw = redisTemplate.opsForValue().get(resolvedKey);
                     if (raw == null) {
-                        return InternalApiLocalCacheValue.miss();
+                        return new CacheLookupResult(InternalApiLocalCacheValue.miss(), "origin");
                     }
                     JsonNode decoded = cachePayloadCodec.decode(raw);
                     Long ttlMillis = redisTemplate.getExpire(resolvedKey, TimeUnit.MILLISECONDS);
                     long normalizedTtl = ttlMillis == null || ttlMillis < 0 ? -1L : ttlMillis;
-                    return InternalApiLocalCacheValue.hit(decoded, normalizedTtl);
+                    return new CacheLookupResult(InternalApiLocalCacheValue.hit(decoded, normalizedTtl), "l2");
                 },
-                InternalApiLocalCacheValue::miss
+                () -> new CacheLookupResult(InternalApiLocalCacheValue.miss(), "origin")
         );
     }
 
@@ -203,7 +212,7 @@ public class InternalCacheApiService {
 
         CompletableFuture.runAsync(() -> {
             try {
-                InternalApiLocalCacheValue refreshed = loadFromRedis(resolvedKey);
+                InternalApiLocalCacheValue refreshed = loadFromRedis(resolvedKey).value();
                 internalApiLocalCache.put(resolvedKey, refreshed);
             } catch (RuntimeException ignored) {
                 // SWR refresh 실패는 요청 흐름에 영향 주지 않는다.
@@ -211,6 +220,12 @@ public class InternalCacheApiService {
                 swrRefreshInFlight.remove(resolvedKey);
             }
         });
+    }
+
+    private record CacheLookupResult(
+            InternalApiLocalCacheValue value,
+            String source
+    ) {
     }
 
     private String normalizeNamespace(String namespace) {
