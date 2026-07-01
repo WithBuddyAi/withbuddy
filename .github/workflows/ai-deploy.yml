@@ -227,7 +227,7 @@ jobs:
             printf 'LANGCHAIN_PROJECT=%s\n'      "${LANGCHAIN_PROJECT}"
             printf 'CB_BLOCK_HOURLY=%s\n'        "${CB_BLOCK_HOURLY}"
             printf 'SLACK_CHANNEL_INTERNAL=%s\n' "${SLACK_CHANNEL_INTERNAL}"
-          } | base64 -w0 | ssh "${ACCESS_HOST}" "base64 -d > ${AI_APP_DIR_Q}/.env && chmod 600 ${AI_APP_DIR_Q}/.env"
+          } | base64 -w0 | ssh "${ACCESS_HOST}" "base64 -d > ${AI_APP_DIR_Q}/.env"
 
       - name: Deploy over Cloudflare Access SSH
         env:
