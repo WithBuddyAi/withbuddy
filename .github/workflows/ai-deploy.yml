@@ -229,6 +229,18 @@ jobs:
             printf 'SLACK_CHANNEL_INTERNAL=%s\n' "${SLACK_CHANNEL_INTERNAL}"
           } | base64 -w0 | ssh "${ACCESS_HOST}" "base64 -d > ${AI_APP_DIR_Q}/.env"
 
+      - name: Write contacts_config.py on server
+        env:
+          AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}
+          AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+          AI_APP_DIR: ${{ secrets.AI_APP_DIR }}
+          CONTACTS_CONFIG_PY: ${{ secrets.CONTACTS_CONFIG_PY }}
+        run: |
+          set -euo pipefail
+          ACCESS_HOST="${AI_ACCESS_HOST:-${AI_SERVER_HOST}}"
+          printf -v AI_APP_DIR_Q '%q' "${AI_APP_DIR}"
+          echo "${CONTACTS_CONFIG_PY}" | ssh "${ACCESS_HOST}" "base64 -d > ${AI_APP_DIR_Q}/contacts_config.py"
+
       - name: Deploy over Cloudflare Access SSH
         env:
           AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}
