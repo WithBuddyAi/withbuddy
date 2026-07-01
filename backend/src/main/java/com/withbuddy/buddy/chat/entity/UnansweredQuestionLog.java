@@ -48,6 +48,15 @@ public class UnansweredQuestionLog {
     @Column(name = "latency_ms")
     private Long latencyMs;
 
+    @Column(name = "embedding_model", length = 100)
+    private String embeddingModel;
+
+    @Column(name = "embedding_dimension")
+    private Integer embeddingDimension;
+
+    @Column(name = "embedding_vector", columnDefinition = "JSON")
+    private String embeddingVector;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -60,7 +69,10 @@ public class UnansweredQuestionLog {
             Long answerMessageId,
             String questionContent,
             MessageType answerType,
-            Long latencyMs
+            Long latencyMs,
+            String embeddingModel,
+            Integer embeddingDimension,
+            String embeddingVector
     ) {
         this.userId = userId;
         this.companyCode = companyCode;
@@ -69,5 +81,8 @@ public class UnansweredQuestionLog {
         this.questionContent = questionContent;
         this.answerType = answerType;
         this.latencyMs = latencyMs;
+        this.embeddingModel = embeddingModel;
+        this.embeddingDimension = embeddingDimension;
+        this.embeddingVector = embeddingVector;
     }
 }
