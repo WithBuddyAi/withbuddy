@@ -28,7 +28,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 # 라우터 import 전에 호출해야 be_client 등 모듈 초기화 시 env var 반영됨
 load_dotenv()
 
-from routers import admin, callback, chat, docs, knowledge, leader, mybuddy, preboarding, profile, recommend, report, slack
+from routers import admin, callback, chat, docs, embeddings, knowledge, leader, mybuddy, preboarding, profile, recommend, report, slack
 from tasks.scheduler import start_scheduler, stop_scheduler
 
 logger = logging.getLogger(__name__)
@@ -134,6 +134,7 @@ app.include_router(knowledge.router)
 app.include_router(mybuddy.router)
 app.include_router(profile.router)
 app.include_router(preboarding.router)
+app.include_router(embeddings.router)
 
 # ── Prometheus metrics ───────────────────────
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
