@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from chains.rag_chain import run_rag_chain, stream_rag_chain
 from core.llm import get_llm
+from core.metrics import answer_type_counter, answer_latency_histogram, llm_call_counter, agent_fallback_counter
 from memory.chat_history import clear_memory, get_chat_history, get_history_as_text, save_interaction
 from utils.sensitive_filter import check_sensitive, check_global_block
 
@@ -501,6 +502,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             except asyncio.TimeoutError:
                 raw_intent = "rag"
             cache_set("intent_v1", _intent_cache_key, raw_intent, ttl_seconds=3600)
+            llm_call_counter.labels(purpose="intent").inc()
         if "out_of_scope_internal" in raw_intent:
             from routers.recommend import get_contact_for_question
             contact = await get_contact_for_question(request.user.companyCode, request.content)
@@ -554,6 +556,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     "hire_info": _hire_info,
                 }),
             )
+            llm_call_counter.labels(purpose="chitchat").inc()
             save_interaction(user_id, request.content, chitchat_answer)
             from utils.sensitive_filter import _EMOTIONAL_CRISIS_KEYWORDS as _ECK
             _chitchat_type = "sensitive" if any(k in request.content for k in _ECK) else "out_of_scope"
@@ -633,6 +636,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     injected_history=injected_history,
                 )
             )
+        llm_call_counter.labels(purpose="rag").inc()
     except asyncio.TimeoutError:
         raise HTTPException(status_code=408, detail="AI 응답 시간이 초과되었습니다. 다시 시도해주세요.")
     except Exception as e:
@@ -661,6 +665,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                 _logging.getLogger(__name__).warning("[AGENT_UPGRADE] no_result → rag_answer | q=%s", rag_query[:60])
                 answer = agent_answer
                 message_type = "rag_answer"
+                agent_fallback_counter.inc()
                 replace_last_ai_message(uid, agent_answer)
         except Exception:
             pass  # agent 실패 시 기존 no_result 유지
@@ -675,6 +680,8 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     tok = pop_token_usage()
     category = pop_category()
     latency_ms = int((time.time() - _req_start) * 1000)
+    answer_type_counter.labels(message_type=message_type).inc()
+    answer_latency_histogram.observe(latency_ms / 1000)
 
     try:
         from memory.analytics_store import record as _ar
@@ -787,6 +794,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                     except asyncio.TimeoutError:
                         raw_intent = "rag"
                     cache_set("intent_v1", _ck, raw_intent, ttl_seconds=3600)
+                    llm_call_counter.labels(purpose="intent").inc()
 
                 if "out_of_scope_internal" in raw_intent:
                     from routers.recommend import get_contact_for_question
@@ -825,6 +833,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                             "hire_info": _hire_info,
                         }),
                     )
+                    llm_call_counter.labels(purpose="chitchat").inc()
                     _si(uid, request.content, chitchat_answer)
                     from utils.sensitive_filter import _EMOTIONAL_CRISIS_KEYWORDS as _ECK
                     _ct = "sensitive" if any(k in request.content for k in _ECK) else "out_of_scope"
@@ -893,6 +902,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                                 msg_type = "no_result"
                             else:
                                 msg_type = "rag_answer"
+                            llm_call_counter.labels(purpose="rag").inc()
 
                             if msg_type == "no_result":
                                 from chains.agent_rag_chain import _run_agent_search
@@ -908,6 +918,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                                         _logging.getLogger(__name__).warning("[AGENT_UPGRADE] no_result → rag_answer | q=%s", rag_query[:60])
                                         full_answer = agent_answer
                                         msg_type = "rag_answer"
+                                        agent_fallback_counter.inc()
                                         replace_last_ai_message(uid, agent_answer)
                                 except Exception:
                                     pass
@@ -928,6 +939,8 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                             from chains.rag_chain import pop_category as _pop_cat
                             tok = _pop_tok()
                             latency_ms = int((time.time() - _req_start) * 1000)
+                            answer_type_counter.labels(message_type=msg_type).inc()
+                            answer_latency_histogram.observe(latency_ms / 1000)
                             try:
                                 from memory.analytics_store import record as _ar
                                 _ar(request.user.companyCode, msg_type, latency_ms, request.content)
