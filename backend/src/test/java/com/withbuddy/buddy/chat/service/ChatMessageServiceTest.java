@@ -8,6 +8,7 @@ import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.buddy.chat.repository.UnansweredQuestionLogRepository;
 import com.withbuddy.buddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.infrastructure.ai.client.AiQuestionEmbeddingClient;
 import com.withbuddy.infrastructure.ai.client.AiStreamClient;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -43,6 +44,8 @@ class ChatMessageServiceTest {
     private DocumentFileRepository documentFileRepository;
     @Mock
     private AiStreamClient aiStreamClient;
+    @Mock
+    private AiQuestionEmbeddingClient aiQuestionEmbeddingClient;
     @Mock
     private RedisCacheService redisCacheService;
     @Mock
