@@ -242,6 +242,7 @@ class InternalAIAnswerUser(BaseModel):
     companyCode: str = ""
     companyName: str = ""
     hireDate: str = ""
+    accountStatus: str = ""
 
 
 class ConversationTurn(BaseModel):
@@ -634,6 +635,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     company_name=request.user.companyName,
                     hire_date=request.user.hireDate,
                     injected_history=injected_history,
+                    account_status=request.user.accountStatus,
                 )
             )
         llm_call_counter.labels(purpose="rag").inc()
@@ -649,8 +651,10 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     else:
         message_type = "rag_answer"
 
-    # RAG no_result → 에이전트 fallback (도구 기반 재검색)
-    if message_type == "no_result":
+    # RAG no_result → PRE 사용자면 out_of_scope_pre, 일반 사용자면 에이전트 fallback
+    if message_type == "no_result" and request.user.accountStatus == "PRE":
+        message_type = "out_of_scope_pre"
+    elif message_type == "no_result":
         from chains.agent_rag_chain import _run_agent_search
         from memory.chat_history import get_chat_history as _gc, replace_last_ai_message
         import logging as _logging
@@ -671,7 +675,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
             pass  # agent 실패 시 기존 no_result 유지
 
     recommended_contacts = []
-    if message_type in ("no_result", "out_of_scope"):
+    if message_type in ("no_result", "out_of_scope", "out_of_scope_pre"):
         from routers.recommend import get_contact_for_question
         contact = await get_contact_for_question(request.user.companyCode, request.content)
         recommended_contacts = [contact]
@@ -695,7 +699,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         content=answer,
         documents=(
             []
-            if message_type in ("no_result", "out_of_scope")
+            if message_type in ("no_result", "out_of_scope", "out_of_scope_pre")
             else (await asyncio.get_event_loop().run_in_executor(
                 None, _build_documents, doc_ids, request.user.companyCode
             ))[:2]
@@ -893,6 +897,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                         company_name=request.user.companyName,
                         hire_date=request.user.hireDate,
                         injected_history=injected_history,
+                        account_status=request.user.accountStatus,
                     ):
                         if source is not None:
                             full_answer = "".join(accumulated)
@@ -904,7 +909,9 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                                 msg_type = "rag_answer"
                             llm_call_counter.labels(purpose="rag").inc()
 
-                            if msg_type == "no_result":
+                            if msg_type == "no_result" and request.user.accountStatus == "PRE":
+                                msg_type = "out_of_scope_pre"
+                            elif msg_type == "no_result":
                                 from chains.agent_rag_chain import _run_agent_search
                                 from memory.chat_history import get_chat_history as _gc, replace_last_ai_message
                                 import logging as _logging
@@ -924,14 +931,14 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                                     pass
 
                             recommended_contacts = []
-                            if msg_type in ("no_result", "out_of_scope"):
+                            if msg_type in ("no_result", "out_of_scope", "out_of_scope_pre"):
                                 from routers.recommend import get_contact_for_question
                                 contact = await get_contact_for_question(request.user.companyCode, request.content)
                                 recommended_contacts = [contact]
 
                             doc_ids_list = (
                                 []
-                                if msg_type in ("no_result", "out_of_scope")
+                                if msg_type in ("no_result", "out_of_scope", "out_of_scope_pre")
                                 else (await asyncio.get_event_loop().run_in_executor(
                                     None, _build_documents, rag_doc_ids or [], request.user.companyCode
                                 ))[:2]
