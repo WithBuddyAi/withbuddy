@@ -1,9 +1,9 @@
 import { File, ChevronDown } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import axiosInstance from "../../../api/axiosInstance";
 import { validateFile } from "./validateFile";
-
-const DOC_TYPES = ["POLICY", "GUIDE", "TEMPLATE"];
+import { DOC_TYPES } from "../../../constants/adminConstants";
+import useDepartments from "../../../hooks/useDepartments";
 
 function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
   const [title, setTitle] = useState(
@@ -11,7 +11,7 @@ function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
   );
   const [documentType, setDocumentType] = useState("");
   const [department, setDepartment] = useState("");
-  const [orgOptions, setOrgOptions] = useState([]);
+  const orgOptions = useDepartments();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -25,21 +25,6 @@ function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
   // 담당 부서 드롭다운
   const [showDeptFilter, setShowDeptFilter] = useState(false);
   const deptFilterRef = useRef(null);
-
-  // 담당 부서 옵션 조회
-  useEffect(() => {
-    const fetchOrgOptions = async () => {
-      try {
-        const res = await axiosInstance.get(
-          "/api/v1/admin/organization-options",
-        );
-        setOrgOptions(res.data.departments);
-      } catch (error) {
-        console.error("부서 목록 조회 실패", error);
-      }
-    };
-    fetchOrgOptions();
-  }, []);
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {

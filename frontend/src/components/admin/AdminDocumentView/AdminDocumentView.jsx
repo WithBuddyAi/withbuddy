@@ -8,8 +8,7 @@ import DocUploadZone from "./DocUploadZone";
 import DocUploadForm from "./DocUploadForm";
 import DocMobileList from "./DocMobileList";
 import DocTemplateAccordion from "./DocTemplateAccordion";
-
-const DOC_TYPES = ["전체", "POLICY", "GUIDE", "TEMPLATE"];
+import { DOC_TYPE_FILTERS } from "../../../constants/adminConstants";
 
 function AdminDocumentView({
   onDeleteModalOpen,
@@ -135,7 +134,9 @@ function AdminDocumentView({
           {/* 총 문서 수 + 검색 + 필터 */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-[6px] gap-[8px]">
             <div className="flex items-center gap-[8px] shrink-0">
-              <p className="text-[14px] md:text-[16px] font-medium whitespace-nowrap">등록한 문서 목록</p>
+              <p className="text-[14px] md:text-[16px] font-medium whitespace-nowrap">
+                등록한 문서 목록
+              </p>
               <p className="rounded-[9999px] px-[8px] md:px-[12px] py-[4px] bg-[#F8F9FA] text-[12px] text-[#868E96] whitespace-nowrap">
                 총 {totalElements}개
               </p>
@@ -175,7 +176,7 @@ function AdminDocumentView({
                 </button>
                 {showTypeFilter && (
                   <ul className="absolute top-full right-0 mt-[4px] bg-white border border-[#CED4DA] rounded-[8px] shadow-md z-10 min-w-[120px]">
-                    {DOC_TYPES.map((type) => (
+                    {DOC_TYPE_FILTERS.map((type) => (
                       <li
                         key={type}
                         onMouseDown={() => {
