@@ -1,0 +1,345 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "withbuddy-ai-prompt-cache-draft",
+    "title": "WithBuddy Prompt Cache Draft",
+    "tags": ["withbuddy", "ai", "prometheus", "draft", "prompt-cache"],
+    "timezone": "browser",
+    "schemaVersion": 41,
+    "version": 0,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "templating": {
+      "list": []
+    },
+    "panels": [
+      {
+        "type": "text",
+        "title": "SCRUM-564 Contract",
+        "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+        "options": {
+          "mode": "markdown",
+          "content": "Prompt Cache Grafana draft for `SCRUM-564`.\\n\\nPrimary metric now exposed by backend:\\n- `withbuddy_prompt_cache_requests_total{namespace,result,source}`\\n\\nSupporting cache resilience metrics already available in backend:\\n- `cache_redis_requests_total{op,result}`\\n- `cache_redis_fallback_total{op,result}`\\n- `cache_redis_circuit_open`\\n- `cache_redis_fallback_tokens`"
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Prompt Cache Hit Rate (5m)",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 5 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "legendFormat": "hit_rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "orange", "value": 50 },
+                { "color": "green", "value": 70 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Prompt Cache Requests Rate",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 5 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(withbuddy_prompt_cache_requests_total[5m]))",
+            "legendFormat": "requests",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "decimals": 3
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "L1 Hit Share (5m)",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 5 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\",source=\"l1\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "legendFormat": "l1_share",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "orange", "value": 40 },
+                { "color": "green", "value": 60 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Redis Cache Fallback Rate (5m)",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 5 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(cache_redis_fallback_total[5m])) / clamp_min(sum(rate(cache_redis_requests_total[5m])), 0.0001)",
+            "legendFormat": "fallback_rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "orange", "value": 3 },
+                { "color": "red", "value": 7 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Prompt Cache Hit Rate Over Time",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "legendFormat": "hit_rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Prompt Cache Requests by Source",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(withbuddy_prompt_cache_requests_total[5m])) by (result, source)",
+            "legendFormat": "{{result}} {{source}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Prompt Cache Hit Rate by Source",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) by (source) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "legendFormat": "{{source}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Redis Cache Fallbacks by Op",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(cache_redis_fallback_total[5m])) by (op, result)",
+            "legendFormat": "{{op}} {{result}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Redis Circuit Open",
+        "gridPos": { "h": 4, "w": 12, "x": 0, "y": 25 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "max(cache_redis_circuit_open)",
+            "legendFormat": "circuit_open",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              { "type": "value", "options": { "0": { "text": "CLOSED", "color": "green" } } },
+              { "type": "value", "options": { "1": { "text": "OPEN", "color": "red" } } }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "red", "value": 1 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Redis Fallback Tokens",
+        "gridPos": { "h": 4, "w": 12, "x": 12, "y": 25 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "max(cache_redis_fallback_tokens)",
+            "legendFormat": "tokens",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "decimals": 0
+          },
+          "overrides": []
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}
