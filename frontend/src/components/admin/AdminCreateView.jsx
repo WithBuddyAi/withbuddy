@@ -1,7 +1,7 @@
 import { ChevronRight, Calendar, ChevronDown } from "lucide-react";
 import DatePicker from "react-datepicker";
 import { useState, useRef } from "react";
-import { format } from "date-fns";
+import { format, addMonths, subMonths } from "date-fns";
 import axiosInstance from "../../api/axiosInstance";
 import { validateName, validateEmployeeNumber } from "../../utils/validators";
 import useDepartments from "../../hooks/useDepartments";
@@ -77,12 +77,24 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
     setShowTeamSuggestions(false);
   };
 
+  // 입사일 범위 검증 (오늘 기준 ±6개월)
+  const validateHireDate = (date) => {
+    if (!date) return "입사일은 필수입니다.";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const minDate = subMonths(today, 6);
+    const maxDate = addMonths(today, 6);
+    if (date < minDate || date > maxDate) {
+      return "입사일은 오늘 기준 6개월 전후로만 설정할 수 있어요. 날짜를 다시 확인해 주세요.";
+    }
+    return "";
+  };
+
   // 입사일 (달력에서 날짜 선택 시)
   const handleHireDateChange = (date) => {
     setHireDate(date);
     setHireDateInput(date ? format(date, "yyyy-MM-dd") : "");
-    setHireDateError("");
-    if (!date) setHireDateError("입사일은 필수입니다.");
+    setHireDateError(validateHireDate(date));
   };
 
   // 입사일 직접 입력 시 숫자만 허용 + 자동 하이픈 삽입
@@ -97,7 +109,7 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
       const date = new Date(value);
       if (!isNaN(date)) {
         setHireDate(date);
-        setHireDateError("");
+        setHireDateError(validateHireDate(date));
       }
     } else {
       setHireDate(null);

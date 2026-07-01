@@ -11,7 +11,7 @@ function UserRow({ user }) {
         <br />({teamName})
       </span>
       <span className="px-[12px]">{user.hireDate}</span>
-      <span className="px-[24px]">D+{user.hireDay}</span>
+      <span className="px-[24px]">{user.hireDay >= 0 ? `D+${user.hireDay}` : `D${user.hireDay}`}</span>
       <span className="px-[12px]">{user.lastLoginDate ?? "-"}</span>
       <span className="px-[24px]">
         {user.questionCount != null ? `${user.questionCount}회` : "-"}
