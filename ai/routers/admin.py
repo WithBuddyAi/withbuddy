@@ -27,6 +27,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from pydantic import BaseModel, Field
 
 from core.vectorstore import get_vectorstore, invalidate_bm25_cache, invalidate_search_cache
+from utils.document_version_store import compute_hash, is_changed, save_version
 
 logger = logging.getLogger(__name__)
 
@@ -444,12 +445,18 @@ async def ingest_from_backend(
         file_resp.raise_for_status()
         file_bytes = file_resp.content
 
-        # 3. 텍스트 추출
+        # 3. content_hash 비교 — 변경 없으면 skip
+        content_hash = compute_hash(file_bytes)
+        if not is_changed(doc_id, content_hash):
+            logger.info("자동 인덱싱 skip (변경 없음): documentId=%s", doc_id)
+            return {"success": True, "documentId": doc_id, "skipped": True, "reason": "content unchanged"}
+
+        # 4. 텍스트 추출
         text = _extract_text(filename, file_bytes)
         if not text.strip():
             raise HTTPException(status_code=422, detail="텍스트 추출 실패")
 
-        # 4. 청킹 → 인덱싱 (기존 청크 먼저 삭제 후 재인덱싱)
+        # 5. 청킹 → 인덱싱 (기존 청크 먼저 삭제 후 재인덱싱)
         metadata = {
             "source": filename,
             "title": title,
@@ -481,14 +488,16 @@ async def ingest_from_backend(
                 failed += 1
         logger.info("인덱싱 완료: total=%d, failed=%d", len(all_chunks), failed)
 
-        # 5. BM25 + 검색 캐시 무효화
+        # 6. BM25 + 검색 캐시 무효화
         invalidate_bm25_cache(req.companyCode)
         invalidate_search_cache(req.companyCode)
 
+        new_version = save_version(doc_id, req.companyCode, content_hash, len(all_chunks))
+
         elapsed = time.perf_counter() - t0
-        logger.info("자동 인덱싱 완료: documentId=%s, chunks=%d, qa_chunks=%d, elapsed=%.1fs", doc_id, len(chunks), len(qa_chunks), elapsed)
-        print(f"[INGEST] documentId={doc_id} chunks={len(chunks)} qa_chunks={len(qa_chunks)} elapsed={elapsed:.1f}s", flush=True)
-        return {"success": True, "documentId": doc_id, "chunksIndexed": len(chunks)}
+        logger.info("자동 인덱싱 완료: documentId=%s, version=%d, chunks=%d, qa_chunks=%d, elapsed=%.1fs", doc_id, new_version, len(chunks), len(qa_chunks), elapsed)
+        print(f"[INGEST] documentId={doc_id} version={new_version} chunks={len(chunks)} qa_chunks={len(qa_chunks)} elapsed={elapsed:.1f}s", flush=True)
+        return {"success": True, "documentId": doc_id, "version": new_version, "chunksIndexed": len(chunks)}
 
     except HTTPException:
         raise

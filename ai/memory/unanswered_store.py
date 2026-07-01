@@ -70,6 +70,18 @@ def save_chunk_ids(qid: str, chunk_ids: list) -> None:
             return
 
 
+def save_embeddings_batch(updates: dict) -> None:
+    """여러 질문의 임베딩 일괄 저장. {qid: embedding_vector}"""
+    items = _load()
+    changed = False
+    for item in items:
+        if item["id"] in updates:
+            item["embedding"] = updates[item["id"]]
+            changed = True
+    if changed:
+        _save(items)
+
+
 def answer_question(qid: str, answer: str) -> dict | None:
     """질문에 답변 저장. 성공 시 해당 항목 반환."""
     items = _load()
