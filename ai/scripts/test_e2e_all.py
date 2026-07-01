@@ -78,7 +78,7 @@ INSCOPE = [
     {"id":"Q43","cat":"IT","q":"MFA 설정은 어떻게 해요?","expect_type":"rag_answer","kw":["Google Authenticator","QR"]},
     {"id":"Q44","cat":"IT","q":"VPN은 언제 써야 해요?","expect_type":"rag_answer","kw":["재택","vpn.techco"]},
     {"id":"Q45","cat":"IT","q":"VPN 연결이 안 될 때 어떻게 해요?","expect_type":"rag_answer","kw":["help-it","재시작"]},
-    {"id":"Q46","cat":"IT","q":"Slack 채널에 어떻게 초대받아요?","expect_type":"rag_answer","kw":["minjun.park","minjun"]},
+    {"id":"Q46","cat":"IT","q":"Slack 채널에 어떻게 초대받아요?","expect_type":"rag_answer","kw":["minjun.park","minjun","@minjun"]},
     {"id":"Q47","cat":"IT","q":"Slack에서 확인했다는 표시는 어떻게 해요?","expect_type":"rag_answer","kw":["리액션","✅","👍"]},
     {"id":"Q48","cat":"IT","q":"Notion 권한은 어떻게 받아요?","expect_type":"rag_answer","kw":["권한","minjun","1영업일"]},
     {"id":"Q49","cat":"IT","q":"소프트웨어 설치하고 싶은데 어떻게 해요?","expect_type":"rag_answer","kw":["help-it","승인"]},
