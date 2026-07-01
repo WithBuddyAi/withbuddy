@@ -1,0 +1,474 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "withbuddy-ai-overview",
+    "title": "WithBuddy AI Overview",
+    "tags": ["withbuddy", "ai", "prometheus"],
+    "timezone": "browser",
+    "schemaVersion": 41,
+    "version": 0,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "type": "stat",
+        "title": "AI Target Up",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "max(up{job=\"withbuddy_ai_metrics\",instance=\"10.2.2.242:8000\"})",
+            "legendFormat": "up",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } },
+              { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Request Rate (rps)",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{job=\"withbuddy_ai_metrics\",handler!=\"/metrics\"}[5m]))",
+            "legendFormat": "rps",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "orange", "value": 1 },
+                { "color": "red", "value": 3 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Error Rate (5m)",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(http_requests_total{job=\"withbuddy_ai_metrics\",handler!=\"/metrics\",status=~\"4xx|5xx\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"withbuddy_ai_metrics\",handler!=\"/metrics\"}[5m])), 0.0001)",
+            "legendFormat": "error_rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "orange", "value": 1 },
+                { "color": "red", "value": 5 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Chat Stream p95",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"withbuddy_ai_metrics\",handler=\"/chat/stream\",method=\"POST\"}[5m])) by (le))",
+            "legendFormat": "p95",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 3,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "orange", "value": 3 },
+                { "color": "red", "value": 5 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Requests by Handler",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{job=\"withbuddy_ai_metrics\",handler!=\"/metrics\"}[5m])) by (handler, status)",
+            "legendFormat": "{{handler}} {{status}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Latency p95 by Handler",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"withbuddy_ai_metrics\",handler!=\"/metrics\"}[5m])) by (le, handler))",
+            "legendFormat": "{{handler}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 3,
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Prompt Cache Hit Rate (5m)",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 12 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "legendFormat": "hit_rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "orange", "value": 50 },
+                { "color": "green", "value": 70 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "L1 Hit Share (5m)",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 12 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\",source=\"l1\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "legendFormat": "l1_share",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "orange", "value": 40 },
+                { "color": "green", "value": 60 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Redis Cache Fallback Rate (5m)",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 12 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(cache_redis_fallback_total[5m])) / clamp_min(sum(rate(cache_redis_requests_total[5m])), 0.0001)",
+            "legendFormat": "fallback_rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "orange", "value": 3 },
+                { "color": "red", "value": 7 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Redis Circuit Open",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "max(cache_redis_circuit_open)",
+            "legendFormat": "circuit",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              { "type": "value", "options": { "0": { "text": "CLOSED", "color": "green" } } },
+              { "type": "value", "options": { "1": { "text": "OPEN", "color": "red" } } }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "red", "value": 1 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Prompt Cache Hit Rate Trend",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "legendFormat": "hit_rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Prompt Cache Requests by Source",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(withbuddy_prompt_cache_requests_total[5m])) by (result, source)",
+            "legendFormat": "{{result}} {{source}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "AI Memory Usage",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes{job=\"withbuddy_ai_metrics\",instance=\"10.2.2.242:8000\"}",
+            "legendFormat": "resident",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "single", "sort": "none" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "AI CPU Usage",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total{job=\"withbuddy_ai_metrics\",instance=\"10.2.2.242:8000\"}[5m])",
+            "legendFormat": "cpu/sec",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "single", "sort": "none" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "decimals": 3,
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}
