@@ -28,7 +28,7 @@
 | 분류 | 기술 |
 |------|------|
 | **AI** | Python 3.12, FastAPI, LangChain, ChromaDB, Claude Haiku 4.5 (Anthropic) |
-| **임베딩** | Gemini Embedding 2 (`models/gemini-embedding-2`, 768차원) |
+| **임베딩** | Gemini Embedding 2 (`models/gemini-embedding-2`, 3072차원) |
 | **검색** | 벡터 유사도 + BM25 하이브리드 (RRF 병합, kiwipiepy 한국어 형태소 분석) |
 | **오케스트레이터** | LangGraph — Intent 분류 → RAG / chitchat / sensitive 등 라우팅 |
 | **평가** | RAGAS, LangSmith |
