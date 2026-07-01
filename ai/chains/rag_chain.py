@@ -170,7 +170,7 @@ def _inject_profile_context(user_id: str, question: str, formatted_context: str)
     return formatted_context
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None, account_status: str = "") -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
@@ -184,7 +184,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     _token_counter.reset()
 
     chat_history = injected_history if injected_history is not None else get_chat_history(user_id)
-    result = retrieve(question, company_code, chat_history)
+    result = retrieve(question, company_code, chat_history, account_status=account_status)
 
     if result.ambiguous_response:
         return result.ambiguous_response, "", [], []
@@ -241,7 +241,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     return answer, result.source_names, related_docs, result.doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> AsyncGenerator[Tuple[str, str | None, List[dict] | None, List[int] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None, account_status: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None, List[int] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None, None)을 yield하고, 마지막에 ("", source_names, related_docs, rag_doc_ids)를 yield합니다.
@@ -266,7 +266,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     yield "__STAGE__searching", None, None, None
 
-    result = await async_retrieve(question, company_code, chat_history)
+    result = await async_retrieve(question, company_code, chat_history, account_status=account_status)
 
     if result.direct_legal_answer:
         save_interaction(user_id, result.question, result.direct_legal_answer)
