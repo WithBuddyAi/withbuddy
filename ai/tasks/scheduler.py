@@ -11,14 +11,15 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from tasks.slack_notifier import send_all_reports, send_mybuddy_checkin_all, send_no_result_summary, send_analytics_report
+from tasks.slack_notifier import send_no_result_summary
 
 logger = logging.getLogger(__name__)
 
 
 async def _send_weekly_no_result_summary() -> None:
-    """매주 월요일 오전 — 회사별 미답변 질문 요약 Slack 발송"""
+    """매주 월요일 오전 — 회사별 미답변 질문 요약 Slack 발송 (최근 7일, WB9999 제외)"""
     from collections import defaultdict
+    from datetime import datetime, timedelta, timezone
     from memory.unanswered_store import get_pending
     from routers.knowledge import _run_summary
 
@@ -26,10 +27,20 @@ async def _send_weekly_no_result_summary() -> None:
     if not pending:
         return
 
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
     by_company: dict[str, list[str]] = defaultdict(list)
     for item in pending:
-        cc = item.get("company_code") or "공통"
-        by_company[cc].append(item["question"])
+        cc = item.get("company_code") or ""
+        if cc == "WB9999":
+            continue
+        ts_str = item.get("timestamp", "")
+        try:
+            ts = datetime.fromisoformat(ts_str).replace(tzinfo=timezone.utc) if ts_str else cutoff
+        except ValueError:
+            ts = cutoff
+        if ts < cutoff:
+            continue
+        by_company[cc or "공통"].append(item["question"])
 
     for company_code, questions in by_company.items():
         try:
@@ -54,47 +65,6 @@ _scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
 def start_scheduler() -> None:
     """스케줄러 시작 — FastAPI 앱 시작 시 호출"""
     _scheduler.add_job(
-        send_all_reports,
-        CronTrigger(
-            day_of_week="mon-fri",  # 평일만
-            hour=17,                # 오후 5시
-            minute=0,
-            timezone="Asia/Seoul",
-        ),
-        id="daily_slack_report",
-        replace_existing=True,
-        misfire_grace_time=300,     # 5분 이내 지연 허용
-    )
-    _scheduler.add_job(
-        send_mybuddy_checkin_all,
-        CronTrigger(
-            day_of_week="mon-fri",  # 평일만
-            hour=9,                 # 오전 9시
-            minute=0,
-            timezone="Asia/Seoul",
-        ),
-        id="mybuddy_morning_checkin",
-        replace_existing=True,
-        misfire_grace_time=300,
-    )
-    async def _send_daily_analytics():
-        from tasks.slack_notifier import send_analytics_report as _sar
-        for cc in ["WB0001", "WB0002"]:
-            await _sar(cc)
-
-    _scheduler.add_job(
-        _send_daily_analytics,
-        CronTrigger(
-            day_of_week="mon-fri",
-            hour=17,
-            minute=30,
-            timezone="Asia/Seoul",
-        ),
-        id="daily_analytics_report",
-        replace_existing=True,
-        misfire_grace_time=300,
-    )
-    _scheduler.add_job(
         _keepalive_llm,
         "interval",
         minutes=60,
@@ -114,7 +84,7 @@ def start_scheduler() -> None:
         misfire_grace_time=300,
     )
     _scheduler.start()
-    logger.info("스케줄러 시작 — 평일 17:00 리포트 / 17:30 analytics / 09:00 My Buddy 체크인 / 월 09:00 미답변 요약 / 60분 LLM keep-alive 활성화")
+    logger.info("스케줄러 시작 — 평일 17:30 analytics / 월 09:00 미답변 요약 / 60분 LLM keep-alive 활성화")
 
 
 def stop_scheduler() -> None:
