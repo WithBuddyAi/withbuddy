@@ -239,7 +239,7 @@ jobs:
           set -euo pipefail
           ACCESS_HOST="${AI_ACCESS_HOST:-${AI_SERVER_HOST}}"
           printf -v AI_APP_DIR_Q '%q' "${AI_APP_DIR}"
-          echo "${CONTACTS_CONFIG_PY}" | ssh "${ACCESS_HOST}" "base64 -d > ${AI_APP_DIR_Q}/contacts_config.py"
+          echo "${CONTACTS_CONFIG_PY}" | ssh "${ACCESS_HOST}" "rm -f ${AI_APP_DIR_Q}/contacts_config.py && base64 -d > ${AI_APP_DIR_Q}/contacts_config.py"
 
       - name: Deploy over Cloudflare Access SSH
         env:
