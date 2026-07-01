@@ -7,17 +7,29 @@ import Admin from "./pages/Admin";
 import Inactive from "./pages/Inactive";
 import { setLogoutHandler, setToastHandler } from "./api/handlers";
 import ErrorToast from "./components/ErrorToast";
+import { useUser } from "./contexts/UserContext";
+import { differenceInCalendarDays } from "date-fns";
 
 function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
+  const { setHireDate, setDayOffset, setRole, setAccountStatus } = useUser();
 
   // 앱 시작 시 로그인 상태 복원 (쿠키 기반)
   useEffect(() => {
     axiosInstance
       .get("/api/v1/auth/me")
-      .then((res) => setUser(res.data))
+      .then((res) => {
+        setUser(res.data);
+        // UserContext에도 저장 (새로고침 시 복원)
+        setHireDate(res.data.hireDate);
+        setRole(res.data.role);
+        setAccountStatus(res.data.accountStatus);
+        const today = new Date();
+        const hire = new Date(res.data.hireDate);
+        setDayOffset(differenceInCalendarDays(today, hire));
+      })
       .catch(() => setUser(null))
       .finally(() => setIsLoading(false));
   }, []);

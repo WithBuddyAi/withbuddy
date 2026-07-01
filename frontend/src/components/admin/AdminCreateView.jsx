@@ -1,13 +1,18 @@
 import { ChevronRight, Calendar, ChevronDown } from "lucide-react";
 import DatePicker from "react-datepicker";
-import { useState, useRef, useEffect } from "react";
-import { format } from "date-fns";
+import { useState, useRef } from "react";
+import { format, addMonths, subMonths } from "date-fns";
 import axiosInstance from "../../api/axiosInstance";
+import { validateName, validateEmployeeNumber } from "../../utils/validators";
+import useDepartments from "../../hooks/useDepartments";
 
 // 키보드 허용 키 '아래 화살표 | 위 화살표 | Enter | ESC | Tab'
 const allowedKeys = ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"];
 
 function AdminCreateView({ handleViewChange, onSuccess }) {
+  // 부서/팀 목록 (공용 훅)
+  const orgOptions = useDepartments();
+
   // 계정 생성 시 필요한 정보에 대한 State
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
@@ -20,7 +25,6 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
   const [departmentError, setDepartmentError] = useState("");
   const [teamName, setTeamName] = useState("");
   const [teamNameError, setTeamNameError] = useState("");
-  const [orgOptions, setOrgOptions] = useState([]);
   const [teamOptions, setTeamOptions] = useState([]);
   // 자동 완성
   const [deptSuggestions, setDeptSuggestions] = useState([]);
@@ -37,50 +41,16 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    const fetchOrgOptions = async () => {
-      try {
-        const res = await axiosInstance.get(
-          "/api/v1/admin/organization-options",
-        );
-        setOrgOptions(res.data.departments);
-      } catch (error) {
-        console.error("부서/팀 목록 조회 실패", error);
-      }
-    };
-    fetchOrgOptions();
-  }, []);
-
-  // 이름 정규식
+  // 이름 검증 (validators.js 활용)
   const handleNameChange = (e) => {
     setName(e.target.value);
-    setNameError("");
-    if (e.target.value === "") {
-      setNameError("");
-      return;
-    }
-    const regex = /^[A-Za-zㄱ-힣]{1,20}$/;
-    if (!regex.test(e.target.value)) {
-      setNameError("한글 또는 영문 1 ~ 20자로 입력해 주세요.");
-    } else {
-      setNameError("");
-    }
+    setNameError(validateName(e.target.value));
   };
 
-  // 사원번호 정규식
+  // 사원번호 검증 (validators.js 활용)
   const handleEmployeeNumberChange = (e) => {
     setEmployeeNumber(e.target.value);
-    setEmployeeNumberError("");
-    if (e.target.value === "") {
-      setEmployeeNumberError("");
-      return;
-    }
-    const regex = /^[A-Za-z0-9]{4,20}$/;
-    if (!regex.test(e.target.value)) {
-      setEmployeeNumberError("영문, 숫자를 조합하여 4 ~ 20자로 입력해 주세요.");
-    } else {
-      setEmployeeNumberError("");
-    }
+    setEmployeeNumberError(validateEmployeeNumber(e.target.value));
   };
 
   // 부서 선택 시
@@ -107,12 +77,24 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
     setShowTeamSuggestions(false);
   };
 
+  // 입사일 범위 검증 (오늘 기준 ±6개월)
+  const validateHireDate = (date) => {
+    if (!date) return "입사일은 필수입니다.";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const minDate = subMonths(today, 6);
+    const maxDate = addMonths(today, 6);
+    if (date < minDate || date > maxDate) {
+      return "입사일은 오늘 기준 6개월 전후로만 설정할 수 있어요. 날짜를 다시 확인해 주세요.";
+    }
+    return "";
+  };
+
   // 입사일 (달력에서 날짜 선택 시)
   const handleHireDateChange = (date) => {
     setHireDate(date);
     setHireDateInput(date ? format(date, "yyyy-MM-dd") : "");
-    setHireDateError("");
-    if (!date) setHireDateError("입사일은 필수입니다.");
+    setHireDateError(validateHireDate(date));
   };
 
   // 입사일 직접 입력 시 숫자만 허용 + 자동 하이픈 삽입
@@ -127,7 +109,7 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
       const date = new Date(value);
       if (!isNaN(date)) {
         setHireDate(date);
-        setHireDateError("");
+        setHireDateError(validateHireDate(date));
       }
     } else {
       setHireDate(null);
