@@ -200,7 +200,7 @@ def _json_to_docs(data: list) -> List[Document]:
     return [Document(page_content=d["page_content"], metadata=d.get("metadata", {})) for d in data]
 
 
-def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.40, category: str = "") -> List[Document]:
+def search_with_company_fallback(query: str, k: int = 5, company_code: str = "", score_threshold: float = 0.40, category: str = "", pre_onboarding_only: bool = False) -> List[Document]:
     """
     ST-027: company_code 기준 벡터 DB 격리 검색
     회사 특화 문서(company_code 일치) + 공통 문서(company_code 없음) OR 조건 검색.
@@ -250,6 +250,10 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     else:
         company_filter = {"$and": [{"company_code": company_code}, {"document_type": {"$ne": "TEMPLATE"}}]}
         common_filter  = {"$and": [{"company_code": ""},           {"document_type": {"$ne": "TEMPLATE"}}]}
+
+    if pre_onboarding_only:
+        company_filter["$and"].append({"pre_onboarding_tag": True})
+        common_filter["$and"].append({"pre_onboarding_tag": True})
 
     bm25 = get_bm25_retriever(company_code, k=k)
 
