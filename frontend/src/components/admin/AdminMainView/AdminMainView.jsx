@@ -1,6 +1,7 @@
 import { CircleCheckBig } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import axiosInstance from "../../../api/axiosInstance";
+import useDepartments from "../../../hooks/useDepartments";
 import UserMobileList from "./UserMobileList";
 import UserTable from "./UserTable";
 import Pagination from "./Pagination";
@@ -16,7 +17,7 @@ function AdminMainView({ handleViewChange, successMessage }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   // 필터 state
-  const [orgOptions, setOrgOptions] = useState([]);
+  const orgOptions = useDepartments();
   const [selectedDept, setSelectedDept] = useState("");
   const [showDeptFilter, setShowDeptFilter] = useState(false);
   const [sortBy, setSortBy] = useState("");
@@ -61,21 +62,6 @@ function AdminMainView({ handleViewChange, successMessage }) {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  // organization-options API 연동
-  useEffect(() => {
-    const fetchOrgOptions = async () => {
-      try {
-        const res = await axiosInstance.get(
-          "/api/v1/admin/organization-options",
-        );
-        setOrgOptions(res.data.departments);
-      } catch (error) {
-        console.error("부서/팀 목록 조회 실패", error);
-      }
-    };
-    fetchOrgOptions();
   }, []);
 
   // 외부 클릭 시 드롭다운 닫기
