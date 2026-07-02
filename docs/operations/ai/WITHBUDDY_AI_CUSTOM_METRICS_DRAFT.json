@@ -38,7 +38,7 @@
         "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
         "options": {
           "mode": "markdown",
-          "content": "Prompt Cache Grafana draft for `SCRUM-564`.\\n\\nPrimary metric now exposed by backend:\\n- `withbuddy_prompt_cache_requests_total{namespace,result,source}`\\n\\nSupporting cache resilience metrics already available in backend:\\n- `cache_redis_requests_total{op,result}`\\n- `cache_redis_fallback_total{op,result}`\\n- `cache_redis_circuit_open`\\n- `cache_redis_fallback_tokens`"
+          "content": "Prompt Cache Grafana draft for `SCRUM-564`.\\n\\nPrimary metric now exposed by backend:\\n- `withbuddy_prompt_cache_requests_total{namespace,result,source}`\\n\\nSupporting cache resilience metrics already available in backend:\\n- `cache_redis_requests_total{op,result}`\\n- `cache_redis_fallback_total{op,result}`\\n- `cache_redis_circuit_open`\\n- `cache_redis_fallback_tokens`\\n\\nNote:\\n- `ops/s` = operations per second (초당 처리 건수)\\n- `Redis Circuit Open` 패널에서 `CLOSED`는 정상 상태를 의미합니다. (`0=CLOSED`, `1=OPEN`)"
         }
       },
       {
@@ -148,7 +148,7 @@
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
-            "expr": "100 * sum(rate(cache_redis_fallback_total[5m])) / clamp_min(sum(rate(cache_redis_requests_total[5m])), 0.0001)",
+            "expr": "100 * (sum(rate(cache_redis_fallback_total[5m])) or on() vector(0)) / clamp_min((sum(rate(cache_redis_requests_total[5m])) or on() vector(0)), 0.0001)",
             "legendFormat": "fallback_rate",
             "refId": "A"
           }
@@ -233,7 +233,7 @@
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
-            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) by (source) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "expr": "(100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) by (source) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)) or on() vector(0)",
             "legendFormat": "{{source}}",
             "refId": "A"
           }
@@ -257,7 +257,7 @@
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
-            "expr": "sum(rate(cache_redis_fallback_total[5m])) by (op, result)",
+            "expr": "sum(rate(cache_redis_fallback_total[5m])) by (op, result) or on() vector(0)",
             "legendFormat": "{{op}} {{result}}",
             "refId": "A"
           }
@@ -281,7 +281,7 @@
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
-            "expr": "max(cache_redis_circuit_open)",
+            "expr": "max(cache_redis_circuit_open) or on() vector(0)",
             "legendFormat": "circuit_open",
             "refId": "A"
           }
@@ -335,6 +335,99 @@
           "defaults": {
             "unit": "none",
             "decimals": 0
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Saved Calls Rate (5m)",
+        "gridPos": { "h": 4, "w": 12, "x": 0, "y": 29 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m]))",
+            "legendFormat": "saved_calls",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "decimals": 3
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Saved Calls Share vs Demand (5m)",
+        "gridPos": { "h": 4, "w": 12, "x": 12, "y": 29 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) + sum(rate(ai_llm_calls_total[5m])), 0.0001)",
+            "legendFormat": "saved_share",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "orange", "value": 20 },
+                { "color": "green", "value": 40 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Saved Calls vs LLM Calls",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 33 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m]))",
+            "legendFormat": "saved_calls",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(ai_llm_calls_total[5m]))",
+            "legendFormat": "llm_calls",
+            "refId": "B"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
           },
           "overrides": []
         }
