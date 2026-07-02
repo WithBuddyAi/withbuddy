@@ -223,7 +223,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
-    hr_team, _ = get_hr_contact(company_code)
+    hr_team, hr_contact = get_hr_contact(company_code)
 
     answer = generate_answer(
         question=result.question,
@@ -250,7 +250,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         answer = _NO_RESULT_TEMPLATE
 
     if hr_team:
-        answer = re.sub(r'(?<![가-힣])님에게', f'{hr_team}님에게', answer)
+        answer = re.sub(r'(?<![가-힣])님에게', f'{hr_contact}님에게', answer)
 
     global _last_category
     _last_category = _extract_category(result.docs)
@@ -299,7 +299,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", result.source_names, related_docs, result.doc_ids
         return
 
-    hr_team, _ = get_hr_contact(company_code)
+    hr_team, hr_contact = get_hr_contact(company_code)
     _it_card = _get_it_card(company_code)
     if _it_card and any(kw in result.question for kw in _IT_SUPPORT_KW):
         _dept = _it_card.get("department", hr_team)
@@ -414,7 +414,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     fixed = await postprocess_answer_async(raw_answer)
     if hr_team:
-        fixed = re.sub(r'(?<![가-힣])님에게', f'{hr_team}님에게', fixed)
+        fixed = re.sub(r'(?<![가-힣])님에게', f'{hr_contact}님에게', fixed)
     if _streaming and fixed != raw_answer:
         yield "\x00" + fixed, None, None, None
 
