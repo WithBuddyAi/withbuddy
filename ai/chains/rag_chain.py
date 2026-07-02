@@ -49,7 +49,7 @@ def _is_docs_relevant(question: str, docs: List[Document]) -> bool:
     """사내 문서가 질문에 직접 답할 수 있는 내용을 포함하는지 검증. True=관련 있음, False=no_result."""
     context = "\n---\n".join(d.page_content[:400] for d in docs[:3])
     prompt = (
-        f"[문서]가 [질문]에 답할 수 있는 직접적인 내용을 담고 있으면 YES, 없으면 NO만 답하세요.\n\n"
+        f"[문서]에 [질문]과 관련된 내용이 있으면 YES, 전혀 무관하면 NO만 답하세요.\n\n"
         f"[질문]: {question}\n\n[문서]:\n{context}\n\nYES 또는 NO:"
     )
     resp = get_intent_llm().invoke(prompt)
