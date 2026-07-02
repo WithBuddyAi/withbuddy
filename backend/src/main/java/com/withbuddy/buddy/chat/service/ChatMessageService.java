@@ -25,6 +25,7 @@ import com.withbuddy.buddy.chat.repository.UnansweredQuestionLogRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
+import com.withbuddy.infrastructure.ai.client.AiQuestionEmbeddingClient;
 import com.withbuddy.infrastructure.ai.client.AiStreamClient;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
 import com.withbuddy.infrastructure.ai.dto.ConversationTurn;
@@ -84,6 +85,7 @@ public class ChatMessageService {
     private final DocumentRepository documentRepository;
     private final DocumentFileRepository documentFileRepository;
     private final AiStreamClient aiStreamClient;
+    private final AiQuestionEmbeddingClient aiQuestionEmbeddingClient;
     private final RedisCacheService redisCacheService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
@@ -268,7 +270,7 @@ public class ChatMessageService {
         );
     }
 
-    private ChatMessage saveAnswerMessage(
+    ChatMessage saveAnswerMessage(
             Long userId,
             String companyCode,
             String questionContent,
@@ -321,17 +323,57 @@ public class ChatMessageService {
             return;
         }
 
-        unansweredQuestionLogRepository.save(
+        String normalizedCompanyCode = normalizeCompanyCode(companyCode);
+        QuestionEmbeddingMetadata embeddingMetadata = createQuestionEmbeddingMetadata(
+                normalizedCompanyCode,
+                questionContent,
+                savedAnswerMessage.getMessageType()
+        );
+
+        UnansweredQuestionLog savedLog = unansweredQuestionLogRepository.save(
                 UnansweredQuestionLog.builder()
                         .userId(userId)
-                        .companyCode(companyCode)
+                        .companyCode(normalizedCompanyCode)
                         .questionMessageId(questionMessageId)
                         .answerMessageId(savedAnswerMessage.getId())
                         .questionContent(questionContent)
                         .answerType(savedAnswerMessage.getMessageType())
                         .latencyMs(latencyMs)
+                        .embeddingModel(embeddingMetadata.embeddingModel())
+                        .embeddingDimension(embeddingMetadata.embeddingDimension())
+                        .embeddingVector(embeddingMetadata.embeddingVector())
                         .build()
         );
+        log.info("Unanswered question log saved. logId={}, questionMessageId={}, answerMessageId={}, answerType={}, embeddingSaved={}",
+                savedLog.getId(),
+                questionMessageId,
+                savedAnswerMessage.getId(),
+                savedAnswerMessage.getMessageType(),
+                embeddingMetadata.embeddingVector() != null);
+    }
+
+    private QuestionEmbeddingMetadata createQuestionEmbeddingMetadata(
+            String companyCode,
+            String questionContent,
+            MessageType answerMessageType
+    ) {
+        if (answerMessageType != MessageType.no_result) {
+            return QuestionEmbeddingMetadata.empty();
+        }
+
+        try {
+            AiQuestionEmbeddingClient.QuestionEmbeddingResponse response =
+                    aiQuestionEmbeddingClient.embedQuestion(companyCode, questionContent);
+            return new QuestionEmbeddingMetadata(
+                    response.embeddingModel(),
+                    response.dimension(),
+                    objectMapper.writeValueAsString(response.embedding())
+            );
+        } catch (RuntimeException | JsonProcessingException e) {
+            log.warn("no_result 질문 임베딩 생성에 실패했습니다. companyCode={}, answerType={}",
+                    companyCode, answerMessageType, e);
+            return QuestionEmbeddingMetadata.empty();
+        }
     }
 
     Long resolveAnswerToMessageId(MessageType answerMessageType, Long savedQuestionId) {
@@ -339,6 +381,10 @@ public class ChatMessageService {
             return null;
         }
         return savedQuestionId;
+    }
+
+    String normalizeCompanyCode(String companyCode) {
+        return companyCode == null ? "" : companyCode.trim();
     }
 
     private ChatMessageResponse toResponse(
@@ -781,5 +827,15 @@ public class ChatMessageService {
     }
 
     private record SavedQuestionContext(ChatMessage message, boolean newlyCreated) {
+    }
+
+    private record QuestionEmbeddingMetadata(
+            String embeddingModel,
+            Integer embeddingDimension,
+            String embeddingVector
+    ) {
+        private static QuestionEmbeddingMetadata empty() {
+            return new QuestionEmbeddingMetadata(null, null, null);
+        }
     }
 }
