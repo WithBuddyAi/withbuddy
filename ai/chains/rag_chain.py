@@ -56,6 +56,25 @@ def _is_docs_relevant(question: str, docs: List[Document]) -> bool:
     return "YES" in resp.content.upper()
 
 
+_HIGH_RISK_KW = ["연차", "급여", "수습", "퇴직", "해고", "징계", "임금", "퇴사"]
+
+
+def _is_high_risk(question: str) -> bool:
+    return any(kw in question for kw in _HIGH_RISK_KW)
+
+
+def _llm_judge(question: str, docs: List[Document], answer: str) -> bool:
+    """고위험 질문 답변 품질 검증 (LLM Judge POC). True=신뢰 가능, False=no_result."""
+    context = "\n---\n".join(d.page_content[:400] for d in docs[:3])
+    prompt = (
+        f"[문서]에 근거하여 [질문]에 대한 [답변]이 사실에 부합하는지 판단하세요.\n"
+        f"문서에 없는 내용을 단언하거나 잘못된 정보를 포함하면 NO, 문서 기반의 정확한 답변이면 YES만 답하세요.\n\n"
+        f"[질문]: {question}\n\n[문서]:\n{context}\n\n[답변]:\n{answer[:500]}\n\nYES 또는 NO:"
+    )
+    resp = get_intent_llm().invoke(prompt)
+    return "YES" in resp.content.upper()
+
+
 class _TokenCounter(BaseCallbackHandler):
     def __init__(self):
         self.reset()
@@ -252,6 +271,11 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if hr_team:
         answer = re.sub(r'(?<![가-힣])님에게', f'{hr_contact}님에게', answer)
 
+    # LLM Judge POC: 고위험 질문 답변 품질 검증
+    if answer != _NO_RESULT_TEMPLATE and _is_high_risk(result.question) and result.docs:
+        if not _llm_judge(result.question, result.docs, answer):
+            answer = _NO_RESULT_TEMPLATE
+
     global _last_category
     _last_category = _extract_category(result.docs)
 
@@ -436,6 +460,14 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
             yield "\x00" + fixed, None, None, None  # 드문 케이스: 120자 이후 no_result 감지
         else:
             yield fixed, None, None, None  # swap 없이 바로 출력
+
+    # LLM Judge POC: 고위험 질문 답변 품질 검증
+    if fixed != _NO_RESULT_TEMPLATE and _is_high_risk(result.question) and result.docs:
+        _judge_ok = await asyncio.to_thread(_llm_judge, result.question, result.docs, fixed)
+        if not _judge_ok:
+            asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+            fixed = _NO_RESULT_TEMPLATE
+            yield "\x00" + fixed, None, None, None
 
     global _last_category
     _last_category = _extract_category(result.docs)
