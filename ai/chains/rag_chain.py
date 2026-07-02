@@ -249,6 +249,9 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if is_unanswered(answer, result.docs):
         answer = _NO_RESULT_TEMPLATE
 
+    if hr_team:
+        answer = re.sub(r'(?<![가-힣])님에게', f'{hr_team}님에게', answer)
+
     global _last_category
     _last_category = _extract_category(result.docs)
 
@@ -410,6 +413,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         _streaming = True
 
     fixed = await postprocess_answer_async(raw_answer)
+    if hr_team:
+        fixed = re.sub(r'(?<![가-힣])님에게', f'{hr_team}님에게', fixed)
     if _streaming and fixed != raw_answer:
         yield "\x00" + fixed, None, None, None
 
