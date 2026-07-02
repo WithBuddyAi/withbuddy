@@ -13,7 +13,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 
-from core.llm import get_llm
+from core.llm import get_llm, get_intent_llm
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
 from chains.retriever import (
@@ -43,6 +43,17 @@ _IT_SUPPORT_KW = [
 ]
 
 _NO_RESULT_TEMPLATE = "아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.😅\n\n정확한 안내를 위해 아래 담당자에게 문의해 주세요."
+
+
+def _is_docs_relevant(question: str, docs: List[Document]) -> bool:
+    """사내 문서가 질문에 직접 답할 수 있는 내용을 포함하는지 검증. True=관련 있음, False=no_result."""
+    context = "\n---\n".join(d.page_content[:400] for d in docs[:3])
+    prompt = (
+        f"[문서]가 [질문]에 답할 수 있는 직접적인 내용을 담고 있으면 YES, 없으면 NO만 답하세요.\n\n"
+        f"[질문]: {question}\n\n[문서]:\n{context}\n\nYES 또는 NO:"
+    )
+    resp = get_intent_llm().invoke(prompt)
+    return "YES" in resp.content.upper()
 
 
 class _TokenCounter(BaseCallbackHandler):
@@ -204,6 +215,12 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
         return _NO_RESULT_TEMPLATE, "", [], []
 
+    # 사내 문서가 있지만 질문에 실제로 답할 수 없는 경우 → no_result
+    _company_docs = [d for d in result.docs if d.metadata.get("company_code", "")]
+    if _company_docs and company_code and not _is_docs_relevant(result.question, _company_docs):
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+        return _NO_RESULT_TEMPLATE, "", [], []
+
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
     hr_team, _ = get_hr_contact(company_code)
@@ -302,6 +319,17 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield _NO_RESULT_TEMPLATE, None, None, None
         yield "", "", [], []
         return
+
+    # 사내 문서가 있지만 질문에 실제로 답할 수 없는 경우 → no_result
+    _company_docs = [d for d in result.docs if d.metadata.get("company_code", "")]
+    if _company_docs and company_code:
+        _relevant = await asyncio.to_thread(_is_docs_relevant, result.question, _company_docs)
+        if not _relevant:
+            save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+            asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+            yield _NO_RESULT_TEMPLATE, None, None, None
+            yield "", "", [], []
+            return
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
