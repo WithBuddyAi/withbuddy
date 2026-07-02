@@ -270,7 +270,7 @@ public class ChatMessageService {
         );
     }
 
-    private ChatMessage saveAnswerMessage(
+    ChatMessage saveAnswerMessage(
             Long userId,
             String companyCode,
             String questionContent,
@@ -323,16 +323,17 @@ public class ChatMessageService {
             return;
         }
 
+        String normalizedCompanyCode = normalizeCompanyCode(companyCode);
         QuestionEmbeddingMetadata embeddingMetadata = createQuestionEmbeddingMetadata(
-                companyCode,
+                normalizedCompanyCode,
                 questionContent,
                 savedAnswerMessage.getMessageType()
         );
 
-        unansweredQuestionLogRepository.save(
+        UnansweredQuestionLog savedLog = unansweredQuestionLogRepository.save(
                 UnansweredQuestionLog.builder()
                         .userId(userId)
-                        .companyCode(companyCode)
+                        .companyCode(normalizedCompanyCode)
                         .questionMessageId(questionMessageId)
                         .answerMessageId(savedAnswerMessage.getId())
                         .questionContent(questionContent)
@@ -343,6 +344,12 @@ public class ChatMessageService {
                         .embeddingVector(embeddingMetadata.embeddingVector())
                         .build()
         );
+        log.info("Unanswered question log saved. logId={}, questionMessageId={}, answerMessageId={}, answerType={}, embeddingSaved={}",
+                savedLog.getId(),
+                questionMessageId,
+                savedAnswerMessage.getId(),
+                savedAnswerMessage.getMessageType(),
+                embeddingMetadata.embeddingVector() != null);
     }
 
     private QuestionEmbeddingMetadata createQuestionEmbeddingMetadata(
@@ -374,6 +381,10 @@ public class ChatMessageService {
             return null;
         }
         return savedQuestionId;
+    }
+
+    String normalizeCompanyCode(String companyCode) {
+        return companyCode == null ? "" : companyCode.trim();
     }
 
     private ChatMessageResponse toResponse(

@@ -29,9 +29,6 @@ public class AiQuestionEmbeddingClient {
     }
 
     public QuestionEmbeddingResponse embedQuestion(String companyCode, String content) {
-        if (!StringUtils.hasText(companyCode)) {
-            throw new IllegalArgumentException("회사 코드가 비어 있습니다.");
-        }
         if (!StringUtils.hasText(content)) {
             throw new IllegalArgumentException("질문 내용이 비어 있습니다.");
         }
@@ -39,7 +36,7 @@ public class AiQuestionEmbeddingClient {
         QuestionEmbeddingResponse response = restClient.post()
                 .uri("embeddings/question")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new QuestionEmbeddingRequest(companyCode.trim(), content))
+                .body(new QuestionEmbeddingRequest(companyCode == null ? "" : companyCode.trim(), content))
                 .retrieve()
                 .body(QuestionEmbeddingResponse.class);
 
