@@ -204,6 +204,18 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
         return _NO_RESULT_TEMPLATE, "", [], []
 
+    # 사내 문서는 있지만 질문 핵심 명사가 문서 내에 없는 경우 → no_result
+    _company_docs = [d for d in result.docs if d.metadata.get("company_code", "")]
+    if _company_docs and company_code:
+        from core.vectorstore import _tokenize_ko
+        _TOPIC_STOPWORDS = frozenset({"지원", "확인", "신청", "방법", "여부", "내용", "기준", "관련", "안내", "문의"})
+        _topic_nouns = [t for t in _tokenize_ko(result.question) if len(t) >= 2 and t not in _TOPIC_STOPWORDS]
+        if _topic_nouns and not any(
+            noun in d.page_content for d in _company_docs for noun in _topic_nouns
+        ):
+            save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+            return _NO_RESULT_TEMPLATE, "", [], []
+
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
     hr_team, _ = get_hr_contact(company_code)
@@ -302,6 +314,21 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield _NO_RESULT_TEMPLATE, None, None, None
         yield "", "", [], []
         return
+
+    # 사내 문서는 있지만 질문 핵심 명사가 문서 내에 없는 경우 → no_result
+    _company_docs = [d for d in result.docs if d.metadata.get("company_code", "")]
+    if _company_docs and company_code:
+        from core.vectorstore import _tokenize_ko
+        _TOPIC_STOPWORDS = frozenset({"지원", "확인", "신청", "방법", "여부", "내용", "기준", "관련", "안내", "문의"})
+        _topic_nouns = [t for t in _tokenize_ko(result.question) if len(t) >= 2 and t not in _TOPIC_STOPWORDS]
+        if _topic_nouns and not any(
+            noun in d.page_content for d in _company_docs for noun in _topic_nouns
+        ):
+            save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+            asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+            yield _NO_RESULT_TEMPLATE, None, None, None
+            yield "", "", [], []
+            return
 
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
