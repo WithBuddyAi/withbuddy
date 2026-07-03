@@ -2,8 +2,8 @@
 
 > 클라우드 인프라 및 네트워크 구성
 
-**최종 업데이트**: 2026-04-11
-**버전**: 0.6.0
+**최종 업데이트**: 2026-07-03
+**버전**: 0.6.3
 **작성일**: 2026-03-27
 
 ---
@@ -90,11 +90,12 @@ Destination         Target
 #### VCN-B (Backend/DB/Core Services 테넌시)
 
 **Public Subnet (10.0.1.0/24)**  
-용도: 외부에서 접근 가능한 Backend
+용도: 외부에서 접근 가능한 Backend blue/green
 
 | 리소스 | 포트 | 접근 |
 |-------|------|------|
-| Backend (Spring Boot) | 8080 | Vercel, 운영자 |
+| Backend Blue (Spring Boot) | 8080 | Vercel, 운영자 |
+| Backend Green (Spring Boot) | 8080 | 운영 전환 대상 슬롯 |
 
 **라우팅 테이블**:
 ```
@@ -109,7 +110,15 @@ Destination         Target
 
 | 리소스 | 포트 | 접근 |
 |-------|------|------|
-| MySQL 8.0 | 3306 | Backend only |
+| OCI MySQL DB System 9.7.0 | 3306 | Backend only |
+
+**Private Subnet - Cache/MQ (예: 10.0.4.0/24)**  
+용도: Redis / RabbitMQ 전용
+
+| 리소스 | 포트 | 접근 |
+|-------|------|------|
+| Redis Server | 6379 | Backend, 내부 운영자 |
+| RabbitMQ Server | 5672 / 15672 | Backend, 내부 운영자 |
 
 **라우팅 테이블**:
 ```
@@ -117,11 +126,31 @@ Destination         Target
 10.0.0.0/16        Local
 ```
 
-### 2.4 통신 경로 요약
+### 2.4 운영 검증 기준 (2026-07-03)
+
+- 현재 운영 경로는 `Frontend -> Backend -> DB/Redis/RabbitMQ` 분리 구조다.
+- Backend는 아래 private endpoint만 사용한다.
+  - MySQL: `<DB_PRIVATE_IP>:3306`
+  - Redis: `<REDIS_PRIVATE_IP>:6379`
+  - RabbitMQ: `<RABBITMQ_PRIVATE_IP>:5672`
+- 과거 혼합 역할 Compute 서버(MySQL + Redis + RabbitMQ)는 현행 운영 경로에서 제외됐다.
+
+검증 명령:
+
+```bash
+nc -vz -w 5 <DB_PRIVATE_IP> 3306
+nc -vz -w 5 <REDIS_PRIVATE_IP> 6379
+nc -vz -w 5 <RABBITMQ_PRIVATE_IP> 5672
+curl -fsS https://<API_DOMAIN>/actuator/health
+```
+
+### 2.5 통신 경로 요약
 
 - Frontend → Backend: Public HTTPS → Backend (8080)
 - Backend ↔ AI: LPG (VCN-B ↔ VCN-A), 8000
 - Backend → MySQL: VCN-B 내부, 3306
+- Backend → Redis: VCN-B 내부, 6379
+- Backend → RabbitMQ: VCN-B 내부, 5672
 
 ---
 
@@ -175,6 +204,18 @@ Outbound Rules:
 
   - Type: Custom TCP
     Protocol: TCP
+    Port: 6379
+    Destination: 10.0.4.0/24
+    Description: To Redis (VCN-B)
+
+  - Type: Custom TCP
+    Protocol: TCP
+    Port: 5672
+    Destination: 10.0.4.0/24
+    Description: To RabbitMQ (VCN-B)
+
+  - Type: Custom TCP
+    Protocol: TCP
     Port: 8000
     Destination: <VCN-A CIDR>
     Description: To AI Server via LPG
@@ -224,7 +265,46 @@ Outbound Rules:
   - None (데이터베이스는 아웃바운드 불필요)
 ```
 
-### 3.5 운영 복구 메모 (2026-04-09)
+### 3.5 Redis Security Group (VCN-B)
+
+```yaml
+Name: nsg-withbuddy-redis
+Description: Redis cache security group
+
+Inbound Rules:
+  - Type: Custom TCP
+    Protocol: TCP
+    Port: 6379
+    Source: <VCN_B_CIDR>
+    Description: From Backend subnet
+
+Outbound Rules:
+  - None
+```
+
+### 3.6 RabbitMQ Security Group (VCN-B)
+
+```yaml
+Name: nsg-withbuddy-rabbitmq
+Description: RabbitMQ messaging security group
+
+Inbound Rules:
+  - Type: Custom TCP
+    Protocol: TCP
+    Port: 5672
+    Source: <VCN_B_CIDR>
+    Description: From Backend subnet
+  - Type: Custom TCP
+    Protocol: TCP
+    Port: 15672
+    Source: <ADMIN_FIXED_IP_OR_CIDR>
+    Description: Management console
+
+Outbound Rules:
+  - None
+```
+
+### 3.7 운영 복구 메모 (2026-04-09)
 
 로그인 API 타임아웃 장애(`Backend -> DB 3306 timeout`)를 실제 OCI 설정 기준으로 점검한 결과, 직접 원인은
 `<BACKEND_DB_SUBNET_NAME>` 보안 목록(Security List) egress 누락이었다.
@@ -252,7 +332,7 @@ curl -X POST https://<API_DOMAIN>/api/v1/auth/login ...
 
 ## 4. 스토리지 구조
 
-### 4.1 Object Storage (S3/GCS/OCI)
+### 4.1 Object Storage (OCI)
 
 #### 버킷 구조
 
@@ -288,28 +368,14 @@ withbuddy-storage/
 
 #### 접근 권한 정책
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "ec2.amazonaws.com"
-      },
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject"
-      ],
-      "Resource": "arn:aws:s3:::withbuddy-storage/*"
-    }
-  ]
-}
+```text
+Allow dynamic-group <BACKEND_DYNAMIC_GROUP> to manage objects in compartment <COMPARTMENT_NAME>
+Allow dynamic-group <BACKEND_DYNAMIC_GROUP> to read buckets in compartment <COMPARTMENT_NAME>
+Allow group <OPS_GROUP> to manage object-family in compartment <COMPARTMENT_NAME>
 ```
 
 **접근 방식**:
-- ✅ Backend: IAM Role 기반 접근
+- ✅ Backend: OCI Instance Principal / 승인된 CLI profile 기반 접근
 - ✅ Frontend: Presigned URL (임시 다운로드)
 - ❌ Public Read: 없음 (모든 파일 Private)
 
@@ -336,19 +402,15 @@ backups/monthly/:
 #### MySQL Storage
 
 ```yaml
-Instance Type: db.t3.medium (프로덕션)
-Storage Type: SSD (gp3)
-Allocated Storage: 100 GB
-Max Storage: 500 GB (Auto Scaling)
-IOPS: 3000
-Throughput: 125 MiB/s
-
+Service: OCI MySQL DB System
+Version: 9.7.0
+Endpoint: Private only
+Storage: Managed by OCI DB System profile
 Backup:
-  Retention: 7 days
-  Window: 03:00-04:00 UTC (한국시간 12:00-13:00)
-  
+  Retention: OCI 정책 기준
+  Method: DB System backup / restore
 Maintenance:
-  Window: Sun 04:00-05:00 UTC (한국시간 일요일 13:00-14:00)
+  Window: OCI 관리 창 기준
 ```
 
 ---
@@ -359,10 +421,10 @@ Maintenance:
 
 ### 5.1 Backend Server (Tenancy B)
 ```yaml
-Shape: VM.Standard.A1.Flex
-CPU: 2 OCPU
-RAM: 12 GB
-Network Bandwidth: 2 Gbps
+Topology: Blue/Green
+Instances:
+  - Blue: VM.Standard.A1.Flex / 2 OCPU / 12 GB
+  - Green: VM.Standard.A1.Flex / 2 OCPU / 12 GB
 OS: Canonical Ubuntu 24.04
 Subnet: Public (VCN-B)
 ```
@@ -377,14 +439,29 @@ OS: Canonical Ubuntu 24.04
 Subnet: Private (VCN-A)
 ```
 
-### 5.3 Database Server (Tenancy B)
+### 5.3 Database Service (Tenancy B)
 ```yaml
-Shape: VM.Standard.A1.Flex
-CPU: 2 OCPU
-RAM: 12 GB
-Network Bandwidth: 2 Gbps
-OS: Canonical Ubuntu 24.04
-Subnet: Private - DB (VCN-B)
+Type: OCI MySQL DB System
+Database Version: 9.7.0
+Access: Private - DB (VCN-B)
+Mode: Read/write
+Crash Recovery: Enabled
+```
+
+### 5.4 Redis Service (Tenancy B)
+```yaml
+Type: Oracle Cloud Compute
+Shape: VM.Standard.E2.1.Micro
+Role: Redis cache
+Subnet: Private - Cache/MQ (VCN-B)
+```
+
+### 5.5 RabbitMQ Service (Tenancy B)
+```yaml
+Type: Oracle Cloud Compute
+Shape: VM.Standard.E2.1.Micro
+Role: RabbitMQ messaging
+Subnet: Private - Cache/MQ (VCN-B)
 ```
 
 ---
@@ -495,21 +572,16 @@ Purpose: Major changes, deployments
 #### 복구 절차
 
 ```bash
-# 1. 최신 스냅샷 확인
-aws rds describe-db-snapshots \
-  --db-instance-identifier withbuddy-mysql
+# 1. DB System 백업 목록 확인
+oci mysql backup list \
+  --compartment-id <COMPARTMENT_OCID>
 
-# 2. 새 인스턴스로 복원
-aws rds restore-db-instance-from-db-snapshot \
-  --db-instance-identifier withbuddy-mysql-restored \
-  --db-snapshot-identifier snapshot-20260317
+# 2. DB System 정보 확인
+oci mysql db-system get \
+  --db-system-id <MYSQL_DB_SYSTEM_OCID>
 
-# 3. 복원 확인
-aws rds describe-db-instances \
-  --db-instance-identifier withbuddy-mysql-restored
-
-# 4. 애플리케이션 연결 변경
-# (connection string 업데이트)
+# 3. 복구 작업은 OCI Console 또는 승인된 운영 절차로 수행
+# 4. 애플리케이션 연결 정보는 <SPRING_DB_URL> 기준으로 갱신
 ```
 
 ### 7.2 Object Storage 백업
@@ -536,10 +608,10 @@ Code:
   
 Configuration:
   - Location: Git repository (encrypted)
-  - Secrets: AWS Secrets Manager / HashiCorp Vault
+  - Secrets: OCI Vault / HashiCorp Vault
   
 Logs:
-  - Storage: CloudWatch Logs / ELK
+  - Storage: Grafana Loki / ELK
   - Retention: 90 days
 ```
 
@@ -547,26 +619,24 @@ Logs:
 
 ## 8. 모니터링 & 알림
 
-### 8.1 CloudWatch 메트릭
+### 8.1 Grafana / Prometheus 메트릭
 
 ```yaml
 Backend:
   - CPUUtilization
   - MemoryUtilization
-  - NetworkIn/Out
-  - DiskReadOps/WriteOps
+  - /actuator/health
+  - HTTP 5xx rate
 
 Database:
-  - CPUUtilization
-  - DatabaseConnections
-  - ReadLatency/WriteLatency
-  - FreeStorageSpace
+  - Connect latency
+  - Active connections
+  - Backup status
 
-Load Balancer:
-  - TargetResponseTime
-  - HealthyHostCount
-  - RequestCount
-  - HTTPCode_Target_2XX_Count
+Redis/RabbitMQ:
+  - TCP reachability
+  - Queue backlog
+  - Consumer count
 ```
 
 ### 8.2 알림 설정
@@ -583,7 +653,7 @@ Warning Alerts (30분 후 알림):
   - Disk space < 20%
   
 Notification:
-  - Slack: #alerts-critical
+  - Grafana Alerting -> Discord
   - Email: ops@withbuddy.com
 ```
 
@@ -595,8 +665,8 @@ Notification:
 
 | 기능 | Oracle Cloud (OCI) |
 |------|---------------------|
-| 컴퓨팅 | Compute (VM.Standard.A1.Flex) |
-| 데이터베이스 | MySQL on Compute (VM.Standard.A1.Flex) |
+| 컴퓨팅 | Compute (Backend blue/green A1.Flex, Redis E2.1.Micro, RabbitMQ E2.1.Micro) |
+| 데이터베이스 | OCI MySQL DB System 9.7.0 |
 | 스토리지 | Object Storage |
 | 로드밸런서 | Load Balancer |
 | 네트워크 | VCN + Local VCN Peering (LPG) |
@@ -607,8 +677,11 @@ MVP 기준 실제 인스턴스 스펙:
 
 ```
 AI Server (A1.Flex 4 OCPU / 24GB):        TBD
-Backend (A1.Flex 2 OCPU / 12GB):          TBD
-Database (A1.Flex 2 OCPU / 12GB):         TBD
+Backend Blue (A1.Flex 2 OCPU / 12GB):     TBD
+Backend Green (A1.Flex 2 OCPU / 12GB):    TBD
+Database (OCI MySQL DB System 9.7.0):    TBD
+Redis (E2.1.Micro):                       TBD
+RabbitMQ (E2.1.Micro):                    TBD
 Load Balancer:                            TBD
 Object Storage:                           TBD
 Data Transfer:                            TBD
@@ -628,16 +701,18 @@ Total:                                    TBD
 - [ ] 라우팅 테이블 설정
 - [ ] 보안 그룹 생성
 - [ ] Load Balancer 생성
-- [ ] EC2 인스턴스 생성 (Backend, AI)
-- [ ] RDS MySQL 생성
-- [ ] S3 버킷 생성
+- [ ] Compute 인스턴스 생성 (Backend blue/green, AI, Redis, RabbitMQ)
+- [ ] OCI MySQL DB System 생성
+- [ ] Object Storage 버킷 생성
 - [ ] IAM 역할 설정
-- [ ] CloudWatch 알람 설정
+- [ ] Grafana/Prometheus 알람 설정
 
 ---
 
 ## 변경 이력
 
+- 2026-07-03: 운영 검증 결과를 반영해 `Backend -> DB/Redis/RabbitMQ private endpoint 분리` 기준을 명시하고, OCI 기준과 맞지 않던 AWS/공용 서버 잔여 서술을 정리했다.
+- 2026-07-02: 운영 DB를 OCI Managed MySQL DB System 9.7.0으로 정정하고, Backend blue/green A1.Flex 2 OCPU / 12GB x2, Redis E2.1.Micro, RabbitMQ E2.1.Micro 분리 구조를 반영.
 - 2026-04-09: OCI 운영 이슈 복구 내역을 반영하고, shared-subnet 운영 시 필수 egress(3306/6379/5672) 규칙을 명시.
 - 2026-04-09: 스토리지/백업/모니터링 섹션을 OCI 기준으로 전면 정리하고, Primary/Backup Object Storage 및 Block Volume 배분 구조를 반영. 체크리스트에 LPG/Service Gateway/DNS-TLS 단계를 추가.
 - 2026-04-06: 운영 기준을 `Frontend → Backend → AI`, `DB는 Backend만 접근`으로 정리하고 AI→DB/Redis/RabbitMQ 직접 접근 규칙을 제거.

@@ -3,6 +3,7 @@ package com.withbuddy.admin.metrics.docs;
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
 import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
+import com.withbuddy.admin.metrics.dto.response.NoResultQuestionPatternRefreshResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
@@ -162,5 +163,23 @@ public interface AdminMetricsControllerDocs {
             @RequestParam(required = false) String companyCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate,
             @RequestParam(required = false) Integer limit
+    );
+
+    @Operation(summary = "미답변 질문 패턴 수동 갱신")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "패턴 갱신 성공",
+                    content = @Content(schema = @Schema(implementation = NoResultQuestionPatternRefreshResponse.class))),
+            @ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "권한 없음",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 파라미터",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<NoResultQuestionPatternRefreshResponse> refreshUnansweredQuestionPatterns(
+            @Parameter(hidden = true) Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate analysisDate,
+            @RequestParam(required = false) Integer topN
     );
 }
