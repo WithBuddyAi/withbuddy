@@ -5,6 +5,8 @@ import { format, addMonths, subMonths } from "date-fns";
 import axiosInstance from "../../api/axiosInstance";
 import { validateName, validateEmployeeNumber } from "../../utils/validators";
 import useDepartments from "../../hooks/useDepartments";
+import { trackEvent } from "../../utils/tracking";
+import { useUser } from "../../contexts/UserContext";
 
 // 키보드 허용 키 '아래 화살표 | 위 화살표 | Enter | ESC | Tab'
 const allowedKeys = ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"];
@@ -12,6 +14,7 @@ const allowedKeys = ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"];
 function AdminCreateView({ handleViewChange, onSuccess }) {
   // 부서/팀 목록 (공용 훅)
   const orgOptions = useDepartments();
+  const { companyCode } = useUser();
 
   // 계정 생성 시 필요한 정보에 대한 State
   const [name, setName] = useState("");
@@ -146,8 +149,29 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
         teamName,
         hireDate: format(hireDate, "yyyy-MM-dd"),
       });
+
+      // GA4 사용자 트래킹용 이벤트
+      // 입사일이 오늘 이후면 PRE, 오늘 이전(오늘 포함)이면 ACTIVE
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const createdAccountStatus = hireDate > today ? "PRE" : "ACTIVE";
+      trackEvent("employee_create_success", {
+        user_role: "admin",
+        company_code: companyCode,
+        created_account_status: createdAccountStatus,
+      });
+
       onSuccess(`${name} 계정이 추가됐어요.`);
     } catch (error) {
+      // GA4 사용자 트래킹용 이벤트
+      const errorCode =
+        error.response?.data?.code ||
+        `HTTP_${error.response?.status || "UNKNOWN"}`;
+      trackEvent("employee_create_failed", {
+        user_role: "admin",
+        error_code: errorCode,
+      });
+
       // 400 에러인 경우
       if (error.response?.status === 400) {
         error.response.data.errors.forEach((err) => {
@@ -473,9 +497,15 @@ function AdminCreateView({ handleViewChange, onSuccess }) {
 
         {/* 버튼 */}
         <div className="flex gap-[8px] w-full md:w-1/2 md:ml-auto">
-          {/* 취소 */}
+          {/* 취소 + GA4 사용자 트래킹용 이벤트 */}
           <button
-            onClick={() => handleViewChange("main")}
+            onClick={() => {
+              trackEvent("employee_create_cancel", {
+                user_role: "admin",
+                company_code: companyCode,
+              });
+              handleViewChange("main");
+            }}
             className="flex-1 h-[40px] md:h-[49px] text-[14px] font-medium rounded-[8px] border-[1px] border-[#CED4DA] text-[#495057] hover:bg-[#F1F3F5]"
           >
             취소

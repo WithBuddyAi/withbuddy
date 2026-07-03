@@ -2,6 +2,8 @@ import { format } from "date-fns";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
+import { trackEvent } from "../utils/tracking";
+import { getResponseTimeBucket } from "../constants/trackingConstants";
 
 function useChat({
   accountStatus,
@@ -22,6 +24,13 @@ function useChat({
   const [loadingMessage, setLoadingMessage] = useState("");
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const submitLockRef = useRef(false);
+
+  // GA4 트래킹: 응답 시간 측정 + 마지막 질문 정보 보관
+  const responseStartRef = useRef(null);
+  const lastQuestionInfoRef = useRef({
+    inputMethod: "manual",
+    buttonText: "manual",
+  });
 
   // 자동 스크롤
   const chatTopRef = useRef(null);
@@ -150,8 +159,13 @@ function useChat({
     }
   }, [isLoading]);
 
-  // 사용자 질문 전송
-  const handleSubmit = async (e, submitText, eventTarget) => {
+  const handleSubmit = async (
+    e,
+    submitText,
+    eventTarget,
+    inputMethod,
+    buttonText,
+  ) => {
     e?.preventDefault();
     const sendText = submitText?.trim();
     if (!sendText) return;
@@ -159,6 +173,20 @@ function useChat({
     // 중복 요청 완전 차단
     if (submitLockRef.current) return;
     submitLockRef.current = true;
+
+    // GA4: input_method, buttonText 보관 (응답 완료 시 활용)
+    const method = inputMethod || "manual";
+    lastQuestionInfoRef.current = {
+      inputMethod: method,
+      buttonText: buttonText || "manual",
+    };
+
+    // #14 question_submit
+    trackEvent("question_submit", {
+      input_method: method,
+      button_text: buttonText || "manual",
+      account_status: accountStatus,
+    });
 
     // 클릭 로그 기록
     if (eventTarget) {
@@ -170,6 +198,9 @@ function useChat({
         console.error("클릭 로그 기록 실패:", error);
       }
     }
+
+    // GA4: 응답 시간 측정 시작
+    responseStartRef.current = Date.now();
 
     setIsLoading(true);
     setHasSubmitted(true);
@@ -328,6 +359,33 @@ function useChat({
                 setActiveDates((prev) =>
                   prev.includes(today) ? prev : [...prev, today],
                 );
+
+                // GA4 사용자 트래킹용 이벤트
+                const answerType = parsed.answer?.messageType || "unknown";
+                trackEvent("ai_response_complete", {
+                  answer_type: answerType,
+                  response_time_bucket: getResponseTimeBucket(
+                    responseStartRef.current,
+                  ),
+                  account_status: accountStatus,
+                });
+
+                // GA4 사용자 트래킹용 이벤트
+                if (answerType === "no_result") {
+                  trackEvent("no_result_shown", {
+                    button_text: lastQuestionInfoRef.current.buttonText,
+                    account_status: accountStatus,
+                  });
+                }
+
+                // GA4 사용자 트래킹용 이벤트
+                if (answerType === "out_of_scope") {
+                  trackEvent("out_of_scope_shown", {
+                    button_text: lastQuestionInfoRef.current.buttonText,
+                    account_status: accountStatus,
+                  });
+                }
+
                 setIsLoading(false);
               } else if (eventName === "error") {
                 setMessageList((prev) => [

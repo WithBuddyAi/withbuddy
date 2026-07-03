@@ -15,7 +15,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
-  const { setHireDate, setDayOffset, setRole, setAccountStatus } = useUser();
+  const { setHireDate, setDayOffset, setRole, setAccountStatus, setCompanyCode } = useUser();
   const location = useLocation();
 
   // 앱 시작 시 로그인 상태 복원 (쿠키 기반)
@@ -28,6 +28,7 @@ function App() {
         setHireDate(res.data.hireDate);
         setRole(res.data.role);
         setAccountStatus(res.data.accountStatus);
+        setCompanyCode(res.data.companyCode);
         const today = new Date();
         const hire = new Date(res.data.hireDate);
         setDayOffset(differenceInCalendarDays(today, hire));
