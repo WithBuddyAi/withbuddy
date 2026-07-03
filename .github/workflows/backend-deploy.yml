@@ -1591,7 +1591,12 @@ jobs:
           set -euo pipefail
 
           ACTIVE_SLOT_STATE_FILE="/home/ubuntu/withbuddy/active-slot-state.env"
-
+          printf -v TARGET_SLOT_Q '%q' "${TARGET_SLOT}"
+          printf -v LIVE_SLOT_Q '%q' "${LIVE_SLOT}"
+          printf -v PUBLIC_HEALTH_URL_Q '%q' "${PUBLIC_HEALTH_URL}"
+          printf -v ACTIVE_UPSTREAM_LINK_Q '%q' "${ACTIVE_UPSTREAM_LINK}"
+          printf -v TARGET_UPSTREAM_CONF_Q '%q' "${TARGET_UPSTREAM_CONF}"
+          printf -v PREVIOUS_UPSTREAM_CONF_Q '%q' "${PREVIOUS_UPSTREAM_CONF}"
           verify_public_health() {
             for i in {1..12}; do
               if curl -fsS "${PUBLIC_HEALTH_URL}" >/dev/null; then
