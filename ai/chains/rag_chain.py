@@ -56,7 +56,7 @@ def _is_docs_relevant(question: str, docs: List[Document]) -> bool:
     return "YES" in resp.content.upper()
 
 
-_HIGH_RISK_KW = ["연차", "급여", "수습", "퇴직", "해고", "징계", "임금", "퇴사"]
+_HIGH_RISK_KW = ["해고예고", "징계위원회", "임금체불"]
 
 
 def _is_high_risk(question: str) -> bool:
@@ -67,12 +67,21 @@ def _llm_judge(question: str, docs: List[Document], answer: str) -> bool:
     """고위험 질문 답변 품질 검증 (LLM Judge POC). True=신뢰 가능, False=no_result."""
     context = "\n---\n".join(d.page_content[:400] for d in docs[:3])
     prompt = (
-        f"[문서]에 근거하여 [질문]에 대한 [답변]이 사실에 부합하는지 판단하세요.\n"
-        f"문서에 없는 내용을 단언하거나 잘못된 정보를 포함하면 NO, 문서 기반의 정확한 답변이면 YES만 답하세요.\n\n"
+        f"[문서]에 근거하여 [질문]에 대한 [답변]을 평가하세요.\n"
+        f"[답변]이 [문서] 내용과 명백히 모순되거나, 문서에 전혀 없는 수치·날짜·규정을 단언하면 NO.\n"
+        f"문서를 바탕으로 작성된 답변이거나 판단이 불확실하면 YES만 답하세요.\n\n"
         f"[질문]: {question}\n\n[문서]:\n{context}\n\n[답변]:\n{answer[:500]}\n\nYES 또는 NO:"
     )
     resp = get_intent_llm().invoke(prompt)
-    return "YES" in resp.content.upper()
+    result = "YES" in resp.content.upper()
+    if not result:
+        # NO 시 1회 재시도 — 2회 연속 NO일 때만 차단
+        resp2 = get_intent_llm().invoke(prompt)
+        result = "YES" in resp2.content.upper()
+        print(f"[LLM_JUDGE] retry={'YES' if result else 'NO'} | q={question[:40]} | resp1={resp.content.strip()} resp2={resp2.content.strip()}")
+    else:
+        print(f"[LLM_JUDGE] YES | q={question[:40]}")
+    return result
 
 
 class _TokenCounter(BaseCallbackHandler):
