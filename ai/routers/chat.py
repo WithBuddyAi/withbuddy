@@ -968,6 +968,8 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                 yield f"event: error\ndata: {json.dumps({'code': 'AI_TIMEOUT', 'message': 'AI 응답 시간이 초과되었습니다.'}, ensure_ascii=False)}\n\n"
 
         except Exception as e:
+            import logging as _logging
+            _logging.getLogger(__name__).error(f"[STREAM_ERROR] {type(e).__name__}: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
