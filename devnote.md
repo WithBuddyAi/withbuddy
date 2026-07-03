@@ -2,6 +2,14 @@
 
 문서 전반에 흩어진 개발 일지/변경 이력을 날짜 기준으로 통합 정리한 노트입니다.
 
+## 2026-07-03
+- 운영 인프라 기준을 다시 검증했다.
+  - Backend는 DB/Redis/RabbitMQ를 각각 분리된 private endpoint로 사용
+  - DB는 OCI Managed MySQL DB System
+  - Redis와 RabbitMQ는 전용 Compute 인스턴스
+- 과거 문서에 남아 있던 `DB 서버 공용 배치(MySQL + Redis + RabbitMQ)` 기준은 현행 운영 기준이 아님을 명시했다.
+- `DEPLOYMENT-ORACLE`, `INFRASTRUCTURE`, `ENV` 문서에서 분리 토폴로지와 검증 명령을 최신 기준으로 정정했다.
+
 ## 2026-04-02
 - Jira 서브태스크 키(`SCRUM-##`)를 브랜치 네이밍 규칙에 통합했다.
   - 형식: `type/SCRUM-##-description`
@@ -40,7 +48,7 @@
 - AI 지연 대응 운영 패턴을 문서화했다.
   - 채팅/간단 액션: Redis 중심(즉시성 우선)
   - 주간 회고/리포트/재인덱싱/알림: RabbitMQ 비동기 처리(완결성 우선)
-- DB 서버 공용 배치(MySQL + Redis + RabbitMQ) 기준의 보안 정책(NSG/UFW/접근제어)과 점검 명령을 추가했다.
+- 당시 운영안 기준으로 DB 서버 공용 배치(MySQL + Redis + RabbitMQ) 보안 정책과 점검 명령을 추가했다. 이 항목은 2026-07-03부터 현행 기준에서 제외된다.
 - `DEPLOYMENT-ORACLE`에 Redis/RabbitMQ 설치/설정/검증 절차를 추가했다.
 
 ## 2026-03-30
