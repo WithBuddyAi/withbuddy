@@ -1,11 +1,14 @@
 import { CloudUpload } from "lucide-react";
 import { useRef, useState } from "react";
 import { validateFile } from "./validateFile";
+import { trackEvent } from "../../../utils/tracking";
+import { useUser } from "../../../contexts/UserContext";
 
 function DocUploadZone({ onFileSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const inputRef = useRef(null);
+  const { companyCode } = useUser();
 
   // 드래그앤드롭으로 파일 선택
   const handleDrop = (e) => {
@@ -13,6 +16,12 @@ function DocUploadZone({ onFileSelect }) {
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file) {
+      // GA4 사용자 트래킹용 이벤트
+      trackEvent("document_upload_attempt", {
+        upload_method: "drag_drop",
+        company_code: companyCode,
+      });
+
       const error = validateFile(file);
       if (error) {
         setErrorMessage(error);
@@ -27,6 +36,12 @@ function DocUploadZone({ onFileSelect }) {
   const handleChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // GA4 사용자 트래킹용 이벤트
+      trackEvent("document_upload_attempt", {
+        upload_method: "file_picker",
+        company_code: companyCode,
+      });
+
       const error = validateFile(file);
       if (error) {
         setErrorMessage(error);

@@ -8,6 +8,7 @@ import {
   validateEmployeeNumber,
   validateName,
 } from "../utils/validators";
+import { trackEvent } from "../utils/tracking";
 
 function useLoginForm({ setUser, turnstileToken, resetTurnstile }) {
   // 'redis' 에러 모달
@@ -30,7 +31,13 @@ function useLoginForm({ setUser, turnstileToken, resetTurnstile }) {
   const nameRef = useRef(null);
 
   // 유저 정보 저장
-  const { setHireDate, setDayOffset, setRole, setAccountStatus } = useUser();
+  const {
+    setHireDate,
+    setDayOffset,
+    setRole,
+    setAccountStatus,
+    setCompanyCode: setContextCompanyCode,
+  } = useUser();
 
   const location = useLocation();
 
@@ -105,12 +112,24 @@ function useLoginForm({ setUser, turnstileToken, resetTurnstile }) {
       setHireDate(data.user.hireDate);
       setRole(data.user.role);
       setAccountStatus(data.user.accountStatus);
+      setContextCompanyCode(data.user.companyCode);
 
       const today = new Date();
       const hireDate = new Date(data.user.hireDate);
       const dayOffset = differenceInCalendarDays(today, hireDate);
       setDayOffset(dayOffset);
-
+      if (data.user.role === "ADMIN") {
+        trackEvent("admin_login_success", {
+          user_role: "admin",
+          company_code: data.user.companyCode,
+        });
+      } else {
+        trackEvent("employee_login_success", {
+          user_role: "employee",
+          account_status: data.user.accountStatus,
+          company_code: data.user.companyCode,
+        });
+      }
       navigate("/");
     } catch (error) {
       resetTurnstile();
