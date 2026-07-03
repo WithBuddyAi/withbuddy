@@ -41,7 +41,7 @@ function UserMobileCard({ user }) {
       <div className="flex flex-col gap-[6px] text-[14px]">
         <InfoRow label="사번" value={user.employeeNumber} />
         <InfoRow label="입사일" value={user.hireDate} />
-        <InfoRow label="입사일차" value={`D+${user.hireDay}`} />
+        <InfoRow label="입사일차" value={user.hireDay >= 0 ? `D+${user.hireDay}` : `D${user.hireDay}`} />
         <InfoRow label="마지막 접속" value={user.lastLoginDate ?? "-"} />
         <InfoRow
           label="질문 횟수"
