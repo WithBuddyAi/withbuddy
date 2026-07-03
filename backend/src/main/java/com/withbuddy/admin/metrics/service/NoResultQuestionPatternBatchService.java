@@ -108,6 +108,23 @@ public class NoResultQuestionPatternBatchService {
         try {
             AiNoResultQuestionClusterClient.ClusterResponse response =
                     aiNoResultQuestionClusterClient.clusterQuestions(companyCode, analysisDate, topN, items);
+            if (isFailedAiSummary(response)) {
+                String errorMessage = response.aiSummary().errorMessage();
+                NoResultQuestionPattern saved = upsertFailed(
+                        companyCode,
+                        analysisDate,
+                        response.sourceCount(),
+                        errorMessage
+                );
+                return new NoResultQuestionPatternRefreshResponse.CompanyResult(
+                        companyCode,
+                        response.sourceCount(),
+                        0,
+                        "FAILED",
+                        errorMessage,
+                        saved.getUpdatedAt()
+                );
+            }
             NoResultQuestionPattern saved = upsertPattern(companyCode, analysisDate, response);
             return new NoResultQuestionPatternRefreshResponse.CompanyResult(
                     companyCode,
@@ -130,6 +147,10 @@ public class NoResultQuestionPatternBatchService {
                     saved.getUpdatedAt()
             );
         }
+    }
+
+    private boolean isFailedAiSummary(AiNoResultQuestionClusterClient.ClusterResponse response) {
+        return response.aiSummary() != null && "FAILED".equals(response.aiSummary().status());
     }
 
     private AiNoResultQuestionClusterClient.ClusterItemRequest toClusterItem(
