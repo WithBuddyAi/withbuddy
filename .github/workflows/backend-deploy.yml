@@ -1270,7 +1270,7 @@ jobs:
 
           TARGET_SLOT="${{ github.event.inputs.target_slot }}"
           LIVE_SLOT="${{ github.event.inputs.live_slot }}"
-          INGRESS_MODE="${TRAFFIC_SWITCH_INGRESS_MODE:-slot_cloudflare}"
+          INGRESS_MODE="${TRAFFIC_SWITCH_INGRESS_MODE:-nginx_upstream}"
           PUBLIC_TUNNEL_SERVICE="${PUBLIC_TUNNEL_SERVICE_NAME:-cloudflared.service}"
           DISABLE_PREVIOUS_PUBLIC_TUNNEL="${DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH:-true}"
 
@@ -1282,6 +1282,7 @@ jobs:
           ROUTER_ACCESS_HOST="${TRAFFIC_SWITCH_ACCESS_HOST:-${BLUE_BACKEND_ACCESS_HOST:-}}"
           ROUTER_SERVER_HOST="${TRAFFIC_SWITCH_SERVER_HOST:-${BLUE_BACKEND_SERVER_HOST:-}}"
           ROUTER_SSH_KEY="${TRAFFIC_SWITCH_SERVER_SSH_KEY:-${BLUE_BACKEND_SERVER_SSH_KEY:-}}"
+          ROUTER_COMPARE_HOST="${ROUTER_ACCESS_HOST:-${ROUTER_SERVER_HOST:-}}"
           PUBLIC_HEALTH_URL="${TRAFFIC_SWITCH_PUBLIC_HEALTH_URL:-${BACKEND_HEALTH_URL:-}}"
           ACTIVE_UPSTREAM_LINK="${NGINX_ACTIVE_UPSTREAM_LINK:-/etc/nginx/conf.d/upstream-active.conf}"
           BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-blue.conf}"
@@ -1333,12 +1334,14 @@ jobs:
               LIVE_BACKEND_ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
               LIVE_BACKEND_SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
               LIVE_BACKEND_SERVER_SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
+              LIVE_BACKEND_COMPARE_HOST="${LIVE_BACKEND_ACCESS_HOST:-${LIVE_BACKEND_SERVER_HOST:-}}"
               PREVIOUS_UPSTREAM_CONF="${BLUE_UPSTREAM_CONF}"
               ;;
             green)
               LIVE_BACKEND_ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
               LIVE_BACKEND_SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
               LIVE_BACKEND_SERVER_SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
+              LIVE_BACKEND_COMPARE_HOST="${LIVE_BACKEND_ACCESS_HOST:-${LIVE_BACKEND_SERVER_HOST:-}}"
               PREVIOUS_UPSTREAM_CONF="${GREEN_UPSTREAM_CONF}"
               ;;
             *)
@@ -1348,6 +1351,7 @@ jobs:
           esac
 
           echo "traffic_switch_access_host=${ROUTER_ACCESS_HOST}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_compare_host=${ROUTER_COMPARE_HOST}" >> "$GITHUB_OUTPUT"
           echo "traffic_switch_server_host=${ROUTER_SERVER_HOST}" >> "$GITHUB_OUTPUT"
           echo "traffic_switch_public_health_url=${PUBLIC_HEALTH_URL}" >> "$GITHUB_OUTPUT"
           echo "traffic_switch_active_upstream_link=${ACTIVE_UPSTREAM_LINK}" >> "$GITHUB_OUTPUT"
@@ -1356,6 +1360,7 @@ jobs:
           echo "target_backend_access_host=${TARGET_BACKEND_ACCESS_HOST}" >> "$GITHUB_OUTPUT"
           echo "target_backend_server_host=${TARGET_BACKEND_SERVER_HOST}" >> "$GITHUB_OUTPUT"
           echo "live_backend_access_host=${LIVE_BACKEND_ACCESS_HOST}" >> "$GITHUB_OUTPUT"
+          echo "live_backend_compare_host=${LIVE_BACKEND_COMPARE_HOST}" >> "$GITHUB_OUTPUT"
           echo "live_backend_server_host=${LIVE_BACKEND_SERVER_HOST}" >> "$GITHUB_OUTPUT"
           echo "traffic_switch_ingress_mode=${INGRESS_MODE}" >> "$GITHUB_OUTPUT"
           echo "traffic_switch_public_tunnel_service=${PUBLIC_TUNNEL_SERVICE}" >> "$GITHUB_OUTPUT"
@@ -1576,7 +1581,11 @@ jobs:
           TARGET_UPSTREAM_CONF: ${{ steps.traffic_switch_config.outputs.traffic_switch_target_upstream_conf }}
           PREVIOUS_UPSTREAM_CONF: ${{ steps.traffic_switch_config.outputs.traffic_switch_previous_upstream_conf }}
           TRAFFIC_SWITCH_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.traffic_switch_host }}
+          TRAFFIC_SWITCH_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_access_host }}
+          TRAFFIC_SWITCH_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_server_host }}
           TARGET_BACKEND_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.target_backend_host }}
+          LIVE_BACKEND_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.live_backend_access_host }}
+          LIVE_BACKEND_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.live_backend_server_host }}
           LIVE_BACKEND_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.live_backend_host }}
         run: |
           set -euo pipefail
@@ -1610,7 +1619,8 @@ jobs:
               return 0
             fi
             if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
-              if [ "${LIVE_BACKEND_SSH_HOST}" = "${TRAFFIC_SWITCH_SSH_HOST}" ]; then
+              if { [ -n "${LIVE_BACKEND_ACCESS_HOST:-}" ] && [ "${LIVE_BACKEND_ACCESS_HOST}" = "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ]; } \
+                || { [ -n "${LIVE_BACKEND_SERVER_HOST:-}" ] && [ "${LIVE_BACKEND_SERVER_HOST}" = "${TRAFFIC_SWITCH_SERVER_HOST:-}" ]; }; then
                 echo "Live backend host is also the router host. Skipping public tunnel stop to avoid disabling router ingress."
                 return 0
               fi
