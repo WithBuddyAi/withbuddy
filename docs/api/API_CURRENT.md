@@ -985,6 +985,7 @@ Authorization: Bearer {accessToken}
   "created": true,
   "messageId": 301,
   "suggestionId": 5,
+  "nudgeType": "d-day",
   "message": "온보딩 제안 메시지가 생성되었습니다."
 }
 ```
@@ -996,6 +997,7 @@ Authorization: Bearer {accessToken}
   "created": false,
   "messageId": 301,
   "suggestionId": 5,
+  "nudgeType": "d-day",
   "message": "이미 생성된 온보딩 제안 메시지가 있습니다."
 }
 ```
@@ -1007,6 +1009,7 @@ Authorization: Bearer {accessToken}
   "created": false,
   "messageId": null,
   "suggestionId": null,
+  "nudgeType": null,
   "message": "오늘 노출할 온보딩 제안이 없습니다."
 }
 ```
@@ -1018,6 +1021,7 @@ Authorization: Bearer {accessToken}
 | `created` | Boolean | 이번 요청에서 새 suggestion 메시지가 생성되었는지 여부 |
 | `messageId` | Number 또는 null | 생성되었거나 이미 존재하는 `chat_messages.id` |
 | `suggestionId` | Number 또는 null | 생성 대상 또는 기존 메시지에 연결된 `onboarding_suggestions.id` |
+| `nudgeType` | String 또는 null | 생성 대상 또는 기존 메시지에 연결된 `onboarding_suggestions.title` |
 | `message` | String | 처리 결과 메시지 |
 
 #### 동작 기준
@@ -1029,6 +1033,7 @@ Authorization: Bearer {accessToken}
 - 노출 대상 온보딩 제안이 존재하면 백엔드는 해당 제안을 `chat_messages`에 저장한다.
 - 저장되는 메시지는 `sender_type = BOT`, `message_type = suggestion`을 사용한다.
 - `suggestion_id`에는 저장 대상 온보딩 제안의 ID를 저장한다.
+- 응답의 `nudgeType`에는 저장 대상 온보딩 제안의 `onboarding_suggestions.title` 값을 반환한다.
 - `content`에는 온보딩 제안 본문을 저장한다.
 - `{이름}`, `{회사명}`, `{N}`과 같은 플레이스홀더가 있는 경우, 백엔드는 로그인 사용자 정보를 기준으로 치환하여 저장한다.
 - 이미 동일한 사용자의 동일한 온보딩 제안 메시지가 저장되어 있으면 중복 저장하지 않는다.
