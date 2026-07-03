@@ -63,6 +63,6 @@ def get_llm() -> ChatAnthropic:
         model="claude-haiku-4-5-20251001",  # 비용 효율적인 Haiku 모델
         anthropic_api_key=api_key,
         temperature=0.3,                   # Q&A는 일관성 우선
-        max_tokens=1024,                   # 온보딩 Q&A에 충분한 길이
+        max_tokens=2048,                   # 휴가 종류 등 긴 정책 답변 잘림 방지
         max_retries=4,                     # 529 Overloaded 등 일시 장애 자동 재시도
     )

@@ -1,5 +1,8 @@
 package com.withbuddy.admin.metrics.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserRole;
@@ -7,6 +10,7 @@ import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.DocumentGapRateResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
 import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
+import com.withbuddy.admin.metrics.dto.response.NoResultQuestionPatternRefreshResponse;
 import com.withbuddy.admin.metrics.dto.response.NonRagRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
@@ -15,20 +19,22 @@ import com.withbuddy.admin.metrics.dto.response.TtaUnreachedResponse;
 import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
 import com.withbuddy.admin.metrics.dto.response.UnansweredRateResponse;
 import com.withbuddy.admin.metrics.dto.response.UnstartedUsersResponse;
+import com.withbuddy.admin.metrics.entity.NoResultQuestionPattern;
 import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
+import com.withbuddy.admin.metrics.repository.NoResultQuestionPatternRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
-import com.withbuddy.infrastructure.ai.client.AiNoResultSummaryClient;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional(readOnly = true)
@@ -38,19 +44,30 @@ public class AdminMetricsService {
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final int DEFAULT_PATTERN_LIMIT = 5;
     private static final int MAX_PATTERN_LIMIT = 20;
+    private static final TypeReference<List<StoredTopQuestion>> TOP_QUESTIONS_TYPE = new TypeReference<>() {
+    };
+    private static final TypeReference<List<UnansweredQuestionPatternsResponse.AiAction>> AI_ACTIONS_TYPE =
+            new TypeReference<>() {
+            };
 
     private final AdminMetricsRepository adminMetricsRepository;
+    private final NoResultQuestionPatternRepository noResultQuestionPatternRepository;
     private final UserRepository userRepository;
-    private final AiNoResultSummaryClient aiNoResultSummaryClient;
+    private final NoResultQuestionPatternBatchService noResultQuestionPatternBatchService;
+    private final ObjectMapper objectMapper;
 
     public AdminMetricsService(
             AdminMetricsRepository adminMetricsRepository,
+            NoResultQuestionPatternRepository noResultQuestionPatternRepository,
             UserRepository userRepository,
-            AiNoResultSummaryClient aiNoResultSummaryClient
+            NoResultQuestionPatternBatchService noResultQuestionPatternBatchService,
+            ObjectMapper objectMapper
     ) {
         this.adminMetricsRepository = adminMetricsRepository;
+        this.noResultQuestionPatternRepository = noResultQuestionPatternRepository;
         this.userRepository = userRepository;
-        this.aiNoResultSummaryClient = aiNoResultSummaryClient;
+        this.noResultQuestionPatternBatchService = noResultQuestionPatternBatchService;
+        this.objectMapper = objectMapper;
     }
 
     public RagExperienceRateResponse getRagExperienceRate(
@@ -134,7 +151,7 @@ public class AdminMetricsService {
                 getRagExperienceRate(principal, companyCode, resolvedAsOfDate),
                 getDocumentGapRate(principal, companyCode, resolvedAsOfDate),
                 getUnstartedUsers(principal, companyCode, resolvedAsOfDate),
-                getUnansweredQuestionPatterns(principal, companyCode, resolvedAsOfDate, unansweredPatternLimit)
+                getUnansweredQuestionPatterns(principal, companyCode, asOfDate, unansweredPatternLimit)
         );
     }
 
@@ -297,34 +314,48 @@ public class AdminMetricsService {
     ) {
         String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
         LocalDate resolvedAsOfDate = resolveAsOfDate(asOfDate);
-        LocalDate windowStartDate = resolveTopFiveStartDate(resolvedAsOfDate);
         int resolvedLimit = resolvePatternLimit(limit);
 
-        List<UnansweredQuestionPatternsResponse.PatternItem> patterns =
-                adminMetricsRepository.findUnansweredQuestionPatterns(
-                                scopedCompanyCode,
-                                windowStartDate,
-                                resolvedAsOfDate,
-                                PageRequest.of(0, resolvedLimit)
-                        ).stream()
-                        .map(pattern -> new UnansweredQuestionPatternsResponse.PatternItem(
-                                pattern.getCompanyCode(),
-                                pattern.getQuestionContent(),
-                                defaultLong(pattern.getTotalCount()),
-                                defaultLong(pattern.getUniqueUsers()),
-                                defaultLong(pattern.getNoResultCount()),
-                                defaultLong(pattern.getOutOfScopeCount()),
-                                pattern.getLatestOccurredAt()
-                        ))
-                        .toList();
+        Optional<NoResultQuestionPattern> storedPattern = findStoredPattern(scopedCompanyCode, asOfDate, resolvedAsOfDate);
+        if (storedPattern.isEmpty()) {
+            return emptyUnansweredQuestionPatterns(scopedCompanyCode, resolvedAsOfDate, resolvedLimit);
+        }
+
+        NoResultQuestionPattern pattern = storedPattern.get();
 
         return new UnansweredQuestionPatternsResponse(
                 "unanswered_question_patterns",
-                resolvedAsOfDate,
+                pattern.getAnalysisDate(),
                 resolvedLimit,
-                patterns,
-                buildAiSummary(scopedCompanyCode, patterns)
+                pattern.getSourceCount(),
+                readTopQuestions(pattern, resolvedLimit),
+                buildStoredAiSummary(pattern),
+                pattern.getCreatedAt(),
+                pattern.getUpdatedAt()
         );
+    }
+
+    @Transactional
+    public NoResultQuestionPatternRefreshResponse refreshUnansweredQuestionPatterns(
+            JwtAuthenticationPrincipal principal,
+            String companyCode,
+            LocalDate analysisDate,
+            Integer topN
+    ) {
+        String scopedCompanyCode = resolveCompanyScope(principal, companyCode);
+        LocalDate resolvedAnalysisDate = resolveAsOfDate(analysisDate);
+        int resolvedTopN = resolvePatternLimit(topN);
+
+        if (StringUtils.hasText(scopedCompanyCode)) {
+            return noResultQuestionPatternBatchService.refreshCompany(
+                    scopedCompanyCode,
+                    resolvedAnalysisDate,
+                    resolvedTopN
+            );
+        }
+
+        requireServiceAdmin(principal);
+        return noResultQuestionPatternBatchService.refreshAllCompanies(resolvedAnalysisDate, resolvedTopN);
     }
 
     public InternalAdminDashboardResponse getInternalDashboard(
@@ -397,10 +428,6 @@ public class AdminMetricsService {
         return asOfDate.minusDays(29);
     }
 
-    private LocalDate resolveTopFiveStartDate(LocalDate asOfDate) {
-        return asOfDate.minusDays(6);
-    }
-
     private long defaultLong(Long value) {
         return value == null ? 0L : value;
     }
@@ -429,84 +456,132 @@ public class AdminMetricsService {
         return Math.min(limit, MAX_PATTERN_LIMIT);
     }
 
-    private UnansweredQuestionPatternsResponse.AiSummary buildAiSummary(
-            String scopedCompanyCode,
-            List<UnansweredQuestionPatternsResponse.PatternItem> patterns
-    ) {
-        String summaryCompanyCode = resolveSummaryCompanyCode(scopedCompanyCode, patterns);
-        List<String> questions = patterns.stream()
-                .map(UnansweredQuestionPatternsResponse.PatternItem::questionContent)
-                .filter(StringUtils::hasText)
-                .toList();
-
-        if (questions.isEmpty()) {
-            return new UnansweredQuestionPatternsResponse.AiSummary(
-                    "SKIPPED",
-                    summaryCompanyCode,
-                    0,
-                    null,
-                    List.of(),
-                    false,
-                    "NO_PATTERNS"
-            );
-        }
-
-        try {
-            AiNoResultSummaryClient.Top5AnalysisResponse response =
-                    aiNoResultSummaryClient.analyzeTop5(summaryCompanyCode, questions);
-            return new UnansweredQuestionPatternsResponse.AiSummary(
-                    "READY",
-                    response.companyCode(),
-                    questions.size(),
-                    response.summary(),
-                    response.actions().stream()
-                            .map(action -> new UnansweredQuestionPatternsResponse.AiAction(
-                                    action.part(),
-                                    action.items()
-                            ))
-                            .toList(),
-                    response.hasSensitive(),
-                    null
-            );
-        } catch (RuntimeException e) {
-            log.warn("Failed to build unanswered question AI summary. companyCode={}, questionCount={}",
-                    summaryCompanyCode, questions.size(), e);
-            return new UnansweredQuestionPatternsResponse.AiSummary(
-                    "FAILED",
-                    summaryCompanyCode,
-                    questions.size(),
-                    null,
-                    List.of(),
-                    false,
-                    "AI 요약 생성에 실패했습니다."
-            );
-        }
-    }
-
-    private String resolveSummaryCompanyCode(
-            String scopedCompanyCode,
-            List<UnansweredQuestionPatternsResponse.PatternItem> patterns
-    ) {
-        if (StringUtils.hasText(scopedCompanyCode)) {
-            return scopedCompanyCode.trim();
-        }
-
-        List<String> companyCodes = patterns.stream()
-                .map(UnansweredQuestionPatternsResponse.PatternItem::companyCode)
-                .filter(StringUtils::hasText)
-                .distinct()
-                .toList();
-
-        if (companyCodes.size() == 1) {
-            return companyCodes.getFirst();
-        }
-        return "ALL";
-    }
-
     private String normalizeCompanyCode(String companyCode) {
         if (!StringUtils.hasText(companyCode)) {
             return null;
         }
         return companyCode.trim();
+    }
+
+    private Optional<NoResultQuestionPattern> findStoredPattern(
+            String scopedCompanyCode,
+            LocalDate requestedAsOfDate,
+            LocalDate resolvedAsOfDate
+    ) {
+        if (!StringUtils.hasText(scopedCompanyCode)) {
+            return Optional.empty();
+        }
+        if (requestedAsOfDate != null) {
+            return noResultQuestionPatternRepository.findByCompanyCodeAndAnalysisDate(
+                    scopedCompanyCode,
+                    resolvedAsOfDate
+            );
+        }
+        return noResultQuestionPatternRepository.findFirstByCompanyCodeOrderByAnalysisDateDesc(scopedCompanyCode);
+    }
+
+    private UnansweredQuestionPatternsResponse emptyUnansweredQuestionPatterns(
+            String scopedCompanyCode,
+            LocalDate asOfDate,
+            int limit
+    ) {
+        return new UnansweredQuestionPatternsResponse(
+                "unanswered_question_patterns",
+                asOfDate,
+                limit,
+                0,
+                List.of(),
+                new UnansweredQuestionPatternsResponse.AiSummary(
+                        "EMPTY",
+                        StringUtils.hasText(scopedCompanyCode) ? scopedCompanyCode : "ALL",
+                        0,
+                        null,
+                        List.of(),
+                        false,
+                        null
+                ),
+                null,
+                null
+        );
+    }
+
+    private List<UnansweredQuestionPatternsResponse.PatternItem> readTopQuestions(
+            NoResultQuestionPattern pattern,
+            int limit
+    ) {
+        try {
+            List<StoredTopQuestion> storedTopQuestions =
+                    objectMapper.readValue(pattern.getTopQuestions(), TOP_QUESTIONS_TYPE);
+            List<UnansweredQuestionPatternsResponse.PatternItem> result = new ArrayList<>();
+            for (int i = 0; i < storedTopQuestions.size() && i < limit; i++) {
+                StoredTopQuestion question = storedTopQuestions.get(i);
+                result.add(new UnansweredQuestionPatternsResponse.PatternItem(
+                        question.rank(),
+                        question.questionContent(),
+                        question.count()
+                ));
+            }
+            return result;
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse no_result top questions. patternId={}", pattern.getId(), e);
+            return List.of();
+        }
+    }
+
+    private UnansweredQuestionPatternsResponse.AiSummary buildStoredAiSummary(NoResultQuestionPattern pattern) {
+        if ("FAILED".equals(pattern.getAiStatus())) {
+            return new UnansweredQuestionPatternsResponse.AiSummary(
+                    "FAILED",
+                    pattern.getCompanyCode(),
+                    0,
+                    null,
+                    List.of(),
+                    false,
+                    pattern.getErrorMessage()
+            );
+        }
+
+        List<UnansweredQuestionPatternsResponse.AiAction> actions = readImprovementAreas(pattern);
+        List<UnansweredQuestionPatternsResponse.PatternItem> questions = readTopQuestions(pattern, Integer.MAX_VALUE);
+        if (pattern.getSourceCount() == 0 || questions.isEmpty()) {
+            return new UnansweredQuestionPatternsResponse.AiSummary(
+                    "EMPTY",
+                    pattern.getCompanyCode(),
+                    0,
+                    null,
+                    List.of(),
+                    false,
+                    null
+            );
+        }
+
+        return new UnansweredQuestionPatternsResponse.AiSummary(
+                pattern.getAiStatus(),
+                pattern.getCompanyCode(),
+                questions.size(),
+                pattern.getAiSummary(),
+                actions,
+                pattern.isHasSensitive(),
+                pattern.getErrorMessage()
+        );
+    }
+
+    private List<UnansweredQuestionPatternsResponse.AiAction> readImprovementAreas(NoResultQuestionPattern pattern) {
+        if (!StringUtils.hasText(pattern.getImprovementAreas())) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(pattern.getImprovementAreas(), AI_ACTIONS_TYPE);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse no_result improvement areas. patternId={}", pattern.getId(), e);
+            return List.of();
+        }
+    }
+
+    private record StoredTopQuestion(
+            int rank,
+            String questionContent,
+            long count
+    ) {
     }
 }
