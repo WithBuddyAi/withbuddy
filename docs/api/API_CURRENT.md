@@ -1460,25 +1460,20 @@ data: {"code":"AI_STREAM_FAILED","message":"AI 답변 생성 중 오류가 발�
 }
 ```
 
-#### no_result 질문 임베딩 저장 연동
+#### unanswered_question_logs 저장 연동
 
 `POST /api/v1/chat/messages/stream` 자체의 프론트엔드 호출 방식은 변경하지 않는다.
 프론트엔드는 기존처럼 질문을 전송하고, `answer_completed.answer.messageType = no_result`인 최종 BOT 답변을 수신한다.
-`unanswered_question_logs.embedding_vector`에는 AI 서버의 질문 임베딩 생성 API가 반환한 벡터를 저장한다. 임베딩 모델은 AI 서버의 공통 임베딩 모듈을 사용하며, 응답에는 실제 사용한 모델명을 함께 포함한다.
+백엔드는 `no_result`, `out_of_scope`, `sensitive` 답변을 후속 운영 지표 분석을 위해 `unanswered_question_logs`에 저장한다.
 
 ##### 저장 조건
 
 - `unanswered_question_logs`는 `answer_completed.answer.messageType`이 `no_result`, `out_of_scope`, `sensitive`인 경우 저장 대상이다.
-- 질문 임베딩 벡터는 `answer_completed.answer.messageType = no_result`인 경우에만 저장한다.
-- `out_of_scope`, `sensitive`는 `unanswered_question_logs`에는 저장하지만 `embedding_vector`, `embedding_model`, `embedding_dimension` 저장 대상은 아니다.
 - `rag_answer`, `suggestion`, `user_question`은 `unanswered_question_logs` 저장 대상이 아니다.
 - 저장 대상 질문 본문은 BOT 답변이 아니라 사용자 질문 메시지(`question_saved.question.content`)다.
 - `unanswered_question_logs.answer_type`은 실제 BOT 답변의 `messageType` 값을 저장한다.
 - `unanswered_question_logs.question_message_id`는 사용자 질문 메시지 ID(`question_saved.question.id`)를 저장한다.
 - `unanswered_question_logs.answer_message_id`는 최종 BOT 답변 메시지 ID(`answer_completed.answer.id`)를 저장한다.
-- `answer_type = no_result`인 로그에 한해 `unanswered_question_logs.embedding_vector`에는 AI 서버 임베딩 API가 반환한 벡터 배열을 저장한다.
-- `answer_type = no_result`인 로그에 한해 `unanswered_question_logs.embedding_model`에는 AI 서버가 반환한 임베딩 모델명을 저장한다.
-- `answer_type = no_result`인 로그에 한해 `unanswered_question_logs.embedding_dimension`에는 AI 서버가 반환한 임베딩 차원 수를 저장한다.
 
 ##### 처리 흐름
 
@@ -1494,28 +1489,15 @@ AI Server
 Backend
   -> BOT no_result 답변을 chat_messages에 저장
 Backend
-  -> POST {AI_SERVER_BASE_URL}/embeddings/question 호출 (companyCode, content 전달)
-AI Server
-  -> embeddingModel, dimension, embedding 반환
-Backend
-  -> unanswered_question_logs에 질문, answer_type, 메시지 ID, embedding_model, embedding_dimension, embedding_vector 저장
+  -> unanswered_question_logs에 질문, answer_type, 메시지 ID, latency_ms 저장
 Backend
   -> 프론트엔드에 answer_completed SSE 이벤트 전송
 ```
 
 ##### 장애 처리
 
-- AI 답변 저장 및 `unanswered_question_logs` 저장은 임베딩 생성 성공 여부에 종속되지 않는다.
-- 임베딩 API 호출에 실패하면 백엔드는 `unanswered_question_logs`를 벡터 없이 저장한다.
-- 임베딩 생성 실패 때문에 프론트엔드 SSE 응답을 `error` 이벤트로 바꾸지 않는다.
-
-##### AI 서버 임베딩 처리 기준
-
-- AI 서버는 공통 임베딩 모듈의 `models/gemini-embedding-2` 모델을 사용해 질문 본문을 벡터화한다.
-- 단일 질문 임베딩 생성은 `embed_query()` 기준으로 처리한다.
-- 다건 보정 또는 배치 처리에서는 `embed_documents()`를 사용할 수 있다.
-- 임베딩 생성 결과는 숫자 배열로 반환하며, 백엔드는 이 값을 `unanswered_question_logs.embedding_vector`에 저장한다.
-- AI 서버는 응답에 `embeddingModel`, `dimension`을 포함해 백엔드가 어떤 모델과 차원으로 생성된 벡터인지 함께 저장할 수 있게 한다.
+- AI 답변 저장 및 `unanswered_question_logs` 저장은 미답변 질문 패턴 군집화 배치 성공 여부에 종속되지 않는다.
+- 미답변 질문 패턴 군집화에 필요한 임베딩은 새벽 배치 또는 수동 refresh 시 AI 서버가 질문 문자열을 기반으로 직접 생성한다.
 
 ---
 
@@ -3312,78 +3294,9 @@ AI 서버는 `/chat/stream`의 최종 완료 이벤트인 `answer_completed`에 
 
 ---
 
-### 8-6. no_result 질문 임베딩 생성 요청
+### 8-6. no_result 질문 패턴 군집화 요청
 
-백엔드는 AI 서버의 `/chat/stream` 최종 완료 이벤트에서 `messageType = no_result`를 받은 경우에만 질문 임베딩 생성 API를 호출한다.
-이 API는 프론트엔드가 직접 호출하지 않는 내부 연동 API이며, `unanswered_question_logs`에 저장할 임베딩 벡터를 생성하기 위한 용도다.
-
-```http
-POST {AI_SERVER_BASE_URL}/embeddings/question
-Content-Type: application/json
-```
-
-#### Request Body
-
-```json
-{
-  "companyCode": "WB0001",
-  "content": "복지카드는 어떻게 신청하나요?"
-}
-```
-
-#### Request Field
-
-| 필드 | 타입 | 필수 | 설명 | 상세 규칙 |
-|---|---|---|---|---|
-| `companyCode` | String | Y | 질문 사용자의 회사 코드 | 백엔드가 보유한 현재 사용자 회사 코드 |
-| `content` | String | Y | 임베딩을 생성할 사용자 질문 본문 | BOT 답변 본문이 아니라 사용자 질문 본문 |
-
-#### Success Response (200 OK)
-
-아래 `embedding` 배열은 문서 가독성을 위해 일부 값만 축약해 표시한다. 실제 응답은 `dimension` 값과 동일한 길이의 숫자 배열을 반환한다.
-
-```json
-{
-  "embeddingModel": "models/gemini-embedding-2",
-  "dimension": 3072,
-  "embedding": [0.0123, -0.0456, 0.0789]
-}
-```
-
-#### Response Field
-
-| 필드 | 타입 | 설명 |
-|---|---|---|
-| `embeddingModel` | String | 임베딩 생성에 사용한 모델명 |
-| `dimension` | Number | 임베딩 벡터 차원 수 |
-| `embedding` | Array<Number> | 질문 본문 임베딩 벡터 |
-
-#### AI 서버 처리 규칙
-
-- `companyCode`는 회사별 로그, 캐시 키, 향후 회사별 전처리 확장을 위한 컨텍스트로 사용한다.
-- 임베딩 대상 텍스트는 `content` 값만 사용한다.
-- 임베딩 모델은 `models/gemini-embedding-2`를 사용한다.
-- 응답의 `embeddingModel`은 실제 사용한 모델명을 반환한다.
-- 응답의 `dimension`은 실제 생성된 `embedding` 배열 길이와 동일해야 한다.
-- `embedding`은 DB 저장에 사용할 수 있는 숫자 배열로 반환한다.
-
-#### 백엔드 저장 규칙
-
-- 백엔드는 이 API 호출을 `answer_completed.messageType = no_result`인 경우에만 수행한다.
-- 백엔드는 API 요청에 사용자 회사 코드(`companyCode`)와 사용자 질문 본문(`question_saved.question.content`)을 전달한다.
-- `question_message_id`, `answer_message_id`, `answer_type`, `company_code`, `question_content`는 AI 서버 응답에서 받지 않고 백엔드가 이미 보유한 채팅 저장 컨텍스트로 매핑한다.
-- 백엔드는 응답의 `embedding`을 `unanswered_question_logs.embedding_vector`에 저장한다.
-- 백엔드는 응답의 `embeddingModel`을 `unanswered_question_logs.embedding_model`에 저장한다.
-- 백엔드는 응답의 `dimension`을 `unanswered_question_logs.embedding_dimension`에 저장한다.
-- 이 임베딩 API 호출로 갱신하는 `unanswered_question_logs` 행의 `answer_type`은 반드시 `no_result`다.
-- 임베딩 API 호출 실패는 이미 저장된 `chat_messages`의 USER 질문 및 BOT 답변을 롤백하지 않는다.
-- 임베딩 API 호출 실패 시 백엔드는 실패 로그를 남기고 재시도 큐 또는 후속 배치로 보완할 수 있다.
-
----
-
-### 8-7. no_result 질문 패턴 군집화 요청
-
-백엔드는 매일 새벽 3시마다 분석 기준일을 포함한 최근 7일 동안 발생했고 임베딩 벡터가 생성된 `no_result` 질문을 회사별로 조회한 뒤, AI 서버에 미답변 질문 패턴 군집화를 요청한다.
+백엔드는 매일 새벽 3시마다 분석 기준일을 포함한 최근 7일 동안 발생한 `no_result` 질문을 회사별로 조회한 뒤, 질문 원문만 AI 서버에 전달해 미답변 질문 패턴 군집화를 요청한다.
 
 이 API는 프론트엔드가 직접 호출하지 않는 내부 연동 API이며, 관리자 대시보드의 "문서 보강 후보 TOP5"를 생성하기 위한 배치성 분석 용도다.
 
@@ -3402,17 +3315,11 @@ Content-Type: application/json
   "items": [
     {
       "logId": 101,
-      "questionContent": "수습 기간 평가는 어떤 기준으로 이루어지나요?",
-      "embeddingModel": "models/gemini-embedding-2",
-      "embeddingDimension": 3072,
-      "embedding": [0.0123, -0.0456, 0.0789]
+      "questionContent": "수습 기간 평가는 어떤 기준으로 이루어지나요?"
     },
     {
       "logId": 102,
-      "questionContent": "업무폰 지원돼?",
-      "embeddingModel": "models/gemini-embedding-2",
-      "embeddingDimension": 3072,
-      "embedding": [0.0181, -0.0324, 0.0617]
+      "questionContent": "업무폰 지원돼?"
     }
   ]
 }
@@ -3428,9 +3335,6 @@ Content-Type: application/json
 | `items` | Array | Y | 분석 기준일 포함 최근 7일 동안 발생한 군집화 대상 `no_result` 질문 목록 |
 | `items[].logId` | Long | Y | `unanswered_question_logs.id` |
 | `items[].questionContent` | String | Y | 사용자 질문 원문 |
-| `items[].embeddingModel` | String | Y | 임베딩 생성 모델명 |
-| `items[].embeddingDimension` | Number | Y | 임베딩 벡터 차원 수 |
-| `items[].embedding` | Array<Number> | Y | 질문 임베딩 벡터 |
 
 #### Success Response (200 OK)
 
@@ -3498,11 +3402,10 @@ Content-Type: application/json
 #### 백엔드 처리 규칙
 
 - 백엔드는 매일 새벽 3시 스케줄러를 통해 회사별 미답변 질문 패턴 분석 배치를 실행한다.
-- 백엔드는 `unanswered_question_logs`에서 `answer_type = no_result`이고 `embedding_vector IS NOT NULL`인 데이터만 조회한다.
+- 백엔드는 `unanswered_question_logs`에서 `answer_type = no_result`인 데이터를 조회하고, AI 서버에는 `logId`와 `questionContent`만 전달한다.
 - 조회 범위는 `analysisDate`를 포함한 최근 7일이며, KST 기준으로 `analysisDate - 6일`부터 `analysisDate`까지 발생한 로그를 사용한다.
 - 백엔드는 회사별로 데이터를 분리하여 AI 서버에 군집화 요청을 보낸다.
-- 백엔드는 서로 다른 `embedding_model` 또는 `embedding_dimension`이 섞이지 않도록 검증할 수 있다.
-- AI 서버는 전달받은 임베딩 벡터를 기준으로 cosine similarity 기반 군집화를 수행한다.
+- AI 서버는 전달받은 `questionContent`를 직접 임베딩한 뒤 cosine similarity 기반 군집화를 수행한다.
 - AI 서버는 군집화 결과 중 상위 TOP N 패턴과 AI 분석 결과를 반환한다.
 - 백엔드는 AI 서버 응답을 `no_result_question_patterns` 테이블에 저장한다.
 - 같은 `company_code`, `analysis_date` 데이터가 이미 존재하면 기존 데이터를 갱신한다.
@@ -3515,7 +3418,7 @@ AI 군집화 및 분석 결과는 `no_result_question_patterns` 테이블에 저
 
 ---
 
-### 8-8. 내부 AI 오류 처리
+### 8-7. 내부 AI 오류 처리
 
 #### AI 서버 Validation Error
 
@@ -3551,7 +3454,7 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 
 ---
 
-### 8-9. 내부 AI 동작 규칙
+### 8-8. 내부 AI 동작 규칙
 
 - 백엔드는 질문 메시지를 먼저 저장한 뒤 AI 서버를 호출한다.
 - AI 서버 호출 endpoint는 `POST /chat/stream`을 사용한다.
@@ -3577,7 +3480,7 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 
 ---
 
-### 8-10. AI 문서 자동 인덱싱 연동
+### 8-9. AI 문서 자동 인덱싱 연동
 
 관리자 문서 업로드가 완료되면 백엔드는 AI 서버에 문서 인덱싱을 요청한다.  
 이 API는 프론트엔드가 직접 호출하지 않으며, 백엔드와 AI 서버 사이의 내부 연동에만 사용한다.
@@ -3686,7 +3589,7 @@ AI 서버는 인증 실패, 백엔드 문서 조회 실패, 파일 다운로드 
 
 ---
 
-### 8-11. AI 문서 자동 삭제 연동
+### 8-10. AI 문서 자동 삭제 연동
 
 관리자 문서 삭제가 완료되면 백엔드는 AI 서버에 문서 인덱스 삭제를 요청한다.  
 이 API는 프론트엔드가 직접 호출하지 않으며, 백엔드와 AI 서버 사이의 내부 연동에만 사용한다.
@@ -4156,6 +4059,7 @@ Authorization: Bearer {accessToken}
 | `GET /api/v1/admin/metrics/unanswered-rate` | 회사별 미답변 비율                       |
 | `GET /api/v1/admin/metrics/tta` | 회사별 평균 TTA, 최초 로그인 → 첫 RAG 소요 시간 |
 | `GET /api/v1/admin/metrics/unanswered-question-patterns` | 미답변 질문 패턴 TOP N |
+| `POST /api/v1/admin/metrics/unanswered-question-patterns/refresh` | 미답변 질문 패턴 수동 갱신 |
 
 #### 공통 인증 및 권한 규칙
 
@@ -4485,7 +4389,7 @@ Authorization: Bearer {accessToken}
 - `aiSummary.actions`는 `no_result_question_patterns.improvement_areas` 값을 사용한다.
 - 저장된 분석 결과가 없는 경우 `patterns`는 빈 배열로 반환하고, `aiSummary.status`는 `EMPTY`로 반환한다.
 - 미답변 질문 패턴은 원문 문자열 완전 일치 기준이 아니라, AI 서버가 임베딩 벡터 유사도를 기반으로 군집화한 결과다.
-- 군집화 대상은 `unanswered_question_logs` 중 최근 7일 동안 발생했고 `embedding_vector IS NOT NULL`인 `no_result` 질문이다.
+- 군집화 대상은 `unanswered_question_logs` 중 최근 7일 동안 발생한 `no_result` 질문이며, 백엔드는 AI 서버에 `questionContent`만 전달한다.
 
 #### Empty Response 예시
 
@@ -4509,6 +4413,70 @@ Authorization: Bearer {accessToken}
   "updatedAt": null
 }
 ```
+
+#### 수동 Refresh API
+
+저장된 미답변 질문 패턴 분석 결과를 운영자가 수동으로 갱신한다.
+
+이 API는 백엔드가 최근 7일 `no_result` 질문 데이터를 다시 수집해 AI 서버의 `POST /clusters/no-result/questions`를 호출하도록 트리거한다. 프론트엔드의 일반 조회 흐름에서는 사용하지 않고, 운영 확인 또는 배치 재실행이 필요한 경우에 사용한다.
+
+```http
+POST /api/v1/admin/metrics/unanswered-question-patterns/refresh?companyCode=WB0001&analysisDate=2026-07-03&topN=5
+Authorization: Bearer {accessToken}
+```
+
+##### Query Parameter
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | N | 갱신 대상 회사 코드. ADMIN은 생략해도 본인 회사로 제한된다. SERVICE_ADMIN은 생략 시 최근 7일 분석 대상 데이터가 있는 모든 회사를 갱신한다. |
+| `analysisDate` | String (`yyyy-MM-dd`) | N | 분석 기준일. 해당 날짜를 포함한 최근 7일 `no_result` 질문을 대상으로 군집화를 수행한다. 생략하면 KST 기준 오늘 날짜를 사용한다. |
+| `topN` | Number | N | AI 서버에 요청할 미답변 질문 패턴 개수. 기본값 5, 최솟값 1, 최댓값 20이다. |
+
+##### Response (200 OK)
+
+```json
+{
+  "analysisDate": "2026-07-03",
+  "topN": 5,
+  "companies": [
+    {
+      "companyCode": "WB0001",
+      "sourceCount": 58,
+      "patternCount": 5,
+      "status": "READY",
+      "errorMessage": null,
+      "updatedAt": "2026-07-03T13:17:39.618542"
+    }
+  ]
+}
+```
+
+##### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `analysisDate` | String | 적용된 분석 기준일 |
+| `topN` | Number | 실제 적용된 TOP N 개수 |
+| `companies` | Array | 회사별 수동 갱신 결과 |
+| `companies[].companyCode` | String | 회사 코드 |
+| `companies[].sourceCount` | Number | 최근 7일 동안 AI 군집화 요청 대상으로 수집된 `no_result` 질문 수 |
+| `companies[].patternCount` | Number | AI 서버가 반환한 미답변 질문 패턴 수 |
+| `companies[].status` | String | 수동 갱신 결과 상태. `READY`, `EMPTY`, `FAILED` |
+| `companies[].errorMessage` | String 또는 null | AI 서버 호출 또는 처리 실패 사유 |
+| `companies[].updatedAt` | String 또는 null | `no_result_question_patterns` 갱신 시각 |
+
+##### 동작 규칙
+
+- 이 API는 조회 API가 아니라 저장 결과를 재생성하는 갱신 API다.
+- 백엔드는 권한과 회사 범위를 검증한 뒤 최근 7일 `no_result` 질문의 `logId`, `questionContent`만 수집한다.
+- 백엔드는 수집한 데이터를 AI 서버의 `POST /clusters/no-result/questions`로 전달한다.
+- AI 서버 응답이 성공하면 `no_result_question_patterns`에 결과를 저장한다.
+- 같은 `company_code`, `analysis_date` 데이터가 이미 존재하면 새 row를 만들지 않고 기존 row를 갱신한다.
+- 수동 갱신이 반복 실행되면 `updated_at`이 갱신된다.
+- AI 서버 호출에 실패하면 `ai_status = FAILED`, `error_message`를 저장하고 기존 `top_questions`, `ai_summary`, `improvement_areas` 값은 유지할 수 있다.
+- `sourceCount`가 0이면 AI 서버를 호출하지 않고 `EMPTY` 상태로 저장한다.
+- 요청 본문에는 embedding 배열을 포함하지 않는다. AI 서버는 전달받은 질문 문자열로 임베딩을 직접 생성해 군집화한다.
 
 ---
 
@@ -4806,9 +4774,8 @@ Authorization: Bearer {accessToken}
   - `DOCUMENT_DUPLICATE` 응답의 `errors[].details`에 `duplicateType`, `duplicateDocumentTitle`을 포함하도록 에러 응답 구조 반영
   - `documents.content_hash` 저장 규칙, 기존 문서 마이그레이션, 콘텐츠 중복 차단 시 AI 인덱싱 미호출 규칙 추가
 - **v2.3.1 (2026-07-01)**:
-  - `answer_type = no_result`인 `unanswered_question_logs`에 질문 임베딩 벡터를 함께 저장하는 연동 규칙 추가
-  - 내부 AI 연동 API `POST {AI_SERVER_BASE_URL}/embeddings/question` 요청/응답 명세 추가. 요청은 `companyCode`, `content`를 전달하고 응답은 `embeddingModel`, `dimension`, `embedding`만 반환하는 구조로 정의
+  - `answer_type = no_result`인 `unanswered_question_logs` 저장 기준과 후속 미답변 질문 패턴 분석 흐름 정리
 - **v2.3.2 (2026-07-03)**:
-  - 매일 새벽 3시 배치로 최근 7일 `no_result` 질문을 임베딩 기반으로 군집화하고, 관리자 대시보드 및 조회 API가 저장된 군집화 결과를 기준으로 응답하도록 정리
-  - `aiSummary`는 군집화된 TOP N 기반 AI 요약 및 문서 보강 제안으로 명시하고, 기존 원문 완전 일치 집계 필드는 제외
+  - 매일 새벽 3시 최근 7일 `no_result` 질문 원문을 AI 서버에 전달하고, AI 서버가 직접 임베딩 생성 및 군집화를 수행한 결과를 백엔드 DB에 저장하여 관리자 대시보드와 조회 API가 저장 결과 기준으로 응답하도록 정리
+  - `unanswered_question_logs`의 임베딩 저장 컬럼과 별도 임베딩 생성 연동을 제거하고, 군집화 요청 body를 `logId`, `questionContent` 중심으로 축소하며 `aiSummary`는 TOP N 기반 AI 요약 및 문서 보강 제안으로 명시
 

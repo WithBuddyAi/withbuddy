@@ -18,7 +18,6 @@ public interface UnansweredQuestionLogRepository extends JpaRepository<Unanswere
             WHERE DATE(CONVERT_TZ(log.created_at, '+00:00', '+09:00')) >= :windowStartDate
               AND DATE(CONVERT_TZ(log.created_at, '+00:00', '+09:00')) <= :analysisDate
               AND log.answer_type = 'no_result'
-              AND log.embedding_vector IS NOT NULL
             ORDER BY log.company_code
             """, nativeQuery = true)
     List<String> findNoResultPatternCompanyCodes(
@@ -29,15 +28,11 @@ public interface UnansweredQuestionLogRepository extends JpaRepository<Unanswere
     @Query(value = """
             SELECT
                 log.id AS logId,
-                log.question_content AS questionContent,
-                log.embedding_model AS embeddingModel,
-                log.embedding_dimension AS embeddingDimension,
-                log.embedding_vector AS embeddingVector
+                log.question_content AS questionContent
             FROM unanswered_question_logs log
             WHERE DATE(CONVERT_TZ(log.created_at, '+00:00', '+09:00')) >= :windowStartDate
               AND DATE(CONVERT_TZ(log.created_at, '+00:00', '+09:00')) <= :analysisDate
               AND log.answer_type = 'no_result'
-              AND log.embedding_vector IS NOT NULL
               AND log.company_code = :companyCode
             ORDER BY log.created_at ASC, log.id ASC
             """, nativeQuery = true)
@@ -50,8 +45,5 @@ public interface UnansweredQuestionLogRepository extends JpaRepository<Unanswere
     interface NoResultPatternSourceProjection {
         Long getLogId();
         String getQuestionContent();
-        String getEmbeddingModel();
-        Integer getEmbeddingDimension();
-        String getEmbeddingVector();
     }
 }

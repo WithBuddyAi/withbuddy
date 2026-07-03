@@ -57,10 +57,7 @@ public class AiNoResultQuestionClusterClient {
 
     public record ClusterItemRequest(
             Long logId,
-            String questionContent,
-            String embeddingModel,
-            Integer embeddingDimension,
-            List<Double> embedding
+            String questionContent
     ) {
     }
 

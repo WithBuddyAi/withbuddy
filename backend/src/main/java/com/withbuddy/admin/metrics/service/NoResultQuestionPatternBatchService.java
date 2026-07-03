@@ -1,7 +1,6 @@
 package com.withbuddy.admin.metrics.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.admin.metrics.dto.response.NoResultQuestionPatternRefreshResponse;
 import com.withbuddy.admin.metrics.entity.NoResultQuestionPattern;
@@ -24,8 +23,6 @@ public class NoResultQuestionPatternBatchService {
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final int DEFAULT_TOP_N = 5;
     private static final int MAX_TOP_N = 20;
-    private static final TypeReference<List<Double>> EMBEDDING_VECTOR_TYPE = new TypeReference<>() {
-    };
 
     private final UnansweredQuestionLogRepository unansweredQuestionLogRepository;
     private final NoResultQuestionPatternRepository noResultQuestionPatternRepository;
@@ -94,7 +91,6 @@ public class NoResultQuestionPatternBatchService {
                 unansweredQuestionLogRepository.findNoResultPatternSources(companyCode, windowStartDate, analysisDate)
                         .stream()
                         .map(this::toClusterItem)
-                        .flatMap(List::stream)
                         .toList();
 
         if (items.isEmpty()) {
@@ -136,22 +132,13 @@ public class NoResultQuestionPatternBatchService {
         }
     }
 
-    private List<AiNoResultQuestionClusterClient.ClusterItemRequest> toClusterItem(
+    private AiNoResultQuestionClusterClient.ClusterItemRequest toClusterItem(
             UnansweredQuestionLogRepository.NoResultPatternSourceProjection source
     ) {
-        try {
-            List<Double> embedding = objectMapper.readValue(source.getEmbeddingVector(), EMBEDDING_VECTOR_TYPE);
-            return List.of(new AiNoResultQuestionClusterClient.ClusterItemRequest(
-                    source.getLogId(),
-                    source.getQuestionContent(),
-                    source.getEmbeddingModel(),
-                    source.getEmbeddingDimension(),
-                    embedding
-            ));
-        } catch (JsonProcessingException e) {
-            log.warn("no_result 질문 임베딩 JSON 파싱 실패. logId={}", source.getLogId(), e);
-            return List.of();
-        }
+        return new AiNoResultQuestionClusterClient.ClusterItemRequest(
+                source.getLogId(),
+                source.getQuestionContent()
+        );
     }
 
     private NoResultQuestionPattern upsertPattern(
