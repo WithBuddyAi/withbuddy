@@ -16,16 +16,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -63,7 +67,8 @@ class AdminUserServiceTest {
 
     @Test
     void rejectsHireDateBeforeSixMonthWindow() {
-        when(adminUserRepository.findById(1L)).thenReturn(Optional.of(activeAdmin()));
+        User admin = activeAdmin();
+        when(adminUserRepository.findById(1L)).thenReturn(Optional.of(admin));
 
         assertThatThrownBy(() -> adminUserService.createUser(
                 principal(),
@@ -78,7 +83,8 @@ class AdminUserServiceTest {
 
     @Test
     void rejectsHireDateAfterSixMonthWindow() {
-        when(adminUserRepository.findById(1L)).thenReturn(Optional.of(activeAdmin()));
+        User admin = activeAdmin();
+        when(adminUserRepository.findById(1L)).thenReturn(Optional.of(admin));
 
         assertThatThrownBy(() -> adminUserService.createUser(
                 principal(),
@@ -94,7 +100,8 @@ class AdminUserServiceTest {
     @Test
     void allowsHireDateOnSixMonthWindowBoundaries() {
         Company company = company();
-        when(adminUserRepository.findById(1L)).thenReturn(Optional.of(activeAdmin()));
+        User admin = activeAdmin();
+        when(adminUserRepository.findById(1L)).thenReturn(Optional.of(admin));
         when(companyRepository.findByCompanyCode("WB0001")).thenReturn(Optional.of(company));
         when(adminUserRepository.existsByCompany_CompanyCodeAndEmployeeNumber("WB0001", "20260001"))
                 .thenReturn(false);
@@ -104,6 +111,44 @@ class AdminUserServiceTest {
         adminUserService.createUser(principal(), request(LocalDate.of(2026, 12, 17)));
 
         verify(adminUserRepository, times(2)).save(any(User.class));
+    }
+
+    @Test
+    void getUsersRecomputesAndPersistsLifecycleStatusBeforeReturning() {
+        User dormantUser = User.builder()
+                .company(company())
+                .name("김지원")
+                .department("개발팀")
+                .teamName("백엔드팀")
+                .employeeNumber("20260001")
+                .hireDate(LocalDate.of(2026, 3, 19))
+                .role(UserRole.USER)
+                .accountStatus(UserAccountStatus.ACTIVE)
+                .build();
+        ReflectionTestUtils.setField(dormantUser, "id", 10L);
+
+        User admin = activeAdmin();
+        when(adminUserRepository.findById(1L)).thenReturn(Optional.of(admin));
+        when(adminUserRepository.searchUsers(
+                org.mockito.ArgumentMatchers.eq("WB0001"),
+                org.mockito.ArgumentMatchers.eq(List.of(UserRole.USER)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.ACTIVE)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.READ_ONLY)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.INACTIVE)),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq("asc"),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(new PageImpl<>(List.of(dormantUser)));
+        when(chatMessageRepository.countByUserIdAndSenderTypeAndMessageType(any(), any(), any())).thenReturn(0L);
+        when(adminUserRepository.saveAll(anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = adminUserService.getUsers(principal(), 0, 20, null, null, null, null);
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().getFirst().accountStatus()).isEqualTo(UserAccountStatus.READ_ONLY.name());
+        verify(adminUserRepository).saveAll(anyCollection());
     }
 
     private JwtAuthenticationPrincipal principal() {
@@ -144,6 +189,7 @@ class AdminUserServiceTest {
         Company company = mock(Company.class);
         when(company.getCompanyCode()).thenReturn("WB0001");
         lenient().when(company.getName()).thenReturn("테크 주식회사");
+        lenient().when(company.getProbationPeriod()).thenReturn(90);
         return company;
     }
 }

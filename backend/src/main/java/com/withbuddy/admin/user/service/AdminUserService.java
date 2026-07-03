@@ -14,6 +14,7 @@ import com.withbuddy.account.company.repository.CompanyRepository;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.account.user.service.UserLifecycleStatusResolver;
 import com.withbuddy.buddy.chat.entity.MessageType;
 import com.withbuddy.buddy.chat.entity.SenderType;
 import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
@@ -132,7 +133,7 @@ public class AdminUserService {
         );
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public UserListResponse getUsers(
             JwtAuthenticationPrincipal principal,
             int page,
@@ -159,6 +160,7 @@ public class AdminUserService {
                 normalizedSortDirection,
                 PageRequest.of(page, size)
         );
+        synchronizeLifecycleStatuses(userPage.getContent());
 
         Map<Long, LocalDate> lastLoginDateByUserId = resolveLastLoginDateByUserId(userPage.getContent());
 
@@ -244,6 +246,7 @@ public class AdminUserService {
     }
 
     private UserListItemResponse toListItem(User user, LocalDate lastLoginDate) {
+        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, clock);
         return new UserListItemResponse(
                 user.getId(),
                 user.getCompany().getCompanyCode(),
@@ -252,7 +255,7 @@ public class AdminUserService {
                 formatDepartmentTeam(user.getDepartment(), user.getTeamName()),
                 user.getName(),
                 user.getRole().name(),
-                user.getAccountStatus() == null ? null : user.getAccountStatus().name(),
+                currentAccountStatus == null ? null : currentAccountStatus.name(),
                 user.getHireDate(),
                 calculateHireDay(user.getHireDate()),
                 countUserQuestions(user.getId()),
@@ -260,6 +263,15 @@ public class AdminUserService {
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );
+    }
+
+    private void synchronizeLifecycleStatuses(List<User> users) {
+        List<User> changedUsers = users.stream()
+                .filter(user -> UserLifecycleStatusResolver.sync(user, clock))
+                .toList();
+        if (!changedUsers.isEmpty()) {
+            adminUserRepository.saveAll(changedUsers);
+        }
     }
 
     private Map<Long, LocalDate> resolveLastLoginDateByUserId(List<User> users) {

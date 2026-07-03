@@ -13,6 +13,7 @@ import com.withbuddy.account.auth.exception.LoginFailedException;
 import com.withbuddy.account.auth.ratelimit.LoginAttemptRateLimitService;
 import com.withbuddy.account.auth.turnstile.TurnstileVerificationService;
 import com.withbuddy.account.auth.repository.UserRepository;
+import com.withbuddy.account.user.service.UserLifecycleStatusResolver;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.jwt.JwtService;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
@@ -25,13 +26,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import java.time.Clock;
 import java.time.ZoneId;
 import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    private static final Clock KST_CLOCK = Clock.system(ZoneId.of("Asia/Seoul"));
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
@@ -63,7 +65,7 @@ public class AuthService {
             throw e;
         }
 
-        UserAccountStatus currentAccountStatus = resolveLifecycleAccountStatus(user);
+        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, KST_CLOCK);
         if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
             user.updateAccountStatus(currentAccountStatus);
         }
@@ -102,7 +104,7 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("사용자 정보를 찾을 수 없습니다."));
 
-        UserAccountStatus currentAccountStatus = resolveLifecycleAccountStatus(user);
+        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, KST_CLOCK);
         if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
             user.updateAccountStatus(currentAccountStatus);
         }
@@ -164,27 +166,6 @@ public class AuthService {
 
     private String normalizeValue(String value) {
         return value == null ? "" : value.trim();
-    }
-
-    private UserAccountStatus resolveLifecycleAccountStatus(User user) {
-        if (user.getRole() != UserRole.USER) {
-            return null;
-        }
-
-        int probationPeriod = user.getCompany().getProbationPeriod() == null
-                ? 90
-                : user.getCompany().getProbationPeriod();
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
-        LocalDate readOnlyStartDate = user.getHireDate().plusDays(probationPeriod);
-        LocalDate inactiveStartDate = readOnlyStartDate.plusDays(30);
-
-        if (!today.isBefore(inactiveStartDate)) {
-            return UserAccountStatus.INACTIVE;
-        }
-        if (!today.isBefore(readOnlyStartDate)) {
-            return UserAccountStatus.READ_ONLY;
-        }
-        return UserAccountStatus.ACTIVE;
     }
 
     public record AuthenticatedSession(String accessToken, LoginUserResponse user) {
