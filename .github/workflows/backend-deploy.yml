@@ -1558,8 +1558,87 @@ jobs:
           printf -v TARGET_UPSTREAM_CONF_Q '%q' "${TARGET_UPSTREAM_CONF}"
           printf -v PREVIOUS_UPSTREAM_CONF_Q '%q' "${PREVIOUS_UPSTREAM_CONF}"
 
+<<<<<<< Updated upstream
           ssh "${TRAFFIC_SWITCH_SSH_HOST}" \
             "TARGET_SLOT=${TARGET_SLOT_Q} LIVE_SLOT=${LIVE_SLOT_Q} PUBLIC_HEALTH_URL=${PUBLIC_HEALTH_URL_Q} ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} TARGET_UPSTREAM_CONF=${TARGET_UPSTREAM_CONF_Q} PREVIOUS_UPSTREAM_CONF=${PREVIOUS_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
+=======
+          verify_public_health() {
+            for i in {1..12}; do
+              if curl -fsS "${PUBLIC_HEALTH_URL}" >/dev/null; then
+                echo "Public health check succeeded on attempt ${i}"
+                return 0
+              fi
+              echo "Public health check failed on attempt ${i}, retrying in 5s..."
+              sleep 5
+            done
+            echo "Public health check failed after retries."
+            return 1
+          }
+
+          verify_target_backend_local_health() {
+            ssh "${TARGET_BACKEND_SSH_HOST}" "curl -fsS http://127.0.0.1:8080/actuator/health/liveness >/dev/null"
+          }
+
+          ensure_target_public_tunnel() {
+            if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
+              ssh "${TARGET_BACKEND_SSH_HOST}" "sudo systemctl start '${PUBLIC_TUNNEL_SERVICE}' && sudo systemctl is-active --quiet '${PUBLIC_TUNNEL_SERVICE}'"
+            fi
+          }
+
+          stop_previous_public_tunnel() {
+            if [ "${DISABLE_PREVIOUS_PUBLIC_TUNNEL}" != "true" ]; then
+              echo "Skipping previous public tunnel stop because DISABLE_PREVIOUS_PUBLIC_TUNNEL=${DISABLE_PREVIOUS_PUBLIC_TUNNEL}"
+              return 0
+            fi
+            if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
+              if [ "${LIVE_BACKEND_COMPARE_HOST}" = "${TRAFFIC_SWITCH_COMPARE_HOST}" ]; then
+                echo "Live backend host is also the router host. Skipping public tunnel stop to avoid disabling router ingress."
+                return 0
+              fi
+              ssh "${LIVE_BACKEND_SSH_HOST}" "sudo systemctl stop '${PUBLIC_TUNNEL_SERVICE}' && ! sudo systemctl is-active --quiet '${PUBLIC_TUNNEL_SERVICE}'"
+            fi
+          }
+
+          rollback_public_tunnel() {
+            if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
+              ssh "${LIVE_BACKEND_SSH_HOST}" "sudo systemctl start '${PUBLIC_TUNNEL_SERVICE}' || true"
+            fi
+          }
+
+          write_active_slot_state() {
+            local slot="$1"
+            write_active_slot_state_to_host "${TRAFFIC_SWITCH_SSH_HOST}" "${slot}"
+            write_active_slot_state_to_host "${TARGET_BACKEND_SSH_HOST}" "${slot}"
+            write_active_slot_state_to_host "${LIVE_BACKEND_SSH_HOST}" "${slot}"
+          }
+
+          write_active_slot_state_to_host() {
+            local ssh_host="$1"
+            local slot="$2"
+            printf -v ACTIVE_SLOT_Q '%q' "${slot}"
+            printf -v ACTIVE_SLOT_STATE_FILE_Q '%q' "${ACTIVE_SLOT_STATE_FILE}"
+
+            ssh "${ssh_host}" \
+              "ACTIVE_SLOT=${ACTIVE_SLOT_Q} ACTIVE_SLOT_STATE_FILE=${ACTIVE_SLOT_STATE_FILE_Q} bash -s" <<'REMOTE_EOF'
+            set -euo pipefail
+            umask 022
+            printf 'ACTIVE_SLOT=%s\nUPDATED_AT=%s\n' \
+              "${ACTIVE_SLOT}" \
+              "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${ACTIVE_SLOT_STATE_FILE}"
+          REMOTE_EOF
+          }
+
+          switch_nginx_upstream() {
+            printf -v TARGET_SLOT_Q '%q' "${TARGET_SLOT}"
+            printf -v LIVE_SLOT_Q '%q' "${LIVE_SLOT}"
+            printf -v PUBLIC_HEALTH_URL_Q '%q' "${PUBLIC_HEALTH_URL}"
+            printf -v ACTIVE_UPSTREAM_LINK_Q '%q' "${ACTIVE_UPSTREAM_LINK}"
+            printf -v TARGET_UPSTREAM_CONF_Q '%q' "${TARGET_UPSTREAM_CONF}"
+            printf -v PREVIOUS_UPSTREAM_CONF_Q '%q' "${PREVIOUS_UPSTREAM_CONF}"
+
+            ssh "${TRAFFIC_SWITCH_SSH_HOST}" \
+              "TARGET_SLOT=${TARGET_SLOT_Q} LIVE_SLOT=${LIVE_SLOT_Q} PUBLIC_HEALTH_URL=${PUBLIC_HEALTH_URL_Q} ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} TARGET_UPSTREAM_CONF=${TARGET_UPSTREAM_CONF_Q} PREVIOUS_UPSTREAM_CONF=${PREVIOUS_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
+>>>>>>> Stashed changes
             set -euo pipefail
 
             collect_nginx_diagnostics() {
