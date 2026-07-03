@@ -23,7 +23,7 @@
 
 ### 1.1 전체 구조도
 
-[![Architecture Overview](./images/architecture-overview-v2.png)](./images/architecture-overview-v2.png)
+[![Architecture Overview](./images/architecture1.png)](./images/architecture1.png)
 
 모바일에서는 이미지를 탭해 원본을 연 뒤 확대해서 확인하세요.
 
