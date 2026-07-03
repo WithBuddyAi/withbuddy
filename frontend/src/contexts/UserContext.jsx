@@ -7,6 +7,7 @@ export function UserProvider({ children }) {
   const [dayOffset, setDayOffset] = useState();
   const [role, setRole] = useState();
   const [accountStatus, setAccountStatus] = useState();
+  const [companyCode, setCompanyCode] = useState();
 
   return (
     <UserContext.Provider
@@ -19,6 +20,8 @@ export function UserProvider({ children }) {
         setRole,
         accountStatus,
         setAccountStatus,
+        companyCode,
+        setCompanyCode,
       }}
     >
       {children}

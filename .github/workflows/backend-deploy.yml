@@ -99,6 +99,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          DEFAULT_BACKEND_HEALTH_URL="http://127.0.0.1:8080/actuator/health/liveness"
 
           SLOT="${{ steps.branch_guard.outputs.target_slot }}"
           case "${SLOT}" in
@@ -106,13 +107,13 @@ jobs:
               ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
               SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
               SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
-              HEALTH_URL="${BLUE_BACKEND_HEALTH_URL:-}"
+              HEALTH_URL="${BLUE_BACKEND_HEALTH_URL:-${DEFAULT_BACKEND_HEALTH_URL}}"
               ;;
             green)
               ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
               SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
               SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
-              HEALTH_URL="${GREEN_BACKEND_HEALTH_URL:-}"
+              HEALTH_URL="${GREEN_BACKEND_HEALTH_URL:-${DEFAULT_BACKEND_HEALTH_URL}}"
               ;;
             *)
               echo "Unsupported target slot: ${SLOT}"
@@ -126,10 +127,6 @@ jobs:
           fi
           if [ -z "${SSH_KEY}" ]; then
             echo "Slot ${SLOT} is missing *_BACKEND_SERVER_SSH_KEY"
-            exit 1
-          fi
-          if [ -z "${HEALTH_URL}" ]; then
-            echo "Slot ${SLOT} is missing *_BACKEND_HEALTH_URL"
             exit 1
           fi
 

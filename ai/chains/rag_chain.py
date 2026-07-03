@@ -13,7 +13,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 
-from core.llm import get_llm
+from core.llm import get_llm, get_intent_llm
 from memory.chat_history import get_chat_history, save_interaction
 from memory.unanswered_store import add_unanswered
 from chains.retriever import (
@@ -43,6 +43,49 @@ _IT_SUPPORT_KW = [
 ]
 
 _NO_RESULT_TEMPLATE = "아직 이 질문에 답할 수 있는 사내 문서나 공통 기준을 찾지 못했어요.😅\n\n정확한 안내를 위해 아래 담당자에게 문의해 주세요."
+
+
+def _is_docs_relevant(question: str, docs: List[Document]) -> bool:
+    """사내 문서가 질문에 직접 답할 수 있는 내용을 포함하는지 검증. True=관련 있음, False=no_result."""
+    context = "\n---\n".join(d.page_content[:400] for d in docs[:3])
+    prompt = (
+        f"[문서]에 [질문]과 관련된 내용이 있으면 YES, 전혀 무관하면 NO만 답하세요.\n\n"
+        f"[질문]: {question}\n\n[문서]:\n{context}\n\nYES 또는 NO:"
+    )
+    resp = get_intent_llm().invoke(prompt)
+    if "YES" in resp.content.upper():
+        return True
+    # NO 시 1회 재시도 — 2회 연속 NO일 때만 차단
+    resp2 = get_intent_llm().invoke(prompt)
+    return "YES" in resp2.content.upper()
+
+
+_HIGH_RISK_KW = ["해고예고", "징계위원회", "임금체불"]
+
+
+def _is_high_risk(question: str) -> bool:
+    return any(kw in question for kw in _HIGH_RISK_KW)
+
+
+def _llm_judge(question: str, docs: List[Document], answer: str) -> bool:
+    """고위험 질문 답변 품질 검증 (LLM Judge POC). True=신뢰 가능, False=no_result."""
+    context = "\n---\n".join(d.page_content[:400] for d in docs[:3])
+    prompt = (
+        f"[문서]에 근거하여 [질문]에 대한 [답변]을 평가하세요.\n"
+        f"[답변]이 [문서] 내용과 명백히 모순되거나, 문서에 전혀 없는 수치·날짜·규정을 단언하면 NO.\n"
+        f"문서를 바탕으로 작성된 답변이거나 판단이 불확실하면 YES만 답하세요.\n\n"
+        f"[질문]: {question}\n\n[문서]:\n{context}\n\n[답변]:\n{answer[:500]}\n\nYES 또는 NO:"
+    )
+    resp = get_intent_llm().invoke(prompt)
+    result = "YES" in resp.content.upper()
+    if not result:
+        # NO 시 1회 재시도 — 2회 연속 NO일 때만 차단
+        resp2 = get_intent_llm().invoke(prompt)
+        result = "YES" in resp2.content.upper()
+        print(f"[LLM_JUDGE] retry={'YES' if result else 'NO'} | q={question[:40]} | resp1={resp.content.strip()} resp2={resp2.content.strip()}")
+    else:
+        print(f"[LLM_JUDGE] YES | q={question[:40]}")
+    return result
 
 
 class _TokenCounter(BaseCallbackHandler):
@@ -170,7 +213,7 @@ def _inject_profile_context(user_id: str, question: str, formatted_context: str)
     return formatted_context
 
 
-def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> Tuple[str, str, List[dict], List[int]]:
+def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None, account_status: str = "") -> Tuple[str, str, List[dict], List[int]]:
     """
     RAG 체인을 실행하여 답변, 출처, 관련 양식 목록, 문서 ID 목록을 반환합니다.
 
@@ -184,7 +227,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     _token_counter.reset()
 
     chat_history = injected_history if injected_history is not None else get_chat_history(user_id)
-    result = retrieve(question, company_code, chat_history)
+    result = retrieve(question, company_code, chat_history, account_status=account_status)
 
     if result.ambiguous_response:
         return result.ambiguous_response, "", [], []
@@ -204,9 +247,15 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
         return _NO_RESULT_TEMPLATE, "", [], []
 
+    # 사내 문서가 있지만 질문에 실제로 답할 수 없는 경우 → no_result
+    _company_docs = [d for d in result.docs if d.metadata.get("company_code", "")]
+    if _company_docs and company_code and not _is_docs_relevant(result.question, _company_docs):
+        save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+        return _NO_RESULT_TEMPLATE, "", [], []
+
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
-    hr_team, _ = get_hr_contact(company_code)
+    hr_team, hr_contact = get_hr_contact(company_code)
 
     answer = generate_answer(
         question=result.question,
@@ -232,6 +281,14 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     if is_unanswered(answer, result.docs):
         answer = _NO_RESULT_TEMPLATE
 
+    if hr_team:
+        answer = re.sub(r'(?<![가-힣])님에게', f'{hr_contact}님에게', answer)
+
+    # LLM Judge POC: 고위험 질문 답변 품질 검증
+    if answer != _NO_RESULT_TEMPLATE and _is_high_risk(result.question) and result.docs:
+        if not _llm_judge(result.question, result.docs, answer):
+            answer = _NO_RESULT_TEMPLATE
+
     global _last_category
     _last_category = _extract_category(result.docs)
 
@@ -241,7 +298,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
     return answer, result.source_names, related_docs, result.doc_ids
 
 
-async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None) -> AsyncGenerator[Tuple[str, str | None, List[dict] | None, List[int] | None], None]:
+async def stream_rag_chain(user_id: str, question: str, user_name: str = "", company_code: str = "", company_name: str = "", hire_date: str = "", injected_history: List[BaseMessage] | None = None, account_status: str = "") -> AsyncGenerator[Tuple[str, str | None, List[dict] | None, List[int] | None], None]:
     """
     RAG 체인을 스트리밍으로 실행합니다.
     토큰 단위로 (chunk, None, None, None)을 yield하고, 마지막에 ("", source_names, related_docs, rag_doc_ids)를 yield합니다.
@@ -266,7 +323,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     yield "__STAGE__searching", None, None, None
 
-    result = await async_retrieve(question, company_code, chat_history)
+    result = await async_retrieve(question, company_code, chat_history, account_status=account_status)
 
     if result.direct_legal_answer:
         save_interaction(user_id, result.question, result.direct_legal_answer)
@@ -279,7 +336,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", result.source_names, related_docs, result.doc_ids
         return
 
-    hr_team, _ = get_hr_contact(company_code)
+    hr_team, hr_contact = get_hr_contact(company_code)
     _it_card = _get_it_card(company_code)
     if _it_card and any(kw in result.question for kw in _IT_SUPPORT_KW):
         _dept = _it_card.get("department", hr_team)
@@ -303,6 +360,17 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         yield "", "", [], []
         return
 
+    # 사내 문서가 있지만 질문에 실제로 답할 수 없는 경우 → no_result
+    _company_docs = [d for d in result.docs if d.metadata.get("company_code", "")]
+    if _company_docs and company_code:
+        _relevant = await asyncio.to_thread(_is_docs_relevant, result.question, _company_docs)
+        if not _relevant:
+            save_interaction(user_id, result.question, _NO_RESULT_TEMPLATE)
+            asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+            yield _NO_RESULT_TEMPLATE, None, None, None
+            yield "", "", [], []
+            return
+
     formatted_context = _inject_profile_context(user_id, result.question, result.formatted_context)
     company_name = company_name or get_company_name(company_code)
 
@@ -322,6 +390,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     _pre = ""
     _streaming = False
     _buf = ""
+    _high_risk = _is_high_risk(question)  # 고위험: 스트리밍 억제 → Judge 후 단일 전송 (swap 방지)
 
     async for _raw in stream_answer(
         question=result.question,
@@ -337,6 +406,8 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
         hire_info=_build_hire_info(hire_date),
     ):
         raw_answer += _raw
+        if _high_risk:
+            continue  # 고위험: 청크 yield 없이 전체 누적
         if _streaming:
             _buf += _raw
             while True:
@@ -374,35 +445,51 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
                     _buf = _buf[-2:]
         # else: no_result 키워드 감지 상태 → raw_answer에만 누적, yield 안 함
 
-    if _streaming and _buf:
-        yield _fmt(_buf), None, None, None
-    elif not _streaming and _pre and not any(kw in _pre for kw in _NO_ANSWER_KEYWORDS):
-        # 전체 길이가 _PEEK 미만인 짧은 정상 답변
-        yield _fmt(_pre), None, None, None
-        _streaming = True
+    if not _high_risk:
+        if _streaming and _buf:
+            yield _fmt(_buf), None, None, None
+        elif not _streaming and _pre and not any(kw in _pre for kw in _NO_ANSWER_KEYWORDS):
+            # 전체 길이가 _PEEK 미만인 짧은 정상 답변
+            yield _fmt(_pre), None, None, None
+            _streaming = True
 
     fixed = await postprocess_answer_async(raw_answer)
-    if _streaming and fixed != raw_answer:
+    if hr_team:
+        fixed = re.sub(r'(?<![가-힣])님에게', f'{hr_contact}님에게', fixed)
+    if not _high_risk and _streaming and fixed != raw_answer:
         yield "\x00" + fixed, None, None, None
 
     if needs_labor_law_fallback(result.question, fixed):
         labor_fallback = get_labor_law_fallback(hr_team)
-        yield labor_fallback, None, None, None
+        if not _high_risk:
+            yield labor_fallback, None, None, None
         fixed += labor_fallback
 
     if (company_code and result.docs and not is_unanswered(fixed, result.docs)
             and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
         case_a_msg = build_case_a_suffix(hr_team)
-        yield case_a_msg, None, None, None
+        if not _high_risk:
+            yield case_a_msg, None, None, None
         fixed += case_a_msg
 
     if is_unanswered(fixed, result.docs):
         fixed = _NO_RESULT_TEMPLATE
         asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
-        if _streaming:
-            yield "\x00" + fixed, None, None, None  # 드문 케이스: 120자 이후 no_result 감지
-        else:
-            yield fixed, None, None, None  # swap 없이 바로 출력
+        if not _high_risk:
+            if _streaming:
+                yield "\x00" + fixed, None, None, None  # 드문 케이스: 120자 이후 no_result 감지
+            else:
+                yield fixed, None, None, None  # swap 없이 바로 출력
+
+    # LLM Judge POC: 고위험 질문 - 스트리밍 억제 후 단일 전송 (swap 없음)
+    if fixed != _NO_RESULT_TEMPLATE and _high_risk and result.docs:
+        _judge_ok = await asyncio.to_thread(_llm_judge, result.question, result.docs, fixed)
+        if not _judge_ok:
+            asyncio.create_task(_fire_unanswered_alert(user_id, result.question, company_code, user_name=user_name))
+            fixed = _NO_RESULT_TEMPLATE
+
+    if _high_risk:
+        yield _fmt(fixed), None, None, None  # 고위험: Judge 완료 후 단일 전송
 
     global _last_category
     _last_category = _extract_category(result.docs)

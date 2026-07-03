@@ -188,6 +188,59 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
+      - name: Write .env file on server
+        env:
+          AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}
+          AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+          AI_APP_DIR: ${{ secrets.AI_APP_DIR }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+          BACKEND_INTERNAL_URL: ${{ secrets.BACKEND_INTERNAL_URL }}
+          AI_CALLBACK_URL: ${{ secrets.AI_CALLBACK_URL }}
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+          BACKEND_API_TOKEN: ${{ secrets.BACKEND_API_TOKEN }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          LANGCHAIN_TRACING_V2: ${{ secrets.LANGCHAIN_TRACING_V2 }}
+          LANGCHAIN_PROJECT: ${{ secrets.LANGCHAIN_PROJECT }}
+          CB_BLOCK_HOURLY: ${{ secrets.CB_BLOCK_HOURLY }}
+          SLACK_CHANNEL_INTERNAL: ${{ secrets.SLACK_CHANNEL_INTERNAL }}
+        run: |
+          set -euo pipefail
+          ACCESS_HOST="${AI_ACCESS_HOST:-${AI_SERVER_HOST}}"
+          printf -v AI_APP_DIR_Q '%q' "${AI_APP_DIR}"
+
+          {
+            printf 'ANTHROPIC_API_KEY=%s\n'      "${ANTHROPIC_API_KEY}"
+            printf 'GOOGLE_API_KEY=%s\n'         "${GOOGLE_API_KEY}"
+            printf 'INTERNAL_API_KEY=%s\n'       "${INTERNAL_API_KEY}"
+            printf 'SLACK_BOT_TOKEN=%s\n'        "${SLACK_BOT_TOKEN}"
+            printf 'SLACK_APP_TOKEN=%s\n'        "${SLACK_APP_TOKEN}"
+            printf 'BACKEND_INTERNAL_URL=%s\n'   "${BACKEND_INTERNAL_URL}"
+            printf 'AI_CALLBACK_URL=%s\n'        "${AI_CALLBACK_URL}"
+            printf 'BACKEND_API_URL=%s\n'        "${BACKEND_API_URL}"
+            printf 'BACKEND_API_TOKEN=%s\n'      "${BACKEND_API_TOKEN}"
+            printf 'LANGCHAIN_API_KEY=%s\n'      "${LANGCHAIN_API_KEY}"
+            printf 'LANGCHAIN_TRACING_V2=%s\n'   "${LANGCHAIN_TRACING_V2}"
+            printf 'LANGCHAIN_PROJECT=%s\n'      "${LANGCHAIN_PROJECT}"
+            printf 'CB_BLOCK_HOURLY=%s\n'        "${CB_BLOCK_HOURLY}"
+            printf 'SLACK_CHANNEL_INTERNAL=%s\n' "${SLACK_CHANNEL_INTERNAL}"
+          } | base64 -w0 | ssh "${ACCESS_HOST}" "base64 -d > ${AI_APP_DIR_Q}/.env"
+
+      - name: Write contacts_config.py on server
+        env:
+          AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}
+          AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+          AI_APP_DIR: ${{ secrets.AI_APP_DIR }}
+          CONTACTS_CONFIG_PY: ${{ secrets.CONTACTS_CONFIG_PY }}
+        run: |
+          set -euo pipefail
+          ACCESS_HOST="${AI_ACCESS_HOST:-${AI_SERVER_HOST}}"
+          printf -v AI_APP_DIR_Q '%q' "${AI_APP_DIR}"
+          echo "${CONTACTS_CONFIG_PY}" | ssh "${ACCESS_HOST}" "rm -f ${AI_APP_DIR_Q}/contacts_config.py && base64 -d > ${AI_APP_DIR_Q}/contacts_config.py"
+
       - name: Deploy over Cloudflare Access SSH
         env:
           AI_ACCESS_HOST: ${{ secrets.AI_ACCESS_HOST }}

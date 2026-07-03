@@ -80,6 +80,9 @@ _QUERY_EXPANSIONS: list[tuple[str, str]] = [
     ("명절", "설날 추석 명절 선물 상품권 기념품"),
     ("명함", "명함 주문 제작 신청 경영지원 총무 ADMIN"),
     ("나와", "지원 있어 가능 제공 됩니다"),
+    ("병원", "조퇴 반차 병가 외출 의료비 건강관리"),
+    ("병원가", "조퇴 반차 병가 외출"),
+    ("병원 가", "조퇴 반차 병가 외출"),
 ]
 
 
@@ -104,6 +107,25 @@ def _expand_query(question: str) -> str:
         if term in q:
             extras.append(expansion)
     return q + " " + " ".join(extras) if extras else q
+
+
+_FOLLOWUP_INDICATORS = [
+    "나와있는데", "나와 있는데", "어떻게 나와", "어디서", "어디에 나와",
+    "거기서", "그 법에", "그 내용", "그거", "그게",
+    "더 알려줘", "자세히", "좀 더", "구체적으로",
+    "어떤 조", "몇 조", "조항", "몇 항", "조문",
+    "그럼 거기", "그 규정", "그 기준", "그 조건",
+]
+
+
+def _rewrite_with_history(question: str, chat_history: List[BaseMessage]) -> str:
+    """후속 질문이면 직전 사용자 질문 키워드를 붙여 검색 쿼리 보강."""
+    if not any(kw in question for kw in _FOLLOWUP_INDICATORS):
+        return question
+    prev_user = next((m.content for m in reversed(chat_history) if m.type == "human"), "")
+    if not prev_user or prev_user == question:
+        return question
+    return f"{prev_user} {question}"
 
 
 def _generate_search_variants(question: str) -> list[str]:
@@ -332,13 +354,13 @@ def match_template_docs(company_code: str, question: str) -> tuple[list[int], li
 
 # ── 서브 질문 검색 ─────────────────────────────────────────────
 
-def _multi_query_search(sub_q: str, company_code: str, k: int) -> List[Document]:
+def _multi_query_search(sub_q: str, company_code: str, k: int, pre_onboarding_only: bool = False) -> List[Document]:
     """원본 쿼리 + LLM 변형 쿼리 병렬 검색 후 dedup 반환."""
     expanded = _expand_query(sub_q)
 
     # 원본 검색 + 변형 생성 동시 실행
     with ThreadPoolExecutor(max_workers=2) as pool:
-        f_docs = pool.submit(search_with_company_fallback, expanded, k, company_code)
+        f_docs = pool.submit(search_with_company_fallback, expanded, k, company_code, pre_onboarding_only=pre_onboarding_only)
         f_vars = pool.submit(_generate_search_variants, sub_q)
         original_docs = f_docs.result()
         variants = f_vars.result()
@@ -348,7 +370,7 @@ def _multi_query_search(sub_q: str, company_code: str, k: int) -> List[Document]
 
     if variants:
         with ThreadPoolExecutor(max_workers=len(variants)) as pool:
-            futures = [pool.submit(search_with_company_fallback, v, k, company_code) for v in variants]
+            futures = [pool.submit(search_with_company_fallback, v, k, company_code, pre_onboarding_only=pre_onboarding_only) for v in variants]
             for f in futures:
                 for doc in f.result():
                     key = doc.page_content[:80]
@@ -359,18 +381,18 @@ def _multi_query_search(sub_q: str, company_code: str, k: int) -> List[Document]
     return all_docs
 
 
-def _search_sub_q(sub_q: str, company_code: str) -> List[Document]:
+def _search_sub_q(sub_q: str, company_code: str, pre_onboarding_only: bool = False) -> List[Document]:
     k = get_k_for_question(sub_q)
-    if is_legal_question(sub_q):
+    if not pre_onboarding_only and is_legal_question(sub_q):
         return search_legal_docs(_expand_query(sub_q), k=k * 2)[:k]
-    return _multi_query_search(sub_q, company_code, k)[:k]
+    return _multi_query_search(sub_q, company_code, k, pre_onboarding_only)[:k]
 
 
-def _search_sub_q_raw(sub_q: str, company_code: str) -> List[Document]:
+def _search_sub_q_raw(sub_q: str, company_code: str, pre_onboarding_only: bool = False) -> List[Document]:
     k = get_k_for_question(sub_q)
-    if is_legal_question(sub_q):
+    if not pre_onboarding_only and is_legal_question(sub_q):
         return search_legal_docs(_expand_query(sub_q), k=k * 2)
-    return _multi_query_search(sub_q, company_code, k)
+    return _multi_query_search(sub_q, company_code, k, pre_onboarding_only)
 
 
 _SUB_Q_SPLIT_PATTERN = re.compile(
@@ -383,16 +405,16 @@ def _split_sub_questions(question: str) -> List[str]:
     return parts if len(parts) >= 2 else [question]
 
 
-def _do_search(question: str, company_code: str) -> tuple[List[Document], List[str]]:
+def _do_search(question: str, company_code: str, pre_onboarding_only: bool = False) -> tuple[List[Document], List[str]]:
     sub_questions = _split_sub_questions(question)
     docs: List[Document] = []
     seen: set[str] = set()
 
     if len(sub_questions) == 1:
-        docs = _search_sub_q(sub_questions[0], company_code)
+        docs = _search_sub_q(sub_questions[0], company_code, pre_onboarding_only)
     else:
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(_search_sub_q_raw, sq, company_code) for sq in sub_questions]
+            futures = [executor.submit(_search_sub_q_raw, sq, company_code, pre_onboarding_only) for sq in sub_questions]
             for f in futures:
                 for d in f.result():
                     key = d.page_content[:80]
@@ -423,6 +445,7 @@ def retrieve(
     question: str,
     company_code: str,
     chat_history: List[BaseMessage],
+    account_status: str = "",
 ) -> RetrievalResult:
     resolved = resolve_selection(question, chat_history)
     if resolved:
@@ -436,7 +459,9 @@ def retrieve(
             doc_ids=[], ambiguous_response=ambiguous,
         )
 
-    docs, _ = _do_search(question, company_code)
+    pre_onboarding_only = (account_status == "PRE")
+    search_q = _rewrite_with_history(question, chat_history)
+    docs, _ = _do_search(search_q, company_code, pre_onboarding_only)
     template_ids, template_titles = match_template_docs(company_code, question)
     _tmpl_set = set(template_ids)
     _rag_ids = [
@@ -473,6 +498,7 @@ async def async_retrieve(
     question: str,
     company_code: str,
     chat_history: List[BaseMessage],
+    account_status: str = "",
 ) -> RetrievalResult:
     resolved = resolve_selection(question, chat_history)
     if resolved:
@@ -486,8 +512,10 @@ async def async_retrieve(
             doc_ids=[], ambiguous_response=ambiguous,
         )
 
+    pre_onboarding_only = (account_status == "PRE")
+    search_q = _rewrite_with_history(question, chat_history)
     loop = asyncio.get_event_loop()
-    docs, _ = await loop.run_in_executor(None, _do_search, question, company_code)
+    docs, _ = await loop.run_in_executor(None, lambda: _do_search(search_q, company_code, pre_onboarding_only))
     template_ids, template_titles = match_template_docs(company_code, question)
     _tmpl_set = set(template_ids)
     _rag_ids = [

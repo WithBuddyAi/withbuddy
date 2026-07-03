@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axiosInstance from "./api/axiosInstance";
 import Login from "./pages/Login";
@@ -7,17 +7,32 @@ import Admin from "./pages/Admin";
 import Inactive from "./pages/Inactive";
 import { setLogoutHandler, setToastHandler } from "./api/handlers";
 import ErrorToast from "./components/ErrorToast";
+import { useUser } from "./contexts/UserContext";
+import { differenceInCalendarDays } from "date-fns";
+import ReactGA from "react-ga4";
 
 function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
+  const { setHireDate, setDayOffset, setRole, setAccountStatus, setCompanyCode } = useUser();
+  const location = useLocation();
 
   // 앱 시작 시 로그인 상태 복원 (쿠키 기반)
   useEffect(() => {
     axiosInstance
       .get("/api/v1/auth/me")
-      .then((res) => setUser(res.data))
+      .then((res) => {
+        setUser(res.data);
+        // UserContext에도 저장 (새로고침 시 복원)
+        setHireDate(res.data.hireDate);
+        setRole(res.data.role);
+        setAccountStatus(res.data.accountStatus);
+        setCompanyCode(res.data.companyCode);
+        const today = new Date();
+        const hire = new Date(res.data.hireDate);
+        setDayOffset(differenceInCalendarDays(today, hire));
+      })
       .catch(() => setUser(null))
       .finally(() => setIsLoading(false));
   }, []);
@@ -31,6 +46,10 @@ function App() {
       setTimeout(() => setToastMessage(""), 3000);
     });
   }, []);
+
+  useEffect(() => {
+    ReactGA.send({ hitType: "pageview", page: location.pathname });
+  }, [location]);
 
   const isLoggedIn = !!user;
   const role = user?.role || null;
