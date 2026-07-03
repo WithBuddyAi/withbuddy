@@ -37,7 +37,7 @@ public class AiNoResultQuestionClusterClient {
         ClusterResponse response = restClient.post()
                 .uri("clusters/no-result/questions")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ClusterRequest(companyCode, analysisDate, topN, items))
+                .body(new ClusterRequest(companyCode, analysisDate.toString(), topN, items))
                 .retrieve()
                 .body(ClusterResponse.class);
 
@@ -49,7 +49,7 @@ public class AiNoResultQuestionClusterClient {
 
     private record ClusterRequest(
             String companyCode,
-            LocalDate analysisDate,
+            String analysisDate,
             int topN,
             List<ClusterItemRequest> items
     ) {
