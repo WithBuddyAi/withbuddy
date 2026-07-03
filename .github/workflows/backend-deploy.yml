@@ -1588,6 +1588,8 @@ jobs:
         run: |
           set -euo pipefail
 
+          ACTIVE_SLOT_STATE_FILE="/home/ubuntu/withbuddy/active-slot-state.env"
+
           verify_public_health() {
             for i in {1..12}; do
               if curl -fsS "${PUBLIC_HEALTH_URL}" >/dev/null; then
@@ -1629,6 +1631,22 @@ jobs:
             if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
               ssh "${LIVE_BACKEND_SSH_HOST}" "sudo systemctl start '${PUBLIC_TUNNEL_SERVICE}' || true"
             fi
+          }
+
+          write_active_slot_state() {
+            local slot="$1"
+            printf -v ACTIVE_SLOT_Q '%q' "${slot}"
+            printf -v ACTIVE_SLOT_STATE_FILE_Q '%q' "${ACTIVE_SLOT_STATE_FILE}"
+
+            ssh "${TRAFFIC_SWITCH_SSH_HOST}" \
+              "ACTIVE_SLOT=${ACTIVE_SLOT_Q} ACTIVE_SLOT_STATE_FILE=${ACTIVE_SLOT_STATE_FILE_Q} bash -s" <<'REMOTE_EOF'
+            set -euo pipefail
+            umask 022
+            cat > "${ACTIVE_SLOT_STATE_FILE}" <<EOF
+ACTIVE_SLOT=${ACTIVE_SLOT}
+UPDATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+          REMOTE_EOF
           }
 
           switch_nginx_upstream() {
@@ -1724,6 +1742,7 @@ jobs:
 
           if verify_public_health; then
             stop_previous_public_tunnel
+            write_active_slot_state "${TARGET_SLOT}"
             echo "Production traffic switch succeeded."
             exit 0
           fi
@@ -1734,6 +1753,7 @@ jobs:
             rollback_nginx_upstream
           fi
           if verify_public_health; then
+            write_active_slot_state "${LIVE_SLOT}"
             echo "Traffic rollback to ${LIVE_SLOT} succeeded."
             exit 1
           fi
