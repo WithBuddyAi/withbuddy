@@ -2719,7 +2719,7 @@ X-Internal-Key: {internalKey}
 관리자 대시보드에 필요한 RAG 답변 수신 경험률, 문서 공백률, 미시작 사용자 수, 미답변 질문 패턴을 한 번에 조회한다.
 
 ```http
-GET /api/v1/admin/metrics/dashboard?companyCode=WB0001&asOfDate=2026-06-11&unansweredPatternLimit=5
+GET /api/v1/admin/metrics/dashboard?unansweredPatternLimit=5
 Authorization: Bearer {accessToken}
 ```
 
@@ -2873,15 +2873,20 @@ Authorization: Bearer {accessToken}
 #### 동작 규칙
 
 - 이 API의 실제 구현 경로는 `GET /api/v1/admin/metrics/dashboard`이다.
+- 프론트엔드 관리자 대시보드는 `GET /api/v1/admin/metrics/dashboard?unansweredPatternLimit=5`를 호출한다.
+- `companyCode`와 `asOfDate`는 선택 파라미터다. 일반 `ADMIN`은 값을 생략해도 로그인한 본인 회사 범위로 제한된다.
 - 활성 고객사 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)와 서비스 관리자(`users.role = SERVICE_ADMIN`)가 호출할 수 있다.
 - 활성 고객사 관리자는 본인 회사 지표만 조회할 수 있다. `companyCode`를 생략해도 본인 회사로 제한되며, 다른 회사 코드를 전달하면 `403 Forbidden`, `ACCESS_DENIED`를 반환한다.
 - 서비스 관리자는 `companyCode`를 생략하면 전체 회사 지표를 조회하고, 회사 코드를 전달하면 해당 회사만 조회한다.
 - 일반 사용자 또는 활성 상태가 아닌 고객사 관리자가 호출하면 `403 Forbidden`, `ACCESS_DENIED`를 반환한다.
 - 인증 토큰이 없거나 유효하지 않으면 `401 Unauthorized`를 반환한다.
 - `asOfDate` 형식이 올바르지 않으면 `400 Bad Request`, `BAD_REQUEST`를 반환한다.
-- 날짜 기반 집계와 기본 기준일은 한국 시간(`Asia/Seoul`)을 기준으로 한다.
+- 날짜 기반 집계와 기본 기준일한국 시간(`Asia/Seoul`)을 기준으로 한다.
 - 회사별 지표 배열은 회사 코드 오름차순으로 반환한다.
-- 미답변 질문 패턴은 발생 횟수, 고유 사용자 수, 최근 발생 시각 내림차순으로 정렬한다.
+- `unansweredQuestionPatterns.patterns`는 실시간 원문 질문 집계가 아니라 `no_result_question_patterns.top_questions`에 저장된 AI 서버 군집화 결과를 기존 프론트 응답 형태로 가공해 반환한다.
+- `unansweredQuestionPatterns.aiSummary.summary`는 `no_result_question_patterns.ai_summary` 값을 사용한다.
+- `unansweredQuestionPatterns.aiSummary.actions`는 `no_result_question_patterns.improvement_areas` 값을 사용한다.
+- 미답변 질문 패턴은 원문 문자의 완전 일치 기준이 아니라 AI 서버가 임베딩/유사도 기반으로 군집화해 저장한 결과다.
 
 ### 7-9. 필수 온보딩 문서 템플릿
 
@@ -3410,7 +3415,7 @@ Content-Type: application/json
 - 백엔드는 AI 서버 응답을 `no_result_question_patterns` 테이블에 저장한다.
 - 같은 `company_code`, `analysis_date` 데이터가 이미 존재하면 기존 데이터를 갱신한다.
 - 프론트엔드는 AI 서버를 직접 호출하지 않고, 백엔드의 관리자 API를 통해 저장된 최신 패턴 분석 결과를 조회한다.
-- AI 서버 호출 실패 시 백엔드는 실패 로그를 남기고 기존 저장 결과는 유지할 수 있다.
+- AI 서버 호출 실패 시 백엔드는 실패 로그를 남기고 `ai_status = FAILED`, `error_message`를 저장하며 `top_questions`, `ai_summary`, `improvement_areas`는 빈 값으로 갱신한다.
 
 #### 저장 테이블
 
@@ -4474,7 +4479,7 @@ Authorization: Bearer {accessToken}
 - AI 서버 응답이 성공하면 `no_result_question_patterns`에 결과를 저장한다.
 - 같은 `company_code`, `analysis_date` 데이터가 이미 존재하면 새 row를 만들지 않고 기존 row를 갱신한다.
 - 수동 갱신이 반복 실행되면 `updated_at`이 갱신된다.
-- AI 서버 호출에 실패하면 `ai_status = FAILED`, `error_message`를 저장하고 기존 `top_questions`, `ai_summary`, `improvement_areas` 값은 유지할 수 있다.
+- AI 서버 호출에 실패하면 `ai_status = FAILED`, `error_message`를 저장하고 `top_questions`, `ai_summary`, `improvement_areas`는 빈 값으로 갱신한다.
 - `sourceCount`가 0이면 AI 서버를 호출하지 않고 `EMPTY` 상태로 저장한다.
 - 요청 본문에는 embedding 배열을 포함하지 않는다. AI 서버는 전달받은 질문 문자열로 임베딩을 직접 생성해 군집화한다.
 
