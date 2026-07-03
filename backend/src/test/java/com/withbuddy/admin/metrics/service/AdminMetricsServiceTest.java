@@ -103,6 +103,48 @@ class AdminMetricsServiceTest {
     }
 
     @Test
+    void returnsClusteredTopQuestionsFromStoredJsonAliases() {
+        JwtAuthenticationPrincipal principal = principal(1L, "WB0001");
+        User serviceAdmin = serviceAdmin();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(serviceAdmin));
+        when(noResultQuestionPatternRepository.findByCompanyCodeAndAnalysisDate(
+                "WB0001",
+                LocalDate.of(2026, 7, 3)
+        )).thenReturn(Optional.of(storedPattern(
+                "WB0001",
+                LocalDate.of(2026, 7, 3),
+                """
+                        [{"rank":1,"representativeQuestion":"수습 기간 평가는 어떤 기준으로 이루어지나요?","totalCount":5}]
+                        """,
+                "READY",
+                "신입 직원들이 수습 기간 평가 기준에 대해 반복적으로 질문하고 있습니다.",
+                """
+                        [{"part":"HR","items":"수습 기간 평가 기준과 평가 절차를 문서에 보강하세요."}]
+                        """,
+                false,
+                null,
+                12
+        )));
+
+        UnansweredQuestionPatternsResponse response = adminMetricsService.getUnansweredQuestionPatterns(
+                principal,
+                "WB0001",
+                LocalDate.of(2026, 7, 3),
+                5
+        );
+
+        assertThat(response.patterns()).hasSize(1);
+        assertThat(response.patterns().getFirst().questionContent())
+                .isEqualTo("수습 기간 평가는 어떤 기준으로 이루어지나요?");
+        assertThat(response.patterns().getFirst().totalCount()).isEqualTo(5);
+        assertThat(response.aiSummary().summary())
+                .isEqualTo("신입 직원들이 수습 기간 평가 기준에 대해 반복적으로 질문하고 있습니다.");
+        assertThat(response.aiSummary().actions().getFirst().part()).isEqualTo("HR");
+        assertThat(response.aiSummary().actions().getFirst().items())
+                .isEqualTo("수습 기간 평가 기준과 평가 절차를 문서에 보강하세요.");
+    }
+
+    @Test
     void adminIsForcedToOwnCompanyScope() {
         JwtAuthenticationPrincipal principal = principal(2L, "WB0001");
         User admin = activeAdmin("WB0001");

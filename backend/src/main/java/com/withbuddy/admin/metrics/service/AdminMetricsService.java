@@ -2,6 +2,7 @@ package com.withbuddy.admin.metrics.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.user.entity.User;
@@ -44,8 +45,6 @@ public class AdminMetricsService {
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final int DEFAULT_PATTERN_LIMIT = 5;
     private static final int MAX_PATTERN_LIMIT = 20;
-    private static final TypeReference<List<StoredTopQuestion>> TOP_QUESTIONS_TYPE = new TypeReference<>() {
-    };
     private static final TypeReference<List<UnansweredQuestionPatternsResponse.AiAction>> AI_ACTIONS_TYPE =
             new TypeReference<>() {
             };
@@ -510,15 +509,30 @@ public class AdminMetricsService {
             int limit
     ) {
         try {
-            List<StoredTopQuestion> storedTopQuestions =
-                    objectMapper.readValue(pattern.getTopQuestions(), TOP_QUESTIONS_TYPE);
+            JsonNode topQuestions = objectMapper.readTree(pattern.getTopQuestions());
+            if (!topQuestions.isArray()) {
+                log.warn("no_result top_questions is not an array. patternId={}", pattern.getId());
+                return List.of();
+            }
+
             List<UnansweredQuestionPatternsResponse.PatternItem> result = new ArrayList<>();
-            for (int i = 0; i < storedTopQuestions.size() && i < limit; i++) {
-                StoredTopQuestion question = storedTopQuestions.get(i);
+            for (int i = 0; i < topQuestions.size() && i < limit; i++) {
+                JsonNode question = topQuestions.get(i);
+                String questionContent = firstText(
+                        question,
+                        "questionContent",
+                        "representativeQuestion",
+                        "content",
+                        "question"
+                );
+                if (!StringUtils.hasText(questionContent)) {
+                    continue;
+                }
+
                 result.add(new UnansweredQuestionPatternsResponse.PatternItem(
-                        question.rank(),
-                        question.questionContent(),
-                        question.count()
+                        firstInt(question, i + 1, "rank"),
+                        questionContent,
+                        firstLong(question, "totalCount", "count")
                 ));
             }
             return result;
@@ -578,10 +592,33 @@ public class AdminMetricsService {
         }
     }
 
-    private record StoredTopQuestion(
-            int rank,
-            String questionContent,
-            long count
-    ) {
+    private String firstText(JsonNode node, String... fieldNames) {
+        for (String fieldName : fieldNames) {
+            JsonNode value = node.get(fieldName);
+            if (value != null && !value.isNull() && StringUtils.hasText(value.asText())) {
+                return value.asText();
+            }
+        }
+        return null;
+    }
+
+    private int firstInt(JsonNode node, int defaultValue, String... fieldNames) {
+        for (String fieldName : fieldNames) {
+            JsonNode value = node.get(fieldName);
+            if (value != null && value.canConvertToInt()) {
+                return value.asInt();
+            }
+        }
+        return defaultValue;
+    }
+
+    private long firstLong(JsonNode node, String... fieldNames) {
+        for (String fieldName : fieldNames) {
+            JsonNode value = node.get(fieldName);
+            if (value != null && value.canConvertToLong()) {
+                return value.asLong();
+            }
+        }
+        return 0L;
     }
 }
