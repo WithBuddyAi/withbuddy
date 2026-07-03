@@ -10,12 +10,14 @@ POST /clusters/no-result/questions
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date
 from typing import List, Optional
 
 import numpy as np
 from fastapi import APIRouter
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
 from core.embeddings import get_embeddings
@@ -136,11 +138,15 @@ def _generate_summary(top_questions: List[TopQuestion]) -> AiSummary:
     )
 
     try:
-        resp = get_llm().invoke(prompt)
+        resp = get_llm().invoke([HumanMessage(content=prompt)])
         content = resp.content.strip()
+        content = re.sub(r'^```(?:json)?\s*', '', content)
+        content = re.sub(r'\s*```$', '', content).strip()
         if not content:
-            resp = get_llm().invoke(prompt)
+            resp = get_llm().invoke([HumanMessage(content=prompt)])
             content = resp.content.strip()
+            content = re.sub(r'^```(?:json)?\s*', '', content)
+            content = re.sub(r'\s*```$', '', content).strip()
         data = json.loads(content)
         return AiSummary(
             status="READY",
