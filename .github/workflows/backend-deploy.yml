@@ -1257,15 +1257,22 @@ jobs:
           TRAFFIC_SWITCH_SERVER_HOST: ${{ secrets.TRAFFIC_SWITCH_SERVER_HOST }}
           TRAFFIC_SWITCH_SERVER_SSH_KEY: ${{ secrets.TRAFFIC_SWITCH_SERVER_SSH_KEY }}
           TRAFFIC_SWITCH_PUBLIC_HEALTH_URL: ${{ secrets.TRAFFIC_SWITCH_PUBLIC_HEALTH_URL }}
+          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           NGINX_ACTIVE_UPSTREAM_LINK: ${{ secrets.NGINX_ACTIVE_UPSTREAM_LINK }}
           NGINX_BLUE_UPSTREAM_CONF: ${{ secrets.NGINX_BLUE_UPSTREAM_CONF }}
           NGINX_GREEN_UPSTREAM_CONF: ${{ secrets.NGINX_GREEN_UPSTREAM_CONF }}
+          TRAFFIC_SWITCH_INGRESS_MODE: ${{ secrets.TRAFFIC_SWITCH_INGRESS_MODE }}
+          PUBLIC_TUNNEL_SERVICE_NAME: ${{ secrets.PUBLIC_TUNNEL_SERVICE_NAME }}
+          DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH: ${{ secrets.DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH }}
         shell: bash
         run: |
           set -euo pipefail
 
           TARGET_SLOT="${{ github.event.inputs.target_slot }}"
           LIVE_SLOT="${{ github.event.inputs.live_slot }}"
+          INGRESS_MODE="${TRAFFIC_SWITCH_INGRESS_MODE:-slot_cloudflare}"
+          PUBLIC_TUNNEL_SERVICE="${PUBLIC_TUNNEL_SERVICE_NAME:-cloudflared.service}"
+          DISABLE_PREVIOUS_PUBLIC_TUNNEL="${DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH:-true}"
 
           if [ "${TARGET_SLOT}" = "${LIVE_SLOT}" ]; then
             echo "target_slot and live_slot must be different for blue/green deployment."
@@ -1275,7 +1282,7 @@ jobs:
           ROUTER_ACCESS_HOST="${TRAFFIC_SWITCH_ACCESS_HOST:-${BLUE_BACKEND_ACCESS_HOST:-}}"
           ROUTER_SERVER_HOST="${TRAFFIC_SWITCH_SERVER_HOST:-${BLUE_BACKEND_SERVER_HOST:-}}"
           ROUTER_SSH_KEY="${TRAFFIC_SWITCH_SERVER_SSH_KEY:-${BLUE_BACKEND_SERVER_SSH_KEY:-}}"
-          PUBLIC_HEALTH_URL="${TRAFFIC_SWITCH_PUBLIC_HEALTH_URL:-}"
+          PUBLIC_HEALTH_URL="${TRAFFIC_SWITCH_PUBLIC_HEALTH_URL:-${BACKEND_HEALTH_URL:-}}"
           ACTIVE_UPSTREAM_LINK="${NGINX_ACTIVE_UPSTREAM_LINK:-/etc/nginx/conf.d/upstream-active.conf}"
           BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-blue.conf}"
           GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-green.conf}"
@@ -1289,7 +1296,7 @@ jobs:
             exit 1
           fi
           if [ -z "${PUBLIC_HEALTH_URL}" ]; then
-            echo "TRAFFIC_SWITCH_PUBLIC_HEALTH_URL secret is required when switch_traffic=true."
+            echo "Public health URL is missing. Set TRAFFIC_SWITCH_PUBLIC_HEALTH_URL or BACKEND_HEALTH_URL."
             exit 1
           fi
 
@@ -1323,9 +1330,15 @@ jobs:
 
           case "${LIVE_SLOT}" in
             blue)
+              LIVE_BACKEND_ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
+              LIVE_BACKEND_SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
+              LIVE_BACKEND_SERVER_SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
               PREVIOUS_UPSTREAM_CONF="${BLUE_UPSTREAM_CONF}"
               ;;
             green)
+              LIVE_BACKEND_ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
+              LIVE_BACKEND_SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
+              LIVE_BACKEND_SERVER_SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
               PREVIOUS_UPSTREAM_CONF="${GREEN_UPSTREAM_CONF}"
               ;;
             *)
@@ -1342,6 +1355,11 @@ jobs:
           echo "traffic_switch_previous_upstream_conf=${PREVIOUS_UPSTREAM_CONF}" >> "$GITHUB_OUTPUT"
           echo "target_backend_access_host=${TARGET_BACKEND_ACCESS_HOST}" >> "$GITHUB_OUTPUT"
           echo "target_backend_server_host=${TARGET_BACKEND_SERVER_HOST}" >> "$GITHUB_OUTPUT"
+          echo "live_backend_access_host=${LIVE_BACKEND_ACCESS_HOST}" >> "$GITHUB_OUTPUT"
+          echo "live_backend_server_host=${LIVE_BACKEND_SERVER_HOST}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_ingress_mode=${INGRESS_MODE}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_public_tunnel_service=${PUBLIC_TUNNEL_SERVICE}" >> "$GITHUB_OUTPUT"
+          echo "traffic_switch_disable_previous_public_tunnel=${DISABLE_PREVIOUS_PUBLIC_TUNNEL}" >> "$GITHUB_OUTPUT"
           echo "target_slot=${TARGET_SLOT}" >> "$GITHUB_OUTPUT"
           echo "live_slot=${LIVE_SLOT}" >> "$GITHUB_OUTPUT"
           {
@@ -1354,14 +1372,20 @@ jobs:
             printf '%s\n' "${TARGET_BACKEND_SERVER_SSH_KEY}"
             echo "__TARGET_BACKEND_SSHKEY__"
           } >> "$GITHUB_OUTPUT"
+          {
+            echo "live_backend_ssh_key<<__LIVE_BACKEND_SSHKEY__"
+            printf '%s\n' "${LIVE_BACKEND_SERVER_SSH_KEY}"
+            echo "__LIVE_BACKEND_SSHKEY__"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Install cloudflared client on runner
         env:
           TARGET_BACKEND_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.target_backend_access_host }}
+          LIVE_BACKEND_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.live_backend_access_host }}
           TRAFFIC_SWITCH_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_access_host }}
         run: |
           set -euo pipefail
-          if [ -z "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ] && [ -z "${TARGET_BACKEND_ACCESS_HOST:-}" ]; then
+          if [ -z "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ] && [ -z "${TARGET_BACKEND_ACCESS_HOST:-}" ] && [ -z "${LIVE_BACKEND_ACCESS_HOST:-}" ]; then
             echo "No Cloudflare Access hosts configured. Skipping cloudflared installation."
             exit 0
           fi
@@ -1379,11 +1403,14 @@ jobs:
           TARGET_BACKEND_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.target_backend_access_host }}
           TARGET_BACKEND_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.target_backend_server_host }}
           TARGET_BACKEND_SSH_KEY: ${{ steps.traffic_switch_config.outputs.target_backend_ssh_key }}
+          LIVE_BACKEND_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.live_backend_access_host }}
+          LIVE_BACKEND_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.live_backend_server_host }}
+          LIVE_BACKEND_SSH_KEY: ${{ steps.traffic_switch_config.outputs.live_backend_ssh_key }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-          if [ -n "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ] || [ -n "${TARGET_BACKEND_ACCESS_HOST:-}" ]; then
+          if [ -n "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ] || [ -n "${TARGET_BACKEND_ACCESS_HOST:-}" ] || [ -n "${LIVE_BACKEND_ACCESS_HOST:-}" ]; then
             if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
               echo "Cloudflare Access host configured for switch-traffic, so CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are required."
               exit 1
@@ -1401,6 +1428,11 @@ jobs:
           ${{ steps.traffic_switch_config.outputs.target_backend_ssh_key }}
           KEY_EOF
           chmod 600 ~/.ssh/target_backend_key
+
+          cat > ~/.ssh/live_backend_key <<'KEY_EOF'
+          ${{ steps.traffic_switch_config.outputs.live_backend_ssh_key }}
+          KEY_EOF
+          chmod 600 ~/.ssh/live_backend_key
 
           if [ -n "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ]; then
             cat > ~/.ssh/config <<EOF
@@ -1458,11 +1490,42 @@ jobs:
             echo "Configured direct SSH for target backend ${TARGET_BACKEND_SERVER_HOST}"
           fi
 
+          if [ -n "${LIVE_BACKEND_ACCESS_HOST:-}" ]; then
+            cat >> ~/.ssh/config <<EOF
+
+          Host live-backend
+            HostName ${LIVE_BACKEND_ACCESS_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/live_backend_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+            echo "Configured Cloudflare Access SSH for live backend ${LIVE_BACKEND_ACCESS_HOST}"
+          else
+            cat >> ~/.ssh/config <<EOF
+
+          Host live-backend
+            HostName ${LIVE_BACKEND_SERVER_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/live_backend_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+          EOF
+            echo "Configured direct SSH for live backend ${LIVE_BACKEND_SERVER_HOST}"
+          fi
+
           chmod 600 ~/.ssh/config
           echo "traffic_switch_host=traffic-switch-target" >> "$GITHUB_OUTPUT"
           echo "target_backend_host=target-backend" >> "$GITHUB_OUTPUT"
+          echo "live_backend_host=live-backend" >> "$GITHUB_OUTPUT"
           ssh -o BatchMode=yes -o ConnectTimeout=10 traffic-switch-target "echo ssh_ok"
           ssh -o BatchMode=yes -o ConnectTimeout=10 target-backend "echo ssh_ok"
+          ssh -o BatchMode=yes -o ConnectTimeout=10 live-backend "echo ssh_ok"
 
       - name: Verify target slot still matches this deployment
         env:
@@ -1505,23 +1568,72 @@ jobs:
         env:
           TARGET_SLOT: ${{ steps.traffic_switch_config.outputs.target_slot }}
           LIVE_SLOT: ${{ steps.traffic_switch_config.outputs.live_slot }}
+          INGRESS_MODE: ${{ steps.traffic_switch_config.outputs.traffic_switch_ingress_mode }}
+          PUBLIC_TUNNEL_SERVICE: ${{ steps.traffic_switch_config.outputs.traffic_switch_public_tunnel_service }}
+          DISABLE_PREVIOUS_PUBLIC_TUNNEL: ${{ steps.traffic_switch_config.outputs.traffic_switch_disable_previous_public_tunnel }}
           PUBLIC_HEALTH_URL: ${{ steps.traffic_switch_config.outputs.traffic_switch_public_health_url }}
           ACTIVE_UPSTREAM_LINK: ${{ steps.traffic_switch_config.outputs.traffic_switch_active_upstream_link }}
           TARGET_UPSTREAM_CONF: ${{ steps.traffic_switch_config.outputs.traffic_switch_target_upstream_conf }}
           PREVIOUS_UPSTREAM_CONF: ${{ steps.traffic_switch_config.outputs.traffic_switch_previous_upstream_conf }}
           TRAFFIC_SWITCH_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.traffic_switch_host }}
+          TARGET_BACKEND_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.target_backend_host }}
+          LIVE_BACKEND_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.live_backend_host }}
         run: |
           set -euo pipefail
 
-          printf -v TARGET_SLOT_Q '%q' "${TARGET_SLOT}"
-          printf -v LIVE_SLOT_Q '%q' "${LIVE_SLOT}"
-          printf -v PUBLIC_HEALTH_URL_Q '%q' "${PUBLIC_HEALTH_URL}"
-          printf -v ACTIVE_UPSTREAM_LINK_Q '%q' "${ACTIVE_UPSTREAM_LINK}"
-          printf -v TARGET_UPSTREAM_CONF_Q '%q' "${TARGET_UPSTREAM_CONF}"
-          printf -v PREVIOUS_UPSTREAM_CONF_Q '%q' "${PREVIOUS_UPSTREAM_CONF}"
+          verify_public_health() {
+            for i in {1..12}; do
+              if curl -fsS "${PUBLIC_HEALTH_URL}" >/dev/null; then
+                echo "Public health check succeeded on attempt ${i}"
+                return 0
+              fi
+              echo "Public health check failed on attempt ${i}, retrying in 5s..."
+              sleep 5
+            done
+            echo "Public health check failed after retries."
+            return 1
+          }
 
-          ssh "${TRAFFIC_SWITCH_SSH_HOST}" \
-            "TARGET_SLOT=${TARGET_SLOT_Q} LIVE_SLOT=${LIVE_SLOT_Q} PUBLIC_HEALTH_URL=${PUBLIC_HEALTH_URL_Q} ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} TARGET_UPSTREAM_CONF=${TARGET_UPSTREAM_CONF_Q} PREVIOUS_UPSTREAM_CONF=${PREVIOUS_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
+          verify_target_backend_local_health() {
+            ssh "${TARGET_BACKEND_SSH_HOST}" "curl -fsS http://127.0.0.1:8080/actuator/health/liveness >/dev/null"
+          }
+
+          ensure_target_public_tunnel() {
+            if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
+              ssh "${TARGET_BACKEND_SSH_HOST}" "sudo systemctl start '${PUBLIC_TUNNEL_SERVICE}' && sudo systemctl is-active --quiet '${PUBLIC_TUNNEL_SERVICE}'"
+            fi
+          }
+
+          stop_previous_public_tunnel() {
+            if [ "${DISABLE_PREVIOUS_PUBLIC_TUNNEL}" != "true" ]; then
+              echo "Skipping previous public tunnel stop because DISABLE_PREVIOUS_PUBLIC_TUNNEL=${DISABLE_PREVIOUS_PUBLIC_TUNNEL}"
+              return 0
+            fi
+            if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
+              if [ "${LIVE_BACKEND_SSH_HOST}" = "${TRAFFIC_SWITCH_SSH_HOST}" ]; then
+                echo "Live backend host is also the router host. Skipping public tunnel stop to avoid disabling router ingress."
+                return 0
+              fi
+              ssh "${LIVE_BACKEND_SSH_HOST}" "sudo systemctl stop '${PUBLIC_TUNNEL_SERVICE}' && ! sudo systemctl is-active --quiet '${PUBLIC_TUNNEL_SERVICE}'"
+            fi
+          }
+
+          rollback_public_tunnel() {
+            if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
+              ssh "${LIVE_BACKEND_SSH_HOST}" "sudo systemctl start '${PUBLIC_TUNNEL_SERVICE}' || true"
+            fi
+          }
+
+          switch_nginx_upstream() {
+            printf -v TARGET_SLOT_Q '%q' "${TARGET_SLOT}"
+            printf -v LIVE_SLOT_Q '%q' "${LIVE_SLOT}"
+            printf -v PUBLIC_HEALTH_URL_Q '%q' "${PUBLIC_HEALTH_URL}"
+            printf -v ACTIVE_UPSTREAM_LINK_Q '%q' "${ACTIVE_UPSTREAM_LINK}"
+            printf -v TARGET_UPSTREAM_CONF_Q '%q' "${TARGET_UPSTREAM_CONF}"
+            printf -v PREVIOUS_UPSTREAM_CONF_Q '%q' "${PREVIOUS_UPSTREAM_CONF}"
+
+            ssh "${TRAFFIC_SWITCH_SSH_HOST}" \
+              "TARGET_SLOT=${TARGET_SLOT_Q} LIVE_SLOT=${LIVE_SLOT_Q} PUBLIC_HEALTH_URL=${PUBLIC_HEALTH_URL_Q} ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} TARGET_UPSTREAM_CONF=${TARGET_UPSTREAM_CONF_Q} PREVIOUS_UPSTREAM_CONF=${PREVIOUS_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
             set -euo pipefail
 
             collect_nginx_diagnostics() {
@@ -1573,22 +1685,52 @@ jobs:
               exit 1
             fi
 
-            if verify_public_health; then
-              echo "Production traffic now points to ${TARGET_SLOT}"
-              sudo readlink -f "${ACTIVE_UPSTREAM_LINK}" || true
-              exit 0
-            fi
-
-            echo "Public health failed after traffic switch."
-            collect_nginx_diagnostics
-            rollback_traffic
-            if verify_public_health; then
-              echo "Traffic rollback to ${LIVE_SLOT} succeeded."
-            else
-              echo "Traffic rollback to ${LIVE_SLOT} failed health verification."
-              collect_nginx_diagnostics
-            fi
-            exit 1
+            echo "Router upstream now points to ${TARGET_SLOT}"
+            sudo readlink -f "${ACTIVE_UPSTREAM_LINK}" || true
           REMOTE_EOF
+          }
+
+          rollback_nginx_upstream() {
+            printf -v TARGET_SLOT_Q '%q' "${TARGET_SLOT}"
+            printf -v LIVE_SLOT_Q '%q' "${LIVE_SLOT}"
+            printf -v ACTIVE_UPSTREAM_LINK_Q '%q' "${ACTIVE_UPSTREAM_LINK}"
+            printf -v TARGET_UPSTREAM_CONF_Q '%q' "${TARGET_UPSTREAM_CONF}"
+            printf -v PREVIOUS_UPSTREAM_CONF_Q '%q' "${PREVIOUS_UPSTREAM_CONF}"
+
+            ssh "${TRAFFIC_SWITCH_SSH_HOST}" \
+              "TARGET_SLOT=${TARGET_SLOT_Q} LIVE_SLOT=${LIVE_SLOT_Q} ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} TARGET_UPSTREAM_CONF=${TARGET_UPSTREAM_CONF_Q} PREVIOUS_UPSTREAM_CONF=${PREVIOUS_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
+            set -euo pipefail
+            sudo ln -sfn "${PREVIOUS_UPSTREAM_CONF}" "${ACTIVE_UPSTREAM_LINK}"
+            sudo nginx -t
+            sudo systemctl reload nginx
+          REMOTE_EOF
+          }
+
+          verify_target_backend_local_health
+          ensure_target_public_tunnel
+
+          if [ "${INGRESS_MODE}" = "nginx_upstream" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
+            switch_nginx_upstream
+          else
+            echo "Skipping Nginx upstream switch because INGRESS_MODE=${INGRESS_MODE}"
+          fi
+
+          if verify_public_health; then
+            stop_previous_public_tunnel
+            echo "Production traffic switch succeeded."
+            exit 0
+          fi
+
+          echo "Public health failed after traffic switch."
+          rollback_public_tunnel
+          if [ "${INGRESS_MODE}" = "nginx_upstream" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
+            rollback_nginx_upstream
+          fi
+          if verify_public_health; then
+            echo "Traffic rollback to ${LIVE_SLOT} succeeded."
+            exit 1
+          fi
+          echo "Traffic rollback to ${LIVE_SLOT} failed health verification."
+          exit 1
 
 
