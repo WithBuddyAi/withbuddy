@@ -8,8 +8,11 @@ public record UnansweredQuestionPatternsResponse(
         String metric,
         LocalDate asOfDate,
         int limit,
+        int sourceCount,
         List<PatternItem> patterns,
-        AiSummary aiSummary
+        AiSummary aiSummary,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
     public record AiSummary(
             String status,
@@ -32,13 +35,9 @@ public record UnansweredQuestionPatternsResponse(
     }
 
     public record PatternItem(
-            String companyCode,
+            int rank,
             String questionContent,
-            long totalCount,
-            long uniqueUsers,
-            long noResultCount,
-            long outOfScopeCount,
-            LocalDateTime latestOccurredAt
+            long totalCount
     ) {
     }
 }
