@@ -1,14 +1,11 @@
 package com.withbuddy.admin.metrics.repository;
 
 import com.withbuddy.account.user.entity.User;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @org.springframework.stereotype.Repository
@@ -295,42 +292,6 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
             @Param("asOfDate") LocalDate asOfDate
     );
 
-    @Query(value = """
-            SELECT
-                log.company_code AS companyCode,
-                log.question_content AS questionContent,
-                COUNT(*) AS totalCount,
-                COUNT(DISTINCT log.user_id) AS uniqueUsers,
-                COUNT(*) AS noResultCount,
-                0 AS outOfScopeCount,
-                MAX(log.created_at) AS latestOccurredAt
-            FROM unanswered_question_logs log
-            WHERE DATE(CONVERT_TZ(log.created_at, '+00:00', '+09:00')) >= :windowStartDate
-              AND DATE(CONVERT_TZ(log.created_at, '+00:00', '+09:00')) <= :asOfDate
-              AND log.answer_type = 'no_result'
-              AND (:companyCode IS NULL OR log.company_code = :companyCode)
-            GROUP BY log.company_code, log.question_content
-            ORDER BY totalCount DESC, uniqueUsers DESC, latestOccurredAt DESC, questionContent
-            """,
-            countQuery = """
-            SELECT COUNT(*) FROM (
-                SELECT 1
-                FROM unanswered_question_logs log
-                WHERE DATE(CONVERT_TZ(log.created_at, '+00:00', '+09:00')) >= :windowStartDate
-                  AND DATE(CONVERT_TZ(log.created_at, '+00:00', '+09:00')) <= :asOfDate
-                  AND log.answer_type = 'no_result'
-                  AND (:companyCode IS NULL OR log.company_code = :companyCode)
-                GROUP BY log.company_code, log.question_content
-            ) grouped_patterns
-            """,
-            nativeQuery = true)
-    Page<UnansweredQuestionPatternProjection> findUnansweredQuestionPatterns(
-            @Param("companyCode") String companyCode,
-            @Param("windowStartDate") LocalDate windowStartDate,
-            @Param("asOfDate") LocalDate asOfDate,
-            Pageable pageable
-    );
-
     interface RagExperienceMetricProjection {
         String getCompanyCode();
         String getCompanyName();
@@ -390,13 +351,4 @@ public interface AdminMetricsRepository extends Repository<User, Long> {
         Long getUnstartedUsers();
     }
 
-    interface UnansweredQuestionPatternProjection {
-        String getCompanyCode();
-        String getQuestionContent();
-        Long getTotalCount();
-        Long getUniqueUsers();
-        Long getNoResultCount();
-        Long getOutOfScopeCount();
-        LocalDateTime getLatestOccurredAt();
-    }
 }
