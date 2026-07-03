@@ -2,8 +2,8 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
-**최종 업데이트**: 2026-07-02
-**버전**: 0.6.2
+**최종 업데이트**: 2026-07-03
+**버전**: 0.6.3
 **작성일**: 2026-03-27
 
 ## 목차
@@ -78,6 +78,19 @@ RabbitMQ Server (Tenancy B):
    - Port: 5672 / 15672
 
 ```
+
+### 운영 검증 기준 (2026-07-03)
+
+- Backend는 현재 VCN-B 내부에서 아래 3개 private endpoint를 분리 사용한다.
+  - MySQL: `<DB_PRIVATE_IP>:3306`
+  - Redis: `<REDIS_PRIVATE_IP>:6379`
+  - RabbitMQ: `<RABBITMQ_PRIVATE_IP>:5672`
+- 과거 혼합 역할(MySQL + Redis + RabbitMQ) Compute 서버 기준 문구는 더 이상 운영 기준이 아니다.
+- 운영 검증은 아래 4개를 동시에 통과해야 한다.
+  - `nc -vz -w 5 <DB_PRIVATE_IP> 3306`
+  - `nc -vz -w 5 <REDIS_PRIVATE_IP> 6379`
+  - `nc -vz -w 5 <RABBITMQ_PRIVATE_IP> 5672`
+  - `curl -fsS https://<API_DOMAIN>/actuator/health`
 
 ---
 
@@ -419,6 +432,7 @@ SPRING_DB_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
 
 - 백업과 복구는 OCI MySQL DB System 관리 기능을 사용한다.
 - 운영 전환, 대규모 마이그레이션, 데이터 정리 전에는 수동 백업 정책을 별도로 적용한다.
+- 기존 standalone MySQL Compute + `mysqldump` cron 운영 절차는 현행 운영 기준이 아니며 재도입하지 않는다.
 
 예시 명령:
 
@@ -451,7 +465,7 @@ sudo apt install redis-server -y
 
 **/etc/redis/redis.conf**
 ```conf
-bind 127.0.0.1 10.0.3.10
+bind 127.0.0.1 <REDIS_PRIVATE_IP>
 protected-mode yes
 port 6379
 requirepass CHANGE_ME_REDIS_PASSWORD
@@ -471,7 +485,6 @@ sudo apt install ufw -y
 
 sudo ufw allow 22/tcp
 sudo ufw allow from 10.0.0.0/16 to any port 6379 proto tcp
-sudo ufw allow from 10.1.0.0/16 to any port 6379 proto tcp
 
 sudo ufw --force enable
 sudo ufw status verbose
@@ -537,7 +550,6 @@ sudo apt install ufw -y
 
 sudo ufw allow 22/tcp
 sudo ufw allow from 10.0.0.0/16 to any port 5672 proto tcp
-sudo ufw allow from 10.1.0.0/16 to any port 5672 proto tcp
 sudo ufw allow from <ADMIN_FIXED_IP_OR_CIDR> to any port 15672 proto tcp
 
 sudo ufw --force enable
@@ -880,6 +892,7 @@ Vercel (Hobby):
 
 ## 변경 이력
 
+- 2026-07-03: 운영 검증 기준을 `Backend -> DB/Redis/RabbitMQ private endpoint 분리` 구조로 명시하고, legacy 혼합 역할 서버 기준 문구와 AI->Redis/RabbitMQ 허용 예시를 제거했다.
 - 2026-07-02: 운영 DB를 OCI Managed MySQL DB System 9.7.0으로 정정하고, Backend blue/green A1.Flex 2 OCPU / 12GB x2, Redis E2.1.Micro, RabbitMQ E2.1.Micro 분리 구성을 반영.
 - 2026-04-09: 실제 장애 복구 결과를 반영해 shared-subnet 운영 시 필수 내부 egress(3306/6379/5672) 주의사항을 추가.
 - 2026-04-07: Backend 운영 표준을 `withbuddy-backend.service` 단일 기동으로 고정하고, `pkill`/`nohup` 기반 재기동 금지 원칙을 명시.
