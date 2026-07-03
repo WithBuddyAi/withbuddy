@@ -2,8 +2,8 @@
 
 > 2026-03-30 기준 정리 (실서버 운영 기준)
 
-**최종 업데이트**: 2026-04-11
-**버전**: 0.6.0
+**최종 업데이트**: 2026-07-02
+**버전**: 0.6.1
 **작성일**: 2026-03-24
 
 ---
@@ -20,6 +20,8 @@ Oracle Compute (AI 서버: <AI_SERVER_PUBLIC_IP>)
 - AI 서버는 FastAPI + ChromaDB를 단일 인스턴스로 운영한다.
 - ChromaDB는 파일 기반이며 `CHROMA_PERSIST_DIR` 경로를 사용한다.
 - Backend는 AI 내부 API(`POST /internal/ai/answer`)만 호출한다.
+- Backend는 blue/green `VM.Standard.A1.Flex (2 OCPU / 12GB RAM)` 2슬롯으로 운영한다.
+- Redis와 RabbitMQ는 AI 서버와 분리된 별도 `VM.Standard.E2.1.Micro` 인스턴스를 사용한다.
 - AI API 서비스 외부 도메인은 `ai.itsdev.kr`를 사용한다.
 - 백엔드 연동 기본값은 `AI_API_URL=https://ai.itsdev.kr`이다.
 
@@ -131,7 +133,7 @@ curl -I https://ai.itsdev.kr/
 ### 4.5 데이터 경계 운영 기준
 
 - 현재 운영 기준은 `Frontend → Backend → AI` 단방향 연동이다.
-- DB(MySQL)는 Backend만 접근하며, AI 서버는 DB에 직접 접근하지 않는다.
+- DB(OCI MySQL DB System 9.7.0)는 Backend만 접근하며, AI 서버는 DB에 직접 접근하지 않는다.
 - 사용자 원본 데이터 저장/수정 책임은 Backend에만 둔다.
 
 ## 5. CI/CD 배포 전 필수 점검
@@ -182,13 +184,13 @@ curl -I https://ai.itsdev.kr/
 
 ## 8. 변경 이력
 
+- 2026-07-02: Backend blue/green A1.Flex 2 OCPU / 12GB x2, Redis/RabbitMQ E2.1.Micro 분리 인프라와 OCI MySQL DB System 9.7.0 기준을 반영.
 - 2026-04-07: `ai.itsdev.kr` Nginx 민감 경로 차단 규칙(`.env`, `.git`, 백업 확장자)과 검증 명령을 추가.
 - 2026-04-07: Nginx `server_tokens off` 적용 기준을 추가해 버전 노출 제한을 명시.
 - 2026-04-06: AI API 서비스 도메인(`ai.itsdev.kr`)과 `AI_API_URL` 운영 기본값을 명시.
 - 2026-04-06: 실서비스 점검 결과를 외부 엔드포인트 기준(`health`, `internal/ai/answer`)으로 업데이트.
 - 2026-04-06: 현재 운영 기준(`DB는 Backend만 접근`)에 맞춰 AI 서버 문서에서 AI 직접 DB/캐시/메시징 접근 항목을 제거.
 - 2026-04-02: 변경 이력 중복 항목을 통합 정리.
-- 2026-04-01: Redis(캐시)·RabbitMQ(메시징) 역할 분리 운영 기준을 정리하고, DB 서버 공용 구축 시 보안/신뢰성 기준 및 운영 점검 명령을 추가.
 - 2026-03-30: GitHub Actions 시크릿 표기를 `${{ secrets.* }}` 형식으로 통일.
 - 2026-03-29: 운영 기준을 실서버/CI 기반으로 개편하고 CI/CD 선행조건을 추가.
 - 2026-04-01: Redis(캐시)·RabbitMQ(메시징) 역할 분리 운영 기준을 정리하고, DB 서버 공용 구축 시 보안/신뢰성 기준 및 운영 점검 명령을 추가.

@@ -1,6 +1,6 @@
-# Redis & RabbitMQ 상세 아키텍처 가이드 (v2.5)
+# Redis & RabbitMQ 상세 아키텍처 가이드 (v2.6)
 
-이 문서는 WithBuddy 백엔드에서 Redis 캐싱과 RabbitMQ 메시징을 실제 구현하기 위한 상세 아키텍처 가이드 v2.5 완성형이다. OCI A1.Flex 환경(12GB RAM, 인스턴스 내 MySQL + Redis + RabbitMQ 공존, 파일 저장은 외부 OCI Object Storage 사용)을 전제로 한다.
+이 문서는 WithBuddy 백엔드에서 Redis 캐싱과 RabbitMQ 메시징을 실제 구현하기 위한 상세 아키텍처 가이드 v2.6 완성형이다. 현재 운영은 Backend blue/green `VM.Standard.A1.Flex (2 OCPU / 12GB RAM)` 2대, Redis `VM.Standard.E2.1.Micro` 1대, RabbitMQ `VM.Standard.E2.1.Micro` 1대, MySQL DB System 분리 구성을 전제로 한다.
 
 ---
 
@@ -44,12 +44,14 @@
 ## 2. 인프라 및 도메인 설정
 
 - **API Endpoint**: `https://api-wb.itsdev.com`
-- **환경**: OCI A1.Flex 2 OCPU / 12GB RAM
+- **Backend 환경**: OCI A1.Flex 2 OCPU / 12GB RAM per slot
+- **Redis 환경**: OCI VM.Standard.E2.1.Micro 단독 인스턴스
+- **RabbitMQ 환경**: OCI VM.Standard.E2.1.Micro 단독 인스턴스
 - **JVM**: `-Xms512m -Xmx2g -XX:+UseG1GC -XX:MaxGCPauseMillis=200`
 - **커널**: `net.core.somaxconn=1024`, `vm.overcommit_memory=1`
-- **메모리 배분**: MySQL innodb_buffer_pool 6GB / Redis maxmemory 3GB / OS+JVM 3GB
+- **운영 원칙**: MySQL, Redis, RabbitMQ를 동일 VM에 공존시키지 않고 역할별로 분리한다.
 
-> ⚠️ 12GB 공유 환경에서 JVM `-Xmx8g` 설정은 Redis·RabbitMQ·OS 여유 메모리를 4GB로 압박한다. `-Xmx2g`로 제한하고 Redis maxmemory를 명시적으로 설정한다.
+> ⚠️ Backend는 blue/green 각각 12GB RAM 기준으로 JVM 상한을 관리하고, Redis/RabbitMQ는 별도 VM 자원 한도 안에서 독립 튜닝한다.
 > 
 
 ```bash
@@ -68,10 +70,16 @@ RabbitMQ 관리 콘솔(15672)과 Redis(6379)는 외부 노출 시 보안 위험�
 | 방향 | 소스 / 목적지 | 포트 | 설명 |
 | --- | --- | --- | --- |
 | Inbound | `0.0.0.0/0` | 8080 | API 서버 (외부 공개) |
-| Inbound | VCN 내부만 (`10.0.0.0/16`) | 6379 | Redis (외부 차단) |
-| Inbound | VCN 내부만 (`10.0.0.0/16`) | 5672 | RabbitMQ AMQP (외부 차단) |
+| Inbound | VCN 내부만 (`10.0.0.0/16`) | 6379 | Redis 단독 서버 (외부 차단) |
+| Inbound | VCN 내부만 (`10.0.0.0/16`) | 5672 | RabbitMQ 단독 서버 (외부 차단) |
 | Inbound | 관리자 IP만 | 15672 | RabbitMQ 관리 콘솔 (외부 차단) |
 | Inbound | VCN 내부만 (`10.0.0.0/16`) | 3306 | MySQL (외부 차단) |
+
+---
+
+## 변경 이력
+
+- 2026-07-02: Backend blue/green A1.Flex 2 OCPU / 12GB x2와 Redis/RabbitMQ E2.1.Micro 분리 서버 운영 기준으로 전제를 갱신.
 
 ---
 
@@ -608,7 +616,7 @@ Client Request (Write)
 
 ---
 
-## 업데이트 요약 (v2.5)
+## 업데이트 요약 (v2.6)
 
 1. **시그니처 일치**: `eventRouter.route()` 호출 시 `eventName("nudge_arrival")`을 추가하여 v1 구현체와 컴파일 수준에서 맞추었다.
 2. **데이터 무결성**: `eventId` 필드를 부활시켜 중복 수신 문제를 원천 차단하였다.
