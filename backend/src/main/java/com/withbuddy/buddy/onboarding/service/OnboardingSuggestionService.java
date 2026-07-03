@@ -50,6 +50,7 @@ public class OnboardingSuggestionService {
                     false,
                     null,
                     null,
+                    null,
                     "오늘 노출할 온보딩 제안이 없습니다."
             );
         }
@@ -72,6 +73,7 @@ public class OnboardingSuggestionService {
                     false,
                     existing.getId(),
                     suggestion.getId(),
+                    suggestion.getTitle(),
                     "이미 생성된 온보딩 제안 메시지가 있습니다."
             );
         }
@@ -92,6 +94,7 @@ public class OnboardingSuggestionService {
                 true,
                 savedMessage.getId(),
                 suggestion.getId(),
+                suggestion.getTitle(),
                 "온보딩 제안 메시지가 생성되었습니다."
         );
     }
