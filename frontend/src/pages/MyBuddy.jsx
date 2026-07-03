@@ -9,10 +9,11 @@ import QuickQuestions from "../components/QuickQuestions";
 import ChatInput from "../components/ChatInput";
 import SessionModal from "../components/SessionModal";
 import { useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSession from "../hooks/useSession";
 import useSidebar from "../hooks/useSidebar";
 import useChat from "../hooks/useChat";
+import { trackEvent } from "../utils/tracking";
 
 // Bot Class 정리
 const botClass = `
@@ -51,6 +52,14 @@ function MyBuddy({ user, setUser }) {
   const accountStatus = contextAccountStatus ?? user?.accountStatus;
   const dayCount = dayOffset ?? 0;
   const name = user?.name || "";
+
+  // GA4 사용자 트래킹용 이벤트
+  useEffect(() => {
+    trackEvent("mybuddy_page_view", {
+      account_status: accountStatus,
+      user_role: "employee",
+    });
+  }, []);
 
   // Hooks
   const session = useSession({ setUser });

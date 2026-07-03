@@ -4,6 +4,9 @@ import axiosInstance from "../../../api/axiosInstance";
 import { validateFile } from "./validateFile";
 import { DOC_TYPES } from "../../../constants/adminConstants";
 import useDepartments from "../../../hooks/useDepartments";
+import { trackEvent } from "../../../utils/tracking";
+import { useUser } from "../../../contexts/UserContext";
+import { getFileExtension } from "../../../constants/trackingConstants";
 
 function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
   const [title, setTitle] = useState(
@@ -12,6 +15,7 @@ function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
   const [documentType, setDocumentType] = useState("");
   const [department, setDepartment] = useState("");
   const orgOptions = useDepartments();
+  const { companyCode } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -55,9 +59,23 @@ function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
       await axiosInstance.post("/api/v1/admin/documents/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+
+      // GA4 사용자 트래킹용 이벤트
+      trackEvent("document_upload_success", {
+        file_type: getFileExtension(file.name),
+        document_type: documentType,
+        company_code: companyCode,
+      });
+
       onSuccess();
     } catch (error) {
       const code = error.response?.data?.code;
+
+      // GA4 사용자 트래킹용 이벤트
+      trackEvent("document_upload_failed", {
+        error_code: code || `HTTP_${error.response?.status || "UNKNOWN"}`,
+        file_type: getFileExtension(file.name),
+      });
 
       const errorMessages = {
         FILE_001_SIZE: "파일 크기가 너무 커요. (최대 20MB)",

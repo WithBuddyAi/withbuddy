@@ -3,11 +3,22 @@ import axiosInstance from "../../../api/axiosInstance";
 import AdminDashboardHeader from "./AdminDashboardHeader";
 import AdminDashboardCards from "./AdminDashboardCards";
 import AdminDashboardQuestions from "./AdminDashboardQuestions";
+import { trackEvent } from "../../../utils/tracking";
+import { useUser } from "../../../contexts/UserContext";
 
 function AdminDashboardView() {
   const [dashboard, setDashboard] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { companyCode } = useUser();
+
+  // GA4 사용자 트래킹용 이벤트
+  useEffect(() => {
+    trackEvent("admin_dashboard_view", {
+      user_role: "admin",
+      company_code: companyCode,
+    });
+  }, []);
 
   const fetchDashboard = async () => {
     setIsLoading(true);
