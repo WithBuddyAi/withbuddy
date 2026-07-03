@@ -9,5 +9,6 @@ public class OnboardingSuggestionExposureResponse {
     private boolean created;
     private Long messageId;
     private Long suggestionId;
+    private String nudgeType;
     private String message;
 }
