@@ -2879,7 +2879,7 @@ Authorization: Bearer {accessToken}
 - 일반 사용자 또는 활성 상태가 아닌 고객사 관리자가 호출하면 `403 Forbidden`, `ACCESS_DENIED`를 반환한다.
 - 인증 토큰이 없거나 유효하지 않으면 `401 Unauthorized`를 반환한다.
 - `asOfDate` 형식이 올바르지 않으면 `400 Bad Request`, `BAD_REQUEST`를 반환한다.
-- 날짜 기반 집계와 기본 기준일은 한국 시간(`Asia/Seoul`)을 기준으로 한다.
+- 날짜 기반 집계와 기본 기준일한국 시간(`Asia/Seoul`)을 기준으로 한다.
 - 회사별 지표 배열은 회사 코드 오름차순으로 반환한다.
 - 미답변 질문 패턴은 발생 횟수, 고유 사용자 수, 최근 발생 시각 내림차순으로 정렬한다.
 
@@ -3410,7 +3410,7 @@ Content-Type: application/json
 - 백엔드는 AI 서버 응답을 `no_result_question_patterns` 테이블에 저장한다.
 - 같은 `company_code`, `analysis_date` 데이터가 이미 존재하면 기존 데이터를 갱신한다.
 - 프론트엔드는 AI 서버를 직접 호출하지 않고, 백엔드의 관리자 API를 통해 저장된 최신 패턴 분석 결과를 조회한다.
-- AI 서버 호출 실패 시 백엔드는 실패 로그를 남기고 기존 저장 결과는 유지할 수 있다.
+- AI 서버 호출 실패 시 백엔드는 실패 로그를 남기고 `ai_status = FAILED`, `error_message`를 저장하며 `top_questions`, `ai_summary`, `improvement_areas`는 빈 값으로 갱신한다.
 
 #### 저장 테이블
 
@@ -4474,7 +4474,7 @@ Authorization: Bearer {accessToken}
 - AI 서버 응답이 성공하면 `no_result_question_patterns`에 결과를 저장한다.
 - 같은 `company_code`, `analysis_date` 데이터가 이미 존재하면 새 row를 만들지 않고 기존 row를 갱신한다.
 - 수동 갱신이 반복 실행되면 `updated_at`이 갱신된다.
-- AI 서버 호출에 실패하면 `ai_status = FAILED`, `error_message`를 저장하고 기존 `top_questions`, `ai_summary`, `improvement_areas` 값은 유지할 수 있다.
+- AI 서버 호출에 실패하면 `ai_status = FAILED`, `error_message`를 저장하고 `top_questions`, `ai_summary`, `improvement_areas`는 빈 값으로 갱신한다.
 - `sourceCount`가 0이면 AI 서버를 호출하지 않고 `EMPTY` 상태로 저장한다.
 - 요청 본문에는 embedding 배열을 포함하지 않는다. AI 서버는 전달받은 질문 문자열로 임베딩을 직접 생성해 군집화한다.
 
