@@ -178,11 +178,11 @@ async def cluster_no_result_questions(req: ClusterRequest) -> ClusterResponse:
             ),
         )
 
-    # 임베딩 배치 생성 (BE에서 받지 않고 AI가 직접 생성)
+    # 임베딩 생성 (각 질문 개별 처리)
     try:
-        vectors = await asyncio.to_thread(
-            get_embeddings().embed_documents,
-            [item.questionContent for item in req.items],
+        emb = get_embeddings()
+        vectors = await asyncio.gather(
+            *[asyncio.to_thread(emb.embed_query, item.questionContent) for item in req.items]
         )
     except Exception as e:
         logger.error("임베딩 생성 실패: %s", e)
