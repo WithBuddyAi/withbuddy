@@ -56,7 +56,7 @@ def _is_docs_relevant(question: str, docs: List[Document]) -> bool:
     return "YES" in resp.content.upper()
 
 
-_HIGH_RISK_KW = ["퇴직금", "해고예고", "징계위원회", "임금체불"]
+_HIGH_RISK_KW = ["해고예고", "징계위원회", "임금체불"]
 
 
 def _is_high_risk(question: str) -> bool:
