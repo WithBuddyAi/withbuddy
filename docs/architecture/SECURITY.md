@@ -740,16 +740,22 @@ MySQL Security List/NSG:
       - None (완전 차단)
 ```
 
+현재 운영 기준:
+- DB는 OCI Managed MySQL DB System 9.7.0
+- Backend blue/green 슬롯만 DB에 접근
+- AI 서버의 DB 직접 접근은 허용하지 않음
+
 ### 6.3 Redis/RabbitMQ 분리 보안 정책
 
 ```yaml
 Redis:
   Purpose:
     - 캐시/토큰 블랙리스트/레이트리밋
+  Runtime:
+    - Dedicated VM.Standard.E2.1.Micro
   Port: 6379
   Access:
-    - Backend subnet
-    - AI subnet (필요 시)
+    - Backend subnet only
   Requirements:
     - requirepass 또는 ACL 필수
     - 외부 인터넷 직접 노출 금지
@@ -757,10 +763,12 @@ Redis:
 RabbitMQ:
   Purpose:
     - 비동기 메시징 (작업 큐)
+  Runtime:
+    - Dedicated VM.Standard.E2.1.Micro
   Port: 5672
   Management Port: 15672
   Access:
-    - 5672: Backend/AI 내부망만 허용
+    - 5672: Backend 내부망만 허용
     - 15672: 운영자 고정 IP만 허용
   Requirements:
     - 앱 계정/관리자 계정 분리
@@ -1008,7 +1016,7 @@ curl -I https://ai.itsdev.kr/
 
 ## 10. 변경 이력
 
-- 2026-04-28: 
+- 2026-07-02: OCI MySQL DB System 9.7.0, Backend blue/green A1.Flex 2 OCPU / 12GB x2, Redis/RabbitMQ E2.1.Micro 분리 운영 기준에 맞게 네트워크 보안 서술을 정정.
 - 2026-04-07: `ai.itsdev.kr` Nginx 민감 경로 차단 규칙(`.env`, `.git`, 백업 확장자)과 점검 항목을 추가.
 - 2026-04-07: Nginx `server_tokens off` 적용/검증 절차를 추가해 버전 노출 제한 기준을 명시.
 - 2026-04-06: 현재 운영 기준(`DB는 Backend만 접근`)에 맞춰 네트워크 보안 예시에서 AI→DB 직접 접근 규칙을 제거.
