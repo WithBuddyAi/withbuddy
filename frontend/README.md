@@ -90,9 +90,10 @@ src/
 │   ├── axiosInstance.js                       # axios 공통 설정 (쿠키 기반 인증, 401 자동 로그아웃)
 │   └── handlers.js                            # API 에러 핸들러
 ├── constants/
-│   └── adminConstants.js                      # 관리자 공용 상수 (DOC_TYPES, DOC_TYPE_FILTERS)
+│   ├── adminConstants.js                      # 관리자 공용 상수 (DOC_TYPES, DOC_TYPE_FILTERS)
+│   └── trackingConstants.js                   # GA4 트래킹 헬퍼 함수 (응답 시간 버킷, 파일 확장자 추출)
 ├── contexts/
-│   └── UserContext.jsx                        # 사용자 정보 전역 상태 관리 (hireDate, dayOffset, role, accountStatus)
+│   └── UserContext.jsx                        # 사용자 정보 전역 상태 관리 (hireDate, dayOffset, role, accountStatus, companyCode)
 ├── hooks/
 │   ├── useDesktop.js                          # 반응형 브레이크포인트 감지 공용 훅
 │   ├── useLoginForm.js                        # 로그인 폼 상태 + 유효성 검사 + API 호출 훅
@@ -103,7 +104,8 @@ src/
 │   ├── useSidebar.js                          # 사이드바 + 달력 날짜 조회 훅
 │   └── useDepartments.js                      # 부서/팀 목록 조회 공용 훅
 ├── utils/
-│   └── validators.js                          # 공용 유효성 검사 함수 (정규식 + 에러 메시지)
+│   ├── validators.js                          # 공용 유효성 검사 함수 (정규식 + 에러 메시지)
+│   └── tracking.js                            # GA4 이벤트 전송 공통 함수 (trackEvent)
 ├── components/
 │   ├── Tooltip.jsx                            # 툴팁 공통 컴포넌트
 │   ├── Sidebar.jsx                            # 사이드바 (사용자 정보, 메뉴, 대화기록 달력)
@@ -166,12 +168,15 @@ src/
 > 💡 **constants/ 폴더란?**  
 > 여러 컴포넌트에서 공유하는 상수를 모아둔 폴더.  
 > `adminConstants.js`는 문서 타입(DOC_TYPES, DOC_TYPE_FILTERS)을 한 곳에서 관리하여  
-> AdminDocumentView와 DocUploadForm에서 중복 없이 공유함
+> AdminDocumentView와 DocUploadForm에서 중복 없이 공유함  
+> `trackingConstants.js`는 GA4 트래킹에 필요한 헬퍼 함수(응답 시간 버킷 계산, 파일 확장자 추출)를 관리함
 
 > 💡 **utils/ 폴더란?**  
 > React에 의존하지 않는 순수 유틸리티 함수 모음.  
 > `validators.js`는 회사코드·사원번호·이름의 정규식 검증과 에러 메시지를 한 곳에서 관리하여  
-> Login과 AdminCreateView 등 여러 화면에서 중복 없이 공유함
+> Login과 AdminCreateView 등 여러 화면에서 중복 없이 공유함  
+> `tracking.js`는 GA4 이벤트 전송을 위한 공통 함수(`trackEvent`)를 제공하여  
+> 각 컴포넌트에서 일관된 방식으로 이벤트를 전송함
 
 > 💡 **components/login/ 폴더란?**  
 > 로그인 페이지 관련 UI 컴포넌트를 모아둔 폴더.  
@@ -183,7 +188,7 @@ src/
 > 토큰 만료 등 401 에러 발생 시 자동으로 로그아웃 처리하는 axios 공통 설정 파일
 
 > 💡 **UserContext란?**  
-> 로그인한 사용자의 hireDate, dayOffset, role, accountStatus 등을 전역으로 관리하여  
+> 로그인한 사용자의 hireDate, dayOffset, role, accountStatus, companyCode 등을 전역으로 관리하여  
 > 여러 컴포넌트에서 공통으로 사용할 수 있도록 하는 Context API 파일
 
 > 💡 **admin/ 폴더란?**  
@@ -219,10 +224,16 @@ npm run dev
 ```bash
 # Cloudflare Turnstile (로컬 테스트용 dummy key)
 VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+
+# Google Analytics 4
+VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
 
 > 💡 운영 환경(Vercel)에는 실제 Turnstile site key가 별도로 등록되어 있습니다.  
 > 로컬에서는 Cloudflare가 제공하는 dummy key를 사용하면 항상 인증 성공 처리됩니다.
+
+> 💡 GA4 Measurement ID는 Google Analytics 콘솔에서 확인할 수 있습니다.  
+> Microsoft Clarity는 Project ID가 `index.html`에 직접 삽입되어 있어 별도 환경변수가 필요 없습니다.
 
 ### 브랜치 전략
 
@@ -290,3 +301,4 @@ git commit -m "ㅇㅇ"
 - 2026-06-24: Login.jsx 컴포넌트 모듈 분리. `hooks/` 폴더 추가 (useDesktop, useLoginForm, useTurnstile, useTypingEffect), `utils/validators.js` 공용 유효성 검사 유틸 추출, `components/login/` 폴더 추가 (LoginForm, HeroSection, LoginBackground). Login.jsx 823줄 → 111줄로 축소.
 - 2026-06-25: MyBuddy.jsx 컴포넌트 모듈 분리. `hooks/` 폴더에 useChat, useSession, useSidebar 추가. SSE 스트리밍·메시지·전송/재시도 로직을 useChat으로, 세션 모달·로그아웃을 useSession으로, 사이드바·달력 조회를 useSidebar로 분리. botClass·navItems 컴포넌트 외부 상수로 이동. handleDownload blob → window.open 변경 (CORS 해결). 달력 날짜 선택 시 맨 위 스크롤 기능 추가. 로그인 에러 메시지 3단계 분리 (500/서버 연결 불가/인터넷 끊김). MyBuddy.jsx 663줄 → 227줄로 축소.
 - 2026-07-01: 관리자 코드 정리. `constants/adminConstants.js` 추가 (DOC_TYPES·DOC_TYPE_FILTERS 통합), `hooks/useDepartments.js` 추가 (부서/팀 목록 조회 3곳 → 1곳 통합). AdminCreateView에 validators.js 적용 (정규식 중복 제거). AdminMainView, DocUploadForm에 useDepartments 적용. AdminDocumentView에 DOC_TYPE_FILTERS import 적용. AdminForm.jsx 빈 파일 삭제. 미사용 에셋 7개 삭제 (Favicon.svg, WithBuddy.svg, WithBuddy_pixel.svg, hero.png, react.svg, triangle_up.svg, vite.svg).
+- 2026-07-03: GA4 핵심 이벤트 17개 삽입. `utils/tracking.js` GA4 네이티브 방식으로 수정, `contexts/UserContext.jsx`에 companyCode 추가, `constants/trackingConstants.js` 헬퍼 함수 추가. 관리자 이벤트 8개 (로그인, 계정생성 퍼널, 문서업로드 퍼널, 대시보드 진입), 신입 이벤트 9개 (로그인, 페이지뷰, 빠른질문/넛지 클릭, 질문전송, AI응답 완료, 미답변/범위밖 노출). Microsoft Clarity 연동 (`index.html`에 추적 스크립트 삽입).

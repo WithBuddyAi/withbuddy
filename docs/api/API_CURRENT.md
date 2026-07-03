@@ -985,6 +985,7 @@ Authorization: Bearer {accessToken}
   "created": true,
   "messageId": 301,
   "suggestionId": 5,
+  "nudgeType": "d-day",
   "message": "온보딩 제안 메시지가 생성되었습니다."
 }
 ```
@@ -996,6 +997,7 @@ Authorization: Bearer {accessToken}
   "created": false,
   "messageId": 301,
   "suggestionId": 5,
+  "nudgeType": "d-day",
   "message": "이미 생성된 온보딩 제안 메시지가 있습니다."
 }
 ```
@@ -1007,6 +1009,7 @@ Authorization: Bearer {accessToken}
   "created": false,
   "messageId": null,
   "suggestionId": null,
+  "nudgeType": null,
   "message": "오늘 노출할 온보딩 제안이 없습니다."
 }
 ```
@@ -1018,6 +1021,7 @@ Authorization: Bearer {accessToken}
 | `created` | Boolean | 이번 요청에서 새 suggestion 메시지가 생성되었는지 여부 |
 | `messageId` | Number 또는 null | 생성되었거나 이미 존재하는 `chat_messages.id` |
 | `suggestionId` | Number 또는 null | 생성 대상 또는 기존 메시지에 연결된 `onboarding_suggestions.id` |
+| `nudgeType` | String 또는 null | 생성 대상 또는 기존 메시지에 연결된 `onboarding_suggestions.title` |
 | `message` | String | 처리 결과 메시지 |
 
 #### 동작 기준
@@ -1029,6 +1033,7 @@ Authorization: Bearer {accessToken}
 - 노출 대상 온보딩 제안이 존재하면 백엔드는 해당 제안을 `chat_messages`에 저장한다.
 - 저장되는 메시지는 `sender_type = BOT`, `message_type = suggestion`을 사용한다.
 - `suggestion_id`에는 저장 대상 온보딩 제안의 ID를 저장한다.
+- 응답의 `nudgeType`에는 저장 대상 온보딩 제안의 `onboarding_suggestions.title` 값을 반환한다.
 - `content`에는 온보딩 제안 본문을 저장한다.
 - `{이름}`, `{회사명}`, `{N}`과 같은 플레이스홀더가 있는 경우, 백엔드는 로그인 사용자 정보를 기준으로 치환하여 저장한다.
 - 이미 동일한 사용자의 동일한 온보딩 제안 메시지가 저장되어 있으면 중복 저장하지 않는다.
@@ -2719,7 +2724,7 @@ X-Internal-Key: {internalKey}
 관리자 대시보드에 필요한 RAG 답변 수신 경험률, 문서 공백률, 미시작 사용자 수, 미답변 질문 패턴을 한 번에 조회한다.
 
 ```http
-GET /api/v1/admin/metrics/dashboard?companyCode=WB0001&asOfDate=2026-06-11&unansweredPatternLimit=5
+GET /api/v1/admin/metrics/dashboard?unansweredPatternLimit=5
 Authorization: Bearer {accessToken}
 ```
 
@@ -2873,6 +2878,8 @@ Authorization: Bearer {accessToken}
 #### 동작 규칙
 
 - 이 API의 실제 구현 경로는 `GET /api/v1/admin/metrics/dashboard`이다.
+- 프론트엔드 관리자 대시보드는 `GET /api/v1/admin/metrics/dashboard?unansweredPatternLimit=5`를 호출한다.
+- `companyCode`와 `asOfDate`는 선택 파라미터다. 일반 `ADMIN`은 값을 생략해도 로그인한 본인 회사 범위로 제한된다.
 - 활성 고객사 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)와 서비스 관리자(`users.role = SERVICE_ADMIN`)가 호출할 수 있다.
 - 활성 고객사 관리자는 본인 회사 지표만 조회할 수 있다. `companyCode`를 생략해도 본인 회사로 제한되며, 다른 회사 코드를 전달하면 `403 Forbidden`, `ACCESS_DENIED`를 반환한다.
 - 서비스 관리자는 `companyCode`를 생략하면 전체 회사 지표를 조회하고, 회사 코드를 전달하면 해당 회사만 조회한다.
@@ -2881,7 +2888,10 @@ Authorization: Bearer {accessToken}
 - `asOfDate` 형식이 올바르지 않으면 `400 Bad Request`, `BAD_REQUEST`를 반환한다.
 - 날짜 기반 집계와 기본 기준일한국 시간(`Asia/Seoul`)을 기준으로 한다.
 - 회사별 지표 배열은 회사 코드 오름차순으로 반환한다.
-- 미답변 질문 패턴은 발생 횟수, 고유 사용자 수, 최근 발생 시각 내림차순으로 정렬한다.
+- `unansweredQuestionPatterns.patterns`는 실시간 원문 질문 집계가 아니라 `no_result_question_patterns.top_questions`에 저장된 AI 서버 군집화 결과를 기존 프론트 응답 형태로 가공해 반환한다.
+- `unansweredQuestionPatterns.aiSummary.summary`는 `no_result_question_patterns.ai_summary` 값을 사용한다.
+- `unansweredQuestionPatterns.aiSummary.actions`는 `no_result_question_patterns.improvement_areas` 값을 사용한다.
+- 미답변 질문 패턴은 원문 문자의 완전 일치 기준이 아니라 AI 서버가 임베딩/유사도 기반으로 군집화해 저장한 결과다.
 
 ### 7-9. 필수 온보딩 문서 템플릿
 
