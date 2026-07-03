@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.3.1
-**최종 업데이트**: 2026-07-01
+**버전**: 2.3.2
+**최종 업데이트**: 2026-07-03
 
 ---
 
@@ -2797,17 +2797,30 @@ Authorization: Bearer {accessToken}
     "metric": "unanswered_question_patterns",
     "asOfDate": "2026-06-11",
     "limit": 5,
+    "sourceCount": 522,
     "patterns": [
       {
-        "companyCode": "WB0001",
-        "questionContent": "경조사 휴가는 어떻게 신청하나요?",
-        "totalCount": 8,
-        "uniqueUsers": 6,
-        "noResultCount": 8,
-        "outOfScopeCount": 0,
-        "latestOccurredAt": "2026-06-10T14:30:00"
+        "rank": 1,
+        "questionContent": "수습 기간 평가는 어떤 기준으로 이루어지나요?",
+        "totalCount": 5
       }
-    ]
+    ],
+    "aiSummary": {
+      "status": "READY",
+      "companyCode": "WB0001",
+      "questionCount": 5,
+      "summary": "신입 직원들이 수습 기간 평가 기준과 복지 정책을 반복적으로 묻고 있습니다.",
+      "actions": [
+        {
+          "part": "HR · 인사",
+          "items": "수습 기간 평가 기준과 평가 일정을 온보딩 문서에 보강"
+        }
+      ],
+      "hasSensitive": false,
+      "errorMessage": null
+    },
+    "createdAt": "2026-06-11T03:00:12",
+    "updatedAt": "2026-06-11T03:00:12"
   }
 }
 ```
@@ -2821,7 +2834,7 @@ Authorization: Bearer {accessToken}
 | `ragExperienceRate` | Object | 입사 후 D+6까지 RAG 답변을 한 번 이상 받은 사용자 비율 |
 | `documentGapRate` | Object | 최근 30일간 문서 기반 답변 가능 응답 중 `no_result` 응답 비율 |
 | `unstartedUsers` | Object | 기준일까지 입사한 활성 사용자 중 질문을 한 번도 등록하지 않은 사용자 현황 |
-| `unansweredQuestionPatterns` | Object | 최근 7일간 반복된 `no_result` 질문 패턴 |
+| `unansweredQuestionPatterns` | Object | 최근 7일간 발생한 `no_result` 질문을 대상으로 배치 생성된 군집화 패턴 |
 
 #### Response Field (`ragExperienceRate.companies[]`)
 
@@ -2857,14 +2870,23 @@ Authorization: Bearer {accessToken}
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `limit` | Number | 실제 적용된 최대 조회 개수 |
-| `patterns` | Array | 최근 7일간 발생한 `no_result` 질문을 회사 코드와 질문 내용으로 묶은 목록 |
-| `patterns[].companyCode` | String | 질문이 발생한 회사 코드 |
-| `patterns[].questionContent` | String | 미답변 질문 내용 |
-| `patterns[].totalCount` | Number | 동일 질문의 전체 발생 횟수 |
-| `patterns[].uniqueUsers` | Number | 동일 질문을 등록한 고유 사용자 수 |
-| `patterns[].noResultCount` | Number | `no_result` 발생 횟수. 현재 `totalCount`와 동일 |
-| `patterns[].outOfScopeCount` | Number | 범위 밖 질문 발생 횟수. 현재 구현에서는 항상 `0` |
-| `patterns[].latestOccurredAt` | String | 동일 질문의 가장 최근 발생 시각 |
+| `sourceCount` | Number | 최근 7일간 군집화 대상이 된 `no_result` 질문 수 |
+| `patterns` | Array | 군집화 결과로 생성된 미답변 질문 패턴 TOP N |
+| `patterns[].rank` | Number | 미답변 질문 패턴 순위 |
+| `patterns[].questionContent` | String | 해당 군집의 대표 질문 |
+| `patterns[].totalCount` | Number | 해당 군집에 포함된 질문 수 |
+| `aiSummary` | Object | 최근 7일 `no_result` 질문 기반 TOP N 목록으로 생성한 AI 요약 및 문서 보강 제안 |
+| `aiSummary.status` | String | AI 분석 상태. `READY`, `EMPTY`, `FAILED` |
+| `aiSummary.companyCode` | String | 회사 코드 |
+| `aiSummary.questionCount` | Number | AI 분석에 사용된 TOP N 질문 수 |
+| `aiSummary.summary` | String | 미답변 질문 패턴에 대한 AI 요약 |
+| `aiSummary.actions` | Array | 문서 보강 제안 목록 |
+| `aiSummary.actions[].part` | String | 보강이 필요한 업무/문서 영역 |
+| `aiSummary.actions[].items` | String | 구체적인 문서 보강 항목 |
+| `aiSummary.hasSensitive` | Boolean | 민감 정보 포함 여부 |
+| `aiSummary.errorMessage` | String 또는 null | AI 분석 실패 사유 |
+| `createdAt` | String | 패턴 분석 결과 최초 생성 시각 |
+| `updatedAt` | String | 패턴 분석 결과 마지막 갱신 시각 |
 
 #### 동작 규칙
 
@@ -3359,7 +3381,141 @@ Content-Type: application/json
 
 ---
 
-### 8-7. 내부 AI 오류 처리
+### 8-7. no_result 질문 패턴 군집화 요청
+
+백엔드는 매일 새벽 3시마다 분석 기준일을 포함한 최근 7일 동안 발생했고 임베딩 벡터가 생성된 `no_result` 질문을 회사별로 조회한 뒤, AI 서버에 미답변 질문 패턴 군집화를 요청한다.
+
+이 API는 프론트엔드가 직접 호출하지 않는 내부 연동 API이며, 관리자 대시보드의 "문서 보강 후보 TOP5"를 생성하기 위한 배치성 분석 용도다.
+
+```http
+POST {AI_SERVER_BASE_URL}/clusters/no-result/questions
+Content-Type: application/json
+```
+
+#### Request Body
+
+```json
+{
+  "companyCode": "WB0001",
+  "analysisDate": "2026-07-01",
+  "topN": 5,
+  "items": [
+    {
+      "logId": 101,
+      "questionContent": "수습 기간 평가는 어떤 기준으로 이루어지나요?",
+      "embeddingModel": "models/gemini-embedding-2",
+      "embeddingDimension": 3072,
+      "embedding": [0.0123, -0.0456, 0.0789]
+    },
+    {
+      "logId": 102,
+      "questionContent": "업무폰 지원돼?",
+      "embeddingModel": "models/gemini-embedding-2",
+      "embeddingDimension": 3072,
+      "embedding": [0.0181, -0.0324, 0.0617]
+    }
+  ]
+}
+```
+
+#### Request Field
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `companyCode` | String | Y | 군집화 대상 회사 코드 |
+| `analysisDate` | String (`yyyy-MM-dd`) | Y | 분석 기준일. 이 날짜를 포함한 최근 7일 `no_result` 질문이 군집화 대상이다. |
+| `topN` | Number | N | 반환할 미답변 질문 패턴 개수. 기본값 `5` |
+| `items` | Array | Y | 분석 기준일 포함 최근 7일 동안 발생한 군집화 대상 `no_result` 질문 목록 |
+| `items[].logId` | Long | Y | `unanswered_question_logs.id` |
+| `items[].questionContent` | String | Y | 사용자 질문 원문 |
+| `items[].embeddingModel` | String | Y | 임베딩 생성 모델명 |
+| `items[].embeddingDimension` | Number | Y | 임베딩 벡터 차원 수 |
+| `items[].embedding` | Array<Number> | Y | 질문 임베딩 벡터 |
+
+#### Success Response (200 OK)
+
+```json
+{
+  "companyCode": "WB0001",
+  "analysisDate": "2026-07-01",
+  "sourceCount": 522,
+  "topQuestions": [
+    {
+      "rank": 1,
+      "questionContent": "수습 기간 평가는 어떤 기준으로 이루어지나요?",
+      "count": 5
+    },
+    {
+      "rank": 2,
+      "questionContent": "업무폰 지원돼?",
+      "count": 4
+    },
+    {
+      "rank": 3,
+      "questionContent": "스톡옵션 있어?",
+      "count": 2
+    }
+  ],
+  "aiSummary": {
+    "status": "READY",
+    "summary": "신입 직원들이 수습 기간 평가 기준, 업무폰 지원 여부, 스톡옵션 등 복리후생 관련 정보를 반복적으로 묻고 있습니다.",
+    "actions": [
+      {
+        "part": "HR · 인사",
+        "items": "수습 기간 평가 기준과 평가 일정을 온보딩 문서에 보강"
+      },
+      {
+        "part": "복지",
+        "items": "업무폰 지원 정책, 신청 대상, 신청 절차를 복지 문서에 추가"
+      }
+    ],
+    "hasSensitive": false,
+    "errorMessage": null
+  }
+}
+```
+
+#### Response Field
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `companyCode` | String | 회사 코드 |
+| `analysisDate` | String | 분석 기준일 |
+| `sourceCount` | Number | 분석 기준일 포함 최근 7일 동안 군집화 대상이 된 `no_result` 질문 수 |
+| `topQuestions` | Array | 군집화 결과로 생성된 미답변 질문 패턴 TOP N |
+| `topQuestions[].rank` | Number | 패턴 순위 |
+| `topQuestions[].questionContent` | String | 해당 군집의 대표 질문 |
+| `topQuestions[].count` | Number | 해당 군집에 포함된 질문 수 |
+| `aiSummary` | Object | 최근 7일 `no_result` 질문 기반 TOP N 목록으로 생성한 AI 분석 결과 |
+| `aiSummary.status` | String | AI 분석 상태. `READY`, `EMPTY`, `FAILED` |
+| `aiSummary.summary` | String | 미답변 질문 패턴에 대한 AI 요약 |
+| `aiSummary.actions` | Array | 문서 보강 제안 목록 |
+| `aiSummary.actions[].part` | String | 보강이 필요한 문서/업무 영역 |
+| `aiSummary.actions[].items` | String | 구체적인 보강 항목 |
+| `aiSummary.hasSensitive` | Boolean | 민감 정보 포함 여부 |
+| `aiSummary.errorMessage` | String 또는 null | AI 분석 실패 사유 |
+
+#### 백엔드 처리 규칙
+
+- 백엔드는 매일 새벽 3시 스케줄러를 통해 회사별 미답변 질문 패턴 분석 배치를 실행한다.
+- 백엔드는 `unanswered_question_logs`에서 `answer_type = no_result`이고 `embedding_vector IS NOT NULL`인 데이터만 조회한다.
+- 조회 범위는 `analysisDate`를 포함한 최근 7일이며, KST 기준으로 `analysisDate - 6일`부터 `analysisDate`까지 발생한 로그를 사용한다.
+- 백엔드는 회사별로 데이터를 분리하여 AI 서버에 군집화 요청을 보낸다.
+- 백엔드는 서로 다른 `embedding_model` 또는 `embedding_dimension`이 섞이지 않도록 검증할 수 있다.
+- AI 서버는 전달받은 임베딩 벡터를 기준으로 cosine similarity 기반 군집화를 수행한다.
+- AI 서버는 군집화 결과 중 상위 TOP N 패턴과 AI 분석 결과를 반환한다.
+- 백엔드는 AI 서버 응답을 `no_result_question_patterns` 테이블에 저장한다.
+- 같은 `company_code`, `analysis_date` 데이터가 이미 존재하면 기존 데이터를 갱신한다.
+- 프론트엔드는 AI 서버를 직접 호출하지 않고, 백엔드의 관리자 API를 통해 저장된 최신 패턴 분석 결과를 조회한다.
+- AI 서버 호출 실패 시 백엔드는 실패 로그를 남기고 기존 저장 결과는 유지할 수 있다.
+
+#### 저장 테이블
+
+AI 군집화 및 분석 결과는 `no_result_question_patterns` 테이블에 저장한다.
+
+---
+
+### 8-8. 내부 AI 오류 처리
 
 #### AI 서버 Validation Error
 
@@ -3395,7 +3551,7 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 
 ---
 
-### 8-8. 내부 AI 동작 규칙
+### 8-9. 내부 AI 동작 규칙
 
 - 백엔드는 질문 메시지를 먼저 저장한 뒤 AI 서버를 호출한다.
 - AI 서버 호출 endpoint는 `POST /chat/stream`을 사용한다.
@@ -3421,7 +3577,7 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 
 ---
 
-### 8-9. AI 문서 자동 인덱싱 연동
+### 8-10. AI 문서 자동 인덱싱 연동
 
 관리자 문서 업로드가 완료되면 백엔드는 AI 서버에 문서 인덱싱을 요청한다.  
 이 API는 프론트엔드가 직접 호출하지 않으며, 백엔드와 AI 서버 사이의 내부 연동에만 사용한다.
@@ -3530,7 +3686,7 @@ AI 서버는 인증 실패, 백엔드 문서 조회 실패, 파일 다운로드 
 
 ---
 
-### 8-10. AI 문서 자동 삭제 연동
+### 8-11. AI 문서 자동 삭제 연동
 
 관리자 문서 삭제가 완료되면 백엔드는 AI 서버에 문서 인덱스 삭제를 요청한다.  
 이 API는 프론트엔드가 직접 호출하지 않으며, 백엔드와 AI 서버 사이의 내부 연동에만 사용한다.
@@ -4210,8 +4366,10 @@ Authorization: Bearer {accessToken}
 
 ### 10-5. 미답변 질문 패턴 TOP N
 
-최근 반복된 `no_result` 질문을 원문 텍스트 기준으로 묶어 TOP N으로 조회한다.
-프론트엔드는 이 백엔드 API 응답을 기준으로 관리자 대시보드의 문서 보강 후보 TOP5를 렌더링한다.
+매일 새벽 3시 배치로 생성된 최근 7일 `no_result` 질문 군집화 결과를 TOP N으로 조회한다.
+
+백엔드는 실시간으로 전체 미답변 질문을 다시 군집화하지 않고, 분석 기준일을 포함한 최근 7일 `no_result` 발생 질문으로 사전에 생성된 `no_result_question_patterns` 테이블의 최신 분석 결과를 조회한다.
+프론트엔드는 이 백엔드 API 응답을 기준으로 관리자 대시보드의 문서 보강 후보 TOP5와 AI 분석 영역을 렌더링한다.
 
 ```http
 GET /api/v1/admin/metrics/unanswered-question-patterns?companyCode=WB0001&limit=5
@@ -4222,9 +4380,9 @@ Authorization: Bearer {accessToken}
 
 | 파라미터 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. `ADMIN`은 생략해도 본인 회사로 제한된다. |
-| `asOfDate` | String (`yyyy-MM-dd`) | N | 집계 기준일. 생략하면 KST 기준 오늘 날짜를 사용한다. |
-| `limit` | Number | N | 미답변 질문 패턴 최대 조회 개수. 기본값 `5`, 최솟값 `1`, 최댓값 `20`이다. |
+| `companyCode` | String | N | 특정 회사만 조회할 때 사용한다. ADMIN은 생략해도 본인 회사로 제한된다. |
+| `asOfDate` | String (`yyyy-MM-dd`) | N | 분석 기준일. 해당 날짜를 포함한 최근 7일 `no_result` 질문 분석 결과를 조회한다. 생략하면 KST 기준 최신 분석 결과를 조회한다. |
+| `limit` | Number | N | 미답변 질문 패턴 최대 조회 개수. 기본값 5, 최솟값 1, 최댓값 20이다. |
 
 #### Response (200 OK)
 
@@ -4233,31 +4391,58 @@ Authorization: Bearer {accessToken}
   "metric": "unanswered_question_patterns",
   "asOfDate": "2026-07-01",
   "limit": 5,
+  "sourceCount": 522,
   "patterns": [
     {
-      "companyCode": "WB0001",
-      "questionContent": "복지카드는 어떻게 신청하나요?",
-      "totalCount": 3,
-      "uniqueUsers": 2,
-      "noResultCount": 3,
-      "outOfScopeCount": 0,
-      "latestOccurredAt": "2026-07-01T14:30:00"
+      "rank": 1,
+      "questionContent": "수습 기간 평가는 어떤 기준으로 이루어지나요?",
+      "totalCount": 5
+    },
+    {
+      "rank": 2,
+      "questionContent": "업무폰 지원돼?",
+      "totalCount": 4
+    },
+    {
+      "rank": 3,
+      "questionContent": "스톡옵션 있어?",
+      "totalCount": 2
+    },
+    {
+      "rank": 4,
+      "questionContent": "업무 폰 지원돼?",
+      "totalCount": 2
+    },
+    {
+      "rank": 5,
+      "questionContent": "회사 헬스장 이용권 어디서 받아요?",
+      "totalCount": 2
     }
   ],
   "aiSummary": {
     "status": "READY",
     "companyCode": "WB0001",
-    "questionCount": 1,
-    "summary": "복지카드 신청 절차에 대한 질문이 반복되고 있습니다. 신청 경로와 필요 서류를 문서에 보강하면 같은 질문을 줄일 수 있어요.",
+    "questionCount": 5,
+    "summary": "신입 직원들이 수습 기간 평가 기준, 업무폰 지원 여부, 스톡옵션 등 복리후생 관련 정보를 반복적으로 묻고 있습니다. 이는 온보딩 문서와 복지 안내 문서에 기본 정책 및 신청 절차가 충분히 정리되어 있지 않기 때문으로 보입니다.",
     "actions": [
       {
+        "part": "HR · 인사",
+        "items": "수습 기간 평가 기준, 평가 일정, 평가 결과 안내 방식을 온보딩 문서에 추가"
+      },
+      {
         "part": "복지",
-        "items": "복지카드 신청 경로, 신청 자격, 필요 서류를 온보딩 문서에 추가"
+        "items": "업무폰 지원 대상, 신청 경로, 승인 절차를 복지 문서에 추가"
+      },
+      {
+        "part": "보상",
+        "items": "스톡옵션 제공 여부, 대상자 기준, 부여 시점을 사내 보상 정책 문서에 명시"
       }
     ],
     "hasSensitive": false,
     "errorMessage": null
-  }
+  },
+  "createdAt": "2026-07-01T03:00:12",
+  "updatedAt": "2026-07-01T03:00:12"
 }
 ```
 
@@ -4266,24 +4451,64 @@ Authorization: Bearer {accessToken}
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `metric` | String | 지표 식별자. `unanswered_question_patterns` |
-| `asOfDate` | String | 적용된 집계 기준일 |
+| `asOfDate` | String | 적용된 분석 기준일 |
 | `limit` | Number | 실제 적용된 최대 조회 개수 |
-| `patterns` | Array | 원문 텍스트 기준 미답변 질문 TOP N |
-| `patterns[].companyCode` | String | 질문이 발생한 회사 코드 |
-| `patterns[].questionContent` | String | 미답변 질문 원문 |
-| `patterns[].totalCount` | Number | 동일 질문 원문의 전체 발생 횟수 |
-| `patterns[].uniqueUsers` | Number | 동일 질문 원문을 등록한 고유 사용자 수 |
-| `patterns[].noResultCount` | Number | `no_result` 발생 횟수. 현재 `totalCount`와 동일 |
-| `patterns[].outOfScopeCount` | Number | 범위 밖 질문 발생 횟수. 현재 구현에서는 항상 `0` |
-| `patterns[].latestOccurredAt` | String | 동일 질문 원문의 가장 최근 발생 시각 |
-| `aiSummary` | Object | 질문 원문 목록을 기준으로 생성한 AI 요약 및 문서 보강 제안 |
+| `sourceCount` | Number | 최근 7일 동안 군집화 대상이 된 `no_result` 질문 수 |
+| `patterns` | Array | 군집화 결과로 생성된 미답변 질문 패턴 TOP N |
+| `patterns[].rank` | Number | 미답변 질문 패턴 순위 |
+| `patterns[].questionContent` | String | 해당 군집의 대표 질문 |
+| `patterns[].totalCount` | Number | 해당 군집에 포함된 질문 수 |
+| `aiSummary` | Object | 최근 7일 `no_result` 질문 기반 TOP N 목록으로 생성한 AI 요약 및 문서 보강 제안 |
+| `aiSummary.status` | String | AI 분석 상태. `READY`, `EMPTY`, `FAILED` |
+| `aiSummary.companyCode` | String | 회사 코드 |
+| `aiSummary.questionCount` | Number | AI 분석에 사용된 TOP N 질문 수 |
+| `aiSummary.summary` | String | 미답변 질문 패턴에 대한 AI 요약 |
+| `aiSummary.actions` | Array | 문서 보강 제안 목록 |
+| `aiSummary.actions[].part` | String | 보강이 필요한 업무/문서 영역 |
+| `aiSummary.actions[].items` | String | 구체적인 문서 보강 항목 |
+| `aiSummary.hasSensitive` | Boolean | 민감 정보 포함 여부 |
+| `aiSummary.errorMessage` | String 또는 null | AI 분석 실패 사유 |
+| `createdAt` | String | 패턴 분석 결과 최초 생성 시각 |
+| `updatedAt` | String | 패턴 분석 결과 마지막 갱신 시각 |
 
 #### 동작 규칙
 
 - 프론트엔드는 AI 서버를 직접 호출하지 않고 이 백엔드 API를 호출한다.
-- 백엔드는 권한과 회사 범위를 검증한 뒤 `unanswered_question_logs`를 원문 질문 내용 기준으로 집계한다.
-- 미답변 질문 패턴은 발생 횟수, 고유 사용자 수, 최근 발생 시각 내림차순으로 정렬한다.
-- `aiSummary`는 `patterns[].questionContent` 목록을 기준으로 생성한다.
+- 이 API는 요청 시점에 실시간 군집화를 수행하지 않는다.
+- 백엔드는 권한과 회사 범위를 검증한 뒤 `no_result_question_patterns` 테이블에서 저장된 분석 결과를 조회한다.
+- `asOfDate`가 전달되면 해당 `analysis_date`의 분석 결과를 조회한다.
+- `asOfDate`가 생략되면 해당 회사의 최신 `analysis_date` 분석 결과를 조회한다.
+- 각 `analysis_date`의 분석 결과는 KST 기준 `analysis_date - 6일`부터 `analysis_date`까지 최근 7일 동안 발생한 `no_result` 질문을 대상으로 생성된다.
+- `patterns`는 `no_result_question_patterns.top_questions` JSON에서 추출한다.
+- `limit`이 전달되면 저장된 TOP 질문 목록 중 최대 `limit`개만 반환한다.
+- `aiSummary.summary`는 `no_result_question_patterns.ai_summary` 값을 사용한다.
+- `aiSummary.actions`는 `no_result_question_patterns.improvement_areas` 값을 사용한다.
+- 저장된 분석 결과가 없는 경우 `patterns`는 빈 배열로 반환하고, `aiSummary.status`는 `EMPTY`로 반환한다.
+- 미답변 질문 패턴은 원문 문자열 완전 일치 기준이 아니라, AI 서버가 임베딩 벡터 유사도를 기반으로 군집화한 결과다.
+- 군집화 대상은 `unanswered_question_logs` 중 최근 7일 동안 발생했고 `embedding_vector IS NOT NULL`인 `no_result` 질문이다.
+
+#### Empty Response 예시
+
+```json
+{
+  "metric": "unanswered_question_patterns",
+  "asOfDate": "2026-07-01",
+  "limit": 5,
+  "sourceCount": 0,
+  "patterns": [],
+  "aiSummary": {
+    "status": "EMPTY",
+    "companyCode": "WB0001",
+    "questionCount": 0,
+    "summary": null,
+    "actions": [],
+    "hasSensitive": false,
+    "errorMessage": null
+  },
+  "createdAt": null,
+  "updatedAt": null
+}
+```
 
 ---
 
@@ -4583,4 +4808,7 @@ Authorization: Bearer {accessToken}
 - **v2.3.1 (2026-07-01)**:
   - `answer_type = no_result`인 `unanswered_question_logs`에 질문 임베딩 벡터를 함께 저장하는 연동 규칙 추가
   - 내부 AI 연동 API `POST {AI_SERVER_BASE_URL}/embeddings/question` 요청/응답 명세 추가. 요청은 `companyCode`, `content`를 전달하고 응답은 `embeddingModel`, `dimension`, `embedding`만 반환하는 구조로 정의
+- **v2.3.2 (2026-07-03)**:
+  - 매일 새벽 3시 배치로 최근 7일 `no_result` 질문을 임베딩 기반으로 군집화하고, 관리자 대시보드 및 조회 API가 저장된 군집화 결과를 기준으로 응답하도록 정리
+  - `aiSummary`는 군집화된 TOP N 기반 AI 요약 및 문서 보강 제안으로 명시하고, 기존 원문 완전 일치 집계 필드는 제외
 
