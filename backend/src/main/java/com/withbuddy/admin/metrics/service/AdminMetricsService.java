@@ -529,6 +529,18 @@ public class AdminMetricsService {
     }
 
     private UnansweredQuestionPatternsResponse.AiSummary buildStoredAiSummary(NoResultQuestionPattern pattern) {
+        if ("FAILED".equals(pattern.getAiStatus())) {
+            return new UnansweredQuestionPatternsResponse.AiSummary(
+                    "FAILED",
+                    pattern.getCompanyCode(),
+                    0,
+                    null,
+                    List.of(),
+                    false,
+                    pattern.getErrorMessage()
+            );
+        }
+
         List<UnansweredQuestionPatternsResponse.AiAction> actions = readImprovementAreas(pattern);
         List<UnansweredQuestionPatternsResponse.PatternItem> questions = readTopQuestions(pattern, Integer.MAX_VALUE);
         if (pattern.getSourceCount() == 0 || questions.isEmpty()) {
