@@ -888,6 +888,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
 
             # ── 7. RAG 스트리밍 ───────────────────────────────────────
             accumulated: list[str] = []
+            _suppress_delta = False
             try:
                 async with asyncio.timeout(40):
                     async for chunk, source, related_docs, rag_doc_ids in _stream_rag(
@@ -963,7 +964,10 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                         else:
                             accumulated.append(chunk)
                             if chunk.strip():
-                                yield _delta(chunk)
+                                if not _suppress_delta and any(kw in chunk for kw in _NO_RESULT_KW):
+                                    _suppress_delta = True
+                                if not _suppress_delta:
+                                    yield _delta(chunk)
             except asyncio.TimeoutError:
                 yield f"event: error\ndata: {json.dumps({'code': 'AI_TIMEOUT', 'message': 'AI 응답 시간이 초과되었습니다.'}, ensure_ascii=False)}\n\n"
 
