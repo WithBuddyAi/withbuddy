@@ -1,5 +1,6 @@
 package com.withbuddy.admin.metrics.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.company.entity.Company;
 import com.withbuddy.account.user.entity.User;
@@ -7,28 +8,25 @@ import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.UnansweredQuestionPatternsResponse;
+import com.withbuddy.admin.metrics.entity.NoResultQuestionPattern;
 import com.withbuddy.admin.metrics.repository.AdminMetricsRepository;
+import com.withbuddy.admin.metrics.repository.NoResultQuestionPatternRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
-import com.withbuddy.infrastructure.ai.client.AiNoResultSummaryClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,10 +36,16 @@ class AdminMetricsServiceTest {
     private AdminMetricsRepository adminMetricsRepository;
 
     @Mock
+    private NoResultQuestionPatternRepository noResultQuestionPatternRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
-    private AiNoResultSummaryClient aiNoResultSummaryClient;
+    private NoResultQuestionPatternBatchService noResultQuestionPatternBatchService;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @InjectMocks
     private AdminMetricsService adminMetricsService;
@@ -51,32 +55,24 @@ class AdminMetricsServiceTest {
         JwtAuthenticationPrincipal principal = principal(1L, "WB0001");
         User serviceAdmin = serviceAdmin();
         when(userRepository.findById(1L)).thenReturn(Optional.of(serviceAdmin));
-        when(adminMetricsRepository.findUnansweredQuestionPatterns(
-                org.mockito.ArgumentMatchers.eq("WB0001"),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 26)),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 1)),
-                org.mockito.ArgumentMatchers.any(Pageable.class)
-        )).thenReturn(new PageImpl<>(List.of(pattern(
+        when(noResultQuestionPatternRepository.findByCompanyCodeAndAnalysisDate(
                 "WB0001",
-                "복지카드는 어떻게 신청하나요?",
-                4L,
-                3L,
-                4L,
-                0L,
-                LocalDateTime.of(2026, 6, 1, 13, 0)
-        ))));
-        when(aiNoResultSummaryClient.analyzeTop5(
+                LocalDate.of(2026, 6, 1)
+        )).thenReturn(Optional.of(storedPattern(
                 "WB0001",
-                List.of("복지카드는 어떻게 신청하나요?")
-        )).thenReturn(new AiNoResultSummaryClient.Top5AnalysisResponse(
-                "WB0001",
+                LocalDate.of(2026, 6, 1),
+                """
+                        [{"rank":1,"questionContent":"복지카드는 어떻게 신청하나요?","count":4}]
+                        """,
+                "READY",
                 "복지카드 신청 관련 문서가 부족합니다.",
-                List.of(new AiNoResultSummaryClient.Top5Action(
-                        "복지",
-                        "복지카드 신청 절차와 제출 서류를 정리한 FAQ를 추가해 보세요."
-                )),
-                false
-        ));
+                """
+                        [{"part":"복지","items":"복지카드 신청 절차와 제출 서류를 정리한 FAQ를 추가해 보세요."}]
+                        """,
+                false,
+                null,
+                58
+        )));
 
         UnansweredQuestionPatternsResponse response = adminMetricsService.getUnansweredQuestionPatterns(
                 principal,
@@ -86,9 +82,11 @@ class AdminMetricsServiceTest {
         );
 
         assertThat(response.metric()).isEqualTo("unanswered_question_patterns");
+        assertThat(response.sourceCount()).isEqualTo(58);
         assertThat(response.limit()).isEqualTo(5);
         assertThat(response.patterns()).hasSize(1);
         assertThat(response.patterns().getFirst().questionContent()).isEqualTo("복지카드는 어떻게 신청하나요?");
+        assertThat(response.patterns().getFirst().totalCount()).isEqualTo(4);
         assertThat(response.aiSummary()).isNotNull();
         assertThat(response.aiSummary().status()).isEqualTo("READY");
         assertThat(response.aiSummary().questionCount()).isEqualTo(1);
@@ -98,15 +96,10 @@ class AdminMetricsServiceTest {
         assertThat(response.aiSummary().actions().getFirst().part()).isEqualTo("복지");
         assertThat(response.aiSummary().actions().getFirst().items())
                 .isEqualTo("복지카드 신청 절차와 제출 서류를 정리한 FAQ를 추가해 보세요.");
-
-        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(adminMetricsRepository).findUnansweredQuestionPatterns(
-                org.mockito.ArgumentMatchers.eq("WB0001"),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 26)),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 1)),
-                pageableCaptor.capture()
+        verify(noResultQuestionPatternRepository).findByCompanyCodeAndAnalysisDate(
+                "WB0001",
+                LocalDate.of(2026, 6, 1)
         );
-        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5);
     }
 
     @Test
@@ -152,12 +145,10 @@ class AdminMetricsServiceTest {
                 .thenReturn(List.of(documentGapMetric("WB0001", "WithBuddy", 10L, 2L)));
         when(adminMetricsRepository.findUnstartedUsersMetrics("WB0001", LocalDate.of(2026, 6, 1)))
                 .thenReturn(List.of(unstartedUsersMetric("WB0001", "WithBuddy", 8L, 3L)));
-        when(adminMetricsRepository.findUnansweredQuestionPatterns(
-                org.mockito.ArgumentMatchers.eq("WB0001"),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 26)),
-                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 6, 1)),
-                org.mockito.ArgumentMatchers.any(Pageable.class)
-        )).thenReturn(new PageImpl<>(List.of()));
+        when(noResultQuestionPatternRepository.findByCompanyCodeAndAnalysisDate(
+                "WB0001",
+                LocalDate.of(2026, 6, 1)
+        )).thenReturn(Optional.empty());
 
         AdminDashboardResponse response = adminMetricsService.getDashboard(
                 principal,
@@ -170,8 +161,11 @@ class AdminMetricsServiceTest {
         assertThat(response.documentGapRate().companies()).hasSize(1);
         assertThat(response.unstartedUsers().companies()).hasSize(1);
         assertThat(response.unansweredQuestionPatterns().limit()).isEqualTo(5);
-        assertThat(response.unansweredQuestionPatterns().aiSummary().status()).isEqualTo("SKIPPED");
-        verifyNoInteractions(aiNoResultSummaryClient);
+        assertThat(response.unansweredQuestionPatterns().aiSummary().status()).isEqualTo("EMPTY");
+        verify(noResultQuestionPatternRepository).findByCompanyCodeAndAnalysisDate(
+                "WB0001",
+                LocalDate.of(2026, 6, 1)
+        );
     }
 
     @Test
@@ -246,51 +240,28 @@ class AdminMetricsServiceTest {
         return user;
     }
 
-    private AdminMetricsRepository.UnansweredQuestionPatternProjection pattern(
+    private NoResultQuestionPattern storedPattern(
             String companyCode,
-            String questionContent,
-            Long totalCount,
-            Long uniqueUsers,
-            Long noResultCount,
-            Long outOfScopeCount,
-            LocalDateTime latestOccurredAt
+            LocalDate analysisDate,
+            String topQuestions,
+            String aiStatus,
+            String aiSummary,
+            String improvementAreas,
+            boolean hasSensitive,
+            String errorMessage,
+            int sourceCount
     ) {
-        return new AdminMetricsRepository.UnansweredQuestionPatternProjection() {
-            @Override
-            public String getCompanyCode() {
-                return companyCode;
-            }
-
-            @Override
-            public String getQuestionContent() {
-                return questionContent;
-            }
-
-            @Override
-            public Long getTotalCount() {
-                return totalCount;
-            }
-
-            @Override
-            public Long getUniqueUsers() {
-                return uniqueUsers;
-            }
-
-            @Override
-            public Long getNoResultCount() {
-                return noResultCount;
-            }
-
-            @Override
-            public Long getOutOfScopeCount() {
-                return outOfScopeCount;
-            }
-
-            @Override
-            public LocalDateTime getLatestOccurredAt() {
-                return latestOccurredAt;
-            }
-        };
+        return new NoResultQuestionPattern(
+                companyCode,
+                analysisDate,
+                topQuestions,
+                aiStatus,
+                aiSummary,
+                improvementAreas,
+                hasSensitive,
+                errorMessage,
+                sourceCount
+        );
     }
 
     private AdminMetricsRepository.DocumentGapMetricProjection documentGapMetric(
