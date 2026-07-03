@@ -178,25 +178,7 @@ public class NoResultQuestionPatternBatchService {
             int sourceCount,
             String errorMessage
     ) {
-        NoResultQuestionPattern existing = noResultQuestionPatternRepository
-                .findByCompanyCodeAndAnalysisDate(companyCode, analysisDate)
-                .orElse(null);
-
-        if (existing == null) {
-            return upsert(companyCode, analysisDate, "[]", "FAILED", null, "[]", false, errorMessage, sourceCount);
-        }
-
-        return upsert(
-                companyCode,
-                analysisDate,
-                existing.getTopQuestions(),
-                "FAILED",
-                existing.getAiSummary(),
-                existing.getImprovementAreas(),
-                existing.isHasSensitive(),
-                errorMessage,
-                sourceCount
-        );
+        return upsert(companyCode, analysisDate, "[]", "FAILED", null, "[]", false, errorMessage, sourceCount);
     }
 
     private NoResultQuestionPattern upsert(
