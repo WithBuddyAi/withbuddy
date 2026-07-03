@@ -55,6 +55,7 @@ class OnboardingSuggestionServiceTest {
         when(company.getName()).thenReturn("WithBuddy");
         when(onboardingSuggestionRepository.findTopByDayOffset(1)).thenReturn(Optional.of(suggestion));
         when(suggestion.getId()).thenReturn(4L);
+        when(suggestion.getTitle()).thenReturn("d-day");
         when(suggestion.getContent()).thenReturn("{N}day onboarding guide");
         when(chatMessageService.findSuggestionMessage(1L, 4L)).thenReturn(null);
         when(chatMessageService.saveSuggestionMessageIfNotExists(1L, 4L, "2day onboarding guide")).thenReturn(savedMessage);
@@ -65,6 +66,7 @@ class OnboardingSuggestionServiceTest {
         assertThat(response.isCreated()).isTrue();
         assertThat(response.getMessageId()).isEqualTo(301L);
         assertThat(response.getSuggestionId()).isEqualTo(4L);
+        assertThat(response.getNudgeType()).isEqualTo("d-day");
     }
 
     @Test
@@ -83,6 +85,7 @@ class OnboardingSuggestionServiceTest {
         when(user.getHireDate()).thenReturn(LocalDate.now().minusDays(1));
         when(onboardingSuggestionRepository.findTopByDayOffset(1)).thenReturn(Optional.of(suggestion));
         when(suggestion.getId()).thenReturn(4L);
+        when(suggestion.getTitle()).thenReturn("d-day");
         when(chatMessageService.findSuggestionMessage(1L, 4L)).thenReturn(existing);
         when(existing.getId()).thenReturn(301L);
 
@@ -90,6 +93,7 @@ class OnboardingSuggestionServiceTest {
 
         assertThat(response.isCreated()).isFalse();
         assertThat(response.getMessageId()).isEqualTo(301L);
+        assertThat(response.getNudgeType()).isEqualTo("d-day");
         verify(chatMessageService, never()).saveSuggestionMessageIfNotExists(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
     }
 
@@ -112,5 +116,6 @@ class OnboardingSuggestionServiceTest {
         assertThat(response.isCreated()).isFalse();
         assertThat(response.getMessageId()).isNull();
         assertThat(response.getSuggestionId()).isNull();
+        assertThat(response.getNudgeType()).isNull();
     }
 }
