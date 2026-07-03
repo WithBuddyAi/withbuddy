@@ -61,6 +61,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -100,12 +101,14 @@ public class ChatMessageService {
 
         aiCallExecutor.execute(() -> {
             Long questionId = null;
+            AtomicReference<String> phase = new AtomicReference<>("stream_start");
             try {
                 Long loginUserId = principal.userId();
                 String loginUserName = principal.name();
                 String companyCode = principal.companyCode();
                 String hireDate = principal.hireDate();
 
+                phase.set("resolve_question_message");
                 SavedQuestionContext questionContext = transactionTemplate.execute(
                         status -> resolveQuestionMessage(loginUserId, request.getContent())
                 );
@@ -115,6 +118,7 @@ public class ChatMessageService {
 
                 ChatMessage savedQuestionMessage = questionContext.message();
                 questionId = savedQuestionMessage.getId();
+                phase.set("save_conversation_question");
                 if (questionContext.newlyCreated()) {
                     saveConversationQuestion(loginUserId, savedQuestionMessage.getContent());
                 } else {
@@ -127,9 +131,11 @@ public class ChatMessageService {
                         Collections.emptyMap(),
                         Collections.emptyMap()
                 );
+                phase.set("send_question_saved");
                 sendStreamEvent(emitter, "question_saved", new ChatStreamQuestionSavedResponse(questionResponse));
 
                 long aiStartedAt = System.currentTimeMillis();
+                phase.set("ai_stream_answer");
                 AiAnswerServerResponse aiResponse = aiStreamClient.streamAnswer(
                         questionId,
                         loginUserId,
@@ -147,8 +153,11 @@ public class ChatMessageService {
                         toRecommendedContactResponses(aiResponse.getRecommendedContacts());
                 String recommendedContactsJson = serializeRecommendedContacts(recommendedContacts);
                 Long savedQuestionId = questionId;
+                ChatMessage savedAnswerMessage = null;
 
-                ChatMessage savedAnswerMessage = transactionTemplate.execute(
+                try {
+                phase.set("save_answer_message_transaction");
+                savedAnswerMessage = transactionTemplate.execute(
                         status -> saveAnswerMessage(
                                 loginUserId,
                                 companyCode,
@@ -168,26 +177,41 @@ public class ChatMessageService {
 
                 Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
                 Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
+                phase.set("save_conversation_answer");
                 saveConversationAnswer(loginUserId, savedAnswerMessage.getContent());
 
+                phase.set("build_answer_response");
                 ChatMessageResponse answerResponse = toResponse(
                         savedAnswerMessage,
                         answerDocumentIds,
                         documentMap,
                         documentFileMap
                 );
+                phase.set("send_answer_completed");
                 sendStreamEvent(
                         emitter,
                         "answer_completed",
                         new ChatStreamAnswerCompletedResponse(questionId, answerResponse)
                 );
+                phase.set("complete_emitter");
                 emitter.complete();
+                } catch (Exception exception) {
+                    log.error(
+                            "answer_completed post-processing failed. questionId={}, answerType={}, answerMessageId={}, phase={}",
+                            questionId,
+                            answerMessageType,
+                            savedAnswerMessage == null ? null : savedAnswerMessage.getId(),
+                            phase.get(),
+                            exception
+                    );
+                    throw exception;
+                }
             } catch (AiTimeoutException exception) {
                 logAiErrorMetric("TIMEOUT", questionId, exception);
                 sendStreamError(emitter, "AI_TIMEOUT", "AI 답변 생성 시간이 초과되었습니다.", questionId);
             } catch (Exception exception) {
                 logAiErrorMetric(classifyAiErrorType(exception), questionId, exception);
-                log.error("SSE chat stream failed. questionId={}", questionId, exception);
+                log.error("SSE chat stream failed. questionId={}, phase={}", questionId, phase.get(), exception);
                 sendStreamError(emitter, "AI_STREAM_FAILED", "AI 답변 생성 중 오류가 발생했습니다.", questionId);
             }
         });
@@ -322,22 +346,35 @@ public class ChatMessageService {
         }
 
         String normalizedCompanyCode = normalizeCompanyCode(companyCode);
-        UnansweredQuestionLog savedLog = unansweredQuestionLogRepository.save(
-                UnansweredQuestionLog.builder()
-                        .userId(userId)
-                        .companyCode(normalizedCompanyCode)
-                        .questionMessageId(questionMessageId)
-                        .answerMessageId(savedAnswerMessage.getId())
-                        .questionContent(questionContent)
-                        .answerType(savedAnswerMessage.getMessageType())
-                        .latencyMs(latencyMs)
-                        .build()
-        );
-        log.info("Unanswered question log saved. logId={}, questionMessageId={}, answerMessageId={}, answerType={}",
-                savedLog.getId(),
-                questionMessageId,
-                savedAnswerMessage.getId(),
-                savedAnswerMessage.getMessageType());
+        try {
+            UnansweredQuestionLog savedLog = unansweredQuestionLogRepository.save(
+                    UnansweredQuestionLog.builder()
+                            .userId(userId)
+                            .companyCode(normalizedCompanyCode)
+                            .questionMessageId(questionMessageId)
+                            .answerMessageId(savedAnswerMessage.getId())
+                            .questionContent(questionContent)
+                            .answerType(savedAnswerMessage.getMessageType())
+                            .latencyMs(latencyMs)
+                            .build()
+            );
+            log.info("Unanswered question log saved. logId={}, questionMessageId={}, answerMessageId={}, answerType={}",
+                    savedLog.getId(),
+                    questionMessageId,
+                    savedAnswerMessage.getId(),
+                    savedAnswerMessage.getMessageType());
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Unanswered question log save failed. userId={}, companyCode={}, questionMessageId={}, answerMessageId={}, answerType={}",
+                    userId,
+                    normalizedCompanyCode,
+                    questionMessageId,
+                    savedAnswerMessage.getId(),
+                    savedAnswerMessage.getMessageType(),
+                    exception
+            );
+            throw exception;
+        }
     }
 
     Long resolveAnswerToMessageId(MessageType answerMessageType, Long savedQuestionId) {
