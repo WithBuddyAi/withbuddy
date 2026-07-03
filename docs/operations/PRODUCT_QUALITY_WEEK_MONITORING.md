@@ -19,6 +19,7 @@ Product Quality Week 기간 동안 위드버디 서버 상태를 모니터링하
 - 서비스 기동 표준: `withbuddy-backend.service`
 - 환경변수 파일: `/etc/withbuddy-backend.env`
 - 모니터링 표준: `Grafana Alerting + Prometheus + blackbox_exporter + Discord`
+- 시각적 live slot 지표: `withbuddy_active_slot{slot="blue|green"}`
 - 주기 점검 자동화: `.github/workflows/product-quality-monitor.yml`
 - 자동 운영 로그: `/home/ubuntu/withbuddy/logs/product-quality-monitor.log`
 
@@ -48,6 +49,7 @@ Product Quality Week 기간 동안 위드버디 서버 상태를 모니터링하
 - [ ] Grafana Discord 알림 채널과 alert history 접근 가능 여부 확인
 - [ ] GitHub Actions `Product Quality Monitor` 최근 실행이 성공인지 확인
 - [ ] `/home/ubuntu/withbuddy/logs/product-quality-monitor.log`에 최신 점검 로그가 누적되는지 확인
+- [ ] Prometheus `withbuddy_active_slot{slot="blue"}` / `{slot="green"}` 값이 `1/0` 또는 `0/1` 한 쌍으로 노출되는지 확인
 - [ ] 메모리 사용량, 디스크 사용량이 임계치 근처가 아닌지 확인
 - [ ] `journalctl -u withbuddy-backend.service` 최근 오류 급증 여부 확인
 
@@ -89,7 +91,15 @@ top -b -n 1 | head -30
 ```bash
 curl -fsS http://127.0.0.1:9090/-/healthy
 curl -fsS http://127.0.0.1:9090/-/ready
+curl -fsS "http://127.0.0.1:9090/api/v1/query?query=withbuddy_active_slot"
 tail -n 20 /home/ubuntu/withbuddy/logs/product-quality-monitor.log
+```
+
+Grafana 시각화 기준:
+
+```promql
+withbuddy_active_slot{slot="blue"}
+withbuddy_active_slot{slot="green"}
 ```
 
 ## 장애 유형별 1차 대응

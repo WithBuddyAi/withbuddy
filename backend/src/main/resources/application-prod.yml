@@ -38,6 +38,8 @@ ai:
     async-read-timeout-ms: ${AI_SERVER_ASYNC_READ_TIMEOUT_MS:15000}
 
 app:
+  monitoring:
+    active-slot-state-file: ${ACTIVE_SLOT_STATE_FILE:/home/ubuntu/withbuddy/active-slot-state.env}
   cache:
     env: ${APP_ENV:prod}
     key-prefix: ${APP_CACHE_KEY_PREFIX:ai}
