@@ -10,6 +10,7 @@ POST /clusters/no-result/questions
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date
 from typing import List, Optional
@@ -138,9 +139,13 @@ def _generate_summary(top_questions: List[TopQuestion]) -> AiSummary:
     try:
         resp = get_llm().invoke(prompt)
         content = resp.content.strip()
+        content = re.sub(r'^```(?:json)?\s*', '', content)
+        content = re.sub(r'\s*```$', '', content).strip()
         if not content:
             resp = get_llm().invoke(prompt)
             content = resp.content.strip()
+            content = re.sub(r'^```(?:json)?\s*', '', content)
+            content = re.sub(r'\s*```$', '', content).strip()
         data = json.loads(content)
         return AiSummary(
             status="READY",
