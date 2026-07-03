@@ -2,8 +2,8 @@
 
 > 신입사원 온보딩 AI 통합 비서 서비스
 
-**최종 업데이트**: 2026-04-11
-**버전**: 0.6.14
+**최종 업데이트**: 2026-07-02
+**버전**: 0.7.2
 **작성일**: 2026-03-27
 
 ---
@@ -37,9 +37,10 @@
 
 #### Backend Server (VCN-B 내부)
 - **위치**: Tenancy B VCN-B
+- **배포 방식**: Blue/Green 2슬롯
+- **스펙**: 각 슬롯 `VM.Standard.A1.Flex (2 OCPU / 12GB RAM)`
 - **포트**: 8080
 - **프로토콜**: HTTP (내부), HTTPS (외부)
-- **스케일링**: 수평 확장 가능
 
 #### AI Server (VCN-A 내부)
 - **위치**: Tenancy A VCN-A (다른 테넌시)
@@ -48,21 +49,30 @@
 - **통신**: Backend ↔ AI (LPG 기반 Private 통신)
 
 #### Database Server (VCN-B 내부)
-- **위치**: Tenancy B VCN-B
-- **포트**: 3306(MySQL), 6379(Redis), 5672(RabbitMQ)
-- **접근**: Private IP만 허용
-- **백업**: 자동 백업 스케줄링
-- **구성**: DB 서버 1대에 MySQL + Redis + RabbitMQ 공용 설치
-- **역할 분리**:
-  - Redis: 채팅/간단 액션 응답 캐시, 레이트리밋, 토큰 블랙리스트
-  - RabbitMQ: 주간 회고/리포트/재인덱싱/알림 비동기 처리
+- **형태**: OCI Managed MySQL DB System
+- **버전**: 9.7.0
+- **포트**: 3306
+- **모드**: Read/Write
+- **복구**: Crash Recovery Enabled
+
+#### Redis Server (VCN-B 내부)
+- **형태**: Oracle Cloud Compute
+- **스펙**: `VM.Standard.E2.1.Micro`
+- **포트**: 6379
+- **역할**: 채팅/간단 액션 응답 캐시, 레이트리밋, 토큰 블랙리스트
+
+#### RabbitMQ Server (VCN-B 내부)
+- **형태**: Oracle Cloud Compute
+- **스펙**: `VM.Standard.E2.1.Micro`
+- **포트**: 5672 / 15672
+- **역할**: 주간 회고/리포트/재인덱싱/알림 비동기 처리
 
 ### 1.3 프로젝트 식별자
 
 | 구분 | 디렉토리 | 프로젝트명 | 식별자/패키지 | 기본 포트 |
 |------|----------|------------|---------------|-----------|
 | Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
-| Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| Frontend | `frontend/` | frontend | `VITE_*` env 사용 | 5173 |
 | AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
 
 ---
@@ -72,35 +82,35 @@
 ### 2.1 Frontend
 
 ```yaml
-Framework: React 18
-Build Tool: Vite
-Language: JavaScript (ES6+)
-State Management: Context API (JWT는 localStorage 저장, MVP)
-Routing: React Router v6
+Framework: React 19
+Build Tool: Vite 8
+Language: JavaScript (ES Modules)
+Routing: React Router DOM 7
 HTTP Client: Axios
 Styling: Tailwind CSS
-UI Components: 
-  - Headless UI (추천)
-  - Radix UI (추천)
-Form Handling: React Hook Form (추천)
-Validation: Zod (추천)
-Date Handling: date-fns / day.js
-Charts: Recharts (추천)
-Icons: Lucide React / Heroicons
+Form Handling: React Hook Form
+Date Handling: date-fns
+Markdown Rendering: react-markdown
+Bot Protection: Cloudflare Turnstile
 ```
 
 ### 2.2 Backend
 
 ```yaml
-Framework: Spring Boot 3.5+
+Framework: Spring Boot 3.5.13
 Language: Java 21
 Build Tool: Gradle
 Security: Spring Security + JWT
-ORM: Spring Data JPA (Hibernate)
-Database: MySQL 8.0
-API Documentation: SpringDoc OpenAPI (Swagger)
-Validation: Spring Validation
-Logging: SLF4J + Logback
+ORM: Spring Data JPA
+Migration: Flyway
+Database: OCI MySQL DB System 9.7.0
+Cache:
+  - Spring Cache
+  - Redis
+  - Caffeine (L1)
+Messaging: Spring AMQP + RabbitMQ
+API Documentation: SpringDoc OpenAPI
+Metrics: Actuator + Prometheus Registry
 ```
 
 ### 2.3 AI Service
@@ -124,7 +134,7 @@ AI Provider: Anthropic Claude API (MVP)
 Vector DB: 
   - ChromaDB (서버 내장, 파일 기반)
 Graph DB: Neo4j (지식 그래프, 선택)
-RDBMS: MySQL 8.0 (메타데이터)
+RDBMS: OCI MySQL DB System 9.7.0 (메타데이터)
 NoSQL: Redis (캐싱)
 
 MVP:
@@ -151,14 +161,19 @@ Cache: Redis
 ### 2.4 Infrastructure
 
 ```yaml
-Cloud Provider: Oracle Cloud
+Cloud Provider: Oracle Cloud Infrastructure
 Network: VCN x2 (Tenancy 분리) + Local VCN Peering (LPG)
 Storage: OCI Block Volume + OCI Object Storage
 Cache: Redis
 Messaging System: RabbitMQ
 Domain: Cloudflare
 Frontend Hosting: Vercel
-SSL/TLS: Let's Encrypt / Cloudflare SSL
+Database:
+  - OCI MySQL DB System 9.7.0
+Deployment:
+  - Backend: JAR + systemd + blue/green
+  - Redis: VM.Standard.E2.1.Micro
+  - RabbitMQ: VM.Standard.E2.1.Micro
 ```
 
 ### 2.5 DevOps & Tools
@@ -199,7 +214,7 @@ Messaging Layer:
 ```
 
 운영 원칙:
-- 사용자 대화 원본은 MySQL(`chat_messages`)에 저장한다.
+- 사용자 대화 원본은 OCI MySQL DB System(`chat_messages`)에 저장한다.
 - Redis는 응답 성능 최적화를 담당하고, RabbitMQ는 메시징 시스템으로서 작업 전달/처리 보장을 담당한다.
 - 즉시 응답이 필요한 API 경로와 비동기 백그라운드 경로를 분리한다.
 
@@ -436,6 +451,7 @@ POST   /api/v1/records/{id}/summary       # AI 요약 생성
 
 ## 변경 이력
 
+- 2026-07-02: 운영 DB를 OCI Managed MySQL DB System 9.7.0으로 정정하고, Backend blue/green A1.Flex 2 OCPU / 12GB x2, Redis E2.1.Micro, RabbitMQ E2.1.Micro 분리 구성을 반영.
 - 2026-04-09: 인프라 기술 스택 표기를 OCI 기준으로 정리하고, 스토리지와 로깅 항목의 클라우드 혼합 표현을 제거.
 - 2026-04-06: API 설계를 현재 운영(MVP)과 목표(Planned)로 분리하고, 운영 API는 `API.md`, 목표 API는 `PLANNED_API.md`를 참조하도록 정리.
 - 2026-04-02: 문서 링크 경로와 서버 구성 표기를 현재 파일 구조 기준으로 정리.- 

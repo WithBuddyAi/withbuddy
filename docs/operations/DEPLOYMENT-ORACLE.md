@@ -2,8 +2,8 @@
 
 > WithBuddy Oracle Cloud 배포 완벽 가이드
 
-**최종 업데이트**: 2026-04-11
-**버전**: 0.6.0
+**최종 업데이트**: 2026-07-02
+**버전**: 0.6.2
 **작성일**: 2026-03-27
 
 ## 목차
@@ -12,7 +12,7 @@
 - [VCN 및 네트워크 설정](#vcn-및-네트워크-설정)
 - [Backend 배포](#backend-배포-oracle-compute)
 - [AI 서버 배포](#ai-서버-배포-oracle-compute)
-- [MySQL 배포](#mysql-배포-oracle-compute)
+- [MySQL 배포](#mysql-배포-oci-managed-db-system)
 - [Frontend 배포](#frontend-배포-vercel)
 - [GitHub Actions 설정](#github-actions-설정)
 
@@ -45,7 +45,8 @@ Frontend:
 Backend Server (Tenancy B):
    - Provider: Oracle Cloud Compute
    - OS: Canonical Ubuntu 24.04
-   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
+   - Topology: Blue/Green
+   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM) per slot
    - IP: 공인 IP 할당
    - Port: 8080 (Spring Boot)
 
@@ -56,12 +57,25 @@ AI Server (Tenancy A):
    - IP: Private IP 권장
    - Port: 8000 (FastAPI)
 
-MySQL/Redis/RMQ Server (Tenancy B):
-   - Provider: Oracle Cloud Compute
-   - OS: Canonical Ubuntu 24.04
-   - Shape: VM.Standard.A1.Flex (2 OCPU / 12GB RAM)
-   - IP: Private IP만 사용 (VCN 내부)
+MySQL DB System (Tenancy B):
+   - Provider: OCI Managed MySQL DB System
+   - Version: 9.7.0
+   - Access: Private endpoint / VCN 내부 접근
+   - Mode: Read/write
+   - Crash Recovery: Enabled
    - Port: 3306
+
+Redis Server (Tenancy B):
+   - Provider: Oracle Cloud Compute
+   - Shape: VM.Standard.E2.1.Micro
+   - Access: Private IP only
+   - Port: 6379
+
+RabbitMQ Server (Tenancy B):
+   - Provider: Oracle Cloud Compute
+   - Shape: VM.Standard.E2.1.Micro
+   - Access: Private IP only
+   - Port: 5672 / 15672
 
 ```
 
@@ -69,14 +83,23 @@ MySQL/Redis/RMQ Server (Tenancy B):
 
 ## Oracle Cloud 리소스 생성
 
-### 1. 컴퓨트 인스턴스 생성 (3개, 테넌시 분리)
+### 1. 컴퓨트 인스턴스 생성 (5개 리소스, 테넌시 분리)
 
-**Backend 인스턴스 (Tenancy B)**
+**Backend Blue 인스턴스 (Tenancy B)**
 ```
-Name: withbuddy-backend
+Name: <BACKEND_BLUE_NAME>
 Image: Canonical Ubuntu 24.04
 Shape: VM.Standard.A1.Flex (2 OCPU / 12GB)
 Network: 공인 IP 할당
+Boot Volume: 50GB
+```
+
+**Backend Green 인스턴스 (Tenancy B)**
+```
+Name: <BACKEND_GREEN_NAME>
+Image: Canonical Ubuntu 24.04
+Shape: VM.Standard.A1.Flex (2 OCPU / 12GB)
+Network: 공인 IP 할당 또는 내부 전환 경로 기준
 Boot Volume: 50GB
 ```
 
@@ -89,12 +112,31 @@ Network: Private IP 권장 (Public IP는 운영자만 제한)
 Boot Volume: 50GB
 ```
 
-**MySQL(Redis/RMQ) 인스턴스 (Tenancy B)**
+**MySQL DB System (Tenancy B)**
 ```
-Name: withbuddy-mysql
+Name: <MYSQL_DB_SYSTEM_NAME>
+Type: OCI MySQL DB System
+Version: 9.7.0
+Network: Private endpoint only
+Mode: Read/write
+Crash Recovery: Enabled
+```
+
+**Redis 인스턴스 (Tenancy B)**
+```
+Name: <REDIS_SERVER_NAME>
 Image: Canonical Ubuntu 24.04
-Shape: VM.Standard.A1.Flex (2 OCPU / 12GB)
-Network: Private IP만 (공인 IP 미할당)
+Shape: VM.Standard.E2.1.Micro
+Network: Private IP only
+Boot Volume: 50GB
+```
+
+**RabbitMQ 인스턴스 (Tenancy B)**
+```
+Name: <RABBITMQ_SERVER_NAME>
+Image: Canonical Ubuntu 24.04
+Shape: VM.Standard.E2.1.Micro
+Network: Private IP only
 Boot Volume: 50GB
 ```
 
@@ -141,7 +183,12 @@ VCN-B Public Subnet:
 VCN-B Private DB Subnet:
   Name: withbuddy-private-subnet
   CIDR: 10.0.3.0/24
-  Purpose: MySQL/Redis/RMQ
+  Purpose: MySQL DB System
+
+VCN-B Private Cache/MQ Subnet:
+  Name: withbuddy-cachemq-subnet
+  CIDR: 10.0.4.0/24
+  Purpose: Redis / RabbitMQ
 
 VCN-A Private AI Subnet:
   Name: withbuddy-ai-subnet
@@ -332,70 +379,55 @@ sudo ufw enable
 
 ---
 
-## MySQL 배포 (Oracle Compute)
+## MySQL 배포 (OCI Managed DB System)
 
-### 1. 서버 접속
-```bash
-# Public Subnet의 Backend 서버를 통해 접속
-ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
-ssh ubuntu@<MYSQL_PRIVATE_IP>
+### 1. DB System 생성 기준
+```yaml
+Engine: OCI MySQL DB System
+Version: 9.7.0
+Access Mode: All users
+Database Mode: Read/write
+Crash Recovery: Enabled
+Network: Private subnet in VCN-B
+Resource Name: <MYSQL_DB_SYSTEM_NAME>
+OCID: <MYSQL_DB_SYSTEM_OCID>
 ```
 
-### 2. MySQL 설치
-```bash
-sudo apt update
-sudo apt install mysql-server -y
+### 2. 네트워크 연결
+```text
+Backend -> <DB_PRIVATE_IP>:3306
 ```
 
-### 3. MySQL 보안 설정
+- Backend에서 DB System private endpoint로만 접속한다.
+- 공개 문서에는 실제 private IP, OCID, 엔드포인트를 적지 않는다.
+- 허용 포트는 `3306/TCP` 이다.
+
+### 3. 애플리케이션 연결 설정
 ```bash
-sudo mysql_secure_installation
+SPRING_DB_URL=jdbc:mysql://<DB_PRIVATE_IP>:3306/withbuddy?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+SPRING_DB_USERNAME=<DB_USERNAME>
+SPRING_DB_PASSWORD=<DB_PASSWORD>
+SPRING_DB_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
 ```
 
-### 4. 데이터베이스 및 사용자 생성
-```bash
-sudo mysql
+### 4. 스키마 반영
 
-CREATE DATABASE withbuddy CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'withbuddy'@'%' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON withbuddy.* TO 'withbuddy'@'%';
-FLUSH PRIVILEGES;
-EXIT;
-```
+- Backend 기동 시 Flyway가 마이그레이션을 적용한다.
+- 수동 DDL보다 애플리케이션 배포 경로를 우선한다.
 
-### 5. 외부 접속 허용 설정
+### 5. 백업/복구
 
-**/etc/mysql/mysql.conf.d/mysqld.cnf**
-```ini
-[mysqld]
-bind-address = 0.0.0.0
-```
+- 백업과 복구는 OCI MySQL DB System 관리 기능을 사용한다.
+- 운영 전환, 대규모 마이그레이션, 데이터 정리 전에는 수동 백업 정책을 별도로 적용한다.
+
+예시 명령:
 
 ```bash
-sudo systemctl restart mysql
-```
+oci mysql db-system get \
+  --db-system-id <MYSQL_DB_SYSTEM_OCID>
 
-### 6. 자동 백업 스크립트
-
-**/home/ubuntu/backup-mysql.sh**
-```bash
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/home/ubuntu/mysql-backups"
-mkdir -p $BACKUP_DIR
-
-mysqldump -u withbuddy -p'your_password' withbuddy | gzip > $BACKUP_DIR/withbuddy_$DATE.sql.gz
-
-# 7일 이상 된 백업 삭제
-find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete
-```
-
-```bash
-chmod +x /home/ubuntu/backup-mysql.sh
-
-# cron 등록 (매일 새벽 3시)
-crontab -e
-0 3 * * * /home/ubuntu/backup-mysql.sh
+oci mysql backup list \
+  --compartment-id <COMPARTMENT_OCID>
 ```
 
 ---
@@ -406,7 +438,7 @@ crontab -e
 ```bash
 # Public Subnet의 Backend 서버를 통해 접속
 ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
-ssh ubuntu@<MYSQL_PRIVATE_IP>  # MySQL과 동일 DB 서버
+ssh ubuntu@<REDIS_PRIVATE_IP>
 ```
 
 ### 2. Redis 설치
@@ -460,7 +492,7 @@ redis-cli -a CHANGE_ME_REDIS_PASSWORD info memory
 ```bash
 # Public Subnet의 Backend 서버를 통해 접속
 ssh -i ~/.ssh/withbuddy_oracle ubuntu@<BACKEND_PUBLIC_IP>
-ssh ubuntu@<MYSQL_PRIVATE_IP>  # MySQL/Redis와 동일 DB 서버
+ssh ubuntu@<RABBITMQ_PRIVATE_IP>
 ```
 
 ### 2. RabbitMQ 설치
@@ -848,6 +880,7 @@ Vercel (Hobby):
 
 ## 변경 이력
 
+- 2026-07-02: 운영 DB를 OCI Managed MySQL DB System 9.7.0으로 정정하고, Backend blue/green A1.Flex 2 OCPU / 12GB x2, Redis E2.1.Micro, RabbitMQ E2.1.Micro 분리 구성을 반영.
 - 2026-04-09: 실제 장애 복구 결과를 반영해 shared-subnet 운영 시 필수 내부 egress(3306/6379/5672) 주의사항을 추가.
 - 2026-04-07: Backend 운영 표준을 `withbuddy-backend.service` 단일 기동으로 고정하고, `pkill`/`nohup` 기반 재기동 금지 원칙을 명시.
 - 2026-04-06: Backend 배포 섹션에서 `/etc/systemd/system/withbuddy.service` 필수 표기를 제거하고, 현재 CI/CD 기본(`java -jar`) 및 선택 systemd 서비스명(`withbuddy-backend.service`) 기준으로 정리.
