@@ -137,7 +137,11 @@ def _generate_summary(top_questions: List[TopQuestion]) -> AiSummary:
 
     try:
         resp = get_llm().invoke(prompt)
-        data = json.loads(resp.content.strip())
+        content = resp.content.strip()
+        if not content:
+            resp = get_llm().invoke(prompt)
+            content = resp.content.strip()
+        data = json.loads(content)
         return AiSummary(
             status="READY",
             summary=data.get("summary", ""),
