@@ -4,6 +4,7 @@ import com.withbuddy.admin.metrics.docs.AdminMetricsControllerDocs;
 import com.withbuddy.admin.metrics.dto.response.AdminDashboardResponse;
 import com.withbuddy.admin.metrics.dto.response.FirstInteractionRateResponse;
 import com.withbuddy.admin.metrics.dto.response.InternalAdminDashboardResponse;
+import com.withbuddy.admin.metrics.dto.response.NoResultQuestionPatternRefreshResponse;
 import com.withbuddy.admin.metrics.dto.response.RagExperienceRateResponse;
 import com.withbuddy.admin.metrics.dto.response.RevisitRateResponse;
 import com.withbuddy.admin.metrics.dto.response.TtaResponse;
@@ -17,6 +18,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -118,5 +120,22 @@ public class AdminMetricsController implements AdminMetricsControllerDocs {
     ) {
         JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
         return ResponseEntity.ok(adminMetricsService.getUnansweredQuestionPatterns(principal, companyCode, asOfDate, limit));
+    }
+
+    @Override
+    @PostMapping("/unanswered-question-patterns/refresh")
+    public ResponseEntity<NoResultQuestionPatternRefreshResponse> refreshUnansweredQuestionPatterns(
+            Authentication authentication,
+            @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate analysisDate,
+            @RequestParam(required = false) Integer topN
+    ) {
+        JwtAuthenticationPrincipal principal = AuthenticationPrincipalResolver.requireJwtPrincipal(authentication);
+        return ResponseEntity.ok(adminMetricsService.refreshUnansweredQuestionPatterns(
+                principal,
+                companyCode,
+                analysisDate,
+                topN
+        ));
     }
 }

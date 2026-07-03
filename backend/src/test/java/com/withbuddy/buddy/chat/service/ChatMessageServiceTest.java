@@ -9,7 +9,6 @@ import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.buddy.chat.repository.UnansweredQuestionLogRepository;
 import com.withbuddy.buddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.account.auth.repository.UserRepository;
-import com.withbuddy.infrastructure.ai.client.AiQuestionEmbeddingClient;
 import com.withbuddy.infrastructure.ai.client.AiStreamClient;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -49,8 +48,6 @@ class ChatMessageServiceTest {
     private DocumentFileRepository documentFileRepository;
     @Mock
     private AiStreamClient aiStreamClient;
-    @Mock
-    private AiQuestionEmbeddingClient aiQuestionEmbeddingClient;
     @Mock
     private RedisCacheService redisCacheService;
     @Mock
@@ -150,7 +147,7 @@ class ChatMessageServiceTest {
     }
 
     @Test
-    void savesNoResultLogWithQuestionEmbedding() throws Exception {
+    void savesNoResultLogWithoutQuestionEmbedding() {
         Long userId = 1L;
         Long questionMessageId = 201L;
         ChatMessage savedAnswer = new ChatMessage(
@@ -166,13 +163,6 @@ class ChatMessageServiceTest {
         ReflectionTestUtils.setField(savedAnswer, "id", 302L);
 
         when(chatMessageRepository.save(any(ChatMessage.class))).thenReturn(savedAnswer);
-        when(aiQuestionEmbeddingClient.embedQuestion("ACME", "복지 포인트는 어디서 확인해?"))
-                .thenReturn(new AiQuestionEmbeddingClient.QuestionEmbeddingResponse(
-                        "models/gemini-embedding-2",
-                        2,
-                        List.of(0.1, 0.2)
-                ));
-        when(objectMapper.writeValueAsString(List.of(0.1, 0.2))).thenReturn("[0.1,0.2]");
         when(unansweredQuestionLogRepository.save(any(UnansweredQuestionLog.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -190,7 +180,6 @@ class ChatMessageServiceTest {
         );
 
         ArgumentCaptor<UnansweredQuestionLog> logCaptor = ArgumentCaptor.forClass(UnansweredQuestionLog.class);
-        verify(aiQuestionEmbeddingClient).embedQuestion("ACME", "복지 포인트는 어디서 확인해?");
         verify(unansweredQuestionLogRepository).save(logCaptor.capture());
 
         UnansweredQuestionLog savedLog = logCaptor.getValue();
@@ -202,8 +191,5 @@ class ChatMessageServiceTest {
         assertThat(savedLog.getQuestionContent()).isEqualTo("복지 포인트는 어디서 확인해?");
         assertThat(savedLog.getAnswerType()).isEqualTo(MessageType.no_result);
         assertThat(savedLog.getLatencyMs()).isEqualTo(123L);
-        assertThat(savedLog.getEmbeddingModel()).isEqualTo("models/gemini-embedding-2");
-        assertThat(savedLog.getEmbeddingDimension()).isEqualTo(2);
-        assertThat(savedLog.getEmbeddingVector()).isEqualTo("[0.1,0.2]");
     }
 }
