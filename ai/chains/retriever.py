@@ -106,6 +106,25 @@ def _expand_query(question: str) -> str:
     return q + " " + " ".join(extras) if extras else q
 
 
+_FOLLOWUP_INDICATORS = [
+    "나와있는데", "나와 있는데", "어떻게 나와", "어디서", "어디에 나와",
+    "거기서", "그 법에", "그 내용", "그거", "그게",
+    "더 알려줘", "자세히", "좀 더", "구체적으로",
+    "어떤 조", "몇 조", "조항", "몇 항", "조문",
+    "그럼 거기", "그 규정", "그 기준", "그 조건",
+]
+
+
+def _rewrite_with_history(question: str, chat_history: List[BaseMessage]) -> str:
+    """후속 질문이면 직전 사용자 질문 키워드를 붙여 검색 쿼리 보강."""
+    if not any(kw in question for kw in _FOLLOWUP_INDICATORS):
+        return question
+    prev_user = next((m.content for m in reversed(chat_history) if m.type == "human"), "")
+    if not prev_user or prev_user == question:
+        return question
+    return f"{prev_user} {question}"
+
+
 def _generate_search_variants(question: str) -> list[str]:
     """Haiku로 검색 쿼리 변형 2개 생성 — 문서 표현과 다른 표현 간 격차 보완. 실패 시 빈 리스트."""
     try:
@@ -438,7 +457,8 @@ def retrieve(
         )
 
     pre_onboarding_only = (account_status == "PRE")
-    docs, _ = _do_search(question, company_code, pre_onboarding_only)
+    search_q = _rewrite_with_history(question, chat_history)
+    docs, _ = _do_search(search_q, company_code, pre_onboarding_only)
     template_ids, template_titles = match_template_docs(company_code, question)
     _tmpl_set = set(template_ids)
     _rag_ids = [
@@ -490,8 +510,9 @@ async def async_retrieve(
         )
 
     pre_onboarding_only = (account_status == "PRE")
+    search_q = _rewrite_with_history(question, chat_history)
     loop = asyncio.get_event_loop()
-    docs, _ = await loop.run_in_executor(None, lambda: _do_search(question, company_code, pre_onboarding_only))
+    docs, _ = await loop.run_in_executor(None, lambda: _do_search(search_q, company_code, pre_onboarding_only))
     template_ids, template_titles = match_template_docs(company_code, question)
     _tmpl_set = set(template_ids)
     _rag_ids = [
