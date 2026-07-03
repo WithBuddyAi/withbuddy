@@ -4,6 +4,8 @@ import { Link, RotateCw, Phone, Bold } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import bot from "../assets/Bot_icon.svg";
 import confetti from "../assets/confetti.svg";
+import { trackEvent } from "../utils/tracking";
+import { useUser } from "../contexts/UserContext";
 
 function MessageList({
   messageList,
@@ -15,6 +17,7 @@ function MessageList({
   handleDownload,
   lastUserMessageRef,
 }) {
+  const { accountStatus } = useUser();
   const lastUserIndex = [...messageList]
     .map((m) => m.senderType)
     .lastIndexOf("USER");
@@ -133,9 +136,7 @@ function MessageList({
                       <ReactMarkdown
                         components={{
                           ul: ({ children }) => (
-                            <ul className="list-disc pl-[16px]">
-                              {children}
-                            </ul>
+                            <ul className="list-disc pl-[16px]">{children}</ul>
                           ),
                           ol: ({ children }) => (
                             <ol className="list-decimal pl-[16px]">
@@ -235,7 +236,22 @@ function MessageList({
                       {message.quickTaps.map((tap) => (
                         <button
                           key={tap.eventTarget}
-                          onClick={() => handleSubmit(null, tap.content)}
+                          onClick={() => {
+                            // GA4 사용자 트래킹용 이벤트
+                            trackEvent("nudge_suggestion_click", {
+                              button_text: tap.buttonText,
+                              nudge_type: message.nudgeType || "unknown",
+                              account_status: accountStatus,
+                            });
+                            // input_method를 "nudge"로 전달
+                            handleSubmit(
+                              null,
+                              tap.content,
+                              tap.eventTarget,
+                              "nudge",
+                              tap.buttonText,
+                            );
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") e.preventDefault();
                           }}

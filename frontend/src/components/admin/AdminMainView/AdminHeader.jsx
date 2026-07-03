@@ -1,4 +1,18 @@
+import { trackEvent } from "../../../utils/tracking";
+import { useUser } from "../../../contexts/UserContext";
+
 function AdminHeader({ handleViewChange }) {
+  const { companyCode } = useUser();
+
+  // GA4 사용자 트래킹용 이벤트
+  const handleCreateClick = () => {
+    trackEvent("employee_create_start", {
+      user_role: "admin",
+      company_code: companyCode,
+    });
+    handleViewChange("new");
+  };
+
   return (
     <div className="flex flex-col md:flex-row items-start md:items-center justify-between my-[14px]">
       <div className="mb-[10px] md:mb-[16px]">
@@ -13,7 +27,7 @@ function AdminHeader({ handleViewChange }) {
       </div>
 
       <button
-        onClick={() => handleViewChange("new")}
+        onClick={handleCreateClick}
         className="shrink-0 whitespace-nowrap bg-[#4791CA] border-[0.5px] border-[#DEE2E6] text-[#FFFFFF] hover:bg-[#336B97] text-[12px] w-[115px] p-[8px] md:text-[14px] md:w-[131px] md:p-[12px] rounded-[8px]"
       >
         + 계정 생성하기
