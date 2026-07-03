@@ -1581,9 +1581,11 @@ jobs:
           TARGET_UPSTREAM_CONF: ${{ steps.traffic_switch_config.outputs.traffic_switch_target_upstream_conf }}
           PREVIOUS_UPSTREAM_CONF: ${{ steps.traffic_switch_config.outputs.traffic_switch_previous_upstream_conf }}
           TRAFFIC_SWITCH_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.traffic_switch_host }}
-          TRAFFIC_SWITCH_COMPARE_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_compare_host }}
+          TRAFFIC_SWITCH_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_access_host }}
+          TRAFFIC_SWITCH_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.traffic_switch_server_host }}
           TARGET_BACKEND_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.target_backend_host }}
-          LIVE_BACKEND_COMPARE_HOST: ${{ steps.traffic_switch_config.outputs.live_backend_compare_host }}
+          LIVE_BACKEND_ACCESS_HOST: ${{ steps.traffic_switch_config.outputs.live_backend_access_host }}
+          LIVE_BACKEND_SERVER_HOST: ${{ steps.traffic_switch_config.outputs.live_backend_server_host }}
           LIVE_BACKEND_SSH_HOST: ${{ steps.traffic_switch_ssh.outputs.live_backend_host }}
         run: |
           set -euo pipefail
@@ -1617,7 +1619,8 @@ jobs:
               return 0
             fi
             if [ "${INGRESS_MODE}" = "slot_cloudflare" ] || [ "${INGRESS_MODE}" = "hybrid" ]; then
-              if [ "${LIVE_BACKEND_COMPARE_HOST}" = "${TRAFFIC_SWITCH_COMPARE_HOST}" ]; then
+              if { [ -n "${LIVE_BACKEND_ACCESS_HOST:-}" ] && [ "${LIVE_BACKEND_ACCESS_HOST}" = "${TRAFFIC_SWITCH_ACCESS_HOST:-}" ]; } \
+                || { [ -n "${LIVE_BACKEND_SERVER_HOST:-}" ] && [ "${LIVE_BACKEND_SERVER_HOST}" = "${TRAFFIC_SWITCH_SERVER_HOST:-}" ]; }; then
                 echo "Live backend host is also the router host. Skipping public tunnel stop to avoid disabling router ingress."
                 return 0
               fi
