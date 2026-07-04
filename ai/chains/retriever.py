@@ -151,6 +151,7 @@ _LEGAL_KEYWORDS = [
     "출산휴가", "배우자출산휴가", "육아기단축근무", "가족돌봄휴직",
     "휴게시간", "휴식시간",
     "급여명세서", "임금명세서",
+    "연차", "유급휴가", "연차휴가",
 ]
 _ARTICLE_PATTERN_LEGAL = re.compile(r"제?\d+조")
 _ARTICLE_PATTERN = re.compile(r'제\s*\d+\s*[조절장]')
