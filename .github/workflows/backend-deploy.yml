@@ -5,17 +5,21 @@ on:
   workflow_dispatch:
     inputs:
       target_slot:
-        description: "Deploy target slot (must be the non-live slot)"
-        required: true
+        description: "Deploy target slot (`auto` picks the non-live slot)"
+        required: false
         type: choice
+        default: auto
         options:
+          - auto
           - blue
           - green
       live_slot:
-        description: "Current live slot receiving production traffic"
-        required: true
+        description: "Current live slot receiving production traffic (`auto` detects from router)"
+        required: false
         type: choice
+        default: auto
         options:
+          - auto
           - blue
           - green
       switch_traffic:
@@ -33,6 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
+    outputs:
+      target_slot: ${{ steps.slot_selection.outputs.target_slot }}
+      live_slot: ${{ steps.slot_selection.outputs.live_slot }}
 
     steps:
       - name: Branch guard
@@ -42,8 +49,8 @@ jobs:
           if [ "${GITHUB_REF}" = "refs/heads/main" ] && [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             echo "Production deploy enabled for ${GITHUB_REF}"
-            echo "target_slot=${{ github.event.inputs.target_slot }}" >> "$GITHUB_OUTPUT"
-            echo "live_slot=${{ github.event.inputs.live_slot }}" >> "$GITHUB_OUTPUT"
+            echo "target_slot_input=${{ github.event.inputs.target_slot }}" >> "$GITHUB_OUTPUT"
+            echo "live_slot_input=${{ github.event.inputs.live_slot }}" >> "$GITHUB_OUTPUT"
             echo "switch_traffic=${{ github.event.inputs.switch_traffic }}" >> "$GITHUB_OUTPUT"
           else
             echo "should_deploy=false" >> "$GITHUB_OUTPUT"
@@ -51,94 +58,6 @@ jobs:
             echo "Use main branch for production deployment."
             echo "Current ref: ${GITHUB_REF}"
           fi
-
-      - name: Print deployment target
-        if: steps.branch_guard.outputs.should_deploy == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          case "${{ steps.branch_guard.outputs.target_slot }}" in
-            blue|green)
-              echo "Deploying backend to slot=${{ steps.branch_guard.outputs.target_slot }}"
-              echo "Current live slot=${{ steps.branch_guard.outputs.live_slot }}"
-              echo "Traffic switch requested=${{ steps.branch_guard.outputs.switch_traffic }}"
-              echo "GitHub environment=production"
-              ;;
-            *)
-              echo "Invalid target_slot: ${{ steps.branch_guard.outputs.target_slot }}"
-              exit 1
-              ;;
-          esac
-
-          case "${{ steps.branch_guard.outputs.live_slot }}" in
-            blue|green)
-              ;;
-            *)
-              echo "Invalid live_slot: ${{ steps.branch_guard.outputs.live_slot }}"
-              exit 1
-              ;;
-          esac
-
-          if [ "${{ steps.branch_guard.outputs.target_slot }}" = "${{ steps.branch_guard.outputs.live_slot }}" ]; then
-            echo "target_slot and live_slot must be different for blue/green deployment."
-            exit 1
-          fi
-
-      - name: Resolve slot-specific deploy settings
-        if: steps.branch_guard.outputs.should_deploy == 'true'
-        id: slot_config
-        env:
-          BLUE_BACKEND_ACCESS_HOST: ${{ secrets.BLUE_BACKEND_ACCESS_HOST }}
-          GREEN_BACKEND_ACCESS_HOST: ${{ secrets.GREEN_BACKEND_ACCESS_HOST }}
-          BLUE_BACKEND_SERVER_HOST: ${{ secrets.BLUE_BACKEND_SERVER_HOST }}
-          GREEN_BACKEND_SERVER_HOST: ${{ secrets.GREEN_BACKEND_SERVER_HOST }}
-          BLUE_BACKEND_SERVER_SSH_KEY: ${{ secrets.BLUE_BACKEND_SERVER_SSH_KEY }}
-          GREEN_BACKEND_SERVER_SSH_KEY: ${{ secrets.GREEN_BACKEND_SERVER_SSH_KEY }}
-          BLUE_BACKEND_HEALTH_URL: ${{ secrets.BLUE_BACKEND_HEALTH_URL }}
-          GREEN_BACKEND_HEALTH_URL: ${{ secrets.GREEN_BACKEND_HEALTH_URL }}
-          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          DEFAULT_BACKEND_HEALTH_URL="http://127.0.0.1:8080/actuator/health/liveness"
-
-          SLOT="${{ steps.branch_guard.outputs.target_slot }}"
-          case "${SLOT}" in
-            blue)
-              ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
-              SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
-              SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
-              HEALTH_URL="${BLUE_BACKEND_HEALTH_URL:-${BACKEND_HEALTH_URL:-${DEFAULT_BACKEND_HEALTH_URL}}}"
-              ;;
-            green)
-              ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
-              SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
-              SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
-              HEALTH_URL="${GREEN_BACKEND_HEALTH_URL:-${BACKEND_HEALTH_URL:-${DEFAULT_BACKEND_HEALTH_URL}}}"
-              ;;
-            *)
-              echo "Unsupported target slot: ${SLOT}"
-              exit 1
-              ;;
-          esac
-
-          if [ -z "${SERVER_HOST}" ]; then
-            echo "Slot ${SLOT} is missing *_BACKEND_SERVER_HOST"
-            exit 1
-          fi
-          if [ -z "${SSH_KEY}" ]; then
-            echo "Slot ${SLOT} is missing *_BACKEND_SERVER_SSH_KEY"
-            exit 1
-          fi
-
-          echo "backend_access_host=${ACCESS_HOST}" >> "$GITHUB_OUTPUT"
-          echo "backend_server_host=${SERVER_HOST}" >> "$GITHUB_OUTPUT"
-          echo "backend_health_url=${HEALTH_URL}" >> "$GITHUB_OUTPUT"
-          {
-            echo "backend_server_ssh_key<<__SSHKEY__"
-            printf '%s\n' "${SSH_KEY}"
-            echo "__SSHKEY__"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Resolve live slot validation settings
         if: steps.branch_guard.outputs.should_deploy == 'true'
@@ -184,6 +103,218 @@ jobs:
             echo "__ROUTER_VALIDATION_SSHKEY__"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Install cloudflared client on runner
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        env:
+          ROUTER_ACCESS_HOST: ${{ steps.live_slot_validation.outputs.router_access_host }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ROUTER_ACCESS_HOST:-}" ]; then
+            echo "No router Cloudflare Access host configured. Skipping early cloudflared installation."
+            exit 0
+          fi
+          sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Resolve effective blue/green slots
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        id: slot_selection
+        env:
+          TARGET_SLOT_INPUT: ${{ steps.branch_guard.outputs.target_slot_input }}
+          LIVE_SLOT_INPUT: ${{ steps.branch_guard.outputs.live_slot_input }}
+          ROUTER_ACCESS_HOST: ${{ steps.live_slot_validation.outputs.router_access_host }}
+          ROUTER_SERVER_HOST: ${{ steps.live_slot_validation.outputs.router_server_host }}
+          ROUTER_SSH_KEY: ${{ steps.live_slot_validation.outputs.router_ssh_key }}
+          ROUTER_ACTIVE_UPSTREAM_LINK: ${{ steps.live_slot_validation.outputs.router_active_upstream_link }}
+          ROUTER_BLUE_UPSTREAM_CONF: ${{ steps.live_slot_validation.outputs.router_blue_upstream_conf }}
+          ROUTER_GREEN_UPSTREAM_CONF: ${{ steps.live_slot_validation.outputs.router_green_upstream_conf }}
+          BACKEND_SERVER_USER: ${{ secrets.BACKEND_SERVER_USER }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          cat > ~/.ssh/router_validation_key <<'KEY_EOF'
+          ${{ steps.live_slot_validation.outputs.router_ssh_key }}
+          KEY_EOF
+          chmod 600 ~/.ssh/router_validation_key
+
+          if [ -n "${ROUTER_ACCESS_HOST:-}" ]; then
+            if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+              echo "Cloudflare Access router host configured, but CF_ACCESS_CLIENT_ID/SECRET missing."
+              exit 1
+            fi
+            cat > ~/.ssh/config <<EOF
+          Host router-selection
+            HostName ${ROUTER_ACCESS_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/router_validation_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+            ProxyCommand cloudflared access ssh --hostname %h --id ${CF_ACCESS_CLIENT_ID} --secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+          else
+            cat > ~/.ssh/config <<EOF
+          Host router-selection
+            HostName ${ROUTER_SERVER_HOST}
+            User ${BACKEND_SERVER_USER}
+            Port 22
+            IdentityFile ~/.ssh/router_validation_key
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ServerAliveInterval 30
+          EOF
+          fi
+          chmod 600 ~/.ssh/config
+
+          printf -v ACTIVE_UPSTREAM_LINK_Q '%q' "${ROUTER_ACTIVE_UPSTREAM_LINK}"
+          printf -v BLUE_UPSTREAM_CONF_Q '%q' "${ROUTER_BLUE_UPSTREAM_CONF}"
+          printf -v GREEN_UPSTREAM_CONF_Q '%q' "${ROUTER_GREEN_UPSTREAM_CONF}"
+
+          CURRENT_LIVE_SLOT="$(
+            ssh router-selection \
+              "ACTIVE_UPSTREAM_LINK=${ACTIVE_UPSTREAM_LINK_Q} BLUE_UPSTREAM_CONF=${BLUE_UPSTREAM_CONF_Q} GREEN_UPSTREAM_CONF=${GREEN_UPSTREAM_CONF_Q} bash -s" <<'REMOTE_EOF'
+            set -euo pipefail
+
+            if ! sudo test -e "${ACTIVE_UPSTREAM_LINK}"; then
+              echo "Missing active upstream file: ${ACTIVE_UPSTREAM_LINK}" >&2
+              exit 1
+            fi
+            if ! sudo test -f "${BLUE_UPSTREAM_CONF}" || ! sudo test -f "${GREEN_UPSTREAM_CONF}"; then
+              echo "Missing blue/green upstream reference files." >&2
+              exit 1
+            fi
+
+            ACTIVE_REALPATH="$(sudo readlink -f "${ACTIVE_UPSTREAM_LINK}" 2>/dev/null || true)"
+
+            if [ -n "${ACTIVE_REALPATH}" ] && [ "${ACTIVE_REALPATH}" = "${BLUE_UPSTREAM_CONF}" ]; then
+              echo blue
+            elif [ -n "${ACTIVE_REALPATH}" ] && [ "${ACTIVE_REALPATH}" = "${GREEN_UPSTREAM_CONF}" ]; then
+              echo green
+            elif sudo cmp -s "${ACTIVE_UPSTREAM_LINK}" "${BLUE_UPSTREAM_CONF}"; then
+              echo blue
+            elif sudo cmp -s "${ACTIVE_UPSTREAM_LINK}" "${GREEN_UPSTREAM_CONF}"; then
+              echo green
+            else
+              echo "Unable to determine current live slot from ${ACTIVE_UPSTREAM_LINK}" >&2
+              exit 1
+            fi
+          REMOTE_EOF
+          )"
+
+          INPUT_LIVE="${LIVE_SLOT_INPUT:-auto}"
+          INPUT_TARGET="${TARGET_SLOT_INPUT:-auto}"
+
+          case "${INPUT_LIVE}" in
+            ""|auto)
+              LIVE_SLOT="${CURRENT_LIVE_SLOT}"
+              ;;
+            blue|green)
+              LIVE_SLOT="${INPUT_LIVE}"
+              ;;
+            *)
+              echo "Invalid live_slot input: ${INPUT_LIVE}"
+              exit 1
+              ;;
+          esac
+
+          case "${INPUT_TARGET}" in
+            ""|auto)
+              if [ "${LIVE_SLOT}" = "blue" ]; then
+                TARGET_SLOT="green"
+              else
+                TARGET_SLOT="blue"
+              fi
+              ;;
+            blue|green)
+              TARGET_SLOT="${INPUT_TARGET}"
+              ;;
+            *)
+              echo "Invalid target_slot input: ${INPUT_TARGET}"
+              exit 1
+              ;;
+          esac
+
+          if [ "${LIVE_SLOT}" = "${TARGET_SLOT}" ]; then
+            echo "target_slot and live_slot must be different for blue/green deployment."
+            exit 1
+          fi
+
+          echo "current_live_slot=${CURRENT_LIVE_SLOT}" >> "$GITHUB_OUTPUT"
+          echo "live_slot=${LIVE_SLOT}" >> "$GITHUB_OUTPUT"
+          echo "target_slot=${TARGET_SLOT}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve slot-specific deploy settings
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        id: slot_config
+        env:
+          BLUE_BACKEND_ACCESS_HOST: ${{ secrets.BLUE_BACKEND_ACCESS_HOST }}
+          GREEN_BACKEND_ACCESS_HOST: ${{ secrets.GREEN_BACKEND_ACCESS_HOST }}
+          BLUE_BACKEND_SERVER_HOST: ${{ secrets.BLUE_BACKEND_SERVER_HOST }}
+          GREEN_BACKEND_SERVER_HOST: ${{ secrets.GREEN_BACKEND_SERVER_HOST }}
+          BLUE_BACKEND_SERVER_SSH_KEY: ${{ secrets.BLUE_BACKEND_SERVER_SSH_KEY }}
+          GREEN_BACKEND_SERVER_SSH_KEY: ${{ secrets.GREEN_BACKEND_SERVER_SSH_KEY }}
+          BLUE_BACKEND_HEALTH_URL: ${{ secrets.BLUE_BACKEND_HEALTH_URL }}
+          GREEN_BACKEND_HEALTH_URL: ${{ secrets.GREEN_BACKEND_HEALTH_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEFAULT_BACKEND_HEALTH_URL="http://127.0.0.1:8080/actuator/health/liveness"
+
+          SLOT="${{ steps.slot_selection.outputs.target_slot }}"
+          case "${SLOT}" in
+            blue)
+              ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
+              SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
+              SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
+              HEALTH_URL="${BLUE_BACKEND_HEALTH_URL:-${DEFAULT_BACKEND_HEALTH_URL}}"
+              ;;
+            green)
+              ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
+              SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
+              SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
+              HEALTH_URL="${GREEN_BACKEND_HEALTH_URL:-${DEFAULT_BACKEND_HEALTH_URL}}"
+              ;;
+            *)
+              echo "Unsupported target slot: ${SLOT}"
+              exit 1
+              ;;
+          esac
+
+          if [ -z "${SERVER_HOST}" ]; then
+            echo "Slot ${SLOT} is missing *_BACKEND_SERVER_HOST"
+            exit 1
+          fi
+          if [ -z "${SSH_KEY}" ]; then
+            echo "Slot ${SLOT} is missing *_BACKEND_SERVER_SSH_KEY"
+            exit 1
+          fi
+
+          echo "backend_access_host=${ACCESS_HOST}" >> "$GITHUB_OUTPUT"
+          echo "backend_server_host=${SERVER_HOST}" >> "$GITHUB_OUTPUT"
+          echo "backend_health_url=${HEALTH_URL}" >> "$GITHUB_OUTPUT"
+          {
+            echo "backend_server_ssh_key<<__SSHKEY__"
+            printf '%s\n' "${SSH_KEY}"
+            echo "__SSHKEY__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Print deployment target
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Deploying backend to slot=${{ steps.slot_selection.outputs.target_slot }}"
+          echo "Current live slot=${{ steps.slot_selection.outputs.live_slot }}"
+          echo "Router detected live slot=${{ steps.slot_selection.outputs.current_live_slot }}"
+          echo "Traffic switch requested=${{ steps.branch_guard.outputs.switch_traffic }}"
+          echo "GitHub environment=production"
       - name: Checkout
         if: steps.branch_guard.outputs.should_deploy == 'true'
         uses: actions/checkout@v4
@@ -431,6 +562,10 @@ jobs:
           set -euo pipefail
           if [ -z "${BACKEND_ACCESS_HOST:-}" ] && [ -z "${ROUTER_ACCESS_HOST:-}" ]; then
             echo "No Cloudflare Access hosts configured. Skipping cloudflared installation."
+            exit 0
+          fi
+          if command -v cloudflared >/dev/null 2>&1; then
+            cloudflared --version
             exit 0
           fi
           sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
