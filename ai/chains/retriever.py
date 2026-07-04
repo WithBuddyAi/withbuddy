@@ -152,6 +152,7 @@ _LEGAL_KEYWORDS = [
     "휴게시간", "휴식시간",
     "급여명세서", "임금명세서",
     "연차", "유급휴가", "연차휴가",
+    "퇴사", "월차", "권고사직", "해고예고",
 ]
 _ARTICLE_PATTERN_LEGAL = re.compile(r"제?\d+조")
 _ARTICLE_PATTERN = re.compile(r'제\s*\d+\s*[조절장]')
