@@ -103,6 +103,19 @@ jobs:
             echo "__ROUTER_VALIDATION_SSHKEY__"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Install cloudflared client on runner
+        if: steps.branch_guard.outputs.should_deploy == 'true'
+        env:
+          ROUTER_ACCESS_HOST: ${{ steps.live_slot_validation.outputs.router_access_host }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ROUTER_ACCESS_HOST:-}" ]; then
+            echo "No router Cloudflare Access host configured. Skipping early cloudflared installation."
+            exit 0
+          fi
+          sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
       - name: Resolve effective blue/green slots
         if: steps.branch_guard.outputs.should_deploy == 'true'
         id: slot_selection
@@ -301,7 +314,6 @@ jobs:
           echo "Router detected live slot=${{ steps.slot_selection.outputs.current_live_slot }}"
           echo "Traffic switch requested=${{ steps.branch_guard.outputs.switch_traffic }}"
           echo "GitHub environment=production"
-
       - name: Checkout
         if: steps.branch_guard.outputs.should_deploy == 'true'
         uses: actions/checkout@v4
@@ -546,6 +558,10 @@ jobs:
           set -euo pipefail
           if [ -z "${BACKEND_ACCESS_HOST:-}" ] && [ -z "${ROUTER_ACCESS_HOST:-}" ]; then
             echo "No Cloudflare Access hosts configured. Skipping cloudflared installation."
+            exit 0
+          fi
+          if command -v cloudflared >/dev/null 2>&1; then
+            cloudflared --version
             exit 0
           fi
           sudo curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
