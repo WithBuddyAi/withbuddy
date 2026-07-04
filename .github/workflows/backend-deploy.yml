@@ -5,17 +5,21 @@ on:
   workflow_dispatch:
     inputs:
       target_slot:
-        description: "Deploy target slot (must be the non-live slot)"
-        required: true
+        description: "Deploy target slot (`auto` picks the non-live slot)"
+        required: false
         type: choice
+        default: auto
         options:
+          - auto
           - blue
           - green
       live_slot:
-        description: "Current live slot receiving production traffic"
-        required: true
+        description: "Current live slot receiving production traffic (`auto` detects from router)"
+        required: false
         type: choice
+        default: auto
         options:
+          - auto
           - blue
           - green
       switch_traffic:
@@ -33,6 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
+    outputs:
+      target_slot: ${{ steps.slot_selection.outputs.target_slot }}
+      live_slot: ${{ steps.slot_selection.outputs.live_slot }}
 
     steps:
       - name: Branch guard
@@ -42,8 +49,8 @@ jobs:
           if [ "${GITHUB_REF}" = "refs/heads/main" ] && [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             echo "Production deploy enabled for ${GITHUB_REF}"
-            echo "target_slot=${{ github.event.inputs.target_slot }}" >> "$GITHUB_OUTPUT"
-            echo "live_slot=${{ github.event.inputs.live_slot }}" >> "$GITHUB_OUTPUT"
+            echo "target_slot_input=${{ github.event.inputs.target_slot }}" >> "$GITHUB_OUTPUT"
+            echo "live_slot_input=${{ github.event.inputs.live_slot }}" >> "$GITHUB_OUTPUT"
             echo "switch_traffic=${{ github.event.inputs.switch_traffic }}" >> "$GITHUB_OUTPUT"
           else
             echo "should_deploy=false" >> "$GITHUB_OUTPUT"
@@ -51,94 +58,6 @@ jobs:
             echo "Use main branch for production deployment."
             echo "Current ref: ${GITHUB_REF}"
           fi
-
-      - name: Print deployment target
-        if: steps.branch_guard.outputs.should_deploy == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          case "${{ steps.branch_guard.outputs.target_slot }}" in
-            blue|green)
-              echo "Deploying backend to slot=${{ steps.branch_guard.outputs.target_slot }}"
-              echo "Current live slot=${{ steps.branch_guard.outputs.live_slot }}"
-              echo "Traffic switch requested=${{ steps.branch_guard.outputs.switch_traffic }}"
-              echo "GitHub environment=production"
-              ;;
-            *)
-              echo "Invalid target_slot: ${{ steps.branch_guard.outputs.target_slot }}"
-              exit 1
-              ;;
-          esac
-
-          case "${{ steps.branch_guard.outputs.live_slot }}" in
-            blue|green)
-              ;;
-            *)
-              echo "Invalid live_slot: ${{ steps.branch_guard.outputs.live_slot }}"
-              exit 1
-              ;;
-          esac
-
-          if [ "${{ steps.branch_guard.outputs.target_slot }}" = "${{ steps.branch_guard.outputs.live_slot }}" ]; then
-            echo "target_slot and live_slot must be different for blue/green deployment."
-            exit 1
-          fi
-
-      - name: Resolve slot-specific deploy settings
-        if: steps.branch_guard.outputs.should_deploy == 'true'
-        id: slot_config
-        env:
-          BLUE_BACKEND_ACCESS_HOST: ${{ secrets.BLUE_BACKEND_ACCESS_HOST }}
-          GREEN_BACKEND_ACCESS_HOST: ${{ secrets.GREEN_BACKEND_ACCESS_HOST }}
-          BLUE_BACKEND_SERVER_HOST: ${{ secrets.BLUE_BACKEND_SERVER_HOST }}
-          GREEN_BACKEND_SERVER_HOST: ${{ secrets.GREEN_BACKEND_SERVER_HOST }}
-          BLUE_BACKEND_SERVER_SSH_KEY: ${{ secrets.BLUE_BACKEND_SERVER_SSH_KEY }}
-          GREEN_BACKEND_SERVER_SSH_KEY: ${{ secrets.GREEN_BACKEND_SERVER_SSH_KEY }}
-          BLUE_BACKEND_HEALTH_URL: ${{ secrets.BLUE_BACKEND_HEALTH_URL }}
-          GREEN_BACKEND_HEALTH_URL: ${{ secrets.GREEN_BACKEND_HEALTH_URL }}
-          BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          DEFAULT_BACKEND_HEALTH_URL="http://127.0.0.1:8080/actuator/health/liveness"
-
-          SLOT="${{ steps.branch_guard.outputs.target_slot }}"
-          case "${SLOT}" in
-            blue)
-              ACCESS_HOST="${BLUE_BACKEND_ACCESS_HOST:-}"
-              SERVER_HOST="${BLUE_BACKEND_SERVER_HOST:-}"
-              SSH_KEY="${BLUE_BACKEND_SERVER_SSH_KEY:-}"
-              HEALTH_URL="${BLUE_BACKEND_HEALTH_URL:-${BACKEND_HEALTH_URL:-${DEFAULT_BACKEND_HEALTH_URL}}}"
-              ;;
-            green)
-              ACCESS_HOST="${GREEN_BACKEND_ACCESS_HOST:-}"
-              SERVER_HOST="${GREEN_BACKEND_SERVER_HOST:-}"
-              SSH_KEY="${GREEN_BACKEND_SERVER_SSH_KEY:-}"
-              HEALTH_URL="${GREEN_BACKEND_HEALTH_URL:-${BACKEND_HEALTH_URL:-${DEFAULT_BACKEND_HEALTH_URL}}}"
-              ;;
-            *)
-              echo "Unsupported target slot: ${SLOT}"
-              exit 1
-              ;;
-          esac
-
-          if [ -z "${SERVER_HOST}" ]; then
-            echo "Slot ${SLOT} is missing *_BACKEND_SERVER_HOST"
-            exit 1
-          fi
-          if [ -z "${SSH_KEY}" ]; then
-            echo "Slot ${SLOT} is missing *_BACKEND_SERVER_SSH_KEY"
-            exit 1
-          fi
-
-          echo "backend_access_host=${ACCESS_HOST}" >> "$GITHUB_OUTPUT"
-          echo "backend_server_host=${SERVER_HOST}" >> "$GITHUB_OUTPUT"
-          echo "backend_health_url=${HEALTH_URL}" >> "$GITHUB_OUTPUT"
-          {
-            echo "backend_server_ssh_key<<__SSHKEY__"
-            printf '%s\n' "${SSH_KEY}"
-            echo "__SSHKEY__"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Resolve live slot validation settings
         if: steps.branch_guard.outputs.should_deploy == 'true'
@@ -184,8 +103,6 @@ jobs:
             echo "__ROUTER_VALIDATION_SSHKEY__"
           } >> "$GITHUB_OUTPUT"
 
-<<<<<<< Updated upstream
-=======
       - name: Install cloudflared client on runner
         if: steps.branch_guard.outputs.should_deploy == 'true'
         env:
@@ -398,8 +315,6 @@ jobs:
           echo "Router detected live slot=${{ steps.slot_selection.outputs.current_live_slot }}"
           echo "Traffic switch requested=${{ steps.branch_guard.outputs.switch_traffic }}"
           echo "GitHub environment=production"
-
->>>>>>> Stashed changes
       - name: Checkout
         if: steps.branch_guard.outputs.should_deploy == 'true'
         uses: actions/checkout@v4
