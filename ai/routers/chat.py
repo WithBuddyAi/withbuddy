@@ -286,9 +286,11 @@ def _build_documents(doc_ids: list[int], company_code: str = "") -> list[dict]:
     return result
 
 
+_NO_RESULT_DETECT = "아직 이 질문에 답할 수 있는"  # _NO_RESULT_TEMPLATE 식별용 — 정상 답변에 나올 수 없는 고유 문구
+
 _NO_RESULT_KW = [
     "문서에서 확인되지", "관련 정보를 찾을 수 없", "확인되지 않습니다", "답변하기 어렵",
-    "안내가 없습니다", "내용이 없습니다", "보유한 문서에는", "문서에는",
+    "안내가 없습니다", "내용이 없습니다", "보유한 문서에는",
     "찾을 수 없습니다", "찾을 수 없었어요", "찾을 수 없어요", "찾을 수 없어",
     "포함되어 있지 않", "정보가 없", "찾지 못했어요",
     "알 수 없어요", "알 수 없습니다", "확인이 어렵", "파악이 어렵",
@@ -904,7 +906,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                             full_answer = "".join(accumulated)
                             if any(kw in full_answer for kw in _OUT_OF_SCOPE_KW):
                                 msg_type = "out_of_scope"
-                            elif any(kw in full_answer for kw in _NO_RESULT_KW):
+                            elif _NO_RESULT_DETECT in full_answer:
                                 msg_type = "no_result"
                             else:
                                 msg_type = "rag_answer"
@@ -964,7 +966,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                         else:
                             accumulated.append(chunk)
                             if chunk.strip():
-                                if not _suppress_delta and any(kw in chunk for kw in _NO_RESULT_KW):
+                                if not _suppress_delta and _NO_RESULT_DETECT in "".join(accumulated):
                                     _suppress_delta = True
                                 if not _suppress_delta:
                                     yield _delta(chunk)
