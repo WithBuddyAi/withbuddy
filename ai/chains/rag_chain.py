@@ -468,9 +468,9 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     if (company_code and result.docs and not is_unanswered(fixed, result.docs)
             and all(d.metadata.get("company_code", "") == "" for d in result.docs)):
         case_a_msg = build_case_a_suffix(hr_team)
-        if not _high_risk:
-            yield case_a_msg, None, None, None
         fixed += case_a_msg
+        if not _high_risk:
+            yield "\x00" + fixed, None, None, None
 
     if is_unanswered(fixed, result.docs):
         fixed = _NO_RESULT_TEMPLATE
