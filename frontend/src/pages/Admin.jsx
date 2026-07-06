@@ -215,7 +215,6 @@ function Admin({ user, setUser }) {
                 onUploadDuplicate={() => setIsDuplicateModal(true)}
               />
             )}
-            {view === "unanswered" && <div>미답변 질문 준비 중</div>}
           </div>
         </div>
       </div>
