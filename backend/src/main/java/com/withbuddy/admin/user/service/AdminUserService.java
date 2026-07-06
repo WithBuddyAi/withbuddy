@@ -111,6 +111,7 @@ public class AdminUserService {
                     normalizedEmployeeNumber,
                     request.getHireDate()
             ));
+            UserLifecycleStatusResolver.sync(user, clock);
         } catch (DataIntegrityViolationException e) {
             if (isDuplicateEmployeeNumberConstraint(e)) {
                 throw new DuplicateEmployeeNumberException();
@@ -152,6 +153,7 @@ public class AdminUserService {
                 companyCode,
                 List.of(UserRole.USER),
                 List.of(UserAccountStatus.ACTIVE),
+                List.of(UserAccountStatus.PRE),
                 List.of(UserAccountStatus.READ_ONLY),
                 List.of(UserAccountStatus.INACTIVE),
                 normalizeFilter(department, "department"),
