@@ -226,8 +226,10 @@ public class ChatMessageService {
         if (user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.INACTIVE) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "비활성 사용자는 질문을 전송할 수 없습니다.");
         }
-        boolean activeUser = user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.ACTIVE;
-        if (!activeUser && user.getRole() != UserRole.SERVICE_ADMIN) {
+        boolean writableUser = user.getRole() == UserRole.USER
+                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
+                || user.getAccountStatus() == UserAccountStatus.PRE);
+        if (!writableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "질문 전송 권한이 없습니다.");
         }
     }

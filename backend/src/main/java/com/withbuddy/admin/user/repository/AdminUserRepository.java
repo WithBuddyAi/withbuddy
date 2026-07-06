@@ -31,9 +31,10 @@ public interface AdminUserRepository extends JpaRepository<User, Long> {
               case when :sortBy is null then
                 case
                   when u.accountStatus in :activeStatuses then 0
-                  when u.accountStatus in :readOnlyStatuses then 1
-                  when u.accountStatus in :inactiveStatuses then 2
-                  else 3
+                  when u.accountStatus in :preStatuses then 1
+                  when u.accountStatus in :readOnlyStatuses then 2
+                  when u.accountStatus in :inactiveStatuses then 3
+                  else 4
                 end
               end asc,
               case when :sortBy is null then u.employeeNumber end asc,
@@ -48,6 +49,7 @@ public interface AdminUserRepository extends JpaRepository<User, Long> {
             @Param("companyCode") String companyCode,
             @Param("roles") Collection<UserRole> roles,
             @Param("activeStatuses") Collection<UserAccountStatus> activeStatuses,
+            @Param("preStatuses") Collection<UserAccountStatus> preStatuses,
             @Param("readOnlyStatuses") Collection<UserAccountStatus> readOnlyStatuses,
             @Param("inactiveStatuses") Collection<UserAccountStatus> inactiveStatuses,
             @Param("department") String department,

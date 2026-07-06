@@ -215,6 +215,7 @@ public class ChatMessageQueryService {
         User user = findUser(userId);
         boolean readableUser = user.getRole() == UserRole.USER
                 && (user.getAccountStatus() == UserAccountStatus.ACTIVE
+                || user.getAccountStatus() == UserAccountStatus.PRE
                 || user.getAccountStatus() == UserAccountStatus.READ_ONLY);
         if (!readableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "접근 권한이 없습니다.");
@@ -223,7 +224,10 @@ public class ChatMessageQueryService {
     }
 
     private boolean canExposeQuickTaps(User user) {
-        return (user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.ACTIVE) || user.getRole() == UserRole.SERVICE_ADMIN;
+        return (user.getRole() == UserRole.USER
+                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
+                || user.getAccountStatus() == UserAccountStatus.PRE))
+                || user.getRole() == UserRole.SERVICE_ADMIN;
     }
 
     private void requireChatDocumentDownloadAllowed(Long userId) {

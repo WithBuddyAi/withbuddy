@@ -33,8 +33,10 @@ public class OnboardingSuggestionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        boolean activeUser = user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.ACTIVE;
-        if (!activeUser && user.getRole() != UserRole.SERVICE_ADMIN) {
+        boolean onboardingUser = user.getRole() == UserRole.USER
+                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
+                || user.getAccountStatus() == UserAccountStatus.PRE);
+        if (!onboardingUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 온보딩 제안을 노출할 수 없습니다.");
         }
 
