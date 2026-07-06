@@ -51,6 +51,7 @@ def _get_dedup_llm():
 def _fix_names(text: str) -> str:
     """'님 -' → '님:' 통일 및 어색한 문장 교체."""
     text = re.sub(r'님\s*[-–]', '님:', text)
+    text = re.sub(r'(?<![가-힣A-Za-z0-9])님의\s', '담당자의 ', text)
     text = re.sub(r'어떤 부분이 필요한지에 따라 연락하[^\n\.\!]*[\.\!]?', '필요한 부분 확인 후 연락해보세요!', text)
     text = re.sub(r'(\d+)~(\d+)영업일', r'영업일 기준 \1일~\2일', text)
     text = text.replace("다만 참고로,", "참고로,").replace("다만 참고로", "참고로")

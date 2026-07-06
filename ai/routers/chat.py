@@ -363,7 +363,7 @@ async def _handle_composite(request: InternalAIAnswerRequest, parts: list[str]) 
             from langchain_core.messages import HumanMessage, AIMessage
             injected_history = [
                 HumanMessage(content=t.content) if t.role == "user" else AIMessage(content=t.content)
-                for t in request.conversationHistory
+                for t in request.conversationHistory[-10:]
             ]
         try:
             async with asyncio.timeout(40):
@@ -619,7 +619,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
     injected_history = None
     if request.conversationHistory:
         injected_history = []
-        for turn in request.conversationHistory:
+        for turn in request.conversationHistory[-10:]:
             if turn.role == "user":
                 injected_history.append(HumanMessage(content=turn.content))
             else:
@@ -885,7 +885,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
             if request.conversationHistory:
                 injected_history = [
                     HumanMessage(content=t.content) if t.role == "user" else AIMessage(content=t.content)
-                    for t in request.conversationHistory
+                    for t in request.conversationHistory[-10:]
                 ]
 
             # ── 7. RAG 스트리밍 ───────────────────────────────────────
