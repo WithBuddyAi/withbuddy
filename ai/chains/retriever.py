@@ -108,10 +108,6 @@ def _expand_query(question: str) -> str:
     for term, expansion in _QUERY_EXPANSIONS:
         if term in q:
             extras.append(expansion)
-    for canonical, synonyms in _SYNONYMS.items():
-        all_terms = [canonical] + synonyms
-        if any(t in q for t in all_terms):
-            extras.extend(t for t in all_terms if t not in q)
     return q + " " + " ".join(extras) if extras else q
 
 
