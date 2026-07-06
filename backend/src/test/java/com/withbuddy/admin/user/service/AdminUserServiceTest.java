@@ -133,6 +133,7 @@ class AdminUserServiceTest {
                 org.mockito.ArgumentMatchers.eq("WB0001"),
                 org.mockito.ArgumentMatchers.eq(List.of(UserRole.USER)),
                 org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.ACTIVE)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.PRE)),
                 org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.READ_ONLY)),
                 org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.INACTIVE)),
                 org.mockito.ArgumentMatchers.isNull(),

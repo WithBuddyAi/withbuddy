@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.3.2
-**최종 업데이트**: 2026-07-03
+**버전**: 2.3.3
+**최종 업데이트**: 2026-07-06
 
 ---
 
@@ -97,7 +97,8 @@ AI 서버 연동은 별도 AI 서버 base URL을 사용하며, 현재 스트리�
 
 `/api/v1/admin` 하위 경로는 관리자 성격의 API를 모아둔다.
 
-- `USER`는 신입 사용자 역할이다. 신입 사용자의 이용 가능 상태는 `users.account_status`(`ACTIVE`, `READ_ONLY`, `INACTIVE`)로 구분한다.
+- `USER`는 신입 사용자 역할이다. 신입 사용자의 이용 가능 상태는 `users.account_status`(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)로 구분한다.
+- `PRE`는 입사일 7일 전부터 1일 전까지의 사전 온보딩 계정 상태다. 입사일 8일 전 이전에는 `INACTIVE`로 처리하고, 입사일이 되면 자동으로 `ACTIVE`로 전환한다.
 - `ACTIVE`는 활성 계정 상태다. `USER`는 질문 전송 API, 빠른 질문, Buddy Nudge 질문 유도와 기존 기록 조회를 사용할 수 있고, `ADMIN`은 관리자 기능을 사용할 수 있다.
 - `READ_ONLY`는 `USER` 계정의 조회 전용 상태다. 질문 전송 API(`POST /api/v1/chat/messages/stream`), 빠른 질문, Buddy Nudge 질문 유도는 사용할 수 없지만 기존 대화 기록과 기존 답변 출처는 조회할 수 있다.
 - `INACTIVE`는 `USER` 계정의 이용 제한 상태다. 로그인은 허용하되 이용 기간 종료 안내 화면을 표시하며 MyBuddy 조회·질문 기능은 사용할 수 없다.
@@ -119,7 +120,7 @@ AI 서버 연동은 별도 AI 서버 base URL을 사용하며, 현재 스트리�
 |---|---|------|---|
 | `companies.probation_period` | Number | `90` | 신입 사용자(`users.role = USER`)가 `account_status = ACTIVE` 상태로 사용할 수 있는 회사별 수습 기간. 회사 정책에 따라 유동적으로 설정할 수 있다. |
 
-신입 사용자 계정 상태 전환은 `users.hire_date`와 소속 회사의 `companies.probation_period`를 기준으로 계산한다. 수습 기간 종료 후에는 30일간 `account_status = READ_ONLY` 상태를 유지하고, 그 이후에는 `account_status = INACTIVE` 상태로 전환한다.
+신입 사용자 계정 상태 전환은 `users.hire_date`와 소속 회사의 `companies.probation_period`를 기준으로 계산한다. 입사일 8일 전 이전에는 `account_status = INACTIVE`, 입사일 7일 전부터 1일 전까지는 `account_status = PRE` 상태를 사용하고, 입사일 당일부터 `ACTIVE`로 전환한다. 수습 기간 종료 후에는 30일간 `account_status = READ_ONLY` 상태를 유지하고, 그 이후에는 `account_status = INACTIVE` 상태로 전환한다.
 
 ### 공통 헤더
 
@@ -334,10 +335,10 @@ Content-Type: application/json
 - 동일 계정 또는 동일 클라이언트 기준으로 로그인 실패가 반복되어 일시 잠금 상태가 되면 `429 Too Many Requests`, `LOGIN_RATE_LIMITED`를 반환하고 `Retry-After` 헤더를 포함한다.
 - 서버는 입력된 `companyCode`로 `companies`를 조회한다.
 - 서버는 조회된 `company_code`와 사용자 이름, 사번을 기준으로 `users`에서 사용자를 확인한다.
-- 서버는 `USER` 역할 사용자의 `hireDate`와 회사의 `companies.probation_period`를 기준으로 현재 계정 상태(`ACTIVE`, `READ_ONLY`, `INACTIVE`)를 계산하거나 `users.account_status`에 갱신한다.
+- 서버는 `USER` 역할 사용자의 `hireDate`와 회사의 `companies.probation_period`를 기준으로 현재 계정 상태(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)를 계산하거나 `users.account_status`에 갱신한다.
 - 일치하는 사용자가 존재하면 로그인에 성공하고 `accessToken`을 발급한다.
-- 로그인 성공 응답의 `user.role`에는 사용자 역할(`USER`, `ADMIN`, `SERVICE_ADMIN`)을 반환하고, `user.accountStatus`에는 로그인 시점 기준으로 확정된 계정 상태(`ACTIVE`, `READ_ONLY`, `INACTIVE`)를 반환한다.
-- 프론트엔드는 `user.role`과 `user.accountStatus` 값을 함께 사용해 `USER + ACTIVE`, `USER + READ_ONLY`, `SERVICE_ADMIN`은 MyBuddy 화면으로, `USER + INACTIVE`는 이용 기간 종료 안내 화면으로, `ADMIN + ACTIVE`는 관리자 계정 페이지로 분기할 수 있다.
+- 로그인 성공 응답의 `user.role`에는 사용자 역할(`USER`, `ADMIN`, `SERVICE_ADMIN`)을 반환하고, `user.accountStatus`에는 로그인 시점 기준으로 확정된 계정 상태(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)를 반환한다.
+- 프론트엔드는 `user.role`과 `user.accountStatus` 값을 함께 사용해 `USER + PRE`, `USER + ACTIVE`, `USER + READ_ONLY`, `SERVICE_ADMIN`은 MyBuddy 화면으로, `USER + INACTIVE`는 이용 기간 종료 안내 화면으로, `ADMIN + ACTIVE`는 관리자 계정 페이지로 분기할 수 있다.
 - 권한 검증의 최종 기준은 프론트엔드 판단이 아니라 백엔드의 인증 토큰 검증 및 `users.role`, `users.account_status` 확인 결과다.
 - 동일 사용자가 다시 로그인하면 서버는 기존 활성 세션을 무효화하고 새 `accessToken`을 기준으로 세션을 갱신할 수 있다.
 - 이때 기존 `accessToken`으로 인증이 필요한 API를 호출하면 `401 Unauthorized`와 `SESSION_REVOKED` 코드를 반환한다.
@@ -379,13 +380,14 @@ Content-Type: application/json
 | `user.department` | String | Y | 사용자 소속 부서 |
 | `user.teamName` | String | Y | 사용자 소속 팀명 |
 | `user.role` | String | Y | 사용자 역할. `USER`, `ADMIN`, `SERVICE_ADMIN` 중 하나 |
-| `user.accountStatus` | String | N | 계정 상태. `USER` 역할이면 `ACTIVE`, `READ_ONLY`, `INACTIVE` 중 하나. `ADMIN` 역할이면 관리자 기능 사용 가능 여부 판단을 위해 `ACTIVE`여야 한다. `SERVICE_ADMIN`은 `null` 또는 미사용 |
+| `user.accountStatus` | String | N | 계정 상태. `USER` 역할이면 `PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE` 중 하나. `ADMIN` 역할이면 관리자 기능 사용 가능 여부 판단을 위해 `ACTIVE`여야 한다. `SERVICE_ADMIN`은 `null` 또는 미사용 |
 | `user.hireDate` | String | Y | 사용자 입사일 |
 
 #### 프론트엔드 role/accountStatus 분기 기준
 
 | `user.role` | `user.accountStatus` | 설명 | 권장 진입 화면 또는 처리 |
 |---|---|---|---|
+| `USER` | `PRE` | 입사일 7일 전부터 1일 전까지의 사전 온보딩 상태. MyBuddy 사전 온보딩 기능을 사용할 수 있고 입사일 당일부터 `ACTIVE`로 자동 전환 | MyBuddy 채팅 화면(`/mybuddy`) |
 | `USER` | `ACTIVE` | 회사별 수습 기간 내 정상 사용 상태. 수습 기간은 `companies.probation_period` 기준이며 기본값은 90일 | MyBuddy 채팅 화면(`/mybuddy`) |
 | `USER` | `READ_ONLY` | 수습 기간 종료 후 30일간 조회 전용 상태. 질문 입력·Quick Tap·Buddy Nudge 질문 유도는 비활성화하고 기존 대화 기록과 답변 출처 조회는 유지 | MyBuddy 채팅 화면(`/mybuddy`) |
 | `USER` | `INACTIVE` | READ_ONLY 기간 종료 또는 관리자 수동 비활성화 상태. 로그인 후 이용 기간 종료 안내를 표시하고 MyBuddy 조회·질문 기능은 제공하지 않음 | 이용 기간 종료 안내 화면 |
@@ -538,7 +540,7 @@ Authorization: Bearer {accessToken}
 
 - 인증된 사용자만 호출할 수 있다.
 - 서버는 인증 토큰에서 `userId`를 확인하고, DB에서 현재 사용자 정보를 조회한다.
-- `USER` 역할 사용자는 회사별 수습 기간 기준으로 현재 계정 상태(`ACTIVE`, `READ_ONLY`, `INACTIVE`)를 다시 계산할 수 있다.
+- `USER` 역할 사용자는 입사일과 회사별 수습 기간 기준으로 현재 계정 상태(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)를 다시 계산할 수 있다.
 - 응답 구조는 로그인 API의 `user` 객체와 동일한 `LoginUserResponse`를 사용한다.
 - 프론트엔드는 응답의 `role`, `accountStatus`를 기준으로 화면 라우팅을 복원한다.
 - 세션이 만료되었거나 토큰이 유효하지 않으면 `401 Unauthorized`를 반환한다.
@@ -573,7 +575,7 @@ Authorization: Bearer {accessToken}
 | `department` | String | Y | 사용자 소속 부서 |
 | `teamName` | String | Y | 사용자 소속 팀명 |
 | `role` | String | Y | 사용자 역할. `USER`, `ADMIN`, `SERVICE_ADMIN` 중 하나 |
-| `accountStatus` | String | N | 계정 상태. `USER` 역할이면 `ACTIVE`, `READ_ONLY`, `INACTIVE` 중 하나. `ADMIN` 역할이면 관리자 기능 사용 가능 여부 판단을 위해 `ACTIVE`여야 한다. `SERVICE_ADMIN`은 `null` 또는 미사용 |
+| `accountStatus` | String | N | 계정 상태. `USER` 역할이면 `PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE` 중 하나. `ADMIN` 역할이면 관리자 기능 사용 가능 여부 판단을 위해 `ACTIVE`여야 한다. `SERVICE_ADMIN`은 `null` 또는 미사용 |
 | `hireDate` | String | Y | 사용자 입사일 |
 
 #### Error Response (401 Unauthorized)
@@ -877,7 +879,7 @@ MyBuddy 화면에서 사용하는 주요 기능은 다음과 같다.
 
 ### 6-1. MyBuddy 화면 진입 시 권장 호출 흐름
 
-프론트엔드는 `USER + ACTIVE`, `USER + READ_ONLY` 또는 `SERVICE_ADMIN` 사용자가 MyBuddy 화면에 진입할 때 다음 순서로 API를 호출한다.
+프론트엔드는 `USER + PRE`, `USER + ACTIVE`, `USER + READ_ONLY` 또는 `SERVICE_ADMIN` 사용자가 MyBuddy 화면에 진입할 때 다음 순서로 API를 호출한다.
 
 ```text
 1. POST /api/v1/chat/session-start
@@ -1772,6 +1774,7 @@ Content-Type: application/json
 
 | 값 | 설명 |
 |---|---|
+| `PRE` | 입사일 7일 전부터 1일 전까지의 사전 온보딩 상태. MyBuddy 사전 온보딩 기능을 사용할 수 있고, KST 기준 입사일 당일부터 `ACTIVE`로 자동 전환한다. |
 | `ACTIVE` | 활성 계정 상태. `USER`는 회사별 수습 기간 내 MyBuddy 채팅 기능을 사용할 수 있고, `ADMIN`은 관리자 기능을 사용할 수 있다. |
 | `READ_ONLY` | 조회 전용 신입 사용자 상태. 수습 기간 종료 후 30일간 기존 기록 조회는 가능하지만 질문 전송 API(`POST /api/v1/chat/messages/stream`), 빠른 질문, Buddy Nudge 질문 유도는 사용할 수 없다. |
 | `INACTIVE` | 이용 제한 상태. `USER`는 로그인 후 이용 기간 종료 안내 화면을 표시하며 MyBuddy 조회·질문 기능을 사용할 수 없다. `ADMIN`은 로그인하더라도 관리자 기능을 사용할 수 없다. |
@@ -1782,12 +1785,28 @@ Content-Type: application/json
 
 | 전환 | 기준 |
 |---|---|
+| `INACTIVE` → `PRE` | KST 기준 `users.hire_date - 7일` 도달 시 |
+| `PRE` → `ACTIVE` | KST 기준 `users.hire_date` 도달 시 |
 | `ACTIVE` → `READ_ONLY` | `users.hire_date + companies.probation_period` 도달 시 |
 | `READ_ONLY` → `INACTIVE` | READ_ONLY 시작일로부터 30일 경과 시 |
 
 `companies.probation_period`는 회사별 수습 기간이며 기본값은 90일이다. 회사 정책에 따라 다른 값으로 설정할 수 있다.
 
-예를 들어 `hire_date = 2026-03-01`, `companies.probation_period = 90`이면 `2026-05-30`부터 `READ_ONLY`가 되고, `2026-06-29`부터 `INACTIVE`가 된다.
+예를 들어 `hire_date = 2026-03-01`, `companies.probation_period = 90`이면 `2026-02-21`까지는 `INACTIVE`, `2026-02-22`부터 `2026-02-28`까지는 `PRE`, `2026-03-01`부터 `ACTIVE`, `2026-05-30`부터 `READ_ONLY`, `2026-06-29`부터 `INACTIVE`가 된다.
+
+##### PRE
+
+입사일 7일 전부터 1일 전까지의 사전 온보딩 상태다. 예를 들어 `hire_date = 2026-03-01`이면 `2026-02-22`부터 `2026-02-28`까지 `PRE`로 계산되며, `2026-02-21`까지는 `INACTIVE`다. KST 기준 입사일이 되면 `ACTIVE`로 자동 전환된다.
+
+| 기능 | 가능 여부 |
+| --- | --- |
+| 로그인 | 가능 |
+| 새 질문 입력 | 가능 |
+| Quick Tap | 가능 |
+| Buddy Nudge 질문 유도 | 가능 |
+| RAG 답변 수신 | 가능 |
+| 기존 대화 기록 조회 | 가능 |
+| 기존 답변 출처 조회 | 가능 |
 
 ##### ACTIVE
 
@@ -1999,7 +2018,7 @@ Content-Type: application/json
 - 서버는 현재 로그인한 관리자 사용자의 `companyCode`를 기준으로 신입 계정의 `users.company_code`를 저장한다.
 - 입력받은 `name`, `employeeNumber`, `department`, `teamName`, `hireDate`를 `users` 테이블에 저장한다.
 - `hireDate`는 계정 생성일 기준 6개월 전 날짜부터 6개월 후 날짜까지 입력할 수 있으며, 양 끝 날짜를 포함한다.
-- 생성되는 신입 계정의 `role`은 항상 `USER`, `account_status`는 항상 `ACTIVE`로 저장한다.
+- 생성되는 신입 계정의 `role`은 항상 `USER`이고, `account_status`는 입사일 기준으로 계산해 입사일 8일 전 이전이면 `INACTIVE`, 입사일 7일 전부터 1일 전까지는 `PRE`, 입사일 이후면 `ACTIVE`로 저장한다.
 - 동일 회사 내에서 같은 사원번호로 계정을 중복 생성할 수 없다.
 - DB에는 `company_code + employee_number` 복합 UNIQUE 제약조건을 둔다.
 - 동일 `company_code + employee_number` 조합이 이미 존재하는 경우 `409 Conflict`와 `DUPLICATE_EMPLOYEE_NUMBER` 에러 코드를 반환한다.
@@ -2047,7 +2066,7 @@ ALTER TABLE users
 | `teamName` | String | 신입 사용자 팀명 |
 | `name` | String | 신입 사용자 이름 |
 | `role` | String | 생성된 사용자 역할. 신입 계정 생성 API에서는 항상 `USER` |
-| `accountStatus` | String | 생성된 사용자 계정 상태. 신입 계정 생성 API에서는 항상 `ACTIVE` |
+| `accountStatus` | String | 생성된 사용자 계정 상태. 입사일 8일 전 이전이면 `INACTIVE`, 입사일 7일 전부터 1일 전까지는 `PRE`, 입사일 이후면 `ACTIVE` |
 | `hireDate` | String | 신입 사용자 입사일 |
 | `createdAt` | String | 계정 생성 시각 |
 
@@ -2171,14 +2190,14 @@ Authorization: Bearer {accessToken}
 - 신입 사용자(`users.role = USER`), 제품 내부 관리자(`SERVICE_ADMIN`), `account_status`가 `ACTIVE`가 아닌 관리자(`ADMIN`)가 호출하면 `403 Forbidden`과 `ACCESS_DENIED` 에러 코드를 반환한다.
 - 서버는 인증 토큰에서 현재 관리자의 `companyCode`를 확인한다.
 - 현재 로그인한 관리자와 동일한 회사(`company_code`)에 속한 신입 계정만 반환한다.
-- 목록 조회 대상은 `users.role = USER`인 신입 사용자 계정이며, 계정 상태는 `users.account_status`(`ACTIVE`, `READ_ONLY`, `INACTIVE`)로 반환한다.
+- 목록 조회 대상은 `users.role = USER`인 신입 사용자 계정이며, 계정 상태는 `users.account_status`(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)로 반환한다.
 - `department`가 전달되면 `users.department` 값을 대상으로 부분 검색한다.
 - `teamName`이 전달되면 `users.team_name` 값을 대상으로 부분 검색한다.
 - `department`와 `teamName`이 모두 전달되면 두 조건을 모두 만족하는 신입 계정만 반환한다.
 - 이름(`name`)과 사번(`employee_number`)은 검색 필터 대상에 포함하지 않는다.
 - 응답에서는 `users.department`와 `users.team_name` 값을 조합하여 `부서(팀)` 필드로 반환한다.
 - `부서(팀)`은 `부서명(팀명)` 형식으로 반환한다. 예: `개발팀(백엔드팀)`
-- 기본 정렬은 계정 상태 우선순위(`ACTIVE` → `READ_ONLY` → `INACTIVE`) 기준이며, 같은 상태 안에서는 사번(`users.employee_number`) 오름차순이다.
+- 기본 정렬은 계정 상태 우선순위(`ACTIVE` → `PRE` → `READ_ONLY` → `INACTIVE`) 기준이며, 같은 상태 안에서는 사번(`users.employee_number`) 오름차순이다.
 - `hireDay`는 KST 기준 오늘 날짜와 `users.hire_date`의 차이에 1을 더해 계산한다. 입사 당일은 `1`, 입사 하루 뒤는 `2`로 반환한다.
 - `questionCount`는 해당 신입 사용자가 질문한 누적 횟수를 반환한다.
 - `lastLoginDate`는 `user_activity_logs.event_target = LOGIN`인 로그 중 가장 최신 `created_at`의 날짜를 반환한다. 로그인 기록이 없으면 `null`이다.
@@ -2227,7 +2246,7 @@ Authorization: Bearer {accessToken}
 | `content[].부서(팀)` | String | 신입 사용자 부서와 팀명. `부서명(팀명)` 형식으로 반환한다. 예: `개발팀(백엔드팀)` |
 | `content[].name` | String | 신입 사용자 이름 |
 | `content[].role` | String | 사용자 역할. 신입 계정 조회에서는 `USER` |
-| `content[].accountStatus` | String | 사용자 계정 상태. 신입 계정 조회에서는 `ACTIVE`, `READ_ONLY`, `INACTIVE` |
+| `content[].accountStatus` | String | 사용자 계정 상태. 신입 계정 조회에서는 `PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE` |
 | `content[].hireDate` | String | 신입 사용자 입사일. `yyyy-MM-dd` 형식 |
 | `content[].hireDay` | Number | 입사일차. KST 기준 오늘 날짜와 입사일의 차이에 1을 더해 계산한다. 입사 당일은 `1`, 입사 하루 뒤는 `2` |
 | `content[].questionCount` | Number | 해당 신입 사용자가 질문한 누적 횟수 |
@@ -2368,7 +2387,7 @@ Authorization: Bearer {accessToken}
 - 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)만 호출할 수 있다.
 - 정렬 대상은 현재 로그인한 관리자의 회사(`company_code`)에 속한 신입 계정이다.
 - `department`, `teamName` 필터가 함께 전달되면 필터 적용 후 정렬한다.
-- `sortBy`가 전달되지 않으면 기본 정렬을 적용한다. 기본 정렬은 계정 상태 우선순위(`ACTIVE` → `READ_ONLY` → `INACTIVE`) 기준이며, 같은 상태 안에서는 사번(`users.employee_number`) 오름차순이다.
+- `sortBy`가 전달되지 않으면 기본 정렬을 적용한다. 기본 정렬은 계정 상태 우선순위(`ACTIVE` → `PRE` → `READ_ONLY` → `INACTIVE`) 기준이며, 같은 상태 안에서는 사번(`users.employee_number`) 오름차순이다.
 - `sortDirection`이 전달되지 않으면 `asc`를 기본값으로 사용한다.
 - `sortBy`가 `name`이면 `users.name` 기준으로 정렬한다.
 - `sortBy`가 `employeeNumber`이면 `users.employee_number` 기준으로 정렬한다.
@@ -4788,4 +4807,5 @@ Authorization: Bearer {accessToken}
 - **v2.3.2 (2026-07-03)**:
   - 매일 새벽 3시 최근 7일 `no_result` 질문 원문을 AI 서버에 전달하고, AI 서버가 직접 임베딩 생성 및 군집화를 수행한 결과를 백엔드 DB에 저장하여 관리자 대시보드와 조회 API가 저장 결과 기준으로 응답하도록 정리
   - `unanswered_question_logs`의 임베딩 저장 컬럼과 별도 임베딩 생성 연동을 제거하고, 군집화 요청 body를 `logId`, `questionContent` 중심으로 축소하며 `aiSummary`는 TOP N 기반 AI 요약 및 문서 보강 제안으로 명시
-
+- **v2.3.3 (2026-07-06)**
+  - 신입 사용자 계정 상태를 `accountStatus`(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)로 분리. `PRE`는 입사일 7일 전부터 1일 전까지의 사전 온보딩 상태로 처리하고, 입사일 8일 전 이전은 `INACTIVE`로 처리
