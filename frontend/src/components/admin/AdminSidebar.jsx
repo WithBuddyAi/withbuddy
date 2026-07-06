@@ -29,11 +29,6 @@ function AdminSidebar({
     { view: "main", label: "계정 관리", icon: <UserRoundCog size={18} /> },
 
     { view: "documents", label: "문서 관리", icon: <File size={18} /> },
-    {
-      view: "unanswered",
-      label: "미답변 질문",
-      icon: <MessageCircleQuestionMark size={18} />,
-    },
   ];
 
   return (
