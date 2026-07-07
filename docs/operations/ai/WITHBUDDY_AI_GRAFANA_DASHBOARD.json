@@ -142,13 +142,13 @@
       },
       {
         "type": "stat",
-        "title": "Chat Stream p95",
+        "title": "AI Answer p50",
         "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"withbuddy_ai_metrics\",handler=\"/chat/stream\",method=\"POST\"}[5m])) by (le))",
-            "legendFormat": "p95",
+            "expr": "(histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"withbuddy_ai_metrics\",handler=\"/chat/stream\",method=\"POST\"}[5m])) by (le))) or on() vector(0)",
+            "legendFormat": "p50",
             "refId": "A"
           }
         ],
@@ -178,38 +178,19 @@
       },
       {
         "type": "timeseries",
-        "title": "Requests by Handler",
+        "title": "AI Answer Latency Trend (p50 / p90)",
         "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
-            "expr": "sum(rate(http_requests_total{job=\"withbuddy_ai_metrics\",handler!=\"/metrics\"}[5m])) by (handler, status)",
-            "legendFormat": "{{handler}} {{status}}",
+            "expr": "(histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"withbuddy_ai_metrics\",handler=\"/chat/stream\",method=\"POST\"}[5m])) by (le))) or on() vector(0)",
+            "legendFormat": "p50",
             "refId": "A"
-          }
-        ],
-        "options": {
-          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
-          "tooltip": { "mode": "multi", "sort": "desc" }
-        },
-        "fieldConfig": {
-          "defaults": {
-            "unit": "reqps",
-            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
           },
-          "overrides": []
-        }
-      },
-      {
-        "type": "timeseries",
-        "title": "Latency p95 by Handler",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
-        "targets": [
           {
-            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"withbuddy_ai_metrics\",handler!=\"/metrics\"}[5m])) by (le, handler))",
-            "legendFormat": "{{handler}}",
-            "refId": "A"
+            "expr": "(histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{job=\"withbuddy_ai_metrics\",handler=\"/chat/stream\",method=\"POST\"}[5m])) by (le))) or on() vector(0)",
+            "legendFormat": "p90",
+            "refId": "B"
           }
         ],
         "options": {
@@ -226,13 +207,48 @@
         }
       },
       {
+        "type": "timeseries",
+        "title": "Answer Type Ratio (rag_answer / no_result / out_of_scope)",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "100 * ((sum(rate(ai_answer_type_total{message_type=\"rag_answer\"}[5m])) or on() vector(0)) / clamp_min((sum(rate(ai_answer_type_total{message_type=~\"rag_answer|no_result|out_of_scope|out_of_scope_pre\"}[5m])) or on() vector(0)), 0.0001))",
+            "legendFormat": "rag_answer",
+            "refId": "A"
+          },
+          {
+            "expr": "100 * ((sum(rate(ai_answer_type_total{message_type=\"no_result\"}[5m])) or on() vector(0)) / clamp_min((sum(rate(ai_answer_type_total{message_type=~\"rag_answer|no_result|out_of_scope|out_of_scope_pre\"}[5m])) or on() vector(0)), 0.0001))",
+            "legendFormat": "no_result",
+            "refId": "B"
+          },
+          {
+            "expr": "100 * (((sum(rate(ai_answer_type_total{message_type=\"out_of_scope\"}[5m])) or on() vector(0)) + (sum(rate(ai_answer_type_total{message_type=\"out_of_scope_pre\"}[5m])) or on() vector(0))) / clamp_min((sum(rate(ai_answer_type_total{message_type=~\"rag_answer|no_result|out_of_scope|out_of_scope_pre\"}[5m])) or on() vector(0)), 0.0001))",
+            "legendFormat": "out_of_scope",
+            "refId": "C"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
         "type": "stat",
         "title": "Prompt Cache Hit Rate (5m)",
         "gridPos": { "h": 4, "w": 6, "x": 0, "y": 12 },
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
-            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
+            "expr": "(100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)) or on() vector(0)",
             "legendFormat": "hit_rate",
             "refId": "A"
           }
@@ -263,8 +279,44 @@
       },
       {
         "type": "stat",
-        "title": "L1 Hit Share (5m)",
+        "title": "AI Answer p90",
         "gridPos": { "h": 4, "w": 6, "x": 6, "y": 12 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "(histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{job=\"withbuddy_ai_metrics\",handler=\"/chat/stream\",method=\"POST\"}[5m])) by (le))) or on() vector(0)",
+            "legendFormat": "p90",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+          "orientation": "auto",
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 3,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "orange", "value": 3 },
+                { "color": "red", "value": 5 }
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "stat",
+        "title": "L1 Hit Share (5m)",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 12 },
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
@@ -300,7 +352,7 @@
       {
         "type": "stat",
         "title": "Redis Cache Fallback Rate (5m)",
-        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 12 },
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 },
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
@@ -334,9 +386,87 @@
         }
       },
       {
+        "type": "timeseries",
+        "title": "Gate Block / Fallback Trend",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(ai_answer_type_total{message_type=~\"no_result|out_of_scope|out_of_scope_pre\"}[5m])) or on() vector(0)",
+            "legendFormat": "gate_blocked",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(ai_agent_fallback_total[5m])) or on() vector(0)",
+            "legendFormat": "agent_fallback",
+            "refId": "B"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Prompt Cache Hit Rate Trend",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "(100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)) or on() vector(0)",
+            "legendFormat": "hit_rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Prompt Cache Requests by Source",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
+        "targets": [
+          {
+            "expr": "sum(rate(withbuddy_prompt_cache_requests_total[5m])) by (result, source)",
+            "legendFormat": "{{result}} {{source}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
+          },
+          "overrides": []
+        }
+      },
+      {
         "type": "stat",
         "title": "Redis Circuit Open",
-        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 },
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 },
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
@@ -372,57 +502,8 @@
       },
       {
         "type": "timeseries",
-        "title": "Prompt Cache Hit Rate Trend",
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
-        "targets": [
-          {
-            "expr": "100 * sum(rate(withbuddy_prompt_cache_requests_total{result=\"hit\"}[5m])) / clamp_min(sum(rate(withbuddy_prompt_cache_requests_total[5m])), 0.0001)",
-            "legendFormat": "hit_rate",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
-          "tooltip": { "mode": "multi", "sort": "desc" }
-        },
-        "fieldConfig": {
-          "defaults": {
-            "unit": "percent",
-            "decimals": 2,
-            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
-          },
-          "overrides": []
-        }
-      },
-      {
-        "type": "timeseries",
-        "title": "Prompt Cache Requests by Source",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-        "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
-        "targets": [
-          {
-            "expr": "sum(rate(withbuddy_prompt_cache_requests_total[5m])) by (result, source)",
-            "legendFormat": "{{result}} {{source}}",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
-          "tooltip": { "mode": "multi", "sort": "desc" }
-        },
-        "fieldConfig": {
-          "defaults": {
-            "unit": "ops",
-            "custom": { "drawStyle": "line", "lineWidth": 2, "showPoints": "never", "spanNulls": true }
-          },
-          "overrides": []
-        }
-      },
-      {
-        "type": "timeseries",
         "title": "AI Memory Usage",
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+        "gridPos": { "h": 8, "w": 6, "x": 18, "y": 24 },
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {
@@ -446,7 +527,7 @@
       {
         "type": "timeseries",
         "title": "AI CPU Usage",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
         "datasource": { "type": "prometheus", "uid": "cfmoqr81uwdtse" },
         "targets": [
           {

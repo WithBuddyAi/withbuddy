@@ -108,6 +108,7 @@ async def chat_stream(request: ChatRequest):
             # 욕설·극단적 위기 전체 차단
             action, block_answer = check_global_block(message, request.user.name)
             if action == "block":
+                answer_type_counter.labels(message_type="out_of_scope").inc()
                 yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': 'out_of_scope', 'content': block_answer, 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
                 return
 
@@ -120,6 +121,7 @@ async def chat_stream(request: ChatRequest):
                 fixed_answer = _fix_names(result.answer)
                 save_interaction(uid, message, fixed_answer)
                 msg_type = result.intent if result.intent in ("sensitive", "out_of_scope") else "out_of_scope"
+                answer_type_counter.labels(message_type=msg_type).inc()
                 yield f"event: answer_delta\ndata: {json.dumps({'questionId': request.questionId, 'content': fixed_answer}, ensure_ascii=False)}\n\n"
                 yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': fixed_answer, 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
                 return
@@ -146,6 +148,8 @@ async def chat_stream(request: ChatRequest):
                     tok = pop_token_usage()
                     _latency = int((time.time() - _start) * 1000)
                     import logging; logging.getLogger(__name__).info(f"[latency] questionId={request.questionId} latencyMs={_latency}")
+                    answer_type_counter.labels(message_type=msg_type).inc()
+                    answer_latency_histogram.observe(_latency / 1000)
                     yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': msg_type, 'content': full_answer, 'documents': doc_ids, 'recommendedContacts': contacts, 'inputTokens': tok['input_tokens'], 'outputTokens': tok['output_tokens'], 'cacheReadTokens': tok['cache_read'], 'cacheCreationTokens': tok['cache_creation'], 'latencyMs': _latency, 'category': pop_category()}, ensure_ascii=False)}\n\n"
                 elif isinstance(chunk, str) and chunk.startswith("__STAGE__"):
                     pass
