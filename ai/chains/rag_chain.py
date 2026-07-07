@@ -46,10 +46,11 @@ _NO_RESULT_TEMPLATE = "아직 이 질문에 답할 수 있는 사내 문서나 �
 
 
 def _is_docs_relevant(question: str, docs: List[Document]) -> bool:
-    """사내 문서가 질문에 직접 답할 수 있는 내용을 포함하는지 검증. True=관련 있음, False=no_result."""
+    """사내 문서가 질문 주제와 관련 있는지 검증. True=관련 있음, False=no_result."""
     context = "\n---\n".join(d.page_content[:400] for d in docs[:3])
     prompt = (
-        f"[문서]에 [질문]과 관련된 내용이 있으면 YES, 전혀 무관하면 NO만 답하세요.\n\n"
+        f"[문서]에 [질문]의 주제나 관련 정보가 조금이라도 있으면 YES, 주제 자체가 전혀 다르면 NO만 답하세요.\n"
+        f"(질문에 정확한 답이 없어도 관련 정보가 있으면 YES)\n\n"
         f"[질문]: {question}\n\n[문서]:\n{context}\n\nYES 또는 NO:"
     )
     resp = get_intent_llm().invoke(prompt)
