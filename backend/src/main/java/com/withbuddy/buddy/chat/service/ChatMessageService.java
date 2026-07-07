@@ -95,7 +95,7 @@ public class ChatMessageService {
     private final UserRepository userRepository;
 
     public SseEmitter streamUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
-        requireQuestionSendAllowed(principal.userId());
+        User loginUser = requireQuestionSendAllowed(principal.userId());
 
         SseEmitter emitter = new SseEmitter(0L);
 
@@ -107,6 +107,7 @@ public class ChatMessageService {
                 String loginUserName = principal.name();
                 String companyCode = principal.companyCode();
                 String hireDate = principal.hireDate();
+                String accountState = loginUser.getAccountStatus() == null ? "" : loginUser.getAccountStatus().name();
 
                 phase.set("resolve_question_message");
                 SavedQuestionContext questionContext = transactionTemplate.execute(
@@ -142,6 +143,7 @@ public class ChatMessageService {
                         loginUserName,
                         companyCode,
                         hireDate,
+                        accountState,
                         savedQuestionMessage.getContent(),
                         delta -> forwardDelta(emitter, delta)
                 );
@@ -219,7 +221,7 @@ public class ChatMessageService {
         return emitter;
     }
 
-    private void requireQuestionSendAllowed(Long userId) {
+    private User requireQuestionSendAllowed(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
@@ -232,6 +234,7 @@ public class ChatMessageService {
         if (!writableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "질문 전송 권한이 없습니다.");
         }
+        return user;
     }
 
     private void forwardDelta(SseEmitter emitter, ChatStreamAnswerDeltaResponse delta) {
