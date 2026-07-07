@@ -11,6 +11,8 @@ public enum MessageType {
     rag_answer("rag_answer"),
     no_result("no_result"),
     out_of_scope("out_of_scope"),
+    out_of_scope_pre("out_of_scope_pre"),
+    clarifying("clarifying"),
     suggestion("suggestion"),
     sensitive("sensitive");
 
