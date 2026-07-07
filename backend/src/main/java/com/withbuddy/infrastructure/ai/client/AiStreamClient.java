@@ -54,6 +54,7 @@ public class AiStreamClient {
             String userName,
             String companyCode,
             String hireDate,
+            String accountState,
             String content,
             Consumer<ChatStreamAnswerDeltaResponse> onDelta
     ) {
@@ -63,7 +64,8 @@ public class AiStreamClient {
                     .put("userId", userId)
                     .put("name", userName == null ? "" : userName)
                     .put("companyCode", companyCode == null ? "" : companyCode)
-                    .put("hireDate", hireDate == null ? "" : hireDate);
+                    .put("hireDate", hireDate == null ? "" : hireDate)
+                    .put("accountState", accountState == null ? "" : accountState);
             JsonNode body = objectMapper.createObjectNode()
                     .put("questionId", questionId)
                     .set("user", userNode);
