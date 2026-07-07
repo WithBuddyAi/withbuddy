@@ -161,8 +161,13 @@ def _extract_category(docs: List[Document]) -> str:
     return Counter(cats).most_common(1)[0][0]
 
 
+_E2E_TEST_USER_IDS = {"9999", "e2e_test"}
+
+
 async def _fire_unanswered_alert(user_id: str, question: str, company_code: str = "", user_name: str = "") -> None:
     """미답변 저장 + Slack 알림 + nudge Task 등록 (백그라운드)"""
+    if str(user_id) in _E2E_TEST_USER_IDS:
+        return
     try:
         from tasks.slack_notifier import notify_unanswered_question
         qid = add_unanswered(user_id, question, company_code)
