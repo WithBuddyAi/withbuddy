@@ -332,6 +332,7 @@ public class ChatMessageService {
     boolean shouldCreateUnansweredQuestionLog(MessageType answerMessageType) {
         return answerMessageType == MessageType.no_result
                 || answerMessageType == MessageType.out_of_scope
+                || answerMessageType == MessageType.out_of_scope_pre
                 || answerMessageType == MessageType.sensitive;
     }
 
