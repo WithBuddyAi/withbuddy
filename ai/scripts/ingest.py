@@ -150,6 +150,8 @@ def ingest_to_chroma(
     """
     embeddings = get_embeddings()
 
+    chunks = [c for c in chunks if c.page_content.strip()]
+
     vectorstore = Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
