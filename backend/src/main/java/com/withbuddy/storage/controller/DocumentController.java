@@ -56,6 +56,7 @@ public class DocumentController {
             @RequestParam("title") @NotBlank String title,
             @RequestParam("documentType") @NotBlank String documentType,
             @RequestParam("department") @NotBlank String department,
+            @RequestParam(value = "preOnboardingTag", defaultValue = "false") boolean preOnboardingTag,
             @RequestParam(value = "companyCode", required = false) String companyCode
     ) {
         DocumentUploadResponse response = documentStorageService.upload(
@@ -63,6 +64,7 @@ public class DocumentController {
                 title,
                 documentType,
                 department,
+                preOnboardingTag,
                 companyCode
         );
         return ResponseEntity.status(201).body(response);
