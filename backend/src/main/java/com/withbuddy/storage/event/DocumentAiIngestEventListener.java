@@ -25,20 +25,23 @@ public class DocumentAiIngestEventListener {
         try {
             AiDocumentIngestResponse response = aiDocumentIngestClient.ingest(
                     event.documentId(),
-                    event.companyCode()
+                    event.companyCode(),
+                    event.preOnboardingTag()
             );
             log.info(
-                    "AI document ingest completed. documentId={}, companyCode={}, success={}, chunksIndexed={}",
+                    "AI document ingest completed. documentId={}, companyCode={}, preOnboardingTag={}, success={}, chunksIndexed={}",
                     response.documentId(),
                     event.companyCode(),
+                    event.preOnboardingTag(),
                     response.success(),
                     response.chunksIndexed()
             );
         } catch (Exception e) {
             log.warn(
-                    "AI document ingest failed. documentId={}, companyCode={}, reason={}",
+                    "AI document ingest failed. documentId={}, companyCode={}, preOnboardingTag={}, reason={}",
                     event.documentId(),
                     event.companyCode(),
+                    event.preOnboardingTag(),
                     e.getMessage(),
                     e
             );

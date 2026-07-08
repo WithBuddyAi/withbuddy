@@ -2,7 +2,7 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.3.4
+**버전**: 2.3.5
 **최종 업데이트**: 2026-07-08
 
 ---
@@ -85,8 +85,8 @@ AI 서버 연동은 별도 AI 서버 base URL을 사용하며, 현재 스트리�
 | `/api/v1/chat/messages/stream`                 | 질문 전송 및 AI 답변 스트리밍                   | `USER(accountStatus=ACTIVE)`, `SERVICE_ADMIN` |
 | `/api/v1/chat/messages`                        | 기존 채팅 메시지 목록 조회                      | `USER(accountStatus=ACTIVE 또는 READ_ONLY)`, `SERVICE_ADMIN` |
 | `/api/v1/chat/session-start`                   | MyBuddy 화면 진입 로그 기록                  | `USER(accountStatus=ACTIVE 또는 READ_ONLY)`, `SERVICE_ADMIN` |
-| `/api/v1/chat/quick-questions`                 | 빠른 질문 목록 조회                          | `USER(accountStatus=ACTIVE)`, `SERVICE_ADMIN` |
-| `/api/v1/chat/quick-questions/click`           | 빠른 질문 클릭 로그 기록                       | `USER(accountStatus=ACTIVE)`, `SERVICE_ADMIN` |
+| `/api/v1/chat/quick-questions`                 | 빠른 질문 목록 조회                          | `USER(accountStatus=PRE 또는 ACTIVE)`, `SERVICE_ADMIN` |
+| `/api/v1/chat/quick-questions/click`           | 빠른 질문 클릭 로그 기록                       | `USER(accountStatus=PRE 또는 ACTIVE)`, `SERVICE_ADMIN` |
 | `/api/v1/onboarding-suggestions/*`             | 온보딩 제안 노출 처리                         | `USER(accountStatus=ACTIVE)`, `SERVICE_ADMIN` |
 | `/api/v1/admin/documents/upload`               | 문서 업로드                               | `ADMIN(accountStatus=ACTIVE)` |
 | `/api/v1/admin/documents`                      | 문서 목록 조회·전체 삭제 등 문서 관리              | `ADMIN(accountStatus=ACTIVE)` |
@@ -110,6 +110,7 @@ AI 서버 연동은 별도 AI 서버 base URL을 사용하며, 현재 스트리�
 
 모든 데이터 조회 및 저장은 로그인한 사용자의 회사 기준으로 처리한다.  
 문서 기반 Q&A는 로그인한 사용자의 회사 문서와 공통 문서(`company_code = null`)를 함께 대상으로 처리한다.
+단, `account_status = PRE` 사용자의 문서 기반 Q&A는 회사 전체 문서를 검색 대상으로 사용하지 않고 `documents.pre_onboarding_tag = true`인 PRE 노출 가능 문서만 대상으로 처리한다.
 단, 관리자 지표 API는 관리자 역할에 따라 데이터 범위가 달라진다. `ADMIN`은 자신의 회사 데이터만 조회할 수 있고, `SERVICE_ADMIN`은 `companyCode` 파라미터 기준으로 특정 회사를 조회하거나 파라미터 생략 시 회사별 전체 집계 결과를 반환할 수 있다.
 
 ### 회사별 수습 기간
@@ -868,7 +869,7 @@ MyBuddy 화면에서 사용하는 주요 기능은 다음과 같다.
 | 온보딩 제안 노출 처리 | `POST /api/v1/onboarding-suggestions/me/exposure` | 오늘 노출 대상 온보딩 제안이 있으면 `chat_messages`에 suggestion 메시지로 생성한다. |
 | 채팅 메시지 목록 조회 | `GET /api/v1/chat/messages` | 현재 로그인한 사용자의 채팅 메시지 목록을 조회한다. |
 | 질문 전송 | `POST /api/v1/chat/messages/stream` | 사용자 질문을 저장하고 AI 답변을 생성한다. |
-| 빠른 질문 목록 조회 | `GET /api/v1/chat/quick-questions` | 일반 빠른 질문 후보 중 랜덤으로 5개를 조회한다. |
+| 빠른 질문 목록 조회 | `GET /api/v1/chat/quick-questions` | PRE 계정은 고정 4개, 기존 빠른 질문 대상은 랜덤 5개를 조회한다. |
 | 빠른 질문 클릭 로그 기록 | `POST /api/v1/chat/quick-questions/click` | 사용자가 빠른 질문 버튼을 클릭한 이력을 기록한다. |
 
 `READ_ONLY` 사용자는 기존 대화 기록과 답변 출처 조회만 가능하다. 프론트엔드는 입력창, Quick Tap, Buddy Nudge 질문 유도를 비활성화하고, 백엔드는 질문 API와 조회 API 권한을 분리해 검증한다.
@@ -1512,14 +1513,53 @@ Backend
 
 현재 로그인한 사용자에게 노출할 빠른 질문 목록을 조회한다.
 
-전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
+`account_status = PRE`인 신입 사용자는 사전 온보딩용 고정 빠른 질문 4개를 반환한다.
+그 외 기존 빠른 질문 대상 사용자는 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
 
 ```http
 GET /api/v1/chat/quick-questions
 Authorization: Bearer {accessToken}
 ```
 
-#### Response (200 OK)
+#### Response (200 OK, `account_status = PRE`)
+
+```json
+{
+  "quickQuestions": [
+    {
+      "buttonText": "📋 제출 서류",
+      "content": "입사 첫날 제출해야 하는 서류는 무엇인가요?",
+      "eventTarget": "QUICK_TAP_DOCS"
+    },
+    {
+      "buttonText": "🏢 출근 장소·입장 방법",
+      "content": "첫 출근 장소와 입장 방법이 어떻게 되나요?",
+      "eventTarget": "QUICK_TAP_LOCATION"
+    },
+    {
+      "buttonText": "🕘 출근 시간",
+      "content": "출근 시간이 어떻게 되나요?",
+      "eventTarget": "QUICK_TAP_WORK_HOUR"
+    },
+    {
+      "buttonText": "📍 담당자 문의처 확인하기",
+      "content": "첫날 전체 일정이 어떻게 진행되나요?",
+      "eventTarget": "QUICK_TAP_FIRST_DAY_SCHEDULE"
+    }
+  ]
+}
+```
+
+#### PRE 계정 고정 빠른 질문
+
+| 버튼 텍스트 | 전송 질문 (`content`) | `eventTarget` |
+|---|---|---|
+| 📋 제출 서류 | 입사 첫날 제출해야 하는 서류는 무엇인가요? | `QUICK_TAP_DOCS` |
+| 🏢 출근 장소·입장 방법 | 첫 출근 장소와 입장 방법이 어떻게 되나요? | `QUICK_TAP_LOCATION` |
+| 🕘 출근 시간 | 출근 시간이 어떻게 되나요? | `QUICK_TAP_WORK_HOUR` |
+| 📍 담당자 문의처 확인하기 | 첫날 전체 일정이 어떻게 진행되나요? | `QUICK_TAP_FIRST_DAY_SCHEDULE` |
+
+#### Response (200 OK, 기존 빠른 질문 대상)
 
 ```json
 {
@@ -1574,7 +1614,9 @@ Authorization: Bearer {accessToken}
 
 - 빠른 질문은 사용자가 자주 묻는 질문을 버튼 형태로 제공하기 위한 추천 질문 목록이다.
 - 현재 빠른 질문 목록은 회사 구분 없이 공통으로 제공한다.
-- 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
+- `account_status = PRE`인 신입 사용자는 사전 온보딩용 고정 빠른 질문 4개를 항상 동일한 순서로 반환한다.
+- `PRE` 계정 고정 빠른 질문은 기존 quick tap 후보 랜덤 선택 규칙과 별도로 관리한다.
+- 그 외 기존 빠른 질문 대상 사용자는 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
 - 이 API는 빠른 질문 버튼 목록만 조회한다.
 - 이 API는 클릭 로그 저장이나 채팅 메시지 생성을 수행하지 않는다.
 - 사용자가 빠른 질문을 클릭하면, 프론트엔드는 해당 항목의 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages/stream`로 전송한다.
@@ -2427,6 +2469,7 @@ Authorization: Bearer {accessToken}
       "fileName": "onboarding-guide.pdf",
       "contentType": "pdf",
       "fileSize": 1048576,
+      "preOnboardingTag": true,
       "backupStatus": "COMPLETED",
       "createdAt": "2026-05-20T09:30:00"
     },
@@ -2438,6 +2481,7 @@ Authorization: Bearer {accessToken}
       "fileName": "benefit-guide.pdf",
       "contentType": "pdf",
       "fileSize": 2097152,
+      "preOnboardingTag": false,
       "backupStatus": "COMPLETED",
       "createdAt": "2026-05-21T10:00:00"
     }
@@ -2456,6 +2500,7 @@ Authorization: Bearer {accessToken}
 * 공통 문서(`documents.company_code = null`)는 관리자 회사 문서 목록에 포함하지 않는다.
 * `scope`는 향후 조회 범위 확장을 대비한 파라미터이며, 현재는 `COMPANY`만 지원한다. `COMPANY` 외 값은 `400 Bad Request`를 반환한다.
 * `contentType`은 MIME 타입 대신 파일 형식 확장자 값으로 반환한다. 지원 값은 `pdf`, `txt`, `docx`, `md`이다.
+* `preOnboardingTag`는 PRE 계정의 문서 기반 Q&A 검색에 노출 가능한 문서 여부이며, `documents.pre_onboarding_tag` 값을 반환한다.
 * `documentType`이 전달되면 해당 문서 유형만 조회한다.
 * `search`가 전달되면 문서 제목 기준으로 검색한다.
 * 기본 정렬은 최신 등록순(`documents.created_at desc`)이다.
@@ -2487,6 +2532,7 @@ Content-Type: multipart/form-data
 | `title` | String | Y | 문서 파일명                                  |
 | `documentType` | String | Y | 문서 유형. 예: `POLICY`, `GUIDE`, `TEMPLATE` |
 | `department` | String | Y | 문서 담당 부서                                |
+| `preOnboardingTag` | Boolean | N | PRE 계정의 문서 기반 Q&A 검색에 노출 가능한 문서 여부. 기본값 `false` |
 
 요청 예시(Postman):
 - Method: `POST`
@@ -2498,12 +2544,15 @@ Content-Type: multipart/form-data
   - `title`: `회사 전용 안내 문서`
   - `documentType`: `GUIDE`
   - `department`: `HR`
+  - `preOnboardingTag`: `true`
 
 #### 동작 규칙
 
 - 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)만 호출할 수 있다.
 - 업로드되는 문서의 `company_code`는 요청 바디가 아니라 현재 로그인한 사용자의 `company_code`로 설정한다.
 - 관리자 계정 페이지에서는 공통 문서(`company_code = null`)를 업로드할 수 없다.
+- `preOnboardingTag = true`로 업로드한 문서는 `documents.pre_onboarding_tag = true`로 저장하며, PRE 계정의 문서 기반 Q&A 검색 대상으로 사용할 수 있다.
+- `preOnboardingTag`를 전달하지 않으면 `false`로 저장하며, PRE 계정의 문서 기반 Q&A 검색 대상에서 제외한다.
 - 문서 파일은 최대 20MB까지 업로드할 수 있다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
@@ -2516,7 +2565,7 @@ Content-Type: multipart/form-data
 - 제목 또는 콘텐츠 중복 문서이면 `409 Conflict`, `DOCUMENT_DUPLICATE`를 반환하고 업로드를 차단한다.
 - 중복 검사를 통과해 업로드가 완료되면 신규 문서의 `content_hash`를 `documents.content_hash`에 저장한다.
 - 업로드가 성공해 `documents`, `document_files` 저장이 커밋된 뒤 백엔드는 AI 서버의 `POST /admin/ingest`를 자동 호출해 신규 문서를 인덱싱해야 한다.
-- AI 자동 인덱싱 요청에는 업로드된 `documentId`와 현재 관리자 회사 코드(`companyCode`)를 전달한다.
+- AI 자동 인덱싱 요청에는 업로드된 `documentId`, 현재 관리자 회사 코드(`companyCode`), PRE 노출 가능 여부(`preOnboardingTag`)를 전달한다.
 - AI 자동 인덱싱은 업로드 트랜잭션 커밋 이후 수행해야 한다. 커밋 전에 호출하면 AI 서버가 백엔드 문서 상세 조회 또는 다운로드 API에서 신규 문서를 찾지 못할 수 있다.
 - AI 자동 인덱싱 실패는 문서 업로드 저장 성공 자체를 롤백하지 않는다. 백엔드는 실패 응답 또는 예외를 로그로 남기고 재시도 대상 여부를 운영 정책에 따라 관리한다.
 - 업로드 파일이 비어 있거나 `file` 파트가 존재하지 않으면 `400 Bad Request`, `FILE_001_EMPTY`를 반환한다.
@@ -3534,7 +3583,8 @@ Production: https://ai.itsdev.kr
 ```json
 {
   "documentId": 123,
-  "companyCode": "WB0001"
+  "companyCode": "WB0001",
+  "preOnboardingTag": true
 }
 ```
 
@@ -3544,6 +3594,7 @@ Production: https://ai.itsdev.kr
 |---|---|---|---|---|
 | `documentId` | Number | Y | `123` | 백엔드 `documents.id` |
 | `companyCode` | String | Y | `"WB0001"` | 업로드한 관리자 계정의 회사 코드 |
+| `preOnboardingTag` | Boolean | Y | `true` | PRE 계정의 문서 기반 Q&A 검색에 노출 가능한 문서 여부 |
 
 #### 인증 규칙
 
@@ -3585,6 +3636,7 @@ AI 서버
 - 콘텐츠 해시 중복 검사에서 차단된 문서는 `documents`, `document_files`에 저장하지 않으며 AI 인덱싱도 요청하지 않는다.
 - AI 인덱싱 API 호출은 업로드 트랜잭션 커밋 이후 수행한다.
 - 요청 body의 `companyCode`는 요청자가 임의로 전달한 값이 아니라, 업로드된 문서의 `documents.company_code` 또는 현재 관리자 계정의 회사 코드 기준으로 구성한다.
+- 요청 body의 `preOnboardingTag`는 업로드된 문서의 `documents.pre_onboarding_tag` 값을 기준으로 구성한다.
 - AI 인덱싱이 실패해도 이미 성공한 문서 업로드 저장은 롤백하지 않는다.
 - 백엔드는 AI 서버의 성공/실패 응답을 로그로 남기고, 실패 건은 운영 정책에 따라 재시도할 수 있어야 한다.
 - 동일 문서를 재인덱싱하는 경우 AI 서버는 기존 `doc_id = documentId` 청크를 삭제한 뒤 새 청크를 추가하는 방식으로 처리한다.
@@ -3594,8 +3646,9 @@ AI 서버
 - AI 서버는 `documentId`로 백엔드 문서 상세 정보를 조회한다.
 - AI 서버는 백엔드 다운로드 URL 발급 API를 통해 파일을 다운로드한다.
 - AI 서버는 파일에서 텍스트를 추출하고 청킹한 뒤 ChromaDB에 저장한다.
-- ChromaDB 메타데이터에는 `doc_id`, `title`, `source`, `document_type`, `department`, `company_code`를 포함한다.
+- ChromaDB 메타데이터에는 `doc_id`, `title`, `source`, `document_type`, `department`, `company_code`, `pre_onboarding_tag`를 포함한다.
 - `company_code`는 요청 body의 `companyCode`를 사용하며, 이를 기준으로 회사별 문서 검색 범위를 격리한다.
+- `pre_onboarding_tag`는 요청 body의 `preOnboardingTag`를 사용하며, PRE 계정의 문서 기반 Q&A 검색 시 `true`인 문서만 검색 대상으로 사용한다.
 - 인덱싱 완료 후 해당 `companyCode`의 BM25 캐시를 무효화한다.
 
 #### Success Response (200 OK)
@@ -3755,6 +3808,7 @@ Content-Type: multipart/form-data
 - 업로드된 문서는 `documents`, `document_files`를 기준으로 저장 및 관리한다.
 - 파일 저장 후 백업 스토리지 연동 정책에 따라 백업 작업이 수행될 수 있다.
 - 업로드 가능한 파일 형식은 `.pdf`, `.docx`, `.txt`, `.md`이며, 단일 파일 최대 크기는 20MB다.
+- `preOnboardingTag` form-data 파라미터를 `true`로 전달하면 PRE 계정의 문서 기반 Q&A 검색 대상 문서로 저장한다. 생략 시 기본값은 `false`다.
 - 회사당 업로드 가능한 활성 문서 수는 최대 300개다.
 - 회사별 총 업로드 용량은 2GB이며, `기존 업로드 총 용량 + 신규 파일 크기`가 2GB를 초과하면 업로드할 수 없다.
 
@@ -3767,6 +3821,7 @@ Authorization: Bearer {accessToken}
 #### 설명
 - 현재 사용자가 접근 가능한 문서 목록을 조회한다.
 - 회사 문서와 공통 문서 기준으로 조회될 수 있다.
+- 응답에는 PRE 계정의 문서 기반 Q&A 검색 노출 가능 여부를 나타내는 `preOnboardingTag`가 포함된다.
 - 상세 검색 조건, 정렬, 필터링 여부는 Swagger UI의 실제 파라미터 정의를 따른다.
 
 ### 9-3. 문서 상세 조회
@@ -3781,7 +3836,7 @@ Authorization: Bearer {accessToken}
 
 #### 설명
 - 특정 문서의 상세 정보를 조회한다.
-- 문서 기본 정보와 파일 메타데이터를 함께 포함한다.
+- 문서 기본 정보, 파일 메타데이터, `preOnboardingTag` 값을 함께 포함한다.
 
 ### 9-4. 문서 파일 다운로드 (302 Redirect)
 ```http
@@ -4812,5 +4867,11 @@ Authorization: Bearer {accessToken}
   - `unanswered_question_logs`의 임베딩 저장 컬럼과 별도 임베딩 생성 연동을 제거하고, 군집화 요청 body를 `logId`, `questionContent` 중심으로 축소하며 `aiSummary`는 TOP N 기반 AI 요약 및 문서 보강 제안으로 명시
 - **v2.3.3 (2026-07-06)**
   - 신입 사용자 계정 상태를 `accountStatus`(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)로 분리. `PRE`는 입사일 7일 전부터 1일 전까지의 사전 온보딩 상태로 처리하고, 입사일 8일 전 이전은 `INACTIVE`로 처리
-- **v2.3.4 (2026-07-08)**
+- **v2.3.4 (2026-07-07)**
   - AI 서버 `/chat/stream` 요청 body의 `user` 객체에 현재 사용자 계정 상태를 나타내는 `accountState`를 추가
+- **v2.3.5 (2026-07-08)**
+  - `account_status = PRE` 신입 사용자의 빠른 질문 목록을 기존 랜덤 5개 반환 방식과 분리해 사전 온보딩용 고정 4개 항목으로 반환하도록 명세 수정
+  - PRE 계정 고정 빠른 질문의 버튼 텍스트, 전송 질문(`content`), 클릭 로그용 `eventTarget` 값을 명시
+  - `documents.pre_onboarding_tag` 컬럼을 추가하고, 문서 업로드 시 PRE 계정의 문서 기반 Q&A 검색 노출 가능 여부를 저장하도록 명세 수정
+  - 문서 목록/상세 응답과 AI 자동 인덱싱 요청에 `preOnboardingTag`를 포함하도록 명세 수정
+  - PRE 계정의 문서 기반 Q&A 검색은 `pre_onboarding_tag = true` 문서만 대상으로 사용하도록 데이터 범위 규칙 추가

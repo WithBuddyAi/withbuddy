@@ -110,14 +110,14 @@ class UserActivityLogServiceTest {
         when(userActivityLogRepository.save(any(UserActivityLog.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
+        assertThat(userActivityLogService.saveQuickQuestionClick(1L, "QUICK_TAP_DOCS").getEventTarget())
+                .isEqualTo("QUICK_TAP_DOCS");
         assertThat(userActivityLogService.saveQuickQuestionClick(1L, "QUICK_TAP_LOCATION").getEventTarget())
                 .isEqualTo("QUICK_TAP_LOCATION");
         assertThat(userActivityLogService.saveQuickQuestionClick(1L, "QUICK_TAP_WORK_HOUR").getEventTarget())
                 .isEqualTo("QUICK_TAP_WORK_HOUR");
-        assertThat(userActivityLogService.saveQuickQuestionClick(1L, "QUICK_TAP_DRESSCODE").getEventTarget())
-                .isEqualTo("QUICK_TAP_DRESSCODE");
-        assertThat(userActivityLogService.saveQuickQuestionClick(1L, "QUICK_TAP_FIRST_DAY").getEventTarget())
-                .isEqualTo("QUICK_TAP_FIRST_DAY");
+        assertThat(userActivityLogService.saveQuickQuestionClick(1L, "QUICK_TAP_FIRST_DAY_SCHEDULE").getEventTarget())
+                .isEqualTo("QUICK_TAP_FIRST_DAY_SCHEDULE");
     }
 
     private User user(UserAccountStatus accountStatus) {

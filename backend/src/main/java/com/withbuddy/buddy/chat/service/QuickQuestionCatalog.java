@@ -14,10 +14,10 @@ import java.util.Optional;
 @Component
 public class QuickQuestionCatalog {
     private static final List<EventTarget> PRE_QUICK_TAP_TARGETS = List.of(
+            EventTarget.QUICK_TAP_DOCS,
             EventTarget.QUICK_TAP_LOCATION,
             EventTarget.QUICK_TAP_WORK_HOUR,
-            EventTarget.QUICK_TAP_DRESSCODE,
-            EventTarget.QUICK_TAP_FIRST_DAY
+            EventTarget.QUICK_TAP_FIRST_DAY_SCHEDULE
     );
 
     private final Map<EventTarget, QuickQuestionDefinition> quickQuestionsByTarget;
@@ -31,6 +31,7 @@ public class QuickQuestionCatalog {
     public List<QuickQuestionResponse> getRandomQuickQuestions(int limit) {
         List<QuickQuestionResponse> shuffled = new ArrayList<>(
                 quickQuestionsByTarget.values().stream()
+                        .filter(quickQuestion -> quickQuestion.eventTarget() != EventTarget.QUICK_TAP_FIRST_DAY_SCHEDULE)
                         .map(QuickQuestionDefinition::toResponse)
                         .toList()
         );
@@ -82,6 +83,7 @@ public class QuickQuestionCatalog {
         put(map, EventTarget.QUICK_TAP_WORK_HOUR, "🕘 출근 시간", "출근 시간이 어떻게 되나요?");
         put(map, EventTarget.QUICK_TAP_DRESSCODE, "👔 복장 규정", "회사 복장 규정이 있나요?");
         put(map, EventTarget.QUICK_TAP_FIRST_DAY, "📍 첫날 누구를 찾아요?", "첫 출근 시 어디로 가야 하고 누구를 찾으면 되나요?");
+        put(map, EventTarget.QUICK_TAP_FIRST_DAY_SCHEDULE, "📍 담당자 문의처 확인하기", "첫날 전체 일정이 어떻게 진행되나요?");
         put(map, EventTarget.QUICK_TAP_ACCESS, "🔑 출입카드 받는 법", "출입카드는 어떻게 받나요?");
         put(map, EventTarget.QUICK_TAP_DOCS, "📋 제출 서류", "입사 첫날 제출해야 하는 서류는 무엇인가요?");
         put(map, EventTarget.QUICK_TAP_IT_SETUP, "💻 이메일·계정 세팅", "회사 이메일 계정은 어떻게 세팅하나요?");
