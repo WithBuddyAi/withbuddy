@@ -133,6 +133,13 @@ class ChatMessageServiceTest {
     }
 
     @Test
+    void createsUnansweredQuestionLogForOutOfScopePre() {
+        boolean result = chatMessageService.shouldCreateUnansweredQuestionLog(MessageType.out_of_scope_pre);
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
     void createsUnansweredQuestionLogForSensitive() {
         boolean result = chatMessageService.shouldCreateUnansweredQuestionLog(MessageType.sensitive);
 
@@ -142,6 +149,13 @@ class ChatMessageServiceTest {
     @Test
     void doesNotCreateUnansweredQuestionLogForRagAnswer() {
         boolean result = chatMessageService.shouldCreateUnansweredQuestionLog(MessageType.rag_answer);
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void doesNotCreateUnansweredQuestionLogForClarifying() {
+        boolean result = chatMessageService.shouldCreateUnansweredQuestionLog(MessageType.clarifying);
 
         assertThat(result).isFalse();
     }

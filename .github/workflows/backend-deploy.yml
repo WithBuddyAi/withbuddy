@@ -1437,8 +1437,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          TARGET_SLOT="${{ github.event.inputs.target_slot }}"
-          LIVE_SLOT="${{ github.event.inputs.live_slot }}"
+          TARGET_SLOT="${{ needs['build-and-deploy'].outputs.target_slot }}"
+          LIVE_SLOT="${{ needs['build-and-deploy'].outputs.live_slot }}"
+          INGRESS_MODE="${TRAFFIC_SWITCH_INGRESS_MODE:-nginx_upstream}"
+          PUBLIC_TUNNEL_SERVICE="${PUBLIC_TUNNEL_SERVICE_NAME:-cloudflared.service}"
+          DISABLE_PREVIOUS_PUBLIC_TUNNEL="${DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH:-true}"
 
           if [ "${TARGET_SLOT}" = "${LIVE_SLOT}" ]; then
             echo "target_slot and live_slot must be different for blue/green deployment."

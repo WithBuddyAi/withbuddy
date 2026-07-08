@@ -109,8 +109,10 @@ public class UserActivityLogService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
-        boolean activeUser = user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.ACTIVE;
-        if (!activeUser && user.getRole() != UserRole.SERVICE_ADMIN) {
+        boolean writableUser = user.getRole() == UserRole.USER
+                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
+                || user.getAccountStatus() == UserAccountStatus.PRE);
+        if (!writableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 이 동작을 수행할 수 없습니다.");
         }
     }
@@ -121,6 +123,7 @@ public class UserActivityLogService {
 
         boolean readableUser = user.getRole() == UserRole.USER
                 && (user.getAccountStatus() == UserAccountStatus.ACTIVE
+                || user.getAccountStatus() == UserAccountStatus.PRE
                 || user.getAccountStatus() == UserAccountStatus.READ_ONLY);
         if (!readableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 이 동작을 수행할 수 없습니다.");

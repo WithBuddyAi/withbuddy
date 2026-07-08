@@ -133,6 +133,7 @@ class AdminUserServiceTest {
                 org.mockito.ArgumentMatchers.eq("WB0001"),
                 org.mockito.ArgumentMatchers.eq(List.of(UserRole.USER)),
                 org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.ACTIVE)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.PRE)),
                 org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.READ_ONLY)),
                 org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.INACTIVE)),
                 org.mockito.ArgumentMatchers.isNull(),
@@ -149,6 +150,44 @@ class AdminUserServiceTest {
         assertThat(response.content()).hasSize(1);
         assertThat(response.content().getFirst().accountStatus()).isEqualTo(UserAccountStatus.READ_ONLY.name());
         verify(adminUserRepository).saveAll(anyCollection());
+    }
+
+    @Test
+    void getUsersReturnsPreHireDayWithoutInclusiveOffset() {
+        User preUser = User.builder()
+                .company(company())
+                .name("Pre User")
+                .department("Engineering")
+                .teamName("Backend")
+                .employeeNumber("20260001")
+                .hireDate(LocalDate.of(2026, 6, 24))
+                .role(UserRole.USER)
+                .accountStatus(UserAccountStatus.PRE)
+                .build();
+        ReflectionTestUtils.setField(preUser, "id", 10L);
+
+        User admin = activeAdmin();
+        when(adminUserRepository.findById(1L)).thenReturn(Optional.of(admin));
+        when(adminUserRepository.searchUsers(
+                org.mockito.ArgumentMatchers.eq("WB0001"),
+                org.mockito.ArgumentMatchers.eq(List.of(UserRole.USER)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.ACTIVE)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.PRE)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.READ_ONLY)),
+                org.mockito.ArgumentMatchers.eq(List.of(UserAccountStatus.INACTIVE)),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq("asc"),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(new PageImpl<>(List.of(preUser)));
+        when(chatMessageRepository.countByUserIdAndSenderTypeAndMessageType(any(), any(), any())).thenReturn(0L);
+
+        var response = adminUserService.getUsers(principal(), 0, 20, null, null, null, null);
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().getFirst().accountStatus()).isEqualTo(UserAccountStatus.PRE.name());
+        assertThat(response.content().getFirst().hireDay()).isEqualTo(-7);
     }
 
     private JwtAuthenticationPrincipal principal() {

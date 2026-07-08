@@ -111,6 +111,7 @@ public class AdminUserService {
                     normalizedEmployeeNumber,
                     request.getHireDate()
             ));
+            UserLifecycleStatusResolver.sync(user, clock);
         } catch (DataIntegrityViolationException e) {
             if (isDuplicateEmployeeNumberConstraint(e)) {
                 throw new DuplicateEmployeeNumberException();
@@ -152,6 +153,7 @@ public class AdminUserService {
                 companyCode,
                 List.of(UserRole.USER),
                 List.of(UserAccountStatus.ACTIVE),
+                List.of(UserAccountStatus.PRE),
                 List.of(UserAccountStatus.READ_ONLY),
                 List.of(UserAccountStatus.INACTIVE),
                 normalizeFilter(department, "department"),
@@ -257,7 +259,7 @@ public class AdminUserService {
                 user.getRole().name(),
                 currentAccountStatus == null ? null : currentAccountStatus.name(),
                 user.getHireDate(),
-                calculateHireDay(user.getHireDate()),
+                calculateHireDay(user.getHireDate(), currentAccountStatus),
                 countUserQuestions(user.getId()),
                 lastLoginDate,
                 user.getCreatedAt(),
@@ -303,8 +305,12 @@ public class AdminUserService {
         );
     }
 
-    private long calculateHireDay(LocalDate hireDate) {
-        return ChronoUnit.DAYS.between(hireDate, LocalDate.now(clock)) + 1;
+    private long calculateHireDay(LocalDate hireDate, UserAccountStatus accountStatus) {
+        long daysFromHireDate = ChronoUnit.DAYS.between(hireDate, LocalDate.now(clock));
+        if (accountStatus == UserAccountStatus.PRE) {
+            return daysFromHireDate;
+        }
+        return daysFromHireDate + 1;
     }
 
     private void validateHireDateRange(LocalDate hireDate) {
