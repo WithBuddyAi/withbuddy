@@ -256,9 +256,6 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     if pre_onboarding_only:
         company_filter["$and"].append({"pre_onboarding_tag": True})
         common_filter["$and"].append({"pre_onboarding_tag": True})
-    else:
-        company_filter["$and"].append({"document_type": {"$ne": "PRE_ONBOARDING_QA"}})
-        common_filter["$and"].append({"document_type": {"$ne": "PRE_ONBOARDING_QA"}})
 
     bm25 = get_bm25_retriever(company_code, k=k)
 
@@ -279,6 +276,11 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
         company_raw  = f_company.result()
         common_raw   = f_common.result()
         bm25_results = f_bm25.result() if bm25 else []
+
+    # 일반 유저: pre_onboarding_tag 문서 제거 (document_type 무관, 태그 기반)
+    if not pre_onboarding_only:
+        company_raw = [(doc, s) for doc, s in company_raw if not doc.metadata.get("pre_onboarding_tag")]
+        common_raw  = [(doc, s) for doc, s in common_raw  if not doc.metadata.get("pre_onboarding_tag")]
 
     # 회사 문서는 낮은 임계값(0.25) 적용 — 동의어·표현 차이로 유사도가 낮아도 포함
     company_docs = _filter_by_score(company_raw, threshold=0.25)
