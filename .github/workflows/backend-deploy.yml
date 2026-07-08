@@ -1403,8 +1403,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          TARGET_SLOT="${{ needs.build-and-deploy.outputs.target_slot }}"
-          LIVE_SLOT="${{ needs.build-and-deploy.outputs.live_slot }}"
+          TARGET_SLOT="${{ needs['build-and-deploy'].outputs.target_slot }}"
+          LIVE_SLOT="${{ needs['build-and-deploy'].outputs.live_slot }}"
           INGRESS_MODE="${TRAFFIC_SWITCH_INGRESS_MODE:-nginx_upstream}"
           PUBLIC_TUNNEL_SERVICE="${PUBLIC_TUNNEL_SERVICE_NAME:-cloudflared.service}"
           DISABLE_PREVIOUS_PUBLIC_TUNNEL="${DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH:-true}"
