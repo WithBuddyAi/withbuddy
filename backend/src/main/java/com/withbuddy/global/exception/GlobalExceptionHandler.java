@@ -3,6 +3,7 @@ package com.withbuddy.global.exception;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.withbuddy.account.auth.exception.LoginFailedException;
 import com.withbuddy.account.auth.exception.LoginRateLimitExceededException;
+import com.withbuddy.account.auth.exception.LoginUserNotFoundException;
 import com.withbuddy.account.auth.exception.TurnstileVerificationFailedException;
 import com.withbuddy.account.auth.exception.TurnstileVerificationUnavailableException;
 import com.withbuddy.global.dto.ErrorResponse;
@@ -46,6 +47,27 @@ import java.util.List;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(LoginUserNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleLoginUserNotFoundException(
+            LoginUserNotFoundException e,
+            HttpServletRequest request
+    ) {
+        List<FieldValidationError> errors = List.of(
+                new FieldValidationError("login", e.getMessage())
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                "LOGIN_USER_NOT_FOUND",
+                errors,
+                resolveMaskedPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
 
     @ExceptionHandler(LoginFailedException.class)
     public ResponseEntity<ErrorResponse> handleLoginFailedException(
