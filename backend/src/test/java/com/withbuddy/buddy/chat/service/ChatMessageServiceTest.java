@@ -1,6 +1,11 @@
 package com.withbuddy.buddy.chat.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.withbuddy.account.company.entity.Company;
+import com.withbuddy.account.user.entity.User;
+import com.withbuddy.account.user.entity.UserAccountStatus;
+import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.buddy.chat.dto.response.QuickQuestionResponse;
 import com.withbuddy.buddy.chat.entity.ChatMessage;
 import com.withbuddy.buddy.chat.entity.MessageType;
 import com.withbuddy.buddy.chat.entity.UnansweredQuestionLog;
@@ -16,13 +21,15 @@ import com.withbuddy.storage.repository.DocumentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executor;
@@ -35,6 +42,11 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ChatMessageServiceTest {
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final Clock FIXED_CLOCK = Clock.fixed(
+            LocalDate.of(2026, 7, 10).atStartOfDay(KST).toInstant(),
+            KST
+    );
 
     @Mock
     private ChatMessageRepository chatMessageRepository;
@@ -63,8 +75,27 @@ class ChatMessageServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @InjectMocks
     private ChatMessageService chatMessageService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        chatMessageService = new ChatMessageService(
+                chatMessageRepository,
+                chatMessageDocumentRepository,
+                unansweredQuestionLogRepository,
+                documentRepository,
+                documentFileRepository,
+                aiStreamClient,
+                redisCacheService,
+                objectMapper,
+                transactionTemplate,
+                aiCallExecutor,
+                quickQuestionCatalog,
+                onboardingSuggestionRepository,
+                userRepository,
+                FIXED_CLOCK
+        );
+    }
 
     @Test
     void savesSuggestionMessageWhenNoExistingRow() {
@@ -205,5 +236,61 @@ class ChatMessageServiceTest {
         assertThat(savedLog.getQuestionContent()).isEqualTo("복지 포인트는 어디서 확인해?");
         assertThat(savedLog.getAnswerType()).isEqualTo(MessageType.no_result);
         assertThat(savedLog.getLatencyMs()).isEqualTo(123L);
+    }
+
+    @Test
+    void returnsFixedPreQuickQuestionsForPreUser() {
+        User preUser = user(UserAccountStatus.PRE, LocalDate.of(2026, 7, 14));
+        List<QuickQuestionResponse> preQuickQuestions = List.of(
+                new QuickQuestionResponse("1", "1", "QUICK_TAP_LOCATION"),
+                new QuickQuestionResponse("2", "2", "QUICK_TAP_WORK_HOUR"),
+                new QuickQuestionResponse("3", "3", "QUICK_TAP_DRESSCODE"),
+                new QuickQuestionResponse("4", "4", "QUICK_TAP_FIRST_DAY")
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(preUser));
+        when(quickQuestionCatalog.getPreQuickQuestions()).thenReturn(preQuickQuestions);
+
+        assertThat(chatMessageService.getQuickQuestions(1L).get("quickQuestions"))
+                .extracting(QuickQuestionResponse::getEventTarget)
+                .containsExactly(
+                        "QUICK_TAP_LOCATION",
+                        "QUICK_TAP_WORK_HOUR",
+                        "QUICK_TAP_DRESSCODE",
+                        "QUICK_TAP_FIRST_DAY"
+                );
+        verify(quickQuestionCatalog).getPreQuickQuestions();
+    }
+
+    @Test
+    void returnsRandomQuickQuestionsForActiveUser() {
+        User activeUser = user(UserAccountStatus.ACTIVE, LocalDate.of(2026, 7, 10));
+        List<QuickQuestionResponse> randomQuickQuestions = List.of(
+                new QuickQuestionResponse("1", "1", "QUICK_TAP_LOCATION")
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(activeUser));
+        when(quickQuestionCatalog.getRandomQuickQuestions(5)).thenReturn(randomQuickQuestions);
+
+        assertThat(chatMessageService.getQuickQuestions(1L).get("quickQuestions"))
+                .extracting(QuickQuestionResponse::getEventTarget)
+                .containsExactly("QUICK_TAP_LOCATION");
+        verify(quickQuestionCatalog).getRandomQuickQuestions(5);
+    }
+
+    private User user(UserAccountStatus accountStatus, LocalDate hireDate) {
+        Company company = org.mockito.Mockito.mock(Company.class);
+        org.mockito.Mockito.lenient().when(company.getProbationPeriod()).thenReturn(90);
+
+        return User.builder()
+                .company(company)
+                .name("tester")
+                .department("-")
+                .teamName("-")
+                .employeeNumber("E001")
+                .hireDate(hireDate)
+                .role(UserRole.USER)
+                .accountStatus(accountStatus)
+                .build();
     }
 }
