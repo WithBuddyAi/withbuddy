@@ -23,7 +23,6 @@ import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,9 +31,8 @@ import java.time.ZoneId;
 import java.util.Locale;
 
 @Service
-@RequiredArgsConstructor
 public class AuthService {
-    private static final Clock KST_CLOCK = Clock.system(ZoneId.of("Asia/Seoul"));
+    private static final Clock DEFAULT_KST_CLOCK = Clock.system(ZoneId.of("Asia/Seoul"));
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
@@ -45,6 +43,56 @@ public class AuthService {
     private final ObjectMapper objectMapper;
     private final TurnstileVerificationService turnstileVerificationService;
     private final LoginAttemptRateLimitService loginAttemptRateLimitService;
+    private final Clock clock;
+
+    public AuthService(
+            UserRepository userRepository,
+            JwtService jwtService,
+            UserActivityLogService userActivityLogService,
+            RedisActivityLogService redisActivityLogService,
+            RmqActivityLogService rmqActivityLogService,
+            RedisCacheService redisCacheService,
+            ObjectMapper objectMapper,
+            TurnstileVerificationService turnstileVerificationService,
+            LoginAttemptRateLimitService loginAttemptRateLimitService
+    ) {
+        this(
+                userRepository,
+                jwtService,
+                userActivityLogService,
+                redisActivityLogService,
+                rmqActivityLogService,
+                redisCacheService,
+                objectMapper,
+                turnstileVerificationService,
+                loginAttemptRateLimitService,
+                DEFAULT_KST_CLOCK
+        );
+    }
+
+    AuthService(
+            UserRepository userRepository,
+            JwtService jwtService,
+            UserActivityLogService userActivityLogService,
+            RedisActivityLogService redisActivityLogService,
+            RmqActivityLogService rmqActivityLogService,
+            RedisCacheService redisCacheService,
+            ObjectMapper objectMapper,
+            TurnstileVerificationService turnstileVerificationService,
+            LoginAttemptRateLimitService loginAttemptRateLimitService,
+            Clock clock
+    ) {
+        this.userRepository = userRepository;
+        this.jwtService = jwtService;
+        this.userActivityLogService = userActivityLogService;
+        this.redisActivityLogService = redisActivityLogService;
+        this.rmqActivityLogService = rmqActivityLogService;
+        this.redisCacheService = redisCacheService;
+        this.objectMapper = objectMapper;
+        this.turnstileVerificationService = turnstileVerificationService;
+        this.loginAttemptRateLimitService = loginAttemptRateLimitService;
+        this.clock = clock;
+    }
 
     @Transactional
     public AuthenticatedSession login(LoginRequest request, String clientIp) {
@@ -69,7 +117,7 @@ public class AuthService {
             throw e;
         }
 
-        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, KST_CLOCK);
+        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, clock);
         if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
             user.updateAccountStatus(currentAccountStatus);
         }
@@ -108,7 +156,7 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("사용자 정보를 찾을 수 없습니다."));
 
-        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, KST_CLOCK);
+        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, clock);
         if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
             user.updateAccountStatus(currentAccountStatus);
         }
