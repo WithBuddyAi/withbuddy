@@ -232,7 +232,7 @@ function MyBuddy({ user, setUser }) {
             <div ref={chatBottomRef} />
           </div>
 
-          {/* 빠른 질문 */}
+          {/* 빠른 질문 (PRE: 고정 퀵탭 / ACTIVE: API 퀵탭 / READ_ONLY: 미노출) */}
           {accountStatus !== "READ_ONLY" && (
             <QuickQuestions
               quickQuestion={quickQuestion}
