@@ -290,6 +290,7 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
 
     if hr_team:
         answer = re.sub(r'(?<![가-힣])님에게', f'{hr_contact}님에게', answer)
+        answer = re.sub(r'([가-힣]+팀\s+[가-힣]{2,4})\s+\1', r'\1', answer)
 
     # LLM Judge POC: 고위험 질문 답변 품질 검증
     if answer != _NO_RESULT_TEMPLATE and _is_high_risk(result.question) and result.docs:
@@ -463,6 +464,7 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
     fixed = await postprocess_answer_async(raw_answer)
     if hr_team:
         fixed = re.sub(r'(?<![가-힣])님에게', f'{hr_contact}님에게', fixed)
+        fixed = re.sub(r'([가-힣]+팀\s+[가-힣]{2,4})\s+\1', r'\1', fixed)
     if not _high_risk and _streaming and fixed != raw_answer:
         yield "\x00" + fixed, None, None, None
 
