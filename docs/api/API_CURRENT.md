@@ -2,7 +2,7 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.3.4
+**버전**: 2.3.5
 **최종 업데이트**: 2026-07-08
 
 ---
@@ -85,8 +85,8 @@ AI 서버 연동은 별도 AI 서버 base URL을 사용하며, 현재 스트리�
 | `/api/v1/chat/messages/stream`                 | 질문 전송 및 AI 답변 스트리밍                   | `USER(accountStatus=ACTIVE)`, `SERVICE_ADMIN` |
 | `/api/v1/chat/messages`                        | 기존 채팅 메시지 목록 조회                      | `USER(accountStatus=ACTIVE 또는 READ_ONLY)`, `SERVICE_ADMIN` |
 | `/api/v1/chat/session-start`                   | MyBuddy 화면 진입 로그 기록                  | `USER(accountStatus=ACTIVE 또는 READ_ONLY)`, `SERVICE_ADMIN` |
-| `/api/v1/chat/quick-questions`                 | 빠른 질문 목록 조회                          | `USER(accountStatus=ACTIVE)`, `SERVICE_ADMIN` |
-| `/api/v1/chat/quick-questions/click`           | 빠른 질문 클릭 로그 기록                       | `USER(accountStatus=ACTIVE)`, `SERVICE_ADMIN` |
+| `/api/v1/chat/quick-questions`                 | 빠른 질문 목록 조회                          | `USER(accountStatus=PRE 또는 ACTIVE)`, `SERVICE_ADMIN` |
+| `/api/v1/chat/quick-questions/click`           | 빠른 질문 클릭 로그 기록                       | `USER(accountStatus=PRE 또는 ACTIVE)`, `SERVICE_ADMIN` |
 | `/api/v1/onboarding-suggestions/*`             | 온보딩 제안 노출 처리                         | `USER(accountStatus=ACTIVE)`, `SERVICE_ADMIN` |
 | `/api/v1/admin/documents/upload`               | 문서 업로드                               | `ADMIN(accountStatus=ACTIVE)` |
 | `/api/v1/admin/documents`                      | 문서 목록 조회·전체 삭제 등 문서 관리              | `ADMIN(accountStatus=ACTIVE)` |
@@ -868,7 +868,7 @@ MyBuddy 화면에서 사용하는 주요 기능은 다음과 같다.
 | 온보딩 제안 노출 처리 | `POST /api/v1/onboarding-suggestions/me/exposure` | 오늘 노출 대상 온보딩 제안이 있으면 `chat_messages`에 suggestion 메시지로 생성한다. |
 | 채팅 메시지 목록 조회 | `GET /api/v1/chat/messages` | 현재 로그인한 사용자의 채팅 메시지 목록을 조회한다. |
 | 질문 전송 | `POST /api/v1/chat/messages/stream` | 사용자 질문을 저장하고 AI 답변을 생성한다. |
-| 빠른 질문 목록 조회 | `GET /api/v1/chat/quick-questions` | 일반 빠른 질문 후보 중 랜덤으로 5개를 조회한다. |
+| 빠른 질문 목록 조회 | `GET /api/v1/chat/quick-questions` | PRE 계정은 고정 4개, 기존 빠른 질문 대상은 랜덤 5개를 조회한다. |
 | 빠른 질문 클릭 로그 기록 | `POST /api/v1/chat/quick-questions/click` | 사용자가 빠른 질문 버튼을 클릭한 이력을 기록한다. |
 
 `READ_ONLY` 사용자는 기존 대화 기록과 답변 출처 조회만 가능하다. 프론트엔드는 입력창, Quick Tap, Buddy Nudge 질문 유도를 비활성화하고, 백엔드는 질문 API와 조회 API 권한을 분리해 검증한다.
@@ -1512,14 +1512,53 @@ Backend
 
 현재 로그인한 사용자에게 노출할 빠른 질문 목록을 조회한다.
 
-전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
+`account_status = PRE`인 신입 사용자는 사전 온보딩용 고정 빠른 질문 4개를 반환한다.
+그 외 기존 빠른 질문 대상 사용자는 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
 
 ```http
 GET /api/v1/chat/quick-questions
 Authorization: Bearer {accessToken}
 ```
 
-#### Response (200 OK)
+#### Response (200 OK, `account_status = PRE`)
+
+```json
+{
+  "quickQuestions": [
+    {
+      "buttonText": "📋 제출 서류",
+      "content": "입사 첫날 제출해야 하는 서류는 무엇인가요?",
+      "eventTarget": "QUICK_TAP_DOCS"
+    },
+    {
+      "buttonText": "🏢 출근 장소·입장 방법",
+      "content": "첫 출근 장소와 입장 방법이 어떻게 되나요?",
+      "eventTarget": "QUICK_TAP_LOCATION"
+    },
+    {
+      "buttonText": "🕘 출근 시간",
+      "content": "출근 시간이 어떻게 되나요?",
+      "eventTarget": "QUICK_TAP_WORK_HOUR"
+    },
+    {
+      "buttonText": "📍 담당자 문의처 확인하기",
+      "content": "첫날 전체 일정이 어떻게 진행되나요?",
+      "eventTarget": "QUICK_TAP_FIRST_DAY_SCHEDULE"
+    }
+  ]
+}
+```
+
+#### PRE 계정 고정 빠른 질문
+
+| 버튼 텍스트 | 전송 질문 (`content`) | `eventTarget` |
+|---|---|---|
+| 📋 제출 서류 | 입사 첫날 제출해야 하는 서류는 무엇인가요? | `QUICK_TAP_DOCS` |
+| 🏢 출근 장소·입장 방법 | 첫 출근 장소와 입장 방법이 어떻게 되나요? | `QUICK_TAP_LOCATION` |
+| 🕘 출근 시간 | 출근 시간이 어떻게 되나요? | `QUICK_TAP_WORK_HOUR` |
+| 📍 담당자 문의처 확인하기 | 첫날 전체 일정이 어떻게 진행되나요? | `QUICK_TAP_FIRST_DAY_SCHEDULE` |
+
+#### Response (200 OK, 기존 빠른 질문 대상)
 
 ```json
 {
@@ -1574,7 +1613,9 @@ Authorization: Bearer {accessToken}
 
 - 빠른 질문은 사용자가 자주 묻는 질문을 버튼 형태로 제공하기 위한 추천 질문 목록이다.
 - 현재 빠른 질문 목록은 회사 구분 없이 공통으로 제공한다.
-- 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
+- `account_status = PRE`인 신입 사용자는 사전 온보딩용 고정 빠른 질문 4개를 항상 동일한 순서로 반환한다.
+- `PRE` 계정 고정 빠른 질문은 기존 quick tap 후보 랜덤 선택 규칙과 별도로 관리한다.
+- 그 외 기존 빠른 질문 대상 사용자는 전체 quick tap 후보 중 랜덤으로 5개를 반환한다.
 - 이 API는 빠른 질문 버튼 목록만 조회한다.
 - 이 API는 클릭 로그 저장이나 채팅 메시지 생성을 수행하지 않는다.
 - 사용자가 빠른 질문을 클릭하면, 프론트엔드는 해당 항목의 `content` 값을 일반 질문과 동일하게 `POST /api/v1/chat/messages/stream`로 전송한다.
@@ -4812,5 +4853,8 @@ Authorization: Bearer {accessToken}
   - `unanswered_question_logs`의 임베딩 저장 컬럼과 별도 임베딩 생성 연동을 제거하고, 군집화 요청 body를 `logId`, `questionContent` 중심으로 축소하며 `aiSummary`는 TOP N 기반 AI 요약 및 문서 보강 제안으로 명시
 - **v2.3.3 (2026-07-06)**
   - 신입 사용자 계정 상태를 `accountStatus`(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)로 분리. `PRE`는 입사일 7일 전부터 1일 전까지의 사전 온보딩 상태로 처리하고, 입사일 8일 전 이전은 `INACTIVE`로 처리
-- **v2.3.4 (2026-07-08)**
+- **v2.3.4 (2026-07-07)**
   - AI 서버 `/chat/stream` 요청 body의 `user` 객체에 현재 사용자 계정 상태를 나타내는 `accountState`를 추가
+- **v2.3.5 (2026-07-08)**
+  - `account_status = PRE` 신입 사용자의 빠른 질문 목록을 기존 랜덤 5개 반환 방식과 분리해 사전 온보딩용 고정 4개 항목으로 반환하도록 명세 수정
+  - PRE 계정 고정 빠른 질문의 버튼 텍스트, 전송 질문(`content`), 클릭 로그용 `eventTarget` 값을 명시
