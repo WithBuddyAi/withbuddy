@@ -297,6 +297,10 @@ def run_rag_chain(user_id: str, question: str, user_name: str = "", company_code
         if not _llm_judge(result.question, result.docs, answer):
             answer = _NO_RESULT_TEMPLATE
 
+    # PRE 유저 첫 질문: 질문 범위 안내 (한 번만)
+    if account_status == "PRE" and not chat_history and answer != _NO_RESULT_TEMPLATE:
+        answer += "\n\n지금은 이런 것들을 물어보실 수 있어요:\n✅ 회사 위치·출근 방법\n✅ 첫날 준비물·복장\n✅ 장비 수령 절차\n연차나 급여 같은 세부 정책은 입사 후에 더 자세히 안내해드릴게요!"
+
     global _last_category
     _last_category = _extract_category(result.docs)
 
@@ -499,6 +503,12 @@ async def stream_rag_chain(user_id: str, question: str, user_name: str = "", com
 
     if _high_risk:
         yield _fmt(fixed), None, None, None  # 고위험: Judge 완료 후 단일 전송
+
+    # PRE 유저 첫 질문: 질문 범위 안내 (한 번만)
+    if account_status == "PRE" and not chat_history and fixed != _NO_RESULT_TEMPLATE and not _high_risk:
+        _scope = "\n\n지금은 이런 것들을 물어보실 수 있어요:\n✅ 회사 위치·출근 방법\n✅ 첫날 준비물·복장\n✅ 장비 수령 절차\n연차나 급여 같은 세부 정책은 입사 후에 더 자세히 안내해드릴게요!"
+        fixed += _scope
+        yield "\x00" + fixed, None, None, None
 
     global _last_category
     _last_category = _extract_category(result.docs)
