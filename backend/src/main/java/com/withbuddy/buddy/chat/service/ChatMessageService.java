@@ -7,6 +7,7 @@ import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.account.user.service.UserLifecycleStatusResolver;
 import com.withbuddy.buddy.chat.dto.request.ChatMessageRequest;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageResponse;
 import com.withbuddy.buddy.chat.dto.response.ChatStreamAnswerCompletedResponse;
@@ -50,6 +51,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -93,6 +95,7 @@ public class ChatMessageService {
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
     private final UserRepository userRepository;
+    private final Clock clock;
 
     public SseEmitter streamUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
         AuthorizedUser authorizedUser = requireQuestionSendAllowed(principal.userId());
@@ -225,13 +228,14 @@ public class ChatMessageService {
     private AuthorizedUser requireQuestionSendAllowed(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+        UserAccountStatus currentAccountStatus = resolveCurrentAccountStatus(user);
 
-        if (user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.INACTIVE) {
+        if (user.getRole() == UserRole.USER && currentAccountStatus == UserAccountStatus.INACTIVE) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "비활성 사용자는 질문을 전송할 수 없습니다.");
         }
         boolean writableUser = user.getRole() == UserRole.USER
-                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
-                || user.getAccountStatus() == UserAccountStatus.PRE);
+                && (currentAccountStatus == UserAccountStatus.ACTIVE
+                || currentAccountStatus == UserAccountStatus.PRE);
         if (!writableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "질문 전송 권한이 없습니다.");
         }
@@ -772,9 +776,6 @@ public class ChatMessageService {
     }
 
     public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
-<<<<<<< Updated upstream
-        requireQuestionSendAllowed(userId);
-=======
         AuthorizedUser authorizedUser = requireQuestionSendAllowed(userId);
         User user = authorizedUser.user();
         UserAccountStatus currentAccountStatus = authorizedUser.accountStatus();
@@ -783,8 +784,14 @@ public class ChatMessageService {
             return Map.of("quickQuestions", quickQuestionCatalog.getPreQuickQuestions());
         }
 
->>>>>>> Stashed changes
         return Map.of("quickQuestions", quickQuestionCatalog.getRandomQuickQuestions(5));
+    }
+
+    private UserAccountStatus resolveCurrentAccountStatus(User user) {
+        if (user.getRole() != UserRole.USER) {
+            return user.getAccountStatus();
+        }
+        return UserLifecycleStatusResolver.resolve(user, clock);
     }
 
     private List<ChatMessageResponse.RecommendedContactResponse> toRecommendedContactResponses(

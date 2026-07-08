@@ -1,15 +1,13 @@
 package com.withbuddy.buddy.chat.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-<<<<<<< Updated upstream
-=======
 import com.withbuddy.account.company.entity.Company;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.buddy.chat.dto.request.ChatMessageRequest;
 import com.withbuddy.buddy.chat.dto.response.QuickQuestionResponse;
->>>>>>> Stashed changes
+import com.withbuddy.buddy.chat.dto.response.QuickQuestionResponse;
 import com.withbuddy.buddy.chat.entity.ChatMessage;
 import com.withbuddy.buddy.chat.entity.MessageType;
 import com.withbuddy.buddy.chat.entity.SenderType;
@@ -28,7 +26,6 @@ import com.withbuddy.storage.repository.DocumentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,13 +33,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
-<<<<<<< Updated upstream
-=======
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
->>>>>>> Stashed changes
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executor;
@@ -55,6 +53,11 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ChatMessageServiceTest {
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final Clock FIXED_CLOCK = Clock.fixed(
+            LocalDate.of(2026, 7, 10).atStartOfDay(KST).toInstant(),
+            KST
+    );
 
     @Mock
     private ChatMessageRepository chatMessageRepository;
@@ -83,8 +86,27 @@ class ChatMessageServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @InjectMocks
     private ChatMessageService chatMessageService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        chatMessageService = new ChatMessageService(
+                chatMessageRepository,
+                chatMessageDocumentRepository,
+                unansweredQuestionLogRepository,
+                documentRepository,
+                documentFileRepository,
+                aiStreamClient,
+                redisCacheService,
+                objectMapper,
+                transactionTemplate,
+                aiCallExecutor,
+                quickQuestionCatalog,
+                onboardingSuggestionRepository,
+                userRepository,
+                FIXED_CLOCK
+        );
+    }
 
     @Test
     void savesSuggestionMessageWhenNoExistingRow() {
@@ -226,8 +248,6 @@ class ChatMessageServiceTest {
         assertThat(savedLog.getAnswerType()).isEqualTo(MessageType.no_result);
         assertThat(savedLog.getLatencyMs()).isEqualTo(123L);
     }
-<<<<<<< Updated upstream
-=======
 
     @Test
     void returnsFixedPreQuickQuestionsForPreUser() {
@@ -353,5 +373,4 @@ class ChatMessageServiceTest {
                 .accountStatus(accountStatus)
                 .build();
     }
->>>>>>> Stashed changes
 }
