@@ -396,6 +396,7 @@ async def list_documents():
 class IngestRequest(BaseModel):
     documentId: int
     companyCode: str = ""
+    preOnboardingTag: bool = False
 
 
 @router.post("/ingest")
@@ -464,6 +465,7 @@ async def ingest_from_backend(
             "document_type": doc_meta.get("documentType", ""),
             "department": doc_meta.get("department", ""),
             "company_code": req.companyCode,
+            "pre_onboarding_tag": req.preOnboardingTag,
         }
         chunks = _split_documents(text, filename, metadata)
         try:
