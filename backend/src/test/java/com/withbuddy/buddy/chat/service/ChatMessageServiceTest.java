@@ -1,12 +1,12 @@
 package com.withbuddy.buddy.chat.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.company.entity.Company;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
 import com.withbuddy.buddy.chat.dto.request.ChatMessageRequest;
-import com.withbuddy.buddy.chat.dto.response.QuickQuestionResponse;
 import com.withbuddy.buddy.chat.dto.response.QuickQuestionResponse;
 import com.withbuddy.buddy.chat.entity.ChatMessage;
 import com.withbuddy.buddy.chat.entity.MessageType;
@@ -16,7 +16,6 @@ import com.withbuddy.buddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.buddy.chat.repository.UnansweredQuestionLogRepository;
 import com.withbuddy.buddy.onboarding.repository.OnboardingSuggestionRepository;
-import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
 import com.withbuddy.infrastructure.ai.client.AiStreamClient;
 import com.withbuddy.infrastructure.ai.dto.AiAnswerServerResponse;
@@ -37,10 +36,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.Clock;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executor;
@@ -209,7 +204,7 @@ class ChatMessageServiceTest {
         ChatMessage savedAnswer = new ChatMessage(
                 userId,
                 null,
-                com.withbuddy.buddy.chat.entity.SenderType.BOT,
+                SenderType.BOT,
                 MessageType.no_result,
                 "답변할 수 없습니다.",
                 null,
