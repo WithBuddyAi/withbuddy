@@ -9,6 +9,7 @@ import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.account.user.service.UserLifecycleStatusResolver;
 import com.withbuddy.buddy.chat.service.QuickQuestionCatalog;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
@@ -16,6 +17,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -26,6 +28,7 @@ public class UserActivityLogService {
     private final UserActivityLogRepository userActivityLogRepository;
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final UserRepository userRepository;
+    private final Clock clock;
 
     @Transactional
     public void saveLoginSessionStart(Long userId) {
@@ -108,10 +111,11 @@ public class UserActivityLogService {
     private void requireActiveUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+        UserAccountStatus currentAccountStatus = resolveCurrentAccountStatus(user);
 
         boolean writableUser = user.getRole() == UserRole.USER
-                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
-                || user.getAccountStatus() == UserAccountStatus.PRE);
+                && (currentAccountStatus == UserAccountStatus.ACTIVE
+                || currentAccountStatus == UserAccountStatus.PRE);
         if (!writableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 이 동작을 수행할 수 없습니다.");
         }
@@ -120,13 +124,21 @@ public class UserActivityLogService {
     private void requireChatSessionLogAllowed(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+        UserAccountStatus currentAccountStatus = resolveCurrentAccountStatus(user);
 
         boolean readableUser = user.getRole() == UserRole.USER
-                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
-                || user.getAccountStatus() == UserAccountStatus.PRE
-                || user.getAccountStatus() == UserAccountStatus.READ_ONLY);
+                && (currentAccountStatus == UserAccountStatus.ACTIVE
+                || currentAccountStatus == UserAccountStatus.PRE
+                || currentAccountStatus == UserAccountStatus.READ_ONLY);
         if (!readableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "현재 역할에서는 이 동작을 수행할 수 없습니다.");
         }
+    }
+
+    private UserAccountStatus resolveCurrentAccountStatus(User user) {
+        if (user.getRole() != UserRole.USER) {
+            return user.getAccountStatus();
+        }
+        return UserLifecycleStatusResolver.resolve(user, clock);
     }
 }
