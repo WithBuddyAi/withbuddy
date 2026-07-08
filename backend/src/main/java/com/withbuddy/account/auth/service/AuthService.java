@@ -23,17 +23,16 @@ import com.withbuddy.infrastructure.redis.RedisCacheTtl;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.ZoneId;
 import java.util.Locale;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService {
-    private static final Clock DEFAULT_KST_CLOCK = Clock.system(ZoneId.of("Asia/Seoul"));
-
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final UserActivityLogService userActivityLogService;
@@ -44,55 +43,6 @@ public class AuthService {
     private final TurnstileVerificationService turnstileVerificationService;
     private final LoginAttemptRateLimitService loginAttemptRateLimitService;
     private final Clock clock;
-
-    public AuthService(
-            UserRepository userRepository,
-            JwtService jwtService,
-            UserActivityLogService userActivityLogService,
-            RedisActivityLogService redisActivityLogService,
-            RmqActivityLogService rmqActivityLogService,
-            RedisCacheService redisCacheService,
-            ObjectMapper objectMapper,
-            TurnstileVerificationService turnstileVerificationService,
-            LoginAttemptRateLimitService loginAttemptRateLimitService
-    ) {
-        this(
-                userRepository,
-                jwtService,
-                userActivityLogService,
-                redisActivityLogService,
-                rmqActivityLogService,
-                redisCacheService,
-                objectMapper,
-                turnstileVerificationService,
-                loginAttemptRateLimitService,
-                DEFAULT_KST_CLOCK
-        );
-    }
-
-    AuthService(
-            UserRepository userRepository,
-            JwtService jwtService,
-            UserActivityLogService userActivityLogService,
-            RedisActivityLogService redisActivityLogService,
-            RmqActivityLogService rmqActivityLogService,
-            RedisCacheService redisCacheService,
-            ObjectMapper objectMapper,
-            TurnstileVerificationService turnstileVerificationService,
-            LoginAttemptRateLimitService loginAttemptRateLimitService,
-            Clock clock
-    ) {
-        this.userRepository = userRepository;
-        this.jwtService = jwtService;
-        this.userActivityLogService = userActivityLogService;
-        this.redisActivityLogService = redisActivityLogService;
-        this.rmqActivityLogService = rmqActivityLogService;
-        this.redisCacheService = redisCacheService;
-        this.objectMapper = objectMapper;
-        this.turnstileVerificationService = turnstileVerificationService;
-        this.loginAttemptRateLimitService = loginAttemptRateLimitService;
-        this.clock = clock;
-    }
 
     @Transactional
     public AuthenticatedSession login(LoginRequest request, String clientIp) {
