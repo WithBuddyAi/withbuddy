@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.3.3
-**최종 업데이트**: 2026-07-06
+**버전**: 2.3.4
+**최종 업데이트**: 2026-07-08
 
 ---
 
@@ -3058,7 +3058,8 @@ AI 서버 Swagger의 `/chat/stream` 요청 예시 기준으로 작성한다.
     "userId": 1,
     "name": "김지원",
     "companyCode": "WB0001",
-    "hireDate": "2026-05-01"
+    "hireDate": "2026-05-01",
+    "accountState": "ACTIVE"
   },
   "content": "연차 신청 방법이 뭐야?"
 }
@@ -3069,7 +3070,7 @@ AI 서버 Swagger의 `/chat/stream` 요청 예시 기준으로 작성한다.
 | 필드 | 타입 | 필수 | 예시값 | 설명 | 상세 규칙 |
 |---|---|---|---|---|---|
 | `questionId` | Long | Y | `201` | 백엔드가 저장한 사용자 질문 메시지 ID | 양의 정수 |
-| `user` | Object | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001", "hireDate": "2026-05-01" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별, 개인화, 회사 문서 범위 판별, 입사일 기준 온보딩 맥락 판단에 사용 |
+| `user` | Object | Y | `{ "userId": 1, "name": "김지원", "companyCode": "WB0001", "hireDate": "2026-05-01", "accountState": "ACTIVE" }` | 답변 생성에 사용할 사용자 정보 | 사용자 식별, 개인화, 회사 문서 범위 판별, 입사일 및 계정 상태 기준 온보딩 맥락 판단에 사용 |
 | `content` | String | Y | `"연차 신청 방법이 뭐야?"` | 사용자가 입력한 질문 내용 | 길이 1~500자 / 공백만 입력 불가 |
 
 #### Request Field (`user`)
@@ -3080,6 +3081,7 @@ AI 서버 Swagger의 `/chat/stream` 요청 예시 기준으로 작성한다.
 | `user.name` | String | Y | `"김지원"` | 로그인한 사용자 이름 | 길이 1~100자 |
 | `user.companyCode` | String | Y | `"WB0001"` | 로그인한 사용자의 회사 코드 | 길이 1~20자 / 허용 문자: 영문 대소문자 + 숫자 / 특수문자·공백 불가 |
 | `user.hireDate` | String | Y | `"2026-05-01"` | 로그인한 사용자의 입사일 | ISO-8601 날짜 형식(`yyyy-MM-dd`) / 답변 개인화 및 입사일 기준 온보딩 맥락 판단에 사용 |
+| `user.accountState` | String | Y | `"ACTIVE"` | 로그인한 사용자의 계정 상태 | `PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE` 중 하나 / 계정 상태별 답변 맥락 판단에 사용 |
 
 #### 기존 내부 AI 요청과의 차이
 
@@ -3095,7 +3097,7 @@ SSE 적용 후 AI 서버 Swagger의 `/chat/stream` 기준 요청에는 `conversa
 따라서 본 명세에서는 AI 서버로 전달하는 필드를 아래 세 가지로 제한한다.
 
 - `questionId`
-- `user.userId`, `user.name`, `user.companyCode`, `user.hireDate`
+- `user.userId`, `user.name`, `user.companyCode`, `user.hireDate`, `user.accountState`
 - `content`
 
 향후 AI 서버가 `conversationHistory` 또는 `companyName`을 스트림 요청 스키마에 추가하면, 백엔드 내부 요청 DTO를 확장한다.
@@ -3493,6 +3495,7 @@ AI 서버 Swagger 기준 요청값 검증 실패 시 422 응답이 발생할 수
 - `user.name`은 개인화된 답변 생성에 사용할 수 있다.
 - `user.companyCode`는 회사별 문서 범위 판별에 사용한다.
 - `user.hireDate`는 입사일 기준 온보딩 맥락 판단 및 개인화 답변 생성에 사용한다.
+- `user.accountState`는 사용자의 현재 계정 상태(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)를 AI 답변 맥락에 반영하는 데 사용한다.
 - AI 서버는 `user.companyCode`를 기준으로 해당 회사 문서와 공통 문서만 조회 대상으로 사용해야 한다.
 - AI 서버는 `user.hireDate`를 기준으로 입사 후 경과일, 온보딩 단계, 신입 사용자 상황을 답변 맥락에 반영할 수 있다.
 - AI 서버는 질문 내용에 대해 답변 조각을 `answer_delta` 이벤트로 반환한다.
@@ -4809,3 +4812,5 @@ Authorization: Bearer {accessToken}
   - `unanswered_question_logs`의 임베딩 저장 컬럼과 별도 임베딩 생성 연동을 제거하고, 군집화 요청 body를 `logId`, `questionContent` 중심으로 축소하며 `aiSummary`는 TOP N 기반 AI 요약 및 문서 보강 제안으로 명시
 - **v2.3.3 (2026-07-06)**
   - 신입 사용자 계정 상태를 `accountStatus`(`PRE`, `ACTIVE`, `READ_ONLY`, `INACTIVE`)로 분리. `PRE`는 입사일 7일 전부터 1일 전까지의 사전 온보딩 상태로 처리하고, 입사일 8일 전 이전은 `INACTIVE`로 처리
+- **v2.3.4 (2026-07-08)**
+  - AI 서버 `/chat/stream` 요청 body의 `user` 객체에 현재 사용자 계정 상태를 나타내는 `accountState`를 추가

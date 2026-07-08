@@ -254,6 +254,9 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     if pre_onboarding_only:
         company_filter["$and"].append({"pre_onboarding_tag": True})
         common_filter["$and"].append({"pre_onboarding_tag": True})
+    else:
+        company_filter["$and"].append({"document_type": {"$ne": "PRE_ONBOARDING_QA"}})
+        common_filter["$and"].append({"document_type": {"$ne": "PRE_ONBOARDING_QA"}})
 
     bm25 = get_bm25_retriever(company_code, k=k)
 
