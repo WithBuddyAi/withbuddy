@@ -120,7 +120,7 @@ public interface ChatMessageControllerDocs {
 
     @Operation(
             summary = "추천 질문 목록 조회",
-            description = "채팅 진입 시 노출할 추천 질문 목록을 조회한다."
+            description = "채팅 진입 시 노출할 추천 질문 목록을 조회한다. PRE 계정은 사전 온보딩용 고정 4개, 기존 빠른 질문 대상은 랜덤 5개를 반환한다."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "추천 질문 목록 반환"),
