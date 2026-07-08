@@ -261,6 +261,31 @@ class ChatMessageServiceTest {
     }
 
     @Test
+    void returnsFixedPreQuickQuestionsForPreUser() {
+        User preUser = user(UserAccountStatus.PRE, LocalDate.of(2026, 7, 14));
+        List<QuickQuestionResponse> preQuickQuestions = List.of(
+                new QuickQuestionResponse("📋 제출 서류", "입사 첫날 제출해야 하는 서류는 무엇인가요?", "QUICK_TAP_DOCS"),
+                new QuickQuestionResponse("🏢 출근 장소·입장 방법", "첫 출근 장소와 입장 방법이 어떻게 되나요?", "QUICK_TAP_LOCATION"),
+                new QuickQuestionResponse("🕘 출근 시간", "출근 시간이 어떻게 되나요?", "QUICK_TAP_WORK_HOUR"),
+                new QuickQuestionResponse("📍 담당자 문의처 확인하기", "첫날 전체 일정이 어떻게 진행되나요?", "QUICK_TAP_FIRST_DAY_SCHEDULE")
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(preUser));
+        when(quickQuestionCatalog.getPreQuickQuestions()).thenReturn(preQuickQuestions);
+
+        assertThat(chatMessageService.getQuickQuestions(1L).get("quickQuestions"))
+                .extracting(QuickQuestionResponse::getEventTarget)
+                .containsExactly(
+                        "QUICK_TAP_DOCS",
+                        "QUICK_TAP_LOCATION",
+                        "QUICK_TAP_WORK_HOUR",
+                        "QUICK_TAP_FIRST_DAY_SCHEDULE"
+                );
+        verify(quickQuestionCatalog).getPreQuickQuestions();
+        org.mockito.Mockito.verify(quickQuestionCatalog, org.mockito.Mockito.never()).getRandomQuickQuestions(5);
+    }
+
+    @Test
     void streamUserMessageUsesResolvedAccountStatusForAiRequest() throws Exception {
         JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(
                 1L,

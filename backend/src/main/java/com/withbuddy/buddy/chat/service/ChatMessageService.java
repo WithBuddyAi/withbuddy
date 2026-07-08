@@ -777,7 +777,11 @@ public class ChatMessageService {
     }
 
     public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
-        requireQuestionSendAllowed(userId);
+        AuthorizedUser authorizedUser = requireQuestionSendAllowed(userId);
+        if (authorizedUser.user().getRole() == UserRole.USER
+                && authorizedUser.accountStatus() == UserAccountStatus.PRE) {
+            return Map.of("quickQuestions", quickQuestionCatalog.getPreQuickQuestions());
+        }
 
         return Map.of("quickQuestions", quickQuestionCatalog.getRandomQuickQuestions(5));
     }
