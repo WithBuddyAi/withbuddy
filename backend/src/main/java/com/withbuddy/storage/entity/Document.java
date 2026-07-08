@@ -38,6 +38,9 @@ public class Document {
     @Column(name = "content_hash", length = 64)
     private String contentHash;
 
+    @Column(name = "pre_onboarding_tag", nullable = false)
+    private boolean preOnboardingTag;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive;
 
@@ -57,6 +60,7 @@ public class Document {
             String documentType,
             String department,
             String contentHash,
+            boolean preOnboardingTag,
             boolean isActive
     ) {
         this.companyCode = companyCode;
@@ -65,6 +69,7 @@ public class Document {
         this.documentType = documentType;
         this.department = department;
         this.contentHash = contentHash;
+        this.preOnboardingTag = preOnboardingTag;
         this.isActive = isActive;
     }
 

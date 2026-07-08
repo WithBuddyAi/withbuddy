@@ -35,7 +35,7 @@ public class AiDocumentIngestClient {
         this.internalKey = internalKey;
     }
 
-    public AiDocumentIngestResponse ingest(Long documentId, String companyCode) {
+    public AiDocumentIngestResponse ingest(Long documentId, String companyCode, boolean preOnboardingTag) {
         if (documentId == null) {
             throw new IllegalArgumentException("documentId는 null일 수 없습니다.");
         }
@@ -50,7 +50,7 @@ public class AiDocumentIngestClient {
                 .uri("admin/ingest")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(internalHeaderName, internalKey)
-                .body(new AiDocumentIngestRequest(documentId, companyCode))
+                .body(new AiDocumentIngestRequest(documentId, companyCode, preOnboardingTag))
                 .retrieve()
                 .body(AiDocumentIngestResponse.class);
 
@@ -75,7 +75,7 @@ public class AiDocumentIngestClient {
                 .uri("admin/ingest")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(internalHeaderName, internalKey)
-                .body(new AiDocumentIngestRequest(documentId, companyCode))
+                .body(new AiDocumentDeindexRequest(documentId, companyCode))
                 .retrieve()
                 .body(AiDocumentDeindexResponse.class);
 
@@ -86,6 +86,13 @@ public class AiDocumentIngestClient {
     }
 
     private record AiDocumentIngestRequest(
+            Long documentId,
+            String companyCode,
+            boolean preOnboardingTag
+    ) {
+    }
+
+    private record AiDocumentDeindexRequest(
             Long documentId,
             String companyCode
     ) {
