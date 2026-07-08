@@ -101,8 +101,8 @@ jobs:
           ROUTER_SERVER_HOST="${TRAFFIC_SWITCH_SERVER_HOST:-${BLUE_BACKEND_SERVER_HOST:-}}"
           ROUTER_SSH_KEY="${TRAFFIC_SWITCH_SERVER_SSH_KEY:-${BLUE_BACKEND_SERVER_SSH_KEY:-}}"
           ACTIVE_UPSTREAM_LINK="${NGINX_ACTIVE_UPSTREAM_LINK:-/etc/nginx/conf.d/upstream-active.conf}"
-          BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-blue.conf}"
-          GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-green.conf}"
+          BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/upstreams/upstream-blue.conf}"
+          GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF:-/etc/nginx/upstreams/upstream-green.conf}"
 
           if [ -z "${ROUTER_SERVER_HOST}" ]; then
             echo "Live slot validation host is missing. Set TRAFFIC_SWITCH_SERVER_HOST or BLUE_BACKEND_SERVER_HOST."
@@ -1474,8 +1474,8 @@ jobs:
           ROUTER_SSH_KEY="${TRAFFIC_SWITCH_SERVER_SSH_KEY:-${BLUE_BACKEND_SERVER_SSH_KEY:-}}"
           PUBLIC_HEALTH_URL="${TRAFFIC_SWITCH_PUBLIC_HEALTH_URL:-}"
           ACTIVE_UPSTREAM_LINK="${NGINX_ACTIVE_UPSTREAM_LINK:-/etc/nginx/conf.d/upstream-active.conf}"
-          BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-blue.conf}"
-          GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF:-/etc/nginx/conf.d/upstream-green.conf}"
+          BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/upstreams/upstream-blue.conf}"
+          GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF:-/etc/nginx/upstreams/upstream-green.conf}"
 
           if [ -z "${ROUTER_SERVER_HOST}" ]; then
             echo "Traffic switch host is missing. Set TRAFFIC_SWITCH_SERVER_HOST or BLUE_BACKEND_SERVER_HOST."
