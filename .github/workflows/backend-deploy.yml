@@ -2,6 +2,12 @@ name: Deploy Backend
 # Flyway repair step runs on DB server via DB_SERVER_* environment secrets.
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
     inputs:
       target_slot:
@@ -29,7 +35,7 @@ on:
         type: boolean
 
 concurrency:
-  group: backend-deploy-${{ github.ref }}-${{ github.event.inputs.target_slot }}
+  group: backend-deploy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -40,18 +46,25 @@ jobs:
     outputs:
       target_slot: ${{ steps.slot_selection.outputs.target_slot }}
       live_slot: ${{ steps.slot_selection.outputs.live_slot }}
+      switch_traffic: ${{ steps.branch_guard.outputs.switch_traffic }}
 
     steps:
       - name: Branch guard
         id: branch_guard
         shell: bash
         run: |
-          if [ "${GITHUB_REF}" = "refs/heads/main" ] && [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+          if [ "${GITHUB_REF}" = "refs/heads/main" ] && { [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] || [ "${GITHUB_EVENT_NAME}" = "push" ]; }; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             echo "Production deploy enabled for ${GITHUB_REF}"
-            echo "target_slot_input=${{ github.event.inputs.target_slot }}" >> "$GITHUB_OUTPUT"
-            echo "live_slot_input=${{ github.event.inputs.live_slot }}" >> "$GITHUB_OUTPUT"
-            echo "switch_traffic=${{ github.event.inputs.switch_traffic }}" >> "$GITHUB_OUTPUT"
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+              echo "target_slot_input=${{ github.event.inputs.target_slot }}" >> "$GITHUB_OUTPUT"
+              echo "live_slot_input=${{ github.event.inputs.live_slot }}" >> "$GITHUB_OUTPUT"
+              echo "switch_traffic=${{ github.event.inputs.switch_traffic }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "target_slot_input=auto" >> "$GITHUB_OUTPUT"
+              echo "live_slot_input=auto" >> "$GITHUB_OUTPUT"
+              echo "switch_traffic=true" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "should_deploy=false" >> "$GITHUB_OUTPUT"
             echo "Deploy Backend is production-only."
@@ -1408,7 +1421,7 @@ jobs:
 
   switch-traffic:
     needs: build-and-deploy
-    if: needs.build-and-deploy.result == 'success' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.event.inputs.switch_traffic == 'true'
+    if: needs['build-and-deploy'].result == 'success' && github.ref == 'refs/heads/main' && needs['build-and-deploy'].outputs.switch_traffic == 'true' && needs['build-and-deploy'].outputs.target_slot != '' && needs['build-and-deploy'].outputs.live_slot != ''
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 10
@@ -1437,8 +1450,16 @@ jobs:
         run: |
           set -euo pipefail
 
+<<<<<<< Updated upstream
           TARGET_SLOT="${{ github.event.inputs.target_slot }}"
           LIVE_SLOT="${{ github.event.inputs.live_slot }}"
+=======
+          TARGET_SLOT="${{ needs['build-and-deploy'].outputs.target_slot }}"
+          LIVE_SLOT="${{ needs['build-and-deploy'].outputs.live_slot }}"
+          INGRESS_MODE="${TRAFFIC_SWITCH_INGRESS_MODE:-nginx_upstream}"
+          PUBLIC_TUNNEL_SERVICE="${PUBLIC_TUNNEL_SERVICE_NAME:-cloudflared.service}"
+          DISABLE_PREVIOUS_PUBLIC_TUNNEL="${DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH:-true}"
+>>>>>>> Stashed changes
 
           if [ "${TARGET_SLOT}" = "${LIVE_SLOT}" ]; then
             echo "target_slot and live_slot must be different for blue/green deployment."
