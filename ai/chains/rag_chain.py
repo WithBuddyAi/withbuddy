@@ -119,7 +119,9 @@ def _ensure_counter():
     global _counter_registered
     if not _counter_registered:
         llm = get_llm()
-        llm.callbacks = list(llm.callbacks or []) + [_token_counter]
+        # with_fallbacks() 래퍼인 경우 primary LLM에 콜백 등록
+        target = llm.runnable if hasattr(llm, 'runnable') else llm
+        target.callbacks = list(target.callbacks or []) + [_token_counter]
         _counter_registered = True
 
 
