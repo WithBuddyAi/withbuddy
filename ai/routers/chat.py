@@ -47,6 +47,7 @@ class ChatUser(BaseModel):
     companyCode: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
     companyName: str = Field("", description="회사명")
     hireDate: str = Field("", description="입사일 (YYYY-MM-DD)")
+    accountState: str = Field("", description="계정 상태 (PRE/ACTIVE 등)")
 
 
 class ChatRequest(BaseModel):
@@ -132,6 +133,7 @@ async def chat_stream(request: ChatRequest):
                 uid, message, request.user.name, request.user.companyCode,
                 company_name=request.user.companyName,
                 hire_date=request.user.hireDate,
+                account_status=request.user.accountState,
             ):
                 if source is not None:
                     full_answer = "".join(accumulated_text)
