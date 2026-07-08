@@ -23,7 +23,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,6 +40,11 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final Clock FIXED_CLOCK = Clock.fixed(
+            LocalDate.of(2026, 7, 10).atStartOfDay(KST).toInstant(),
+            KST
+    );
 
     @Mock
     private UserRepository userRepository;
@@ -69,7 +76,8 @@ class AuthServiceTest {
                 redisCacheService,
                 new ObjectMapper().findAndRegisterModules(),
                 turnstileVerificationService,
-                loginAttemptRateLimitService
+                loginAttemptRateLimitService,
+                FIXED_CLOCK
         );
     }
 
