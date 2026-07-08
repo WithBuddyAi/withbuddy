@@ -207,6 +207,7 @@ jobs:
           LANGCHAIN_PROJECT: ${{ secrets.LANGCHAIN_PROJECT }}
           CB_BLOCK_HOURLY: ${{ secrets.CB_BLOCK_HOURLY }}
           SLACK_CHANNEL_INTERNAL: ${{ secrets.SLACK_CHANNEL_INTERNAL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
           ACCESS_HOST="${AI_ACCESS_HOST:-${AI_SERVER_HOST}}"
@@ -227,6 +228,7 @@ jobs:
             printf 'LANGCHAIN_PROJECT=%s\n'      "${LANGCHAIN_PROJECT}"
             printf 'CB_BLOCK_HOURLY=%s\n'        "${CB_BLOCK_HOURLY}"
             printf 'SLACK_CHANNEL_INTERNAL=%s\n' "${SLACK_CHANNEL_INTERNAL}"
+            printf 'OPENAI_API_KEY=%s\n'         "${OPENAI_API_KEY:-}"
           } | base64 -w0 | ssh "${ACCESS_HOST}" "base64 -d > ${AI_APP_DIR_Q}/.env"
 
       - name: Write contacts_config.py on server
