@@ -8,7 +8,9 @@ import { BrowserRouter } from "react-router-dom";
 import { UserProvider } from "./contexts/UserContext.jsx";
 import ReactGA from "react-ga4";
 
-ReactGA.initialize(import.meta.env.VITE_GA_MEASUREMENT_ID);
+ReactGA.initialize(import.meta.env.VITE_GA_MEASUREMENT_ID, {
+  gtagOptions: { send_page_view: false },
+});
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
