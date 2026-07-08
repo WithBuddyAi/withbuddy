@@ -28,17 +28,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.ZoneId;
 import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-<<<<<<< Updated upstream
-    private static final Clock KST_CLOCK = Clock.system(ZoneId.of("Asia/Seoul"));
-
-=======
->>>>>>> Stashed changes
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final UserActivityLogService userActivityLogService;
@@ -48,10 +42,7 @@ public class AuthService {
     private final ObjectMapper objectMapper;
     private final TurnstileVerificationService turnstileVerificationService;
     private final LoginAttemptRateLimitService loginAttemptRateLimitService;
-<<<<<<< Updated upstream
-=======
     private final Clock clock;
->>>>>>> Stashed changes
 
     @Transactional
     public AuthenticatedSession login(LoginRequest request, String clientIp) {
