@@ -86,14 +86,14 @@ def _build_bm25_corpus(company_code: str) -> List[Document]:
 
     if company_code:
         res = col.get(
-            where={"$and": [{"company_code": company_code}, {"document_type": {"$ne": "TEMPLATE"}}]},
+            where={"$and": [{"company_code": company_code}, {"document_type": {"$ne": "TEMPLATE"}}, {"document_type": {"$ne": "PRE_ONBOARDING_QA"}}]},
             include=["documents", "metadatas"],
         )
         for content, meta in zip(res["documents"], res["metadatas"]):
             docs.append(Document(page_content=content, metadata=meta or {}))
 
     common = col.get(
-        where={"$and": [{"company_code": ""}, {"document_type": {"$ne": "TEMPLATE"}}]},
+        where={"$and": [{"company_code": ""}, {"document_type": {"$ne": "TEMPLATE"}}, {"document_type": {"$ne": "PRE_ONBOARDING_QA"}}]},
         include=["documents", "metadatas"],
     )
     for content, meta in zip(common["documents"], common["metadatas"]):
