@@ -152,7 +152,8 @@ function MessageList({
                       {message.documents &&
                         message.documents.length > 0 &&
                         message.messageType !== "no_result" &&
-                        message.messageType !== "out_of_scope" && (
+                        message.messageType !== "out_of_scope" &&
+                        message.messageType !== "out_of_scope_pre" && (
                           <div>
                             <br />
                             <p className="font-bold">문서 출처</p>
