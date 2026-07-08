@@ -10,6 +10,7 @@ import com.withbuddy.admin.activity.entity.EventType;
 import com.withbuddy.account.auth.dto.request.LoginRequest;
 import com.withbuddy.account.auth.dto.response.LoginUserResponse;
 import com.withbuddy.account.auth.exception.LoginFailedException;
+import com.withbuddy.account.auth.exception.LoginUserNotFoundException;
 import com.withbuddy.account.auth.ratelimit.LoginAttemptRateLimitService;
 import com.withbuddy.account.auth.turnstile.TurnstileVerificationService;
 import com.withbuddy.account.auth.repository.UserRepository;
@@ -59,7 +60,10 @@ public class AuthService {
                     normalizedCompanyCode,
                     normalizedName,
                     normalizedEmployeeNumber
-            ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."));
+            ).orElseThrow(() -> resolveLoginFailure(
+                    normalizedCompanyCode,
+                    normalizedEmployeeNumber
+            ));
         } catch (LoginFailedException e) {
             loginAttemptRateLimitService.recordCredentialFailure(normalizedCompanyCode, normalizedEmployeeNumber, clientIp);
             throw e;
@@ -162,6 +166,12 @@ public class AuthService {
 
     private String normalizeCompanyCode(String value) {
         return normalizeValue(value).toUpperCase(Locale.ROOT);
+    }
+
+    private LoginFailedException resolveLoginFailure(String companyCode, String employeeNumber) {
+        return userRepository.findByCompany_CompanyCodeAndEmployeeNumber(companyCode, employeeNumber)
+                .map(user -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."))
+                .orElseGet(() -> new LoginUserNotFoundException("존재하지 않는 계정입니다."));
     }
 
     private String normalizeValue(String value) {
