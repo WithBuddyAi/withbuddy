@@ -15,6 +15,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
             String employeeNumber
     );
 
+    Optional<User> findByCompany_CompanyCodeAndEmployeeNumber(
+            String companyCode,
+            String employeeNumber
+    );
+
     boolean existsByCompany_CompanyCodeAndEmployeeNumber(
             String companyCode,
             String employeeNumber
