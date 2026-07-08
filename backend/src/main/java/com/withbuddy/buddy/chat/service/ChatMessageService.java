@@ -95,7 +95,8 @@ public class ChatMessageService {
     private final UserRepository userRepository;
 
     public SseEmitter streamUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
-        User loginUser = requireQuestionSendAllowed(principal.userId());
+        AuthorizedUser authorizedUser = requireQuestionSendAllowed(principal.userId());
+        User loginUser = authorizedUser.user();
 
         SseEmitter emitter = new SseEmitter(0L);
 
@@ -107,7 +108,7 @@ public class ChatMessageService {
                 String loginUserName = principal.name();
                 String companyCode = principal.companyCode();
                 String hireDate = principal.hireDate();
-                String accountState = loginUser.getAccountStatus() == null ? "" : loginUser.getAccountStatus().name();
+                String accountState = authorizedUser.accountStatus() == null ? "" : authorizedUser.accountStatus().name();
 
                 phase.set("resolve_question_message");
                 SavedQuestionContext questionContext = transactionTemplate.execute(
@@ -221,7 +222,7 @@ public class ChatMessageService {
         return emitter;
     }
 
-    private User requireQuestionSendAllowed(Long userId) {
+    private AuthorizedUser requireQuestionSendAllowed(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
 
@@ -234,7 +235,7 @@ public class ChatMessageService {
         if (!writableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "질문 전송 권한이 없습니다.");
         }
-        return user;
+        return new AuthorizedUser(user, currentAccountStatus);
     }
 
     private void forwardDelta(SseEmitter emitter, ChatStreamAnswerDeltaResponse delta) {
@@ -771,7 +772,18 @@ public class ChatMessageService {
     }
 
     public Map<String, List<QuickQuestionResponse>> getQuickQuestions(Long userId) {
+<<<<<<< Updated upstream
         requireQuestionSendAllowed(userId);
+=======
+        AuthorizedUser authorizedUser = requireQuestionSendAllowed(userId);
+        User user = authorizedUser.user();
+        UserAccountStatus currentAccountStatus = authorizedUser.accountStatus();
+
+        if (user.getRole() == UserRole.USER && currentAccountStatus == UserAccountStatus.PRE) {
+            return Map.of("quickQuestions", quickQuestionCatalog.getPreQuickQuestions());
+        }
+
+>>>>>>> Stashed changes
         return Map.of("quickQuestions", quickQuestionCatalog.getRandomQuickQuestions(5));
     }
 
@@ -834,6 +846,9 @@ public class ChatMessageService {
     }
 
     private record SavedQuestionContext(ChatMessage message, boolean newlyCreated) {
+    }
+
+    private record AuthorizedUser(User user, UserAccountStatus accountStatus) {
     }
 
 }
