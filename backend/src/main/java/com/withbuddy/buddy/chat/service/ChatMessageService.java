@@ -7,6 +7,7 @@ import com.withbuddy.account.auth.repository.UserRepository;
 import com.withbuddy.account.user.entity.User;
 import com.withbuddy.account.user.entity.UserAccountStatus;
 import com.withbuddy.account.user.entity.UserRole;
+import com.withbuddy.account.user.service.UserLifecycleStatusResolver;
 import com.withbuddy.buddy.chat.dto.request.ChatMessageRequest;
 import com.withbuddy.buddy.chat.dto.response.ChatMessageResponse;
 import com.withbuddy.buddy.chat.dto.response.ChatStreamAnswerCompletedResponse;
@@ -22,6 +23,8 @@ import com.withbuddy.buddy.chat.entity.UnansweredQuestionLog;
 import com.withbuddy.buddy.chat.repository.ChatMessageDocumentRepository;
 import com.withbuddy.buddy.chat.repository.ChatMessageRepository;
 import com.withbuddy.buddy.chat.repository.UnansweredQuestionLogRepository;
+import com.withbuddy.buddy.onboarding.entity.OnboardingSuggestion;
+import com.withbuddy.buddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.global.exception.ForbiddenException;
 import com.withbuddy.global.exception.UnauthorizedException;
 import com.withbuddy.global.security.JwtAuthenticationPrincipal;
@@ -32,16 +35,14 @@ import com.withbuddy.infrastructure.ai.exception.AiTimeoutException;
 import com.withbuddy.infrastructure.redis.RedisCacheKeys;
 import com.withbuddy.infrastructure.redis.RedisCacheService;
 import com.withbuddy.infrastructure.redis.RedisCacheTtl;
-import com.withbuddy.buddy.onboarding.entity.OnboardingSuggestion;
-import com.withbuddy.buddy.onboarding.repository.OnboardingSuggestionRepository;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.repository.DocumentFileRepository;
 import com.withbuddy.storage.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -50,6 +51,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -93,9 +95,11 @@ public class ChatMessageService {
     private final QuickQuestionCatalog quickQuestionCatalog;
     private final OnboardingSuggestionRepository onboardingSuggestionRepository;
     private final UserRepository userRepository;
+    private final Clock clock;
 
     public SseEmitter streamUserMessage(JwtAuthenticationPrincipal principal, ChatMessageRequest request) {
-        User loginUser = requireQuestionSendAllowed(principal.userId());
+        AuthorizedUser authorizedUser = requireQuestionSendAllowed(principal.userId());
+        User loginUser = authorizedUser.user();
 
         SseEmitter emitter = new SseEmitter(0L);
 
@@ -107,7 +111,7 @@ public class ChatMessageService {
                 String loginUserName = principal.name();
                 String companyCode = principal.companyCode();
                 String hireDate = principal.hireDate();
-                String accountState = loginUser.getAccountStatus() == null ? "" : loginUser.getAccountStatus().name();
+                String accountState = authorizedUser.accountStatus() == null ? "" : authorizedUser.accountStatus().name();
 
                 phase.set("resolve_question_message");
                 SavedQuestionContext questionContext = transactionTemplate.execute(
@@ -158,45 +162,45 @@ public class ChatMessageService {
                 ChatMessage savedAnswerMessage = null;
 
                 try {
-                phase.set("save_answer_message_transaction");
-                savedAnswerMessage = transactionTemplate.execute(
-                        status -> saveAnswerMessage(
-                                loginUserId,
-                                companyCode,
-                                savedQuestionMessage.getContent(),
-                                savedQuestionId,
-                                resolveAnswerToMessageId(answerMessageType, savedQuestionId),
-                                answerMessageType,
-                                aiResponse.getContent(),
-                                answerDocumentIds,
-                                recommendedContactsJson,
-                                latencyMs
-                        )
-                );
-                if (savedAnswerMessage == null) {
-                    throw new IllegalStateException("답변 메시지 저장에 실패했습니다.");
-                }
+                    phase.set("save_answer_message_transaction");
+                    savedAnswerMessage = transactionTemplate.execute(
+                            status -> saveAnswerMessage(
+                                    loginUserId,
+                                    companyCode,
+                                    savedQuestionMessage.getContent(),
+                                    savedQuestionId,
+                                    resolveAnswerToMessageId(answerMessageType, savedQuestionId),
+                                    answerMessageType,
+                                    aiResponse.getContent(),
+                                    answerDocumentIds,
+                                    recommendedContactsJson,
+                                    latencyMs
+                            )
+                    );
+                    if (savedAnswerMessage == null) {
+                        throw new IllegalStateException("답변 메시지 저장에 실패했습니다.");
+                    }
 
-                Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
-                Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
-                phase.set("save_conversation_answer");
-                saveConversationAnswer(loginUserId, savedAnswerMessage.getContent());
+                    Map<Long, Document> documentMap = resolveDocumentMap(answerDocumentIds);
+                    Map<Long, DocumentFile> documentFileMap = resolveDocumentFileMap(answerDocumentIds);
+                    phase.set("save_conversation_answer");
+                    saveConversationAnswer(loginUserId, savedAnswerMessage.getContent());
 
-                phase.set("build_answer_response");
-                ChatMessageResponse answerResponse = toResponse(
-                        savedAnswerMessage,
-                        answerDocumentIds,
-                        documentMap,
-                        documentFileMap
-                );
-                phase.set("send_answer_completed");
-                sendStreamEvent(
-                        emitter,
-                        "answer_completed",
-                        new ChatStreamAnswerCompletedResponse(questionId, answerResponse)
-                );
-                phase.set("complete_emitter");
-                emitter.complete();
+                    phase.set("build_answer_response");
+                    ChatMessageResponse answerResponse = toResponse(
+                            savedAnswerMessage,
+                            answerDocumentIds,
+                            documentMap,
+                            documentFileMap
+                    );
+                    phase.set("send_answer_completed");
+                    sendStreamEvent(
+                            emitter,
+                            "answer_completed",
+                            new ChatStreamAnswerCompletedResponse(questionId, answerResponse)
+                    );
+                    phase.set("complete_emitter");
+                    emitter.complete();
                 } catch (Exception exception) {
                     log.error(
                             "answer_completed post-processing failed. questionId={}, answerType={}, answerMessageId={}, phase={}",
@@ -221,20 +225,22 @@ public class ChatMessageService {
         return emitter;
     }
 
-    private User requireQuestionSendAllowed(Long userId) {
+    private AuthorizedUser requireQuestionSendAllowed(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("인증된 사용자를 찾을 수 없습니다."));
+        UserAccountStatus currentAccountStatus = resolveCurrentAccountStatus(user);
+        syncAccountStatusIfChanged(user, currentAccountStatus);
 
-        if (user.getRole() == UserRole.USER && user.getAccountStatus() == UserAccountStatus.INACTIVE) {
+        if (user.getRole() == UserRole.USER && currentAccountStatus == UserAccountStatus.INACTIVE) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "비활성 사용자는 질문을 전송할 수 없습니다.");
         }
         boolean writableUser = user.getRole() == UserRole.USER
-                && (user.getAccountStatus() == UserAccountStatus.ACTIVE
-                || user.getAccountStatus() == UserAccountStatus.PRE);
+                && (currentAccountStatus == UserAccountStatus.ACTIVE
+                || currentAccountStatus == UserAccountStatus.PRE);
         if (!writableUser && user.getRole() != UserRole.SERVICE_ADMIN) {
             throw new ForbiddenException("ACCESS_DENIED", "role", "질문 전송 권한이 없습니다.");
         }
-        return user;
+        return new AuthorizedUser(user, currentAccountStatus);
     }
 
     private void forwardDelta(SseEmitter emitter, ChatStreamAnswerDeltaResponse delta) {
@@ -536,7 +542,6 @@ public class ChatMessageService {
             return;
         }
 
-        // Edge-case recovery: DB에는 질문이 있으나 Redis 이력이 누락된 경우 보강한다.
         writeConversationTurnsWithRecovery(key, List.of(new ConversationTurn("user", userQuestion)));
         log.info("재시도 경로 Redis 질문 이력 보강: userId={}", userId);
     }
@@ -709,7 +714,6 @@ public class ChatMessageService {
             try {
                 return chatMessageRepository.save(ChatMessage.createSuggestionMessage(userId, suggestionId, content));
             } catch (DataIntegrityViolationException e) {
-                // UNIQUE 제약 충돌 시 이미 동시 요청에서 생성된 행을 재조회해 반환한다.
                 return chatMessageRepository.findTopByUserIdAndSuggestionIdAndMessageTypeOrderByCreatedAtDesc(
                                 userId,
                                 suggestionId,
@@ -775,6 +779,24 @@ public class ChatMessageService {
         return Map.of("quickQuestions", quickQuestionCatalog.getRandomQuickQuestions(5));
     }
 
+    private UserAccountStatus resolveCurrentAccountStatus(User user) {
+        if (user.getRole() != UserRole.USER) {
+            return user.getAccountStatus();
+        }
+        return UserLifecycleStatusResolver.resolve(user, clock);
+    }
+
+    private void syncAccountStatusIfChanged(User user, UserAccountStatus resolvedAccountStatus) {
+        if (user.getRole() != UserRole.USER) {
+            return;
+        }
+        if (user.getAccountStatus() == resolvedAccountStatus) {
+            return;
+        }
+        user.updateAccountStatus(resolvedAccountStatus);
+        userRepository.save(user);
+    }
+
     private List<ChatMessageResponse.RecommendedContactResponse> toRecommendedContactResponses(
             List<AiAnswerServerResponse.RecommendedContactRef> recommendedContacts
     ) {
@@ -836,4 +858,6 @@ public class ChatMessageService {
     private record SavedQuestionContext(ChatMessage message, boolean newlyCreated) {
     }
 
+    private record AuthorizedUser(User user, UserAccountStatus accountStatus) {
+    }
 }
