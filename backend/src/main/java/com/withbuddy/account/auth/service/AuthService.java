@@ -28,14 +28,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.ZoneId;
 import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+<<<<<<< Updated upstream
     private static final Clock KST_CLOCK = Clock.system(ZoneId.of("Asia/Seoul"));
 
+=======
+>>>>>>> Stashed changes
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final UserActivityLogService userActivityLogService;
@@ -45,6 +47,34 @@ public class AuthService {
     private final ObjectMapper objectMapper;
     private final TurnstileVerificationService turnstileVerificationService;
     private final LoginAttemptRateLimitService loginAttemptRateLimitService;
+<<<<<<< Updated upstream
+=======
+    private final Clock clock;
+
+    public AuthService(
+            UserRepository userRepository,
+            JwtService jwtService,
+            UserActivityLogService userActivityLogService,
+            RedisActivityLogService redisActivityLogService,
+            RmqActivityLogService rmqActivityLogService,
+            RedisCacheService redisCacheService,
+            ObjectMapper objectMapper,
+            TurnstileVerificationService turnstileVerificationService,
+            LoginAttemptRateLimitService loginAttemptRateLimitService,
+            Clock clock
+    ) {
+        this.userRepository = userRepository;
+        this.jwtService = jwtService;
+        this.userActivityLogService = userActivityLogService;
+        this.redisActivityLogService = redisActivityLogService;
+        this.rmqActivityLogService = rmqActivityLogService;
+        this.redisCacheService = redisCacheService;
+        this.objectMapper = objectMapper;
+        this.turnstileVerificationService = turnstileVerificationService;
+        this.loginAttemptRateLimitService = loginAttemptRateLimitService;
+        this.clock = clock;
+    }
+>>>>>>> Stashed changes
 
     @Transactional
     public AuthenticatedSession login(LoginRequest request, String clientIp) {
