@@ -47,6 +47,7 @@ class ChatUser(BaseModel):
     companyCode: str = Field("", description="회사 고유 ID (다중 테넌트 문서 격리)")
     companyName: str = Field("", description="회사명")
     hireDate: str = Field("", description="입사일 (YYYY-MM-DD)")
+    accountState: str = Field("", description="계정 상태 (PRE/ACTIVE 등)")
 
 
 class ChatRequest(BaseModel):
@@ -80,7 +81,7 @@ async def chat_agent(request: ChatRequest):
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
     try:
-        answer, source, related_docs, _ = run_rag_chain(str(request.user.userId), request.content, request.user.name, request.user.companyCode, hire_date=request.user.hireDate)
+        answer, source, related_docs, _ = run_rag_chain(str(request.user.userId), request.content, request.user.name, request.user.companyCode, hire_date=request.user.hireDate, account_status=request.user.accountState)
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
@@ -132,6 +133,7 @@ async def chat_stream(request: ChatRequest):
                 uid, message, request.user.name, request.user.companyCode,
                 company_name=request.user.companyName,
                 hire_date=request.user.hireDate,
+                account_status=request.user.accountState,
             ):
                 if source is not None:
                     full_answer = "".join(accumulated_text)
@@ -246,7 +248,7 @@ class InternalAIAnswerUser(BaseModel):
     companyCode: str = ""
     companyName: str = ""
     hireDate: str = ""
-    accountStatus: str = ""
+    accountState: str = ""
 
 
 class ConversationTurn(BaseModel):
@@ -641,7 +643,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
                     company_name=request.user.companyName,
                     hire_date=request.user.hireDate,
                     injected_history=injected_history,
-                    account_status=request.user.accountStatus,
+                    account_status=request.user.accountState,
                 )
             )
         llm_call_counter.labels(purpose="rag").inc()
@@ -658,7 +660,7 @@ async def internal_ai_answer(request: InternalAIAnswerRequest):
         message_type = "rag_answer"
 
     # RAG no_result → PRE 사용자면 out_of_scope_pre, 일반 사용자면 에이전트 fallback
-    if message_type == "no_result" and request.user.accountStatus == "PRE":
+    if message_type == "no_result" and request.user.accountState == "PRE":
         message_type = "out_of_scope_pre"
     elif message_type == "no_result":
         from chains.agent_rag_chain import _run_agent_search
@@ -904,7 +906,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                         company_name=request.user.companyName,
                         hire_date=request.user.hireDate,
                         injected_history=injected_history,
-                        account_status=request.user.accountStatus,
+                        account_status=request.user.accountState,
                     ):
                         if source is not None:
                             full_answer = "".join(accumulated)
@@ -916,7 +918,7 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                                 msg_type = "rag_answer"
                             llm_call_counter.labels(purpose="rag").inc()
 
-                            if msg_type == "no_result" and request.user.accountStatus == "PRE":
+                            if msg_type == "no_result" and request.user.accountState == "PRE":
                                 msg_type = "out_of_scope_pre"
                             elif msg_type == "no_result":
                                 from chains.agent_rag_chain import _run_agent_search

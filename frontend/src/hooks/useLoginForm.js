@@ -9,6 +9,7 @@ import {
   validateName,
 } from "../utils/validators";
 import { trackEvent } from "../utils/tracking";
+import { getDaysUntilStartBucket } from "../utils/preOnboardingUtils";
 
 function useLoginForm({ setUser, turnstileToken, resetTurnstile }) {
   // 'redis' 에러 모달
@@ -127,6 +128,16 @@ function useLoginForm({ setUser, turnstileToken, resetTurnstile }) {
         trackEvent("employee_login_success", {
           user_role: "employee",
           account_status: data.user.accountStatus,
+          company_code: data.user.companyCode,
+        });
+      }
+
+      // GA4 사용자 트래킹용 이벤트
+      if (data.user.accountStatus === "PRE") {
+        const bucket = getDaysUntilStartBucket(data.user.hireDate);
+        trackEvent("preboarding_login_success", {
+          account_status: "PRE",
+          days_until_start_bucket: bucket || "unknown",
           company_code: data.user.companyCode,
         });
       }

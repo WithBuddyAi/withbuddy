@@ -10,6 +10,7 @@ import com.withbuddy.admin.activity.entity.EventType;
 import com.withbuddy.account.auth.dto.request.LoginRequest;
 import com.withbuddy.account.auth.dto.response.LoginUserResponse;
 import com.withbuddy.account.auth.exception.LoginFailedException;
+import com.withbuddy.account.auth.exception.LoginUserNotFoundException;
 import com.withbuddy.account.auth.ratelimit.LoginAttemptRateLimitService;
 import com.withbuddy.account.auth.turnstile.TurnstileVerificationService;
 import com.withbuddy.account.auth.repository.UserRepository;
@@ -27,14 +28,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.ZoneId;
 import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-    private static final Clock KST_CLOCK = Clock.system(ZoneId.of("Asia/Seoul"));
-
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final UserActivityLogService userActivityLogService;
@@ -44,6 +42,7 @@ public class AuthService {
     private final ObjectMapper objectMapper;
     private final TurnstileVerificationService turnstileVerificationService;
     private final LoginAttemptRateLimitService loginAttemptRateLimitService;
+    private final Clock clock;
 
     @Transactional
     public AuthenticatedSession login(LoginRequest request, String clientIp) {
@@ -59,13 +58,16 @@ public class AuthService {
                     normalizedCompanyCode,
                     normalizedName,
                     normalizedEmployeeNumber
-            ).orElseThrow(() -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."));
+            ).orElseThrow(() -> resolveLoginFailure(
+                    normalizedCompanyCode,
+                    normalizedEmployeeNumber
+            ));
         } catch (LoginFailedException e) {
             loginAttemptRateLimitService.recordCredentialFailure(normalizedCompanyCode, normalizedEmployeeNumber, clientIp);
             throw e;
         }
 
-        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, KST_CLOCK);
+        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, clock);
         if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
             user.updateAccountStatus(currentAccountStatus);
         }
@@ -104,7 +106,7 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("사용자 정보를 찾을 수 없습니다."));
 
-        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, KST_CLOCK);
+        UserAccountStatus currentAccountStatus = UserLifecycleStatusResolver.resolve(user, clock);
         if (user.getRole() == UserRole.USER && user.getAccountStatus() != currentAccountStatus) {
             user.updateAccountStatus(currentAccountStatus);
         }
@@ -162,6 +164,12 @@ public class AuthService {
 
     private String normalizeCompanyCode(String value) {
         return normalizeValue(value).toUpperCase(Locale.ROOT);
+    }
+
+    private LoginFailedException resolveLoginFailure(String companyCode, String employeeNumber) {
+        return userRepository.findByCompany_CompanyCodeAndEmployeeNumber(companyCode, employeeNumber)
+                .map(user -> new LoginFailedException("입력하신 정보를 다시 확인해 주세요."))
+                .orElseGet(() -> new LoginUserNotFoundException("존재하지 않는 계정입니다."));
     }
 
     private String normalizeValue(String value) {

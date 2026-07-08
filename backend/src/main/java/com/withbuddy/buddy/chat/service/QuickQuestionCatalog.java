@@ -13,6 +13,12 @@ import java.util.Optional;
 
 @Component
 public class QuickQuestionCatalog {
+    private static final List<EventTarget> PRE_QUICK_TAP_TARGETS = List.of(
+            EventTarget.QUICK_TAP_LOCATION,
+            EventTarget.QUICK_TAP_WORK_HOUR,
+            EventTarget.QUICK_TAP_DRESSCODE,
+            EventTarget.QUICK_TAP_FIRST_DAY
+    );
 
     private final Map<EventTarget, QuickQuestionDefinition> quickQuestionsByTarget;
     private final Map<Integer, List<EventTarget>> onboardingQuickTapTargets;
@@ -41,6 +47,13 @@ public class QuickQuestionCatalog {
         }
 
         return targets.stream()
+                .map(quickQuestionsByTarget::get)
+                .map(QuickQuestionDefinition::toResponse)
+                .toList();
+    }
+
+    public List<QuickQuestionResponse> getPreQuickQuestions() {
+        return PRE_QUICK_TAP_TARGETS.stream()
                 .map(quickQuestionsByTarget::get)
                 .map(QuickQuestionDefinition::toResponse)
                 .toList();
