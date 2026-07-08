@@ -1755,16 +1755,9 @@ jobs:
               "ACTIVE_SLOT=${ACTIVE_SLOT_Q} ACTIVE_SLOT_STATE_FILE=${ACTIVE_SLOT_STATE_FILE_Q} bash -s" <<'REMOTE_EOF'
             set -euo pipefail
             umask 022
-<<<<<<< Updated upstream
             printf 'ACTIVE_SLOT=%s\nUPDATED_AT=%s\n' \
               "${ACTIVE_SLOT}" \
               "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${ACTIVE_SLOT_STATE_FILE}"
-=======
-            cat > "${ACTIVE_SLOT_STATE_FILE}" <<EOF
-            ACTIVE_SLOT=${ACTIVE_SLOT}
-            UPDATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-            EOF
->>>>>>> Stashed changes
           REMOTE_EOF
           }
 
