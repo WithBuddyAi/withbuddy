@@ -39,12 +39,12 @@ class UserLifecycleStatusResolverTest {
     }
 
     @Test
-    void resolvesInactiveBeforePreOnboardingWindow() {
+    void resolvesPreBeforePreviousPreOnboardingWindow() {
         User user = user(LocalDate.of(2026, 6, 25));
 
         UserAccountStatus status = UserLifecycleStatusResolver.resolve(user, FIXED_CLOCK);
 
-        assertThat(status).isEqualTo(UserAccountStatus.INACTIVE);
+        assertThat(status).isEqualTo(UserAccountStatus.PRE);
     }
 
     @Test
@@ -67,7 +67,7 @@ class UserLifecycleStatusResolverTest {
 
     @Test
     void resolvesInactiveAfterReadOnlyPeriod() {
-        User user = user(LocalDate.of(2026, 2, 18));
+        User user = user(LocalDate.of(2026, 2, 17));
 
         UserAccountStatus status = UserLifecycleStatusResolver.resolve(user, FIXED_CLOCK);
 
