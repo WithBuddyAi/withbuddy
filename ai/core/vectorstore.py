@@ -256,6 +256,10 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
 
     if pre_onboarding_only:
         company_filter["$and"].append({"pre_onboarding_tag": True})
+    else:
+        # ACTIVE 유저: ChromaDB 쿼리 레벨에서 PRE 문서 차단 (Python 후처리와 이중 격리)
+        company_filter["$and"].append({"pre_onboarding_tag": {"$ne": True}})
+        common_filter["$and"].append({"pre_onboarding_tag": {"$ne": True}})
 
     bm25 = get_bm25_retriever(company_code, k=k)
 
