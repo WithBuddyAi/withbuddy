@@ -425,7 +425,7 @@ def _multi_query_search(sub_q: str, company_code: str, k: int, pre_onboarding_on
 
 def _search_sub_q(sub_q: str, company_code: str, pre_onboarding_only: bool = False) -> List[Document]:
     k = get_k_for_question(sub_q)
-    if not pre_onboarding_only and is_legal_question(sub_q):
+    if is_legal_question(sub_q):
         return search_legal_docs(_expand_query(sub_q), k=k * 2)[:k]
     # 변형 쿼리 결과도 포함하기 위해 k+2까지 허용 (원본 k개 + 변형에서만 찾은 docs 최대 2개)
     return _multi_query_search(sub_q, company_code, k, pre_onboarding_only)[:k + 2]
@@ -433,7 +433,7 @@ def _search_sub_q(sub_q: str, company_code: str, pre_onboarding_only: bool = Fal
 
 def _search_sub_q_raw(sub_q: str, company_code: str, pre_onboarding_only: bool = False) -> List[Document]:
     k = get_k_for_question(sub_q)
-    if not pre_onboarding_only and is_legal_question(sub_q):
+    if is_legal_question(sub_q):
         return search_legal_docs(_expand_query(sub_q), k=k * 2)
     return _multi_query_search(sub_q, company_code, k, pre_onboarding_only)
 
