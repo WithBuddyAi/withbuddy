@@ -1451,11 +1451,6 @@ jobs:
           TRAFFIC_SWITCH_SERVER_HOST: ${{ secrets.TRAFFIC_SWITCH_SERVER_HOST }}
           TRAFFIC_SWITCH_SERVER_SSH_KEY: ${{ secrets.TRAFFIC_SWITCH_SERVER_SSH_KEY }}
           TRAFFIC_SWITCH_PUBLIC_HEALTH_URL: ${{ secrets.TRAFFIC_SWITCH_PUBLIC_HEALTH_URL }}
-<<<<<<< Updated upstream
-          NGINX_ACTIVE_UPSTREAM_LINK: ${{ secrets.NGINX_ACTIVE_UPSTREAM_LINK }}
-          NGINX_BLUE_UPSTREAM_CONF: ${{ secrets.NGINX_BLUE_UPSTREAM_CONF }}
-          NGINX_GREEN_UPSTREAM_CONF: ${{ secrets.NGINX_GREEN_UPSTREAM_CONF }}
-=======
           BACKEND_HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
           NGINX_ACTIVE_UPSTREAM_LINK_V2: ${{ secrets.NGINX_ACTIVE_UPSTREAM_LINK_V2 }}
           NGINX_BLUE_UPSTREAM_CONF_V2: ${{ secrets.NGINX_BLUE_UPSTREAM_CONF_V2 }}
@@ -1463,7 +1458,6 @@ jobs:
           TRAFFIC_SWITCH_INGRESS_MODE: ${{ secrets.TRAFFIC_SWITCH_INGRESS_MODE }}
           PUBLIC_TUNNEL_SERVICE_NAME: ${{ secrets.PUBLIC_TUNNEL_SERVICE_NAME }}
           DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH: ${{ secrets.DISABLE_PREVIOUS_PUBLIC_TUNNEL_ON_SWITCH }}
->>>>>>> Stashed changes
         shell: bash
         run: |
           set -euo pipefail
@@ -1482,18 +1476,11 @@ jobs:
           ROUTER_ACCESS_HOST="${TRAFFIC_SWITCH_ACCESS_HOST:-${BLUE_BACKEND_ACCESS_HOST:-}}"
           ROUTER_SERVER_HOST="${TRAFFIC_SWITCH_SERVER_HOST:-${BLUE_BACKEND_SERVER_HOST:-}}"
           ROUTER_SSH_KEY="${TRAFFIC_SWITCH_SERVER_SSH_KEY:-${BLUE_BACKEND_SERVER_SSH_KEY:-}}"
-<<<<<<< Updated upstream
-          PUBLIC_HEALTH_URL="${TRAFFIC_SWITCH_PUBLIC_HEALTH_URL:-}"
-          ACTIVE_UPSTREAM_LINK="${NGINX_ACTIVE_UPSTREAM_LINK:-/etc/nginx/conf.d/upstream-active.conf}"
-          BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF:-/etc/nginx/upstreams/upstream-blue.conf}"
-          GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF:-/etc/nginx/upstreams/upstream-green.conf}"
-=======
           ROUTER_COMPARE_HOST="${ROUTER_ACCESS_HOST:-${ROUTER_SERVER_HOST:-}}"
           PUBLIC_HEALTH_URL="${TRAFFIC_SWITCH_PUBLIC_HEALTH_URL:-${BACKEND_HEALTH_URL:-}}"
           ACTIVE_UPSTREAM_LINK="${NGINX_ACTIVE_UPSTREAM_LINK_V2:-/etc/nginx/conf.d/upstream-active.conf}"
           BLUE_UPSTREAM_CONF="${NGINX_BLUE_UPSTREAM_CONF_V2:-/etc/nginx/upstreams/upstream-blue.conf}"
           GREEN_UPSTREAM_CONF="${NGINX_GREEN_UPSTREAM_CONF_V2:-/etc/nginx/upstreams/upstream-green.conf}"
->>>>>>> Stashed changes
 
           if [ -z "${ROUTER_SERVER_HOST}" ]; then
             echo "Traffic switch host is missing. Set TRAFFIC_SWITCH_SERVER_HOST or BLUE_BACKEND_SERVER_HOST."
