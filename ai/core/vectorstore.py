@@ -305,8 +305,15 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     # PRE 유저: BM25 코퍼스가 일반 문서로 구성되어 있으므로 결과 제거
     if pre_onboarding_only:
         bm25_results = []
+    elif bm25_results:
+        # ACTIVE 유저: BM25 결과에서도 PRE 문서 제거 (코퍼스 캐시 안전망)
+        bm25_results = [d for d in bm25_results if not d.metadata.get("pre_onboarding_tag")]
 
     result = _rrf_merge(merged, bm25_results, k) if bm25_results else merged[:k]
+
+    # 최종 안전망: RRF 병합 후 PRE 문서 재유입 차단
+    if not pre_onboarding_only:
+        result = [d for d in result if not d.metadata.get("pre_onboarding_tag")]
 
     try:
         from core.be_client import cache_get, cache_set
