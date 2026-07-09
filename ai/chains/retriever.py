@@ -505,7 +505,7 @@ def retrieve(
     pre_onboarding_only = (account_status == "PRE")
     search_q = _rewrite_with_history(question, chat_history)
     docs, _ = _do_search(search_q, company_code, pre_onboarding_only)
-    template_ids, template_titles = match_template_docs(company_code, question)
+    template_ids, template_titles = ([], []) if pre_onboarding_only else match_template_docs(company_code, question)
     _tmpl_set = set(template_ids)
     _rag_ids = [
         int(d.metadata["doc_id"]) for d in docs
@@ -559,7 +559,7 @@ async def async_retrieve(
     search_q = _rewrite_with_history(question, chat_history)
     loop = asyncio.get_event_loop()
     docs, _ = await loop.run_in_executor(None, lambda: _do_search(search_q, company_code, pre_onboarding_only))
-    template_ids, template_titles = match_template_docs(company_code, question)
+    template_ids, template_titles = ([], []) if pre_onboarding_only else match_template_docs(company_code, question)
     _tmpl_set = set(template_ids)
     _rag_ids = [
         int(d.metadata["doc_id"]) for d in docs
