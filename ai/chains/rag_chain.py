@@ -78,11 +78,12 @@ _PRE_SCOPE_TEXT = (
 
 
 def _is_docs_relevant(question: str, docs: List[Document]) -> bool:
-    """사내 문서가 질문에 직접 답할 수 있는 내용을 포함하는지 검증. True=관련 있음, False=no_result."""
-    context = "\n---\n".join(d.page_content[:400] for d in docs[:3])
+    """사내 문서가 질문에 답하는 데 도움이 되는지 확인. True=유효, False=no_result."""
+    context = "\n---\n".join(d.page_content[:800] for d in docs[:5])
     prompt = (
-        f"[문서]에 [질문]에 관련 있거나 참고할 수 있는 내용이 있으면 YES, 완전히 무관하면 NO만 답하세요.\n"
-        f"(예: '첫 출근 시간'을 물으면 '기본 근무 시간' 정보도 YES; '회사 위치'를 물으면 '사무실 주소·찾아오는 방법'도 YES)\n\n"
+        f"신입사원이 회사 AI에게 아래 질문을 했습니다.\n"
+        f"[문서]에 이 질문에 직접 답하거나, 담당 부서·절차·기준을 안내하는 내용이 조금이라도 있으면 YES.\n"
+        f"질문과 전혀 관계없는 내용만 있으면 NO.\n\n"
         f"[질문]: {question}\n\n[문서]:\n{context}\n\nYES 또는 NO:"
     )
     resp = get_intent_llm().invoke(prompt)
