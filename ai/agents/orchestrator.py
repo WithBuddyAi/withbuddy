@@ -250,6 +250,13 @@ _WORK_RULE_KEYWORDS = [
 ]
 _ARTICLE_PATTERN = _re.compile(r"제?\d+조")
 
+# 메일·메시지 작성 요청 — _WORK_RULE_KEYWORDS보다 먼저 체크해서 communication으로 라우팅
+_MAIL_KW = ["메일", "이메일"]
+_MAIL_VERB = ["써줘", "써야해", "써야 해", "어떻게 써", "뭐라고 써", "초안", "작성해줘", "작성해 줘", "써주세요", "써 줘"]
+
+def _is_mail_writing(msg: str) -> bool:
+    return any(k in msg for k in _MAIL_KW) and any(v in msg for v in _MAIL_VERB)
+
 
 
 _INTENT_CACHE_TTL = 1800  # 30분
@@ -266,7 +273,9 @@ def classify_intent_node(state: AgentState) -> dict:
     if action in ("block", "sensitive"):
         return {"intent": "chitchat", "extra_context": "", "answer": answer}
 
-    if any(kw in msg for kw in _LABOR_LAW_KEYWORDS) or any(kw in msg for kw in _WORK_RULE_KEYWORDS) or _ARTICLE_PATTERN.search(msg):
+    if _is_mail_writing(msg):
+        intent = "communication"
+    elif any(kw in msg for kw in _LABOR_LAW_KEYWORDS) or any(kw in msg for kw in _WORK_RULE_KEYWORDS) or _ARTICLE_PATTERN.search(msg):
         intent = "rag"
     else:
         cache_key = "intent:" + hashlib.md5(msg.encode()).hexdigest()
