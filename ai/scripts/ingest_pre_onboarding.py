@@ -78,7 +78,7 @@ def _split_markdown(text: str, metadata: dict) -> list[Document]:
     return docs
 
 
-def run(file_path: str, company_code: str) -> None:
+def run(file_path: str, company_code: str, doc_id: int | None = None) -> None:
     print("=" * 50)
     print("  PRE 온보딩 문서 인덱싱 시작")
     print("=" * 50)
@@ -106,6 +106,8 @@ def run(file_path: str, company_code: str) -> None:
         "document_type": "PRE_ONBOARDING_QA",
         "pre_onboarding_tag": True,
     }
+    if doc_id is not None:
+        metadata["doc_id"] = str(doc_id)
 
     chunks = _split_markdown(text, metadata)
     print(f"\n청크 수: {len(chunks)}개")
@@ -136,10 +138,11 @@ def run(file_path: str, company_code: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="PRE 온보딩 문서 수동 인덱싱")
     parser.add_argument("--file", required=True, help="인덱싱할 MD 파일 경로")
-    parser.add_argument("--company_code", default="techco_001", help="회사 코드 (기본값: techco_001)")
+    parser.add_argument("--company_code", default="WB0001", help="회사 코드 (기본값: WB0001)")
+    parser.add_argument("--doc_id", type=int, default=None, help="BE 문서 ID (출처 카드 표시용, 선택)")
     args = parser.parse_args()
 
-    run(file_path=args.file, company_code=args.company_code)
+    run(file_path=args.file, company_code=args.company_code, doc_id=args.doc_id)
 
 
 if __name__ == "__main__":
