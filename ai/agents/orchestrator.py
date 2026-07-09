@@ -90,6 +90,7 @@ preboarding  : 환영 레터·팀 소개 카드 명시적 요청에만 해당 (�
 company_info : 기본 회사 생활 정보 (점심시간, 급여일, 기본 출퇴근 시간, 사무실 주소, 드레스코드)
   ⚠️ 복지혜택·복지카드·복지 신청 방법 등 복지 관련 질문은 company_info가 아닌 rag로 분류
   ⚠️ "코어타임이 언제예요?" 등 코어타임·유연근무·재택근무 조건은 company_info가 절대 아님 → rag로 분류
+  ⚠️ "첫 출근 시간", "첫날 출근 시간", "회사 위치", "회사 위치가 어디야" 등 "첫"·"위치" 수식어가 붙은 질문은 company_info가 아닌 반드시 rag로 분류
 
 판단 우선순위: chitchat > out_of_scope_internal > out_of_scope_external > communication > company_info > preboarding > rag
 출력 예시: chitchat"""),
