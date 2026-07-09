@@ -188,9 +188,10 @@ def invalidate_search_cache(company_code: str) -> None:
     _search_cache_versions[company_code] = _search_cache_versions.get(company_code, 0) + 1
 
 
-def _search_cache_key(query: str, company_code: str, category: str, k: int) -> str:
+def _search_cache_key(query: str, company_code: str, category: str, k: int, pre_onboarding_only: bool = False) -> str:
     v = _search_cache_versions.get(company_code, 0)
-    raw = f"{query}|{company_code}|{category}|{k}|v{v}|ts{_STARTUP_TS}"
+    pre = "pre" if pre_onboarding_only else "act"
+    raw = f"{query}|{company_code}|{category}|{k}|{pre}|v{v}|ts{_STARTUP_TS}"
     return "search:" + hashlib.md5(raw.encode()).hexdigest()
 
 
@@ -220,7 +221,7 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
         List[Document]: 중복 제거 + 점수 필터링된 검색 결과
     """
     # 캐시 체크
-    _cache_key = _search_cache_key(query, company_code, category, k)
+    _cache_key = _search_cache_key(query, company_code, category, k, pre_onboarding_only)
     try:
         from core.be_client import cache_get, cache_set
         cached = cache_get("search", _cache_key)
