@@ -298,6 +298,10 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     if not merged:
         return []
 
+    # PRE 유저: BM25 코퍼스가 일반 문서로 구성되어 있으므로 결과 제거
+    if pre_onboarding_only:
+        bm25_results = []
+
     result = _rrf_merge(merged, bm25_results, k) if bm25_results else merged[:k]
 
     try:
