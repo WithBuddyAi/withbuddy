@@ -80,6 +80,7 @@ rag          : 회사 규정·문서·절차 질문 + 담당자·팀장 질문
 communication: 아래 패턴 중 하나라도 해당되면 communication으로 분류
   - 누구에게 말해야/물어봐야 하는지 (예: "누구한테 말해", "어디에 문의해야", "누구한테 물어봐야")
   ⚠️ "보안 USB 누구한테 받아?", "장비 어디서 받아?" 같이 물건·서비스를 수령하는 대상 질문은 communication이 아닌 반드시 rag로 분류
+  ⚠️ "입사 전에 궁금한 건 누구한테 연락하면 돼요?", "담당자가 누구예요?", "문의처가 어디예요?", "연락처 알려줘" 같이 담당자·연락처를 직접 묻는 질문은 communication이 아닌 반드시 rag로 분류
   - 어떻게 말해야 하는지 (예: "어떻게 말해야 해", "뭐라고 해야", "어떻게 표현해", "어떻게 말씀드려야")
   - 커뮤니케이션 채널 추천 (예: "메신저? 메일? 대면?", "메일로 해야 해?", "어떤 방법으로 전달")
   - 말투·문체 개선 요청 (예: "이렇게 써도 돼?", "이 말이 맞아?", "더 좋은 표현 있어?")
@@ -121,6 +122,7 @@ out_of_scope_internal : 직무 실무·기술·조직 판단·대인관계 질�
 out_of_scope_external : 회사와 무관한 외부 주제 (맛집, 투자, 개인 재무 등, "우리 회사 주식 살 수 있어요?" 같은 주식·재무 질문)
   ⚠️ "부담돼", "긴장돼", "걱정돼" 등 감정 표현이 주된 경우는 out_of_scope_external이 아닌 chitchat으로 분류
 communication: 말투 개선, 커뮤니케이션 채널·대상 추천, 업무 메일·메시지 작성, 문서 템플릿 요청 (단, "누구한테 받아?" 같은 물품 수령 대상 질문은 rag)
+  ⚠️ "입사 전에 궁금한 건 누구한테 연락해요?", "담당자 연락처 알려줘", "문의처가 어디예요?" 같이 담당자·연락처를 직접 묻는 질문은 communication이 아닌 반드시 rag로 분류
   예) "메일 써줘", "이메일 작성해줘", "연차 신청 메일 써줘", "보고서 어떻게 써", "문서 상신 형식 알려줘", "어떻게 말해야 해", "이렇게 써도 돼?"
 preboarding  : 환영 레터·팀 소개 카드 명시적 요청에만 해당 (예: "환영 레터 보여줘", "팀 소개해줘")
   ⚠️ "첫날 준비 사항", "출근 전 준비", "첫날 일정", "서류 뭐 챙겨야", "첫 출근 시간" 등 구체적 정보 질문은 preboarding이 아닌 반드시 rag로 분류
@@ -258,6 +260,12 @@ def _is_mail_writing(msg: str) -> bool:
     return any(k in msg for k in _MAIL_KW) and any(v in msg for v in _MAIL_VERB)
 
 
+# 담당자·연락처 문의 — LLM 없이 즉시 rag 라우팅 (communication 오분류 방지)
+_CONTACT_KW = ["담당자 연락", "연락처", "문의처", "누구한테 연락", "누구에게 연락", "어디에 연락", "어디로 연락"]
+
+def _is_contact_query(msg: str) -> bool:
+    return any(kw in msg for kw in _CONTACT_KW)
+
 
 _INTENT_CACHE_TTL = 1800  # 30분
 
@@ -275,7 +283,7 @@ def classify_intent_node(state: AgentState) -> dict:
 
     if _is_mail_writing(msg):
         intent = "communication"
-    elif any(kw in msg for kw in _LABOR_LAW_KEYWORDS) or any(kw in msg for kw in _WORK_RULE_KEYWORDS) or _ARTICLE_PATTERN.search(msg):
+    elif _is_contact_query(msg) or any(kw in msg for kw in _LABOR_LAW_KEYWORDS) or any(kw in msg for kw in _WORK_RULE_KEYWORDS) or _ARTICLE_PATTERN.search(msg):
         intent = "rag"
     else:
         cache_key = "intent:" + hashlib.md5(msg.encode()).hexdigest()
