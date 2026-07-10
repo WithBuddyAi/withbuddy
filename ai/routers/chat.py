@@ -81,7 +81,7 @@ async def chat_agent(request: ChatRequest):
 async def chat(request: ChatRequest):
     """회사 문서 기반 RAG 질의응답 (일반)"""
     try:
-        answer, source, related_docs, _ = run_rag_chain(str(request.user.userId), request.content, request.user.name, request.user.companyCode, hire_date=request.user.hireDate)
+        answer, source, related_docs, _ = run_rag_chain(str(request.user.userId), request.content, request.user.name, request.user.companyCode, hire_date=request.user.hireDate, account_status=request.user.accountState)
         return ChatResponse(answer=answer, source=source, related_docs=related_docs)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=f"설정 오류: {str(e)}")
@@ -169,6 +169,7 @@ async def chat_stream(request: ChatRequest):
             import logging as _logging
             _logging.getLogger(__name__).error(f"[STREAM_ERROR] questionId={request.questionId} {type(e).__name__}: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
+            yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': 'out_of_scope', 'content': '', 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -980,6 +981,8 @@ async def internal_ai_answer_stream(request: InternalAIAnswerRequest):
                 yield f"event: error\ndata: {json.dumps({'code': 'AI_TIMEOUT', 'message': 'AI 응답 시간이 초과되었습니다.'}, ensure_ascii=False)}\n\n"
 
         except Exception as e:
+            import logging as _logging
+            _logging.getLogger(__name__).error(f"[STREAM_ERROR] {type(e).__name__}: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(

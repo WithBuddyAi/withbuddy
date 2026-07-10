@@ -64,6 +64,9 @@ _QUERY_EXPANSIONS: list[tuple[str, str]] = [
     ("출근 시간", "근무시간 업무 시작 시간 근무 시작"),
     ("퇴근시간", "근무시간 업무 종료 시간 퇴근"),
     ("퇴근 시간", "근무시간 업무 종료 시간 퇴근"),
+    # 근무시간 역방향 — 복합 질문 분리 시 "근무시간" 단독 서브쿼리 대응
+    ("근무시간", "출근 시간 퇴근 시간 코어타임 업무 시간 출퇴근 시간 근무 스케줄"),
+    ("근무 시간", "출근 시간 퇴근 시간 코어타임 업무 시간 출퇴근 시간"),
     ("헬스케어 앱", "건강관리 앱 앱 구독 복지 헬스케어"),
     ("건강관리 앱", "헬스케어 앱 앱 구독 복지"),
     ("자기계발비", "자기계발 지원 교육비 자기개발"),
@@ -89,6 +92,30 @@ _QUERY_EXPANSIONS: list[tuple[str, str]] = [
     ("Flex에서", "Flex 신청 연차 시스템 HR툴"),
     ("Slack 채널", "Slack 채널 초대 IT 계정 설정"),
     ("언제부터 생", "연차 발생 기준 1개월 입사일 11일 15일"),
+    # 준비물·지참물 동의어
+    ("준비물", "지참물 챙겨야 지참 가져갈 첫날 준비 가져와야"),
+    ("지참물", "준비물 챙겨야 지참 가져갈 첫날 준비"),
+    # 반차·반반차 동의어
+    ("반차", "반일 반반차 0.5일 오전반차 오후반차 반차신청 반차 사용"),
+    ("반반차", "반차 0.25일 2시간 반반차"),
+    # 첫 출근·온보딩 동의어
+    ("첫 출근", "첫날 입사 첫날 온보딩 출근 시간 몇시 장소 위치 입장 방법"),
+    # 위치·주소 동의어
+    ("회사 위치", "회사 주소 사무실 주소 어디 오는 방법 찾아오는"),
+    ("회사위치", "회사 주소 사무실 주소 어디 오는 방법 찾아오는"),
+    ("위치", "주소 사무실 어디 오는 방법"),
+    ("주소", "위치 사무실 어디 오는 방법 찾아오는"),
+    # 첫날·입사 전 패턴
+    ("첫 출근", "출근 첫날 입사 첫날 근무 시작 첫날 일정"),
+    ("첫날", "입사 첫날 출근 첫날 온보딩 오리엔테이션 첫날 일정"),
+    ("출근 전", "입사 전 준비 서류 미리 준비 사항 준비물"),
+    ("출근 전에", "입사 전 준비 서류 미리 준비 사항"),
+    ("입사 전", "출근 전 준비 서류 준비사항 준비물"),
+    ("미리 해야", "준비 사항 준비물 서류 체크리스트"),
+    # 복장 패턴
+    ("뭐 입어", "복장 규정 드레스코드 복장 자유"),
+    ("어떻게 입어", "복장 규정 드레스코드"),
+    ("옷", "복장 규정 드레스코드 복장 자유"),
 ]
 
 
@@ -135,16 +162,16 @@ def _rewrite_with_history(question: str, chat_history: List[BaseMessage]) -> str
 
 
 def _generate_search_variants(question: str) -> list[str]:
-    """Haiku로 검색 쿼리 변형 2개 생성 — 문서 표현과 다른 표현 간 격차 보완. 실패 시 빈 리스트."""
+    """빠른 LLM으로 검색 쿼리 변형 2개 생성 — 문서 표현과 다른 표현 간 격차 보완. 실패 시 빈 리스트."""
     try:
-        from core.llm import get_llm
+        from core.llm import get_intent_llm
         prompt = (
             "다음 질문에서 사내 HR/복지 문서 검색에 쓸 핵심 키워드를 다른 표현으로 2가지 만들어주세요.\n"
             "띄어쓰기를 정확하게 하고, 실제 문서에 나올 법한 표현을 사용하세요.\n"
             "각 줄에 키워드 문자열 하나씩, 번호나 설명 없이 키워드만 출력하세요.\n\n"
             f"질문: {question}"
         )
-        resp = get_llm().invoke(prompt)
+        resp = get_intent_llm().invoke(prompt)
         return [l.strip() for l in resp.content.strip().split('\n') if l.strip()][:2]
     except Exception:
         return []
@@ -224,8 +251,8 @@ def check_ambiguous(question: str) -> str | None:
 
 # ── 문서 포맷팅 ────────────────────────────────────────────────
 
-_MAX_CHUNK_CHARS = 600
-_MAX_CONTEXT_CHARS = 3000
+_MAX_CHUNK_CHARS = 800
+_MAX_CONTEXT_CHARS = 4000
 
 _LEGAL_SOURCE_NAMES = {
     "index_근로기준법": "근로기준법",
@@ -398,14 +425,15 @@ def _multi_query_search(sub_q: str, company_code: str, k: int, pre_onboarding_on
 
 def _search_sub_q(sub_q: str, company_code: str, pre_onboarding_only: bool = False) -> List[Document]:
     k = get_k_for_question(sub_q)
-    if not pre_onboarding_only and is_legal_question(sub_q):
+    if is_legal_question(sub_q):
         return search_legal_docs(_expand_query(sub_q), k=k * 2)[:k]
-    return _multi_query_search(sub_q, company_code, k, pre_onboarding_only)[:k]
+    # 변형 쿼리 결과도 포함하기 위해 k+2까지 허용 (원본 k개 + 변형에서만 찾은 docs 최대 2개)
+    return _multi_query_search(sub_q, company_code, k, pre_onboarding_only)[:k + 2]
 
 
 def _search_sub_q_raw(sub_q: str, company_code: str, pre_onboarding_only: bool = False) -> List[Document]:
     k = get_k_for_question(sub_q)
-    if not pre_onboarding_only and is_legal_question(sub_q):
+    if is_legal_question(sub_q):
         return search_legal_docs(_expand_query(sub_q), k=k * 2)
     return _multi_query_search(sub_q, company_code, k, pre_onboarding_only)
 
@@ -477,7 +505,7 @@ def retrieve(
     pre_onboarding_only = (account_status == "PRE")
     search_q = _rewrite_with_history(question, chat_history)
     docs, _ = _do_search(search_q, company_code, pre_onboarding_only)
-    template_ids, template_titles = match_template_docs(company_code, question)
+    template_ids, template_titles = ([], []) if pre_onboarding_only else match_template_docs(company_code, question)
     _tmpl_set = set(template_ids)
     _rag_ids = [
         int(d.metadata["doc_id"]) for d in docs
@@ -531,7 +559,7 @@ async def async_retrieve(
     search_q = _rewrite_with_history(question, chat_history)
     loop = asyncio.get_event_loop()
     docs, _ = await loop.run_in_executor(None, lambda: _do_search(search_q, company_code, pre_onboarding_only))
-    template_ids, template_titles = match_template_docs(company_code, question)
+    template_ids, template_titles = ([], []) if pre_onboarding_only else match_template_docs(company_code, question)
     _tmpl_set = set(template_ids)
     _rag_ids = [
         int(d.metadata["doc_id"]) for d in docs
