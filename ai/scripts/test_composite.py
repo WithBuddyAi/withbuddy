@@ -1,12 +1,12 @@
 """
 복합 질문 분리 처리 테스트 (스토리 2-8)
 실행: cd ai/ && venv/Scripts/python scripts/test_composite.py [서버URL]
-기본: https://ai.itsdev.kr
+기본: http://localhost:8000
 """
 import sys
 import requests
 
-BASE_URL = sys.argv[1].rstrip("/") if len(sys.argv) > 1 else "https://ai.itsdev.kr"
+BASE_URL = sys.argv[1].rstrip("/") if len(sys.argv) > 1 else "http://localhost:8000"
 print(f"서버: {BASE_URL}\n")
 
 # ── 자동 판정 헬퍼 ──────────────────────────────────────────────
