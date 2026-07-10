@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 _BACKEND_URL = os.getenv("BACKEND_INTERNAL_URL", "")
 _API_KEY = os.getenv("INTERNAL_API_KEY", "")
-_AI_CALLBACK_URL = os.getenv("AI_CALLBACK_URL", "https://ai.itsdev.kr")
+_AI_CALLBACK_URL = os.getenv("AI_CALLBACK_URL", "")
 
 
 def _headers() -> dict:
