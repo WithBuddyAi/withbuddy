@@ -19,7 +19,9 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -33,6 +35,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 @RestController("adminDocumentController")
 @RequestMapping("/api/v1/admin/documents")
@@ -81,10 +86,43 @@ public class DocumentController {
         return ResponseEntity.ok(documentStorageService.getCompanyDetail(documentId));
     }
 
-    @Operation(summary = "필수 온보딩 문서 템플릿 다운로드 URL 발급")
+    @Operation(summary = "관리자 문서 다운로드 URL 발급")
     @GetMapping("/{documentId}/download")
     public ResponseEntity<DocumentDownloadResponse> download(@PathVariable Long documentId) {
         return ResponseEntity.ok(documentStorageService.getAdminDocumentDownloadUrl(documentId));
+    }
+
+    @Operation(summary = "관리자 문서 파일 다운로드 (302 Redirect)")
+    @GetMapping("/{documentId}/file")
+    public ResponseEntity<?> file(
+            @PathVariable Long documentId,
+            @RequestParam(defaultValue = "PRIMARY") StorageSource source,
+            @RequestParam("token") String token
+    ) {
+        if (!documentStorageService.supportsRedirectDownload()) {
+            byte[] payload = documentStorageService.downloadAdminFile(documentId, source, token);
+            String fileName = documentStorageService.resolveDownloadFileName(documentId);
+            String contentType = documentStorageService.resolveContentType(documentId);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(fileName))
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
+                    .header("Pragma", "no-cache")
+                    .header("Referrer-Policy", "no-referrer")
+                    .header("X-Content-Type-Options", "nosniff")
+                    .body(new ByteArrayResource(payload));
+        }
+
+        String redirectUrl = documentStorageService.issueAdminRedirectDownloadUrl(documentId, source, token);
+
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(redirectUrl))
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
+                .header("Pragma", "no-cache")
+                .header("Referrer-Policy", "no-referrer")
+                .header("X-Content-Type-Options", "nosniff")
+                .build();
     }
 
     @Operation(summary = "백업 재시도")
@@ -140,8 +178,8 @@ public class DocumentController {
     }
 
     @Operation(summary = "문서 파일 직접 다운로드 (로컬 개발용)")
-    @GetMapping("/{documentId}/file")
-    public ResponseEntity<ByteArrayResource> file(
+    @GetMapping("/{documentId}/file-direct")
+    public ResponseEntity<ByteArrayResource> directFile(
             @PathVariable Long documentId,
             @RequestParam(defaultValue = "PRIMARY") StorageSource source
     ) {
@@ -150,8 +188,19 @@ public class DocumentController {
         String contentType = documentStorageService.resolveContentType(documentId);
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(fileName))
                 .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate")
+                .header("Pragma", "no-cache")
+                .header("Referrer-Policy", "no-referrer")
+                .header("X-Content-Type-Options", "nosniff")
                 .body(new ByteArrayResource(payload));
+    }
+
+    private String contentDisposition(String fileName) {
+        return ContentDisposition.attachment()
+                .filename(fileName, StandardCharsets.UTF_8)
+                .build()
+                .toString();
     }
 }

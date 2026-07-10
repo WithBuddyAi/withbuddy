@@ -692,16 +692,15 @@ public class DocumentStorageService implements DocumentDownloadService {
         Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
 
-        if (StringUtils.hasText(document.getCompanyCode())) {
-            validateExactCompanyBoundary(requesterScope, document.getCompanyCode());
-            validateTemplateDocument(document);
-        } else {
-            validateRequiredOnboardingTemplate(documentId, document);
-        }
-        return issueDocumentDownloadUrl(document);
+        validateAdminDownloadBoundary(requesterScope, document);
+        return issueDocumentDownloadUrl(document, true);
     }
 
     private DocumentDownloadResponse issueDocumentDownloadUrl(Document document) {
+        return issueDocumentDownloadUrl(document, false);
+    }
+
+    private DocumentDownloadResponse issueDocumentDownloadUrl(Document document, boolean adminRoute) {
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
 
@@ -711,7 +710,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         String downloadToken = issueDownloadToken(document.getId(), source, tokenTtlSeconds, tokenMaxUses);
 
         return new DocumentDownloadResponse(
-                buildInternalDownloadUrl(document.getId(), source, downloadToken),
+                buildInternalDownloadUrl(document.getId(), source, downloadToken, adminRoute),
                 tokenTtlSeconds,
                 source.name()
         );
@@ -723,7 +722,15 @@ public class DocumentStorageService implements DocumentDownloadService {
 
     public String issueRedirectDownloadUrl(Long documentId, StorageSource source, String downloadToken) {
         AuthorizedDownload download = authorizeDownload(documentId, source, downloadToken);
+        return issueRedirectDownloadUrl(documentId, download);
+    }
 
+    public String issueAdminRedirectDownloadUrl(Long documentId, StorageSource source, String downloadToken) {
+        AuthorizedDownload download = authorizeAdminDownload(documentId, source, downloadToken);
+        return issueRedirectDownloadUrl(documentId, download);
+    }
+
+    private String issueRedirectDownloadUrl(Long documentId, AuthorizedDownload download) {
         int preauthTtlSeconds = Math.max(1, storageProperties.getOciCli().getPreauthTtlSeconds());
         String redisKey = RedisCacheKeys.presignedUrl(download.file().getId(), download.source().name());
         String issuedUrl = redisCacheService.get(redisKey)
@@ -753,6 +760,15 @@ public class DocumentStorageService implements DocumentDownloadService {
 
     public byte[] downloadFile(Long documentId, StorageSource source, String downloadToken) {
         AuthorizedDownload download = authorizeDownload(documentId, source, downloadToken);
+        return downloadFile(download);
+    }
+
+    public byte[] downloadAdminFile(Long documentId, StorageSource source, String downloadToken) {
+        AuthorizedDownload download = authorizeAdminDownload(documentId, source, downloadToken);
+        return downloadFile(download);
+    }
+
+    private byte[] downloadFile(AuthorizedDownload download) {
         byte[] payload = readDocumentPayload(download.file(), download.source());
         logDownloadAuditEvent(
                 "DOWNLOAD_CONTENT_ACCESSED",
@@ -798,7 +814,6 @@ public class DocumentStorageService implements DocumentDownloadService {
                         source.name(),
                         preauthTtlSeconds
                 );
-                redisCacheService.put(redisKey, preSignedUrl, Duration.ofSeconds(preauthTtlSeconds));
                 return preSignedUrl;
             }
         } catch (Exception e) {
@@ -812,8 +827,9 @@ public class DocumentStorageService implements DocumentDownloadService {
         return "";
     }
 
-    private String buildInternalDownloadUrl(Long documentId, StorageSource source, String token) {
-        return "/api/v1/documents/" + documentId + "/file?source=" + source.name() + "&token=" + token;
+    private String buildInternalDownloadUrl(Long documentId, StorageSource source, String token, boolean adminRoute) {
+        String basePath = adminRoute ? "/api/v1/admin/documents/" : "/api/v1/documents/";
+        return basePath + documentId + "/file?source=" + source.name() + "&token=" + token;
     }
 
     private String issueDownloadToken(Long documentId, StorageSource source, int tokenTtlSeconds, int maxUses) {
@@ -872,6 +888,34 @@ public class DocumentStorageService implements DocumentDownloadService {
         if (!requesterScope.globalAccess()) {
             validateTemplateDocument(document);
         }
+
+        DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
+
+        StorageSource resolvedSource = source == null ? resolveSource(file) : source;
+        if (resolvedSource == StorageSource.BACKUP && !StringUtils.hasText(file.getBackupObjectKey())) {
+            throw new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "source", "백업 파일을 찾을 수 없습니다.");
+        }
+
+        consumeDownloadToken(downloadToken, documentId, resolvedSource);
+        return new AuthorizedDownload(requesterScope, document, file, resolvedSource);
+    }
+
+    private AuthorizedDownload authorizeAdminDownload(Long documentId, StorageSource source, String downloadToken) {
+        RequesterScope requesterScope = resolveCompanyDocumentManagementScope();
+        if (!StringUtils.hasText(downloadToken)) {
+            throw new StorageException(
+                    HttpStatus.BAD_REQUEST,
+                    "BAD_REQUEST",
+                    "token",
+                    "다운로드 토큰이 필요합니다."
+            );
+        }
+
+        Document document = documentRepository.findByIdAndIsActiveTrue(documentId)
+                .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서를 찾을 수 없습니다."));
+
+        validateAdminDownloadBoundary(requesterScope, document);
 
         DocumentFile file = documentFileRepository.findByDocumentId(document.getId())
                 .orElseThrow(() -> new StorageException(HttpStatus.NOT_FOUND, "NOT_FOUND", "documentId", "문서 파일 메타데이터를 찾을 수 없습니다."));
@@ -1483,6 +1527,14 @@ public class DocumentStorageService implements DocumentDownloadService {
         if (!StringUtils.hasText(ownerCompanyCode) || !ownerCompanyCode.equals(requesterScope.companyCode())) {
             throw new StorageException(HttpStatus.FORBIDDEN, "RESOURCE_004", "documentId", "관리자 회사 문서만 접근할 수 있습니다.");
         }
+    }
+
+    private void validateAdminDownloadBoundary(RequesterScope requesterScope, Document document) {
+        if (StringUtils.hasText(document.getCompanyCode())) {
+            validateExactCompanyBoundary(requesterScope, document.getCompanyCode());
+            return;
+        }
+        validateRequiredOnboardingTemplate(document.getId(), document);
     }
 
     private void validateCompanyDocumentScope(String scope) {
