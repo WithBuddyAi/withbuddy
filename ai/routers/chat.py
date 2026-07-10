@@ -169,6 +169,7 @@ async def chat_stream(request: ChatRequest):
             import logging as _logging
             _logging.getLogger(__name__).error(f"[STREAM_ERROR] questionId={request.questionId} {type(e).__name__}: {e}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'code': 'AI_STREAM_FAILED', 'message': str(e)}, ensure_ascii=False)}\n\n"
+            yield f"event: answer_completed\ndata: {json.dumps({'questionId': request.questionId, 'messageType': 'out_of_scope', 'content': '', 'documents': [], 'recommendedContacts': []}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_generator(),
