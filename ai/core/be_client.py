@@ -5,9 +5,9 @@ Redis/RabbitMQ를 BE HTTP API를 통해 간접 사용합니다.
 AI 서버는 REDIS_URL, RABBITMQ_URL을 직접 사용하지 않습니다.
 
 환경변수:
-  BACKEND_INTERNAL_URL  BE 내부 서버 주소 (예: http://10.0.0.81:8080)
+  BACKEND_INTERNAL_URL  BE 내부 서버 주소
   INTERNAL_API_KEY      X-API-Key 공유 시크릿
-  AI_CALLBACK_URL       AI 서버 콜백 수신 주소 (예: https://ai.itsdev.kr)
+  AI_CALLBACK_URL       AI 서버 콜백 수신 주소
 """
 
 import hashlib

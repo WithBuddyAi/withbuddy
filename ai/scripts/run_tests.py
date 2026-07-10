@@ -6,7 +6,7 @@ Claude(Anthropic)를 평가 LLM으로 사용합니다.
 
 사용법:
     python scripts/run_tests.py
-    python scripts/run_tests.py --url https://ai.itsdev.kr --out test_results.md
+    python scripts/run_tests.py --url http://localhost:8000 --out test_results.md
 """
 
 import argparse
