@@ -12,6 +12,7 @@ public class DocumentDetailResponse {
     private final String title;
     private final String documentType;
     private final String department;
+    private final boolean preOnboardingTag;
     private final boolean isActive;
     private final FileMetadata file;
     private final LocalDateTime createdAt;

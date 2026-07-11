@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS documents (
     document_type VARCHAR(50) NOT NULL,
     department VARCHAR(50) NOT NULL,
     content_hash CHAR(64) NULL,
+    pre_onboarding_tag BOOLEAN NOT NULL DEFAULT FALSE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -71,6 +72,9 @@ CREATE TABLE IF NOT EXISTS documents (
 
 CREATE INDEX idx_documents_company_content_hash_active
     ON documents (company_code, content_hash, is_active);
+
+CREATE INDEX idx_documents_company_pre_onboarding_active
+    ON documents (company_code, pre_onboarding_tag, is_active);
 
 CREATE TABLE IF NOT EXISTS document_files (
     id BIGINT NOT NULL AUTO_INCREMENT,
