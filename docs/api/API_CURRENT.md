@@ -2,8 +2,8 @@
 
 > WithBuddy REST API 문서
 >
-**버전**: 2.3.5
-**최종 업데이트**: 2026-07-08
+**버전**: 2.3.6
+**최종 업데이트**: 2026-07-11
 
 ---
 
@@ -2961,33 +2961,35 @@ Authorization: Bearer {accessToken}
 - `unansweredQuestionPatterns.aiSummary.actions`는 `no_result_question_patterns.improvement_areas` 값을 사용한다.
 - 미답변 질문 패턴은 원문 문자의 완전 일치 기준이 아니라 AI 서버가 임베딩/유사도 기반으로 군집화해 저장한 결과다.
 
-### 7-9. 필수 온보딩 문서 템플릿
+### 7-9. 관리자 문서 다운로드
 
-관리자가 필수 온보딩 문서 템플릿을 다운로드한다.
-공통 문서는 허용된 필수 온보딩 템플릿인 경우에만 다운로드할 수 있다.
-관리자가 기존에 업로드한 본인 회사의 템플릿 문서 다운로드도 동일한 경로에서 계속 지원한다.
+관리자가 본인 회사 문서 또는 허용된 필수 온보딩 공통 템플릿 문서를 다운로드한다.
+다운로드는 URL 발급 API와 실제 파일 다운로드 API의 2단계로 동작한다.
+관리자 본인 회사 문서는 문서 유형과 관계없이 다운로드할 수 있고, 공통 문서는 허용된 필수 온보딩 템플릿인 경우에만 다운로드할 수 있다.
 
 ```http
 GET /api/v1/admin/documents/{documentId}/download
 Authorization: Bearer {accessToken}
 ```
 
+이 API는 실제 파일을 바로 반환하지 않고, 관리자 전용 파일 다운로드 경로를 `downloadUrl`로 발급한다.
+프론트엔드는 응답의 `downloadUrl`을 새 창 또는 현재 창에서 열어 파일 다운로드를 진행한다.
+
 #### Path Variable
 
 | 이름 | 타입 | 필수 여부 | 설명 |
 |---|---|---:|---|
-| `documentId` | Long | Y | 다운로드할 필수 온보딩 문서 ID |
+| `documentId` | Long | Y | 다운로드할 관리자 문서 ID |
 
 #### 다운로드 대상 조건
 
 | 컬럼 | 조건 |
 |---|---|
-| `documents.id` | 공통 문서인 경우 `56`~`64` 중 하나 |
-| `documents.company_code` | `NULL` |
-| `documents.document_type` | `TEMPLATE` |
+| `documents.company_code` | 본인 회사 코드 또는 허용된 공통 문서의 `NULL` |
+| `documents.document_type` | 본인 회사 문서는 제한 없음. 공통 문서는 `TEMPLATE` |
 | `documents.is_active` | `true` |
 
-#### 다운로드 가능 문서
+#### 다운로드 가능한 공통 필수 온보딩 템플릿
 
 | documentId | title | documentType | category |
 |---:|---|---|---|
@@ -3005,7 +3007,7 @@ Authorization: Bearer {accessToken}
 
 ```json
 {
-  "downloadUrl": "/api/v1/documents/56/file?source=PRIMARY&token=550e8400-e29b-41d4-a716-446655440000",
+  "downloadUrl": "/api/v1/admin/documents/56/file?source=PRIMARY&token=550e8400-e29b-41d4-a716-446655440000",
   "expiresIn": 30,
   "source": "PRIMARY"
 }
@@ -3019,16 +3021,37 @@ Authorization: Bearer {accessToken}
 | `expiresIn` | Number | 다운로드 토큰 유효시간(초) |
 | `source` | String | 다운로드에 사용할 스토리지 소스. `PRIMARY` 또는 `BACKUP` |
 
+#### 실제 파일 다운로드
+
+```http
+GET /api/v1/admin/documents/{documentId}/file?source=PRIMARY|BACKUP&token={downloadToken}
+Authorization: Bearer {accessToken}
+```
+
+| 이름 | 타입 | 필수 여부 | 설명 |
+|---|---|---:|---|
+| `documentId` | Long | Y | 다운로드할 관리자 문서 ID |
+| `source` | String | N | 다운로드할 파일 소스. 기본값은 `PRIMARY` |
+| `token` | String | Y | `GET /api/v1/admin/documents/{documentId}/download`에서 발급받은 다운로드 토큰 |
+
+#### 실제 파일 다운로드 응답
+
+- 운영 Object Storage 환경에서는 `302 Found`와 `Location` 헤더로 pre-signed URL에 리다이렉트한다.
+- 로컬 개발 환경처럼 리다이렉트 다운로드를 지원하지 않는 경우 파일 바이트를 직접 반환한다.
+- 응답 헤더에는 `Cache-Control: no-store, no-cache, must-revalidate`, `Pragma: no-cache`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`를 포함한다.
+- 다운로드 토큰이 요청 대상 문서 또는 `source`와 일치하지 않으면 `400 Bad Request`를 반환한다.
+- 다운로드 토큰이 만료되었거나 사용 횟수를 초과하면 `410 Gone`, `DOWNLOAD_TOKEN_EXPIRED`를 반환한다.
+
 #### 동작 규칙
 
 - 이 API는 활성 관리자(`users.role = ADMIN` 그리고 `users.account_status = ACTIVE`)가 호출한다.
-- 공통 문서 다운로드는 위 표에 정의된 `documentId` 56~64로 제한한다.
+- 본인 회사 문서는 현재 로그인한 관리자의 회사 코드와 `documents.company_code`가 일치하면 다운로드할 수 있다.
+- 공통 문서 다운로드는 위 표에 정의된 `documentId` 56~64의 필수 온보딩 템플릿으로 제한한다.
 - 공통 온보딩 템플릿은 `documents.company_code = NULL`, `documents.document_type = TEMPLATE`이고 활성 상태여야 한다.
-- 관리자가 업로드한 회사 문서는 현재 로그인한 관리자의 회사 코드와 `documents.company_code`가 일치하고, `documents.document_type = TEMPLATE`인 경우 다운로드할 수 있다.
-- 다른 회사 문서, 허용 목록에 없는 공통 문서 또는 `TEMPLATE`가 아닌 문서는 다운로드할 수 없다.
+- 다른 회사 문서 또는 허용 목록에 없는 공통 문서는 다운로드할 수 없다.
 - 문서 또는 문서 파일 메타데이터가 존재하지 않으면 `404 Not Found`, `NOT_FOUND`를 반환한다.
 - 다운로드 조건을 충족하지 않으면 `403 Forbidden`, `RESOURCE_004`를 반환한다.
-- 응답의 `downloadUrl`을 호출하면 파일 다운로드 API에서 외부 Object Storage URL로 리다이렉트한다.
+- 응답의 `downloadUrl`을 호출하면 관리자 전용 파일 다운로드 API에서 외부 Object Storage URL로 리다이렉트한다.
 - 다운로드 토큰이 만료되면 다운로드 URL 발급 API를 다시 호출해야 한다.
 
 ---
@@ -4875,3 +4898,5 @@ Authorization: Bearer {accessToken}
   - `documents.pre_onboarding_tag` 컬럼을 추가하고, 문서 업로드 시 PRE 계정의 문서 기반 Q&A 검색 노출 가능 여부를 저장하도록 명세 수정
   - 문서 목록/상세 응답과 AI 자동 인덱싱 요청에 `preOnboardingTag`를 포함하도록 명세 수정
   - PRE 계정의 문서 기반 Q&A 검색은 `pre_onboarding_tag = true` 문서만 대상으로 사용하도록 데이터 범위 규칙 추가
+- **v2.3.6 (2026-07-11)**
+  - 최신 관리자 문서 다운로드 구현 기준으로 URL 발급/파일 다운로드 경로와 권한 규칙을 정리
