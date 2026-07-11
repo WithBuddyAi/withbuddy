@@ -1117,7 +1117,7 @@ jobs:
           STORAGE_PRIMARY_BUCKET=${STORAGE_PRIMARY_BUCKET}
           STORAGE_BACKUP_NAMESPACE=${STORAGE_BACKUP_NAMESPACE}
           STORAGE_BACKUP_BUCKET=${STORAGE_BACKUP_BUCKET}
-          CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS:-https://withbuddy.itsdev.kr,https://*.vercel.app}
+          CORS_ALLOWED_ORIGIN_PATTERNS=${CORS_ALLOWED_ORIGIN_PATTERNS:-http://localhost:5173,http://127.0.0.1:5173,https://withbuddy.itsdev.kr,https://*.vercel.app}
           SPRING_PROFILES_ACTIVE=prod
           EOF
           chmod 600 "${LOCAL_ENV_FILE}"
