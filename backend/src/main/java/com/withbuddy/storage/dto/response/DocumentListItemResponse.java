@@ -15,6 +15,7 @@ public class DocumentListItemResponse {
     private final String fileName;
     private final String contentType;
     private final Long fileSize;
+    private final boolean preOnboardingTag;
     private final String backupStatus;
     private final LocalDateTime createdAt;
 }
