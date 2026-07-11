@@ -57,13 +57,15 @@ public class DocumentController {
             @RequestPart("file") MultipartFile file,
             @RequestParam("title") @NotBlank String title,
             @RequestParam("documentType") @NotBlank String documentType,
-            @RequestParam("department") @NotBlank String department
+            @RequestParam("department") @NotBlank String department,
+            @RequestParam(value = "preOnboardingTag", defaultValue = "false") boolean preOnboardingTag
     ) {
         DocumentUploadResponse response = documentStorageService.uploadCompanyDocument(
                 file,
                 title,
                 documentType,
-                department
+                department,
+                preOnboardingTag
         );
         return ResponseEntity.status(201).body(response);
     }

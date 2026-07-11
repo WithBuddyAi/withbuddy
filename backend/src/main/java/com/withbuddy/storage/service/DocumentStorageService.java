@@ -150,6 +150,7 @@ public class DocumentStorageService implements DocumentDownloadService {
             String title,
             String documentType,
             String department,
+            boolean preOnboardingTag,
             String requestCompanyCode
     ) {
         RequesterScope requesterScope = resolveDocumentManagementScope();
@@ -214,6 +215,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                             .documentType(documentType)
                             .department(department)
                             .contentHash(contentHash)
+                            .preOnboardingTag(preOnboardingTag)
                             .isActive(true)
                             .build()
             );
@@ -248,7 +250,7 @@ public class DocumentStorageService implements DocumentDownloadService {
         }
 
         executeBackupAttempt(documentFile, payload, "UPLOAD_SYNC");
-        publishDocumentUploadedEvent(document.getId(), finalCompanyCode);
+        publishDocumentUploadedEvent(document.getId(), finalCompanyCode, document.isPreOnboardingTag());
 
         return new DocumentUploadResponse(
                 document.getId(),
@@ -256,6 +258,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                 documentFile.getOriginalFileName(),
                 documentFile.getContentType(),
                 documentFile.getFileSize(),
+                document.isPreOnboardingTag(),
                 StorageSource.PRIMARY.name(),
                 documentFile.getBackupStatus().name(),
                 document.getCreatedAt()
@@ -263,14 +266,35 @@ public class DocumentStorageService implements DocumentDownloadService {
     }
 
     @Transactional
+    public DocumentUploadResponse upload(
+            MultipartFile file,
+            String title,
+            String documentType,
+            String department,
+            String requestCompanyCode
+    ) {
+        return upload(file, title, documentType, department, false, requestCompanyCode);
+    }
+
+    @Transactional
+    public DocumentUploadResponse uploadCompanyDocument(
+            MultipartFile file,
+            String title,
+            String documentType,
+            String department,
+            boolean preOnboardingTag
+    ) {
+        resolveCompanyDocumentManagementScope();
+        return upload(file, title, documentType, department, preOnboardingTag, null);
+    }
+
     public DocumentUploadResponse uploadCompanyDocument(
             MultipartFile file,
             String title,
             String documentType,
             String department
     ) {
-        resolveCompanyDocumentManagementScope();
-        return upload(file, title, documentType, department, null);
+        return uploadCompanyDocument(file, title, documentType, department, false);
     }
 
     public DocumentBackupRetryResponse retryBackup(Long documentId) {
@@ -634,6 +658,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                 document.getTitle(),
                 document.getDocumentType(),
                 document.getDepartment(),
+                document.isPreOnboardingTag(),
                 document.isActive(),
                 new DocumentDetailResponse.FileMetadata(
                         file.getOriginalFileName(),
@@ -1234,6 +1259,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                     null,
                     null,
                     null,
+                    document.isPreOnboardingTag(),
                     BackupStatus.PENDING.name(),
                     document.getCreatedAt()
             );
@@ -1247,6 +1273,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                 file.getOriginalFileName(),
                 resolveContentType(file),
                 file.getFileSize(),
+                document.isPreOnboardingTag(),
                 file.getBackupStatus().name(),
                 document.getCreatedAt()
         );
@@ -1268,6 +1295,7 @@ public class DocumentStorageService implements DocumentDownloadService {
                 document.getTitle(),
                 document.getDocumentType(),
                 document.getDepartment(),
+                document.isPreOnboardingTag(),
                 document.isActive(),
                 new DocumentDetailResponse.FileMetadata(
                         file.getOriginalFileName(),
@@ -1727,12 +1755,12 @@ public class DocumentStorageService implements DocumentDownloadService {
         return "companies/" + tenantSegment + "/documents/" + LocalDateTime.now().toLocalDate() + "/" + storedFileName;
     }
 
-    private void publishDocumentUploadedEvent(Long documentId, String companyCode) {
+    private void publishDocumentUploadedEvent(Long documentId, String companyCode, boolean preOnboardingTag) {
         if (!StringUtils.hasText(companyCode)) {
             log.warn("AI document ingest skipped because companyCode is blank. documentId={}", documentId);
             return;
         }
-        eventPublisher.publishEvent(new DocumentUploadedEvent(documentId, companyCode));
+        eventPublisher.publishEvent(new DocumentUploadedEvent(documentId, companyCode, preOnboardingTag));
     }
 
     private void publishDocumentDeletedEvent(Long documentId, String companyCode) {
