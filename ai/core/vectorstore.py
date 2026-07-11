@@ -188,9 +188,10 @@ def invalidate_search_cache(company_code: str) -> None:
     _search_cache_versions[company_code] = _search_cache_versions.get(company_code, 0) + 1
 
 
-def _search_cache_key(query: str, company_code: str, category: str, k: int) -> str:
+def _search_cache_key(query: str, company_code: str, category: str, k: int, pre_onboarding_only: bool = False) -> str:
     v = _search_cache_versions.get(company_code, 0)
-    raw = f"{query}|{company_code}|{category}|{k}|v{v}|ts{_STARTUP_TS}"
+    pre = "pre" if pre_onboarding_only else "act"
+    raw = f"{query}|{company_code}|{category}|{k}|{pre}|v{v}|ts{_STARTUP_TS}"
     return "search:" + hashlib.md5(raw.encode()).hexdigest()
 
 
@@ -220,7 +221,7 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
         List[Document]: 중복 제거 + 점수 필터링된 검색 결과
     """
     # 캐시 체크
-    _cache_key = _search_cache_key(query, company_code, category, k)
+    _cache_key = _search_cache_key(query, company_code, category, k, pre_onboarding_only)
     try:
         from core.be_client import cache_get, cache_set
         cached = cache_get("search", _cache_key)
@@ -255,7 +256,10 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
 
     if pre_onboarding_only:
         company_filter["$and"].append({"pre_onboarding_tag": True})
-        common_filter["$and"].append({"pre_onboarding_tag": True})
+    else:
+        # ACTIVE 유저: ChromaDB 쿼리 레벨에서 PRE 문서 차단 (Python 후처리와 이중 격리)
+        company_filter["$and"].append({"pre_onboarding_tag": {"$ne": True}})
+        common_filter["$and"].append({"pre_onboarding_tag": {"$ne": True}})
 
     bm25 = get_bm25_retriever(company_code, k=k)
 
@@ -298,7 +302,18 @@ def search_with_company_fallback(query: str, k: int = 5, company_code: str = "",
     if not merged:
         return []
 
+    # PRE 유저: BM25 코퍼스가 일반 문서로 구성되어 있으므로 결과 제거
+    if pre_onboarding_only:
+        bm25_results = []
+    elif bm25_results:
+        # ACTIVE 유저: BM25 결과에서도 PRE 문서 제거 (코퍼스 캐시 안전망)
+        bm25_results = [d for d in bm25_results if not d.metadata.get("pre_onboarding_tag")]
+
     result = _rrf_merge(merged, bm25_results, k) if bm25_results else merged[:k]
+
+    # 최종 안전망: RRF 병합 후 PRE 문서 재유입 차단
+    if not pre_onboarding_only:
+        result = [d for d in result if not d.metadata.get("pre_onboarding_tag")]
 
     try:
         from core.be_client import cache_get, cache_set

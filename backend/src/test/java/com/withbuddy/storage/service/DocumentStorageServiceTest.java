@@ -13,6 +13,7 @@ import com.withbuddy.storage.entity.BackupStatus;
 import com.withbuddy.storage.entity.Document;
 import com.withbuddy.storage.entity.DocumentFile;
 import com.withbuddy.storage.event.DocumentDeletedEvent;
+import com.withbuddy.storage.event.DocumentUploadedEvent;
 import com.withbuddy.storage.exception.StorageException;
 import com.withbuddy.storage.repository.DocumentBackupJobRepository;
 import com.withbuddy.storage.repository.DocumentFileRepository;
@@ -122,7 +123,7 @@ class DocumentStorageServiceTest {
                 documentStorageService.getAdminDocumentDownloadUrl(56L);
 
         assertThat(response.getDownloadUrl())
-                .startsWith("/api/v1/documents/56/file?source=PRIMARY&token=");
+                .startsWith("/api/v1/admin/documents/56/file?source=PRIMARY&token=");
         assertThat(response.getExpiresIn()).isEqualTo(30);
         assertThat(response.getSource()).isEqualTo("PRIMARY");
         verify(redisCacheService).putHash(
@@ -163,7 +164,7 @@ class DocumentStorageServiceTest {
                 documentStorageService.getAdminDocumentDownloadUrl(56L);
 
         assertThat(response.getDownloadUrl())
-                .startsWith("/api/v1/documents/56/file?source=PRIMARY&token=");
+                .startsWith("/api/v1/admin/documents/56/file?source=PRIMARY&token=");
     }
 
     @Test
@@ -208,6 +209,42 @@ class DocumentStorageServiceTest {
     }
 
     @Test
+    void issuesAdminRedirectDownloadUrlForOwnCompanyPolicyDocument() {
+        Document document = document(101L, "WB0001", "POLICY");
+        DocumentFile file = documentFile(101L);
+        StorageProperties.OciCli ociCli = new StorageProperties.OciCli();
+        ociCli.setPreauthTtlSeconds(30);
+        when(documentRepository.findByIdAndIsActiveTrue(101L)).thenReturn(Optional.of(document));
+        when(documentFileRepository.findByDocumentId(101L)).thenReturn(Optional.of(file));
+        when(storageProperties.getOciCli()).thenReturn(ociCli);
+        when(redisCacheService.get(anyString())).thenReturn(Optional.empty());
+        when(redisCacheService.consumeDownloadToken(anyString(), eq("101"), eq("PRIMARY"))).thenReturn(0L);
+        when(objectStorageClient.createPreSignedGetUrl(
+                "primary-ns",
+                "primary-bucket",
+                "documents/101.pdf",
+                30,
+                "document-101.pdf"
+        )).thenReturn("https://objectstorage.example.com/presigned");
+
+        String redirectUrl = documentStorageService.issueAdminRedirectDownloadUrl(
+                101L,
+                com.withbuddy.storage.entity.StorageSource.PRIMARY,
+                "download-token"
+        );
+
+        assertThat(redirectUrl).isEqualTo("https://objectstorage.example.com/presigned");
+        verify(redisCacheService).consumeDownloadToken(anyString(), eq("101"), eq("PRIMARY"));
+        verify(objectStorageClient).createPreSignedGetUrl(
+                "primary-ns",
+                "primary-bucket",
+                "documents/101.pdf",
+                30,
+                "document-101.pdf"
+        );
+    }
+
+    @Test
     void downloadsFileDirectlyAfterConsumingToken() {
         Document document = document(56L, "WB0001", "TEMPLATE");
         DocumentFile file = documentFile(56L);
@@ -247,17 +284,20 @@ class DocumentStorageServiceTest {
     }
 
     @Test
-    void rejectsNonTemplateDocument() {
-        Document document = document(56L, null, "GUIDE");
-        when(documentRepository.findByIdAndIsActiveTrue(56L)).thenReturn(Optional.of(document));
+    void issuesDownloadUrlForOwnCompanyNonTemplateDocument() {
+        Document document = document(101L, "WB0001", "POLICY");
+        DocumentFile file = documentFile(101L);
+        when(documentRepository.findByIdAndIsActiveTrue(101L)).thenReturn(Optional.of(document));
+        when(documentFileRepository.findByDocumentId(101L)).thenReturn(Optional.of(file));
+        when(objectStorageClient.exists("primary-ns", "primary-bucket", "documents/101.pdf")).thenReturn(true);
+        when(storageProperties.getDownloadUrlTtlSeconds()).thenReturn(30);
+        when(storageProperties.getDownloadUrlMaxUses()).thenReturn(1);
 
-        assertThatThrownBy(() ->
-                documentStorageService.getAdminDocumentDownloadUrl(56L)
-        )
-                .isInstanceOfSatisfying(StorageException.class, exception -> {
-                    assertThat(exception.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
-                    assertThat(exception.getCode()).isEqualTo("RESOURCE_004");
-                });
+        DocumentDownloadResponse response =
+                documentStorageService.getAdminDocumentDownloadUrl(101L);
+
+        assertThat(response.getDownloadUrl())
+                .startsWith("/api/v1/admin/documents/101/file?source=PRIMARY&token=");
     }
 
     @Test
@@ -392,7 +432,10 @@ class DocumentStorageServiceTest {
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
         verify(documentRepository).save(documentCaptor.capture());
         assertThat(documentCaptor.getValue().getContentHash()).hasSize(64);
-        verify(eventPublisher).publishEvent(any());
+        ArgumentCaptor<DocumentUploadedEvent> eventCaptor = ArgumentCaptor.forClass(DocumentUploadedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().documentId()).isEqualTo(201L);
+        assertThat(eventCaptor.getValue().companyCode()).isEqualTo("WB0001");
     }
 
     @Test

@@ -154,7 +154,7 @@ def run_report(company_code: str = "WB0001"):
             lines.append(f"  • {q}")
         lines.append("")
 
-    lines.append(f"_답변 입력: https://ai.itsdev.kr/docs#/knowledge/save_answer_knowledge_answer_post_")
+    lines.append(f"_답변 입력: AI 서버 /docs#/knowledge/save_answer_knowledge_answer_post_")
 
     message = "\n".join(lines)
     _send_slack_message(message)
