@@ -35,7 +35,7 @@ _EMOTIONAL_CRISIS_KEYWORDS = [
     "퇴사하고 싶어", "그만두고 싶어", "우울",
     "힘들어서 못 하겠", "힘들어 못 하겠", "회사 다니기 싫어",
     "회사 오기가 너무 힘들", "너무 우울",
-    "포기하고 싶", "번아웃",
+    "포기하고 싶",
 ]
 # 극단적 표현 — 항상 차단 (행정 의도 무관)
 _EXTREME_CRISIS_KEYWORDS = [
@@ -47,6 +47,13 @@ _EXTREME_CRISIS_KEYWORDS = [
 _PROFANITY_KEYWORDS = [
     "시발", "씨발", "존나", "미친", "개새끼", "병신", "지랄", "닥쳐",
     "꺼져", "죽어라", "쓸모없어", "무능해", "멍청이",
+]
+
+# ── 카테고리: 타인 연봉·급여액 문의 ─────────────────────────────
+# "연봉이 얼마야?" 류는 개인 기밀 → admin_intent 무관하게 차단
+_SALARY_SECRET_KW_PAIRS = [
+    ("연봉", "얼마"),
+    ("연봉", "얼만"),
 ]
 
 # ── 서비스 에티켓: 회사·사람 비방 ───────────────────────────────
@@ -110,6 +117,13 @@ def _make_profanity_answer(user_name: str) -> str:
         "다시 한번 질문해 주시면 정성껏 답변해 드릴게요."
     )
 
+def _make_salary_secret_answer(user_name: str) -> str:
+    name_part = f"{user_name}님, " if user_name else ""
+    return (
+        f"{name_part}연봉 정보는 개인 기밀 사항이라 안내드리기 어려워요. 😅\n\n"
+        "본인 연봉 관련 내용은 근로계약서 또는 경영지원팀을 통해 직접 확인해 주세요."
+    )
+
 _SLANDER_ANSWER = (
     "속상하시군요. 하지만 제가 답해드릴 수 있는 건 사내 규정뿐이에요.\n\n"
     "궁금한 규정이 있으시면 말씀해 주세요."
@@ -135,6 +149,10 @@ def check_sensitive(message: str, user_name: str = "") -> tuple[str, str | None]
         ("block", answer_text)  — 민감 응대 반환, RAG 차단
         ("pass",  None)         — 정상 RAG 통과
     """
+    # 0. 타인 연봉·급여액 문의 → 무조건 차단 (admin_intent 무관)
+    if any(a in message and b in message for a, b in _SALARY_SECRET_KW_PAIRS):
+        return ("block", _make_salary_secret_answer(user_name))
+
     # 1. 욕설/비속어 → 즉시 차단
     if any(kw in message for kw in _PROFANITY_KEYWORDS):
         return ("block", _make_profanity_answer(user_name))

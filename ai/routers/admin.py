@@ -31,7 +31,7 @@ from utils.document_version_store import compute_hash, is_changed, save_version
 
 logger = logging.getLogger(__name__)
 
-_BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL", "http://10.0.0.81:8080")
+_BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL", "")
 _INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 
 _COMPANY_INFO_PATH = Path(__file__).parent.parent / "data" / "company_info.json"
@@ -396,6 +396,7 @@ async def list_documents():
 class IngestRequest(BaseModel):
     documentId: int
     companyCode: str = ""
+    preOnboardingTag: bool = False
 
 
 @router.post("/ingest")
@@ -464,6 +465,7 @@ async def ingest_from_backend(
             "document_type": doc_meta.get("documentType", ""),
             "department": doc_meta.get("department", ""),
             "company_code": req.companyCode,
+            "pre_onboarding_tag": req.preOnboardingTag,
         }
         chunks = _split_documents(text, filename, metadata)
         try:

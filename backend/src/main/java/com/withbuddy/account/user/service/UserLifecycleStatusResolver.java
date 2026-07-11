@@ -9,8 +9,6 @@ import java.time.LocalDate;
 
 public final class UserLifecycleStatusResolver {
 
-    private static final int PRE_ONBOARDING_DAYS = 7;
-
     private UserLifecycleStatusResolver() {
     }
 
@@ -24,10 +22,6 @@ public final class UserLifecycleStatusResolver {
                 : user.getCompany().getProbationPeriod();
         LocalDate today = LocalDate.now(clock);
         LocalDate hireDate = user.getHireDate();
-        LocalDate preStartDate = hireDate.minusDays(PRE_ONBOARDING_DAYS);
-        if (today.isBefore(preStartDate)) {
-            return UserAccountStatus.INACTIVE;
-        }
         if (today.isBefore(hireDate)) {
             return UserAccountStatus.PRE;
         }
