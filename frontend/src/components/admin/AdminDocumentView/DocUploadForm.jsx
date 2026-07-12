@@ -14,6 +14,7 @@ function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
   );
   const [documentType, setDocumentType] = useState("");
   const [department, setDepartment] = useState("");
+  const [preOnboardingTag, setPreOnboardingTag] = useState(false);
   const orgOptions = useDepartments();
   const { companyCode } = useUser();
   const [isLoading, setIsLoading] = useState(false);
@@ -55,6 +56,7 @@ function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
       formData.append("title", title.trim());
       formData.append("documentType", documentType);
       formData.append("department", department);
+      formData.append("preOnboardingTag", preOnboardingTag);
 
       await axiosInstance.post("/api/v1/admin/documents/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -121,6 +123,7 @@ function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
     setDocumentType("");
     setDepartment("");
     setErrorMessage("");
+    setPreOnboardingTag(false);
   }, [file]);
 
   return (
@@ -243,6 +246,29 @@ function DocUploadForm({ file, onCancel, onSuccess, onError, onDuplicate }) {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Pre-onboarding 노출 체크박스 */}
+          <div className="flex flex-col gap-[6px]">
+            <div className="flex items-center gap-[8px]">
+              <input
+                type="checkbox"
+                id="preOnboardingTag"
+                checked={preOnboardingTag}
+                onChange={(e) => setPreOnboardingTag(e.target.checked)}
+                className="w-[16px] h-[16px] accent-[#4791CA] cursor-pointer"
+              />
+              <label
+                htmlFor="preOnboardingTag"
+                className="text-[13px] md:text-[15px] font-medium cursor-pointer"
+              >
+                입사 전 신입에게도 공개 (Pre-onboarding)
+              </label>
+            </div>
+            <p className="text-[11px] md:text-[12px] text-[#495057] pl-[24px]">
+              입사 전 예정자도 이 문서를 볼 수 있어요. 민감한 정보가 섞인 문서는
+              체크하지 않는 걸 권장해요.
+            </p>
           </div>
 
           {/* 에러 메시지 */}

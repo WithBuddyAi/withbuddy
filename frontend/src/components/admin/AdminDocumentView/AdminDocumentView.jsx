@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../../api/axiosInstance";
 import AdminDocHeader from "./AdminDocHeader";
 import DocTable from "./DocTable";
@@ -33,6 +33,7 @@ function AdminDocumentView({
   const [selectedIds, setSelectedIds] = useState([]);
 
   const [uploadFile, setUploadFile] = useState(null);
+  const [downloadError, setDownloadError] = useState("");
 
   const fetchDocuments = async () => {
     setIsLoading(true);
@@ -92,6 +93,34 @@ function AdminDocumentView({
       prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
     );
   };
+
+  // 문서 다운로드
+  const handleDownload = useCallback(async (documentId) => {
+    setDownloadError("");
+    try {
+      const res = await axiosInstance.get(
+        `/api/v1/admin/documents/${documentId}/download`,
+      );
+      const { downloadUrl } = res.data;
+      window.open(
+        `${import.meta.env.VITE_API_BASE_URL}${downloadUrl}`,
+        "_blank",
+      );
+    } catch (error) {
+      const status = error.response?.status;
+
+      // 403, 404는 인터셉터 토스트가 처리하므로 빨간 텍스트 생략
+      if (status === 403 || status === 404) return;
+
+      if (status === 410) {
+        setDownloadError("다운로드 링크가 만료되었어요. 다시 시도해 주세요.");
+      } else if (status === 400) {
+        setDownloadError("잘못된 다운로드 요청이에요. 다시 시도해 주세요.");
+      } else {
+        setDownloadError("다운로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (onDeleteSuccess)
@@ -210,6 +239,7 @@ function AdminDocumentView({
             selectedType={selectedType}
             onDeleteClick={() => onDeleteModalOpen(selectedIds, documents)}
             handleSelectAll={handleSelectAll}
+            onDownload={handleDownload}
           />
 
           {/* 문서 테이블 - 가로 스크롤 */}
@@ -223,8 +253,15 @@ function AdminDocumentView({
               onDeleteClick={() => onDeleteModalOpen(selectedIds, documents)}
               search={search}
               selectedType={selectedType}
+              onDownload={handleDownload}
             />
           </div>
+
+          {downloadError && (
+            <p className="text-[12px] text-[#F03E3E] mt-[8px]">
+              {downloadError}
+            </p>
+          )}
         </div>
       </div>
 
