@@ -114,6 +114,22 @@ class AuthServiceTest {
         verify(loginAttemptRateLimitService).clearOnSuccess("WB0003", "20261005", "127.0.0.1");
     }
 
+    @Test
+    void loginReturnsPreForAnyFutureHireDate() {
+        LoginRequest request = request("WB0003", "20261006", "이입사");
+        User user = user("WB0003", "디지털헬스", "이입사", "20261006", LocalDate.of(2026, 8, 1));
+
+        when(userRepository.findByCompany_CompanyCodeAndNameAndEmployeeNumber("WB0003", "이입사", "20261006"))
+                .thenReturn(Optional.of(user));
+        when(redisCacheService.get(anyString())).thenReturn(Optional.empty());
+        when(jwtService.generateAccessToken(user)).thenReturn("token");
+
+        AuthService.AuthenticatedSession session = authService.login(request, "127.0.0.1");
+
+        assertThat(session.user().getAccountStatus()).isEqualTo(UserAccountStatus.PRE);
+        verify(loginAttemptRateLimitService).clearOnSuccess("WB0003", "20261006", "127.0.0.1");
+    }
+
     private LoginRequest request(String companyCode, String employeeNumber, String name) {
         LoginRequest request = new LoginRequest();
         ReflectionTestUtils.setField(request, "companyCode", companyCode);
