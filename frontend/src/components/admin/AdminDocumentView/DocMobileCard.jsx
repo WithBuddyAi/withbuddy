@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, Download } from "lucide-react";
 
 function StatusBadge({ status }) {
   if (status === "COMPLETED") {
@@ -24,7 +24,7 @@ function InfoRow({ label, value }) {
   );
 }
 
-function DocMobileCard({ doc, isSelected, onSelect }) {
+function DocMobileCard({ doc, isSelected, onSelect, onDownload }) {
   return (
     <div
       className={`bg-white border border-[#DEE2E6] rounded-[12px] px-[20px] py-[16px] ${isSelected ? "bg-[#EAF6FF]" : ""}`}
@@ -50,10 +50,39 @@ function DocMobileCard({ doc, isSelected, onSelect }) {
         </div>
       </div>
 
+      {/* 다운로드 버튼 */}
+      <div className="flex justify-start mt-[8px]">
+        <button
+          onClick={onDownload}
+          className="flex items-center gap-[4px] text-[12px] text-[#868E96] hover:text-[#336B97] cursor-pointer"
+          title="다운로드"
+        >
+          <Download size={14} />
+          <span>다운로드</span>
+        </button>
+      </div>
+
       {/* 상세 정보 */}
       <div className="flex flex-col gap-[6px] text-[13px] mt-[12px]">
+        <InfoRow
+          label="공개 대상"
+          value={
+            <span
+              className={`inline-block rounded-[16px] text-[12px] px-[12px] py-[4px] ${
+                doc.preOnboardingTag
+                  ? "bg-[#EAF6FF] text-[#336B97]"
+                  : "bg-[#F1F3F5] text-[#495057]"
+              }`}
+            >
+              {doc.preOnboardingTag ? "입사 전 포함" : "입사 전 제외"}
+            </span>
+          }
+        />
         <InfoRow label="문서 타입" value={doc.documentType} />
-        <InfoRow label="문서 형태" value={doc.fileName.split(".").pop()?.toUpperCase()} />
+        <InfoRow
+          label="문서 형태"
+          value={doc.fileName.split(".").pop()?.toUpperCase()}
+        />
         <InfoRow label="담당 부서" value={doc.department} />
         <InfoRow label="업로드일" value={doc.createdAt?.slice(0, 10)} />
       </div>
