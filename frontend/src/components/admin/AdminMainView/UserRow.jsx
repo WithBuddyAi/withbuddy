@@ -17,7 +17,11 @@ function UserRow({ user }) {
         {user.questionCount != null ? `${user.questionCount}회` : "-"}
       </span>
       <span className="px-[12px]">
-        {user.accountStatus === "ACTIVE" ? (
+        {user.accountStatus === "PRE" ? (
+          <div className="rounded-[16px] py-[4px] px-[12px] bg-[#FFF9DB] text-[#E67700]">
+            <span className="text-[8px] mr-[4px]">●</span>입사 예정
+          </div>
+        ) : user.accountStatus === "ACTIVE" ? (
           <div className="rounded-[16px] py-[4px] px-[12px] bg-[#E6FCF5] text-[#0CA678]">
             <span className="text-[8px] mr-[4px]">●</span>활성화
           </div>
