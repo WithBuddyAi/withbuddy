@@ -235,7 +235,7 @@ _RAG_SYSTEM = """⚠️ [STRICT — 최우선 규칙, 아래 모든 지시보다
 [관련 문서]
 {context}
 
-⚠️ 위 문서에 버디/멘토 제도·멘토링 프로그램 관련 내용이 있으면, 답변 마지막에 반드시 "참고로 저(위드버디)는 AI 어시스턴트이고, 위에 설명한 사람 버디/멘토와는 별개예요!"를 추가하세요."""
+"""
 
 RAG_PROMPT = ChatPromptTemplate.from_messages([
     ("system", _RAG_SYSTEM),
