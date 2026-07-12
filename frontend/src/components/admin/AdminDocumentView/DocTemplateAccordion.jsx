@@ -74,7 +74,18 @@ function DocTemplateAccordion() {
         "_blank",
       );
     } catch (error) {
-      setErrorMessage("다운로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      const status = error.response?.status;
+
+      // 403, 404는 인터셉터 토스트가 처리하므로 에러 메시지 생략
+      if (status === 403 || status === 404) {
+        // 에러 메시지 없이 넘어감
+      } else if (status === 410) {
+        setErrorMessage("다운로드 링크가 만료되었어요. 다시 시도해 주세요.");
+      } else if (status === 400) {
+        setErrorMessage("잘못된 다운로드 요청이에요. 다시 시도해 주세요.");
+      } else {
+        setErrorMessage("다운로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      }
     } finally {
       setLoadingId(null);
     }

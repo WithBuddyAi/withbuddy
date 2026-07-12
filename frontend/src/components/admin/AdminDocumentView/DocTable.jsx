@@ -10,6 +10,7 @@ function DocTable({
   onDeleteClick,
   search,
   selectedType,
+  onDownload,
 }) {
   const allChecked =
     documents.length > 0 && selectedIds.length === documents.length;
@@ -45,7 +46,7 @@ function DocTable({
   return (
     <div className="flex flex-col">
       {/* 헤더 */}
-      <div className="min-w-[780px] grid md:grid-cols-[40px_minmax(0,1fr)_100px_100px_100px_80px_100px_40px] items-center px-[2px] py-[12px] text-[12px] lg:text-[14px] text-[#868E96] text-center border-b border-[#F1F3F5]">
+      <div className="min-w-[820px] grid md:grid-cols-[40px_minmax(0,1fr)_100px_100px_100px_80px_100px_60px_40px] items-center px-[2px] py-[12px] text-[12px] lg:text-[14px] text-[#868E96] text-center border-b border-[#F1F3F5]">
         <input
           type="checkbox"
           checked={allChecked}
@@ -66,7 +67,7 @@ function DocTable({
         <span>문서 형태</span>
         <span>담당 부서</span>
         <span>업로드일</span>
-
+        <span>다운로드</span>
         {/* 휴지통 - 선택된 게 있을 때만 활성화 */}
         <button
           onClick={onDeleteClick}
@@ -102,6 +103,7 @@ function DocTable({
               doc={doc}
               isSelected={selectedIds.includes(doc.documentId)}
               onSelect={() => handleSelect(doc.documentId)}
+              onDownload={() => onDownload(doc.documentId)}
             />
           ))
         )}

@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, Download } from "lucide-react";
 
 function StatusBadge({ status }) {
   if (status === "COMPLETED") {
@@ -24,7 +24,7 @@ function InfoRow({ label, value }) {
   );
 }
 
-function DocMobileCard({ doc, isSelected, onSelect }) {
+function DocMobileCard({ doc, isSelected, onSelect, onDownload }) {
   return (
     <div
       className={`bg-white border border-[#DEE2E6] rounded-[12px] px-[20px] py-[16px] ${isSelected ? "bg-[#EAF6FF]" : ""}`}
@@ -48,6 +48,18 @@ function DocMobileCard({ doc, isSelected, onSelect }) {
             </span>
           </div>
         </div>
+      </div>
+
+      {/* 다운로드 버튼 */}
+      <div className="flex justify-start mt-[8px]">
+        <button
+          onClick={onDownload}
+          className="flex items-center gap-[4px] text-[12px] text-[#868E96] hover:text-[#336B97] cursor-pointer"
+          title="다운로드"
+        >
+          <Download size={14} />
+          <span>다운로드</span>
+        </button>
       </div>
 
       {/* 상세 정보 */}
