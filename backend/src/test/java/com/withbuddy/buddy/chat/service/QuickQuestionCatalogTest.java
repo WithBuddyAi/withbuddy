@@ -12,12 +12,32 @@ class QuickQuestionCatalogTest {
         QuickQuestionCatalog catalog = new QuickQuestionCatalog();
 
         assertThat(catalog.getPreQuickQuestions())
-                .extracting(QuickQuestionResponse::getEventTarget)
+                .extracting(
+                        QuickQuestionResponse::getButtonText,
+                        QuickQuestionResponse::getContent,
+                        QuickQuestionResponse::getEventTarget
+                )
                 .containsExactly(
-                        "QUICK_TAP_DOCS",
-                        "QUICK_TAP_LOCATION",
-                        "QUICK_TAP_WORK_HOUR",
-                        "QUICK_TAP_FIRST_DAY_SCHEDULE"
+                        org.assertj.core.groups.Tuple.tuple(
+                                "📋 제출 서류",
+                                "입사 첫날 제출해야 하는 서류는 무엇인가요?",
+                                "QUICK_TAP_DOCS"
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "🏢 출근 장소·입장 방법",
+                                "첫 출근 장소와 입장 방법이 어떻게 되나요?",
+                                "QUICK_TAP_LOCATION"
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "🕘 출근 시간",
+                                "출근 시간이 어떻게 되나요?",
+                                "QUICK_TAP_WORK_HOUR"
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "📍 첫날 일정 확인",
+                                "첫날 전체 일정이 어떻게 진행되나요?",
+                                "QUICK_TAP_FIRST_DAY_SCHEDULE"
+                        )
                 );
     }
 
