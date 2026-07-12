@@ -52,8 +52,25 @@ function DocMobileCard({ doc, isSelected, onSelect }) {
 
       {/* 상세 정보 */}
       <div className="flex flex-col gap-[6px] text-[13px] mt-[12px]">
+        <InfoRow
+          label="공개 대상"
+          value={
+            <span
+              className={`inline-block rounded-[16px] text-[12px] px-[12px] py-[4px] ${
+                doc.preOnboardingTag
+                  ? "bg-[#EAF6FF] text-[#336B97]"
+                  : "bg-[#F1F3F5] text-[#495057]"
+              }`}
+            >
+              {doc.preOnboardingTag ? "입사 전 포함" : "입사 전 제외"}
+            </span>
+          }
+        />
         <InfoRow label="문서 타입" value={doc.documentType} />
-        <InfoRow label="문서 형태" value={doc.fileName.split(".").pop()?.toUpperCase()} />
+        <InfoRow
+          label="문서 형태"
+          value={doc.fileName.split(".").pop()?.toUpperCase()}
+        />
         <InfoRow label="담당 부서" value={doc.department} />
         <InfoRow label="업로드일" value={doc.createdAt?.slice(0, 10)} />
       </div>

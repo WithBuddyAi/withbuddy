@@ -45,7 +45,7 @@ function DocTable({
   return (
     <div className="flex flex-col">
       {/* 헤더 */}
-      <div className="min-w-[700px] grid md:grid-cols-[40px_minmax(0,1fr)_100px_100px_100px_100px_40px] items-center px-[2px] py-[12px] text-[12px] lg:text-[14px] text-[#868E96] text-center border-b border-[#F1F3F5]">
+      <div className="min-w-[780px] grid md:grid-cols-[40px_minmax(0,1fr)_100px_100px_100px_80px_100px_40px] items-center px-[2px] py-[12px] text-[12px] lg:text-[14px] text-[#868E96] text-center border-b border-[#F1F3F5]">
         <input
           type="checkbox"
           checked={allChecked}
@@ -61,6 +61,7 @@ function DocTable({
             </span>
           )}
         </span>
+        <span>공개 대상</span>
         <span>문서 타입</span>
         <span>문서 형태</span>
         <span>담당 부서</span>
