@@ -1,9 +1,9 @@
-import { FileText } from "lucide-react";
+import { FileText, Download } from "lucide-react";
 
-function DocRow({ doc, isSelected, onSelect }) {
+function DocRow({ doc, isSelected, onSelect, onDownload }) {
   return (
     <div
-      className={`min-w-[700px] grid md:grid-cols-[40px_minmax(0,1fr)_100px_100px_100px_100px_40px] items-center px-[2px] py-[12px] text-[12px] lg:text-[14px] text-[#495057] text-center border-b border-[#F1F3F5]
+      className={`min-w-[820px] grid md:grid-cols-[40px_minmax(0,1fr)_100px_100px_100px_80px_100px_60px_40px] items-center px-[2px] py-[12px] text-[12px] lg:text-[14px] text-[#495057] text-center border-b border-[#F1F3F5]
   ${isSelected ? "bg-[#F7FBFF]" : "bg-white"}`}
     >
       <input
@@ -18,10 +18,28 @@ function DocRow({ doc, isSelected, onSelect }) {
           {doc.title}
         </span>
       </span>
+      <span>
+        <span
+          className={`rounded-[16px] text-[11px] lg:text-[12px] px-[12px] py-[4px] ${
+            doc.preOnboardingTag
+              ? "bg-[#EAF6FF] text-[#336B97]"
+              : "bg-[#F1F3F5] text-[#495057]"
+          }`}
+        >
+          {doc.preOnboardingTag ? "입사 전 포함" : "입사 전 제외"}
+        </span>
+      </span>
       <span>{doc.documentType}</span>
       <span>{doc.contentType.toUpperCase()}</span>
       <span>{doc.department}</span>
       <span>{doc.createdAt?.slice(0, 10)}</span>
+      <button
+        onClick={onDownload}
+        className="flex items-center justify-center text-[#868E96] hover:text-[#336B97] cursor-pointer"
+        title="다운로드"
+      >
+        <Download size={16} />
+      </button>
     </div>
   );
 }

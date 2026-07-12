@@ -98,8 +98,8 @@ function useChat({
     };
 
     const init = async () => {
+      await sessionStart();
       if (accountStatus !== "READ_ONLY") {
-        await sessionStart();
         await exposure();
       }
       fetchData();
@@ -187,6 +187,15 @@ function useChat({
       button_text: buttonText || "manual",
       account_status: accountStatus,
     });
+
+    // PRE 사용자 전용 질문 제출 이벤트 (#19)
+    if (accountStatus === "PRE") {
+      trackEvent("preboarding_question_submit", {
+        input_method: method,
+        button_text: buttonText || "manual",
+        account_status: "PRE",
+      });
+    }
 
     // 클릭 로그 기록
     if (eventTarget) {
@@ -381,6 +390,14 @@ function useChat({
                 // GA4 사용자 트래킹용 이벤트
                 if (answerType === "out_of_scope") {
                   trackEvent("out_of_scope_shown", {
+                    button_text: lastQuestionInfoRef.current.buttonText,
+                    account_status: accountStatus,
+                  });
+                }
+
+                // PRE 사용자 제한/제외 등급 질문 → out_of_scope_pre
+                if (answerType === "out_of_scope_pre") {
+                  trackEvent("preboarding_out_of_scope_shown", {
                     button_text: lastQuestionInfoRef.current.buttonText,
                     account_status: accountStatus,
                   });

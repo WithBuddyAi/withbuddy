@@ -4,22 +4,25 @@ import { useUser } from "../contexts/UserContext";
 function QuickQuestions({ quickQuestion, handleSubmit, isLoading }) {
   const { accountStatus } = useUser();
 
+  // PRE: "자주 묻는 질문" / ACTIVE: "빠른 질문"
+  const label = accountStatus === "PRE" ? "자주 묻는 질문" : "빠른 질문";
+
   return (
     <div className="flex items-center gap-[10px] pb-[10px] whitespace-nowrap my-[16px] mx-[16px] overflow-x-auto">
       <p className="text-[#868E96] text-[11px] md:text-[12px] lg:text-[14px]">
-        빠른 질문
+        {label}
       </p>
+      {/* 백엔드 파트 작업 후 수정여부 확인 필요 */}
       {quickQuestion.map((q, index) => (
         <button
-          key={index}
+          key={q.tagId || index}
           type="button"
           onClick={() => {
-            // GA4 사용자 트래킹용 이벤트
             trackEvent("quick_question_click", {
               button_text: q.buttonText,
               account_status: accountStatus,
+              ...(q.tagId && { tag_id: q.tagId }),
             });
-            // input_method를 "quick_question"으로 전달
             handleSubmit(
               null,
               q.content,
