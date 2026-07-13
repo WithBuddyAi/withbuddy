@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="./images/subtract.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WithBuddy - AI 온보딩 에이전트</title>
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/buttons.css">
+  <link rel="stylesheet" href="css/nav.css">
+  <link rel="stylesheet" href="css/hero.css">
+  <link rel="stylesheet" href="css/pain.css">
+  <link rel="stylesheet" href="css/solution.css">
+  <link rel="stylesheet" href="css/steps.css">
+  <link rel="stylesheet" href="css/usecase.css">
+  <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/value.css">
+  <link rel="stylesheet" href="css/security.css">
+  <link rel="stylesheet" href="css/target.css">
+  <link rel="stylesheet" href="css/pricing.css">
+  <link rel="stylesheet" href="css/faq.css">
+  <link rel="stylesheet" href="css/cta.css">
+  <link rel="stylesheet" href="css/footer.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body>
+
+  <!-- NAV -->
+  <nav class="nav" id="nav">
+    <div class="nav-inner container">
+      <a href="/" class="nav-brand" onclick="location.reload(); return false;">
+        <div class="nav-logo">
+          <img src="images/logo-icon.svg" alt="WithBuddy" width="29" height="29">
+        </div>
+        <img src="images/WithBuddy.svg" alt="WithBuddy" class="nav-brand-logo" height="22">
+      </a>
+      <!-- 모바일 -->
+      <button class="nav-hamburger" id="navHamburger" aria-label="메뉴 열기">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div class="nav-links" id="navLinks">
+        <a href="#pricing" class="nav-link">가격</a>
+        <a href="#faq" class="nav-link">자주 묻는 질문</a>
+        <a href="https://withbuddy.itsdev.kr/" class="nav-btn-primary" target="_blank">무료로 시작하기</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <div class="container hero-grid">
+      <div class="animate-on-scroll fade-up">
+        <span class="hero-badge">AI 온보딩 에이전트</span>
+        <h1 class="hero-title">반복되는 온보딩 문의,<br>위드버디가 먼저 안내합니다.</h1>
+        <p class="hero-desc">연차·복지·근무 규정·경비·비품처럼 반복되는 문의를<br>사내 문서 기반 AI가 1차로 응대해 담당자의 시간을 보호합니다.</p>
+        <div class="hero-buttons">
+          <a href="https://withbuddy.itsdev.kr/" class="btn btn-primary" target="_blank">무료로 시작하기</a>
+          <a href="#solution" class="btn btn-outline">데모 화면 보기</a>
+        </div>
+        <p class="hero-sub">사내 문서 기반 답변 · 답변 근거 문서 표시 · 관리자용 운영 대시보드</p>
+      </div>
+      <div class="hero-mockup animate-on-scroll fade-up delay-1">
+        <img src="images/hero-mockup.png" alt="WithBuddy 채팅 데모" class="hero-chat-img animate-on-scroll fade-up delay-1">
+      </div>
+    </div>
+  </section>
+
+  <!-- PAIN POINT -->
+  <section class="pain-point" id="pain-point">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">Pain Point</p>
+      <h2 class="section-title animate-on-scroll fade-up">신입은 어디서 확인해야 할지 모르고,<br>담당자는 같은 절차를 반복해서 설명하고 있지 않나요?</h2>
+      <p class="section-subtitle animate-on-scroll fade-up">전담 HR이나 총무 인력이 부족한 조직일수록, 신입의 규정·절차 문의는 한 사람에게 몰립니다.</p>
+
+      <div class="pain-cards">
+        <div class="pain-card animate-on-scroll fade-up">
+          <div class="pain-icon">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <path
+                d="M4 8C4 5.79 5.79 4 8 4H20C22.21 4 24 5.79 24 8V16C24 18.21 22.21 20 20 20H12L7 24V20C5.34 20 4 18.66 4 17V8Z"
+                fill="#336B97" />
+              <line x1="9" y1="10" x2="19" y2="10" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+              <line x1="9" y1="14" x2="16" y2="14" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </div>
+          <h3 class="pain-card-title">입사한 직원이 바뀌어도 질문은 똑같아요</h3>
+          <p class="pain-card-desc">연차, 복지, 장비, 사내 규정 질문이 신입이 올 때마다 담당자에게 돌아옵니다.</p>
+        </div>
+        <div class="pain-card animate-on-scroll fade-up delay-1">
+          <div class="pain-icon">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <rect x="5" y="3" width="18" height="22" rx="3" fill="#336B97" />
+              <line x1="9" y1="9" x2="19" y2="9" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+              <line x1="9" y1="13" x2="19" y2="13" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+              <line x1="9" y1="17" x2="15" y2="17" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </div>
+          <h3 class="pain-card-title">문서는 있는데 신입이 못 찾아요</h3>
+          <p class="pain-card-desc">규정집과 가이드는 어딘가에 있지만, 신입은 어디서 어떤 문서를 봐야 할지 몰라 결국 다시 묻습니다.</p>
+        </div>
+        <div class="pain-card animate-on-scroll fade-up delay-2">
+          <div class="pain-icon">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <circle cx="14" cy="14" r="11" fill="#336B97" />
+              <line x1="14" y1="8" x2="14" y2="14" stroke="white" stroke-width="2" stroke-linecap="round" />
+              <line x1="14" y1="14" x2="19" y2="14" stroke="white" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </div>
+          <h3 class="pain-card-title">담당자의 업무 흐름이 자꾸 끊겨요</h3>
+          <p class="pain-card-desc">사소한 질문 응대가 쌓이면 중요한 업무 시간이 줄어듭니다. 집중이 끊기고, 다시 몰입하기까지 시간이 두 배로 듭니다.</p>
+        </div>
+      </div>
+
+      <div class="pain-quotes">
+        <div class="pain-quote pain-quote-left animate-on-scroll fade-left">
+          <div class="quote-avatar quote-avatar-light">담</div>
+          <div class="quote-bubble quote-bubble-white">
+            <p class="quote-text">"신입이 올 때마다 같은 안내를 반복하는 게 일이 됐어요."<br>— 인터뷰 참여자 (경영지원 담당)</p>
+          </div>
+        </div>
+        <div class="pain-quote pain-quote-right animate-on-scroll fade-right">
+          <div class="quote-avatar quote-avatar-blue">신</div>
+          <div class="quote-bubble quote-bubble-blue">
+            <p class="quote-text">"궁금한 게 있어도 다들 바빠 보여서 못 물어봤어요."<br>— 사전 설문 응답자 (입사 1년 차)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOLUTION -->
+  <section class="solution" id="solution">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">Solution</p>
+      <h2 class="section-title animate-on-scroll fade-up">문서로 답할 수 있는 질문은 AI가 먼저 안내하고,<br>답하지 못한 질문은 문서 보강으로 연결합니다.</h2>
+      <p class="section-subtitle animate-on-scroll fade-up">신입에게는 눈치 보지 않고 물을 수 있는 첫 창구를, 담당자에게는 반복 응대에서 벗어난 시간을
+        만들어드립니다.</p>
+
+      <div class="solution-items">
+        <div class="solution-item solution-item-left animate-on-scroll fade-left">
+          <div class="solution-text">
+            <span class="solution-number-left">01</span>
+            <div class="solution-item-body-left">
+              <h3 class="solution-item-title">사내 문서 기반 답변</h3>
+              <ul class="solution-bullets">
+                <li>관리자가 올린 규정·가이드·양식 문서를 근거로 답변합니다.</li>
+                <li>모든 답변에 출처 문서가 함께 표시됩니다.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="solution-mockup">
+            <img src="images/solution1.svg" alt="사내 문서 기반 답변 화면" class="solution-mockup-img">
+          </div>
+        </div>
+
+        <div class="solution-item solution-item-right animate-on-scroll fade-right">
+          <div class="solution-mockup">
+            <img src="images/solution2.svg" alt="관리자 대시보드 화면" class="solution-mockup-img">
+          </div>
+          <div class="solution-text">
+            <span class="solution-number-right">02</span>
+            <div class="solution-item-body-right">
+              <h3 class="solution-item-title">관리자 대시보드</h3>
+              <ul class="solution-bullets">
+                <li>신입의 질문 흐름, 반복 문의 현황, 미응답 질문을 한눈에 확인할 수 있습니다.</li>
+                <li>담당자는 반복 문의보다 더 중요한 업무에 집중할 수 있습니다.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="solution-item solution-item-left animate-on-scroll fade-left">
+          <div class="solution-text">
+            <span class="solution-number-left">03</span>
+            <div class="solution-item-body-left">
+              <h3 class="solution-item-title">문서 보강 인사이트</h3>
+              <ul class="solution-bullets">
+                <li>AI가 답하지 못한 질문을 모아, 보강이 필요한 문서 영역을 확인할 수 있도록 돕습니다.</li>
+                <li>쓸수록 문서가 개선되며 자동화 범위가 넓어집니다.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="solution-mockup">
+            <img src="images/solution3.svg" alt="문서 보강 인사이트 화면" class="solution-mockup-img">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how-it-works" id="how-it-works">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">How It Works</p>
+      <h2 class="section-title animate-on-scroll fade-up">문서만 올리면,<br>입사 전부터 온보딩 응대가 시작됩니다.</h2>
+      <p class="section-subtitle animate-on-scroll fade-up">한 번 놓친 질문도, 다음 신입에게는 반복되지 않습니다</p>
+
+      <div class="steps">
+        <div class="animate-on-scroll fade-up">
+          <div class="step-header">
+            <div class="step-icon step-icon-svg">
+              <img src="images/step-icon1.svg" alt="문서 업로드 아이콘" class="step-mockup-img">
+            </div>
+            <div>
+              <p class="step-label">STEP 01 · 문서 업로드</p>
+              <p class="step-desc">인사·총무관련 사내 규정, 온보딩 가이드, 자주 쓰는 양식을 업로드하면 위드버디가 답변에 활용할 수 있는 지식으로 정리합니다. 문서가 없다면 표준
+                템플릿을
+                다운로드해 채워 넣기만 하면 됩니다.</p>
+            </div>
+          </div>
+          <div class="step-mockup">
+            <img src="images/step1.svg" alt="문서 업로드 화면" class="step-mockup-img">
+          </div>
+        </div>
+
+        <div class="animate-on-scroll fade-up">
+          <div class="step-header">
+            <div class="step-icon step-icon-svg">
+              <img src="images/step-icon2.svg" alt="신입 계정 발급 아이콘" class="step-mockup-img">
+            </div>
+            <div>
+              <p class="step-label">STEP 02 · 신입 계정 발급</p>
+              <p class="step-desc">이름·부서·입사일 입력만으로 신입 계정을 생성해 전달하면 입사 전 준비가 필요한 질문부터 안내할 수 있습니다. 수습 기간이 끝나면 계정은 자동으로
+                정리됩니다.</p>
+            </div>
+          </div>
+          <div class="step-mockup">
+            <img src="images/step2.png" alt="신입 계정 발급 화면" class="step-mockup-img">
+          </div>
+        </div>
+
+        <div class="animate-on-scroll fade-up">
+          <div class="step-header">
+            <div class="step-icon step-icon-svg">
+              <img src="images/step-icon3.svg" alt="AI 응대 및 관리자 확인 아이콘" class="step-mockup-img">
+            </div>
+            <div>
+              <p class="step-label">STEP 03 · AI가 응대, 관리자는 확인</p>
+              <p class="step-desc">신입은 궁금한 점을 위드버디에 묻고, 관리자는 대시보드에서 흐름을 확인합니다.</p>
+            </div>
+          </div>
+          <div class="step-mockup">
+            <img src="images/step3.svg" alt="AI 응대 및 관리자 확인 화면" class="step-mockup-img">
+          </div>
+        </div>
+      </div>
+
+      <p class="steps-bottom-text animate-on-scroll fade-up">첫 세팅부터 첫 응답까지, 평균 10분.</p>
+    </div>
+  </section>
+
+  <!-- USE CASE -->
+  <section class="use-case" id="use-case">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">Use Case</p>
+      <h2 class="section-title animate-on-scroll fade-up">입사 전 준비부터 입사 후 궁금한 사항들까지,<br>
+        신입이 자주 묻는 질문에 위드버디가 대신 답합니다.</h2>
+      <p class="section-subtitle animate-on-scroll fade-up">인사·행정·복지·IT 문서만 등록해두면, 반복 문의는 담당자에게 도달하기 전에 먼저 해결됩니다.</p>
+
+      <div class="usecase-flex animate-on-scroll fade-up">
+        <div class="usecase-column">
+          <div class="usecase-column-card">
+            <h3 class="usecase-column-title-left">입사 전</h3>
+            <div class="usecase-card">입사 전에 제출해야 할 서류가 있나요?</div>
+            <div class="usecase-card">첫 출근 장소는 어디인가요?</div>
+            <div class="usecase-card">첫날 몇 시까지 출근하면 되나요?</div>
+            <div class="usecase-card">궁금한 점은 누구에게 문의하면 되나요?</div>
+          </div>
+          <div class="usecase-dots">
+            <span class="dot-inactive"></span>
+            <span class="dot-inactive"></span>
+            <span class="dot-inactive"></span>
+          </div>
+        </div>
+        <div class="usecase-phone">
+          <div class="usecase-phone-frame">
+            <img src="images/section-usecase.png" alt="WithBuddy 채팅 화면" class="usecase-phone-img">
+          </div>
+        </div>
+        <div class="usecase-column">
+          <div class="usecase-column-card">
+            <h3 class="usecase-column-title-right">입사 후</h3>
+            <div class="usecase-card">연차는 언제부터 사용할 수 있나요?</div>
+            <div class="usecase-card">식대는 얼마까지 지원되나요?</div>
+            <div class="usecase-card">법인카드 사용 기준은 어디서 확인하나요?</div>
+            <div class="usecase-card">비품이나 장비는 어떻게 신청하나요?</div>
+          </div>
+          <div class="usecase-dots">
+            <span class="dot-inactive"></span>
+            <span class="dot-inactive"></span>
+            <span class="dot-inactive"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOR ADMIN -->
+  <section class="for-admin" id="for-admin">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">For Admin</p>
+      <h2 class="section-title animate-on-scroll fade-up">반복 질문은 줄이고,<br>부족한 문서 내용은 발견하세요.</h2>
+      <p class="section-subtitle animate-on-scroll fade-up">위드버디는 단순히 답변만 하는 AI가 아닙니다. 신입이 어디서 막히는지, 어떤 문서가 부족한지 함께
+        보여줍니다.</p>
+
+      <div class="admin-grid animate-on-scroll fade-up">
+        <div>
+          <div>
+            <div class="dashboard-stats">
+              <div class="stat-item">
+                <div class="stat-dot-label"><span class="stat-dot stat-dot-green"></span><span>위드버디 활용률</span></div>
+                <span class="stat-number">74%</span>
+                <span class="stat-status stat-status-green">목표 달성</span>
+              </div>
+              <div class="stat-item">
+                <div class="stat-dot-label"><span class="stat-dot stat-dot-red"></span><span>문서 보강 필요율</span></div>
+                <span class="stat-number">18%</span>
+                <span class="stat-status stat-status-red">문서 보강이 필요해요</span>
+              </div>
+              <div class="stat-item">
+                <div class="stat-dot-label"><span class="stat-dot stat-dot-red"></span><span>미시작 신입 수</span></div>
+                <span class="stat-number">3명</span>
+                <span class="stat-status stat-status-red">아직 시작하지 않은 신입이 있어요</span>
+              </div>
+            </div>
+            <div class="dashboard-top5">
+              <div class="top5-header">
+                <span class="top5-title">문서 보강 후보 질문 TOP5</span>
+                <span class="top5-period">최근 7일</span>
+              </div>
+              <div class="top5-list">
+                <div class="top5-row"><span class="top5-num">1</span><span class="top5-q">스톡옵션 받을 수 있나요?</span>
+                  <div class="top5-bar" style="width:100%"></div><span class="top5-count">23건</span>
+                </div>
+                <div class="top5-row"><span class="top5-num">2</span><span class="top5-q">사내 동호회 있어요?</span>
+                  <div class="top5-bar" style="width:87%"></div><span class="top5-count">20건</span>
+                </div>
+                <div class="top5-row"><span class="top5-num">3</span><span class="top5-q">리프레시 휴가는 언제 쓸 수 있어요?</span>
+                  <div class="top5-bar" style="width:65%"></div><span class="top5-count">15건</span>
+                </div>
+                <div class="top5-row"><span class="top5-num">4</span><span class="top5-q">사이닝 보너스 있나요?</span>
+                  <div class="top5-bar" style="width:43%"></div><span class="top5-count">10건</span>
+                </div>
+                <div class="top5-row"><span class="top5-num">5</span><span class="top5-q">주 4일제 운영해요?</span>
+                  <div class="top5-bar" style="width:39%"></div><span class="top5-count">9건</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="admin-features">
+          <div class="admin-feature-card">
+            <p>신입별 질문 수와 최근 활동</p>
+          </div>
+          <div class="admin-feature-card">
+            <p>자동 안내된 반복 문의 비율</p>
+          </div>
+          <div class="admin-feature-card">
+            <p>AI가 답하지 못한 질문 목록</p>
+          </div>
+          <div class="admin-feature-card">
+            <p>문서 보강 필요 영역 TOP 5</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-bottom-bar animate-on-scroll fade-up">
+        <p>담당자는 모든 질문을 직접 처리하기보다, 확인이 필요한 질문과 보강할 문서에 집중할 수 있습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- VALUE -->
+  <section class="value" id="value">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">Value</p>
+      <h2 class="section-title animate-on-scroll fade-up">반복 응대에 쓰던 시간을,<br>담당자의 본래 업무로 되돌립니다.</h2>
+
+      <div class="value-cards">
+        <div class="value-card value-card-blue animate-on-scroll fade-up">
+          <p class="value-number value-number-blue">1차 응대</p>
+          <p class="value-subtitle">반복 절차 문의 자동 안내</p>
+          <p class="value-desc">문서로 답할 수 있는 질문을 담당자에게 가기 전 먼저 안내합니다.</p>
+        </div>
+        <div class="value-card value-card-pink animate-on-scroll fade-up delay-1">
+          <p class="value-number value-number-pink">월 15시간+</p>
+          <p class="value-subtitle">담당자가 온보딩과 반복 응대에 쓰는 시간</p>
+          <p class="value-desc">사전 설문·인터뷰에서 확인한, 담당자 1인이 신입 응대와 안내에 쓰는 평균 시간입니다. 위드버디는 이 시간을 본래 업무로 되돌리는 것을 목표로 합니다.</p>
+        </div>
+        <div class="value-card value-card-white animate-on-scroll fade-up delay-2">
+          <p class="value-number value-number-blue">20분 → 5초</p>
+          <p class="value-subtitle">신입이 답을 얻기까지의 시간</p>
+          <p class="value-desc">문서를 직접 뒤지거나 담당자를 기다릴 때와, 위드버디에 물었을 때의 차이를 직접 측정했습니다.</p>
+        </div>
+      </div>
+
+      <div class="value-note animate-on-scroll fade-up">
+        <p>위 수치는 자체 실험 측정과 사전 설문·인터뷰 결과 기준이며, 문서 등록 범위와 신입 규모에 따라 달라질 수 있습니다.</p>
+        <p>파일럿 도입 기업의 실제 효과는 검증을 진행할 예정입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECURITY -->
+  <section class="security" id="security">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">Security &amp; Trust</p>
+      <h2 class="section-title animate-on-scroll fade-up">사내 규정 문서와 AI 답변이<br>안전하게 관리되도록 설계했습니다.</h2>
+      <p class="section-subtitle animate-on-scroll fade-up">WithBuddy는 프롬프트 공격, 내부 문서 노출, 사용자 정보 조작 등 AI 서비스에서 발생할 수 있는
+        주요 위험 시나리오를 검증했습니다.</p>
+
+      <div class="security-cards">
+        <div class="security-card animate-on-scroll fade-up">
+          <span class="security-label">AI 신뢰성 8개 항목 검증 완료</span>
+          <h3 class="security-card-title">AI 응답 보호</h3>
+          <p class="security-card-desc">시스템 역할 변경, 내부 프롬프트 노출, RAG 원문 추출 시도 등 주요 AI 공격 시나리오에 대해 방어 동작을 검증했습니다.</p>
+          <span class="security-tag">Prompt Injection · Prompt Leakage · Data Exfiltration 검증</span>
+        </div>
+        <div class="security-card animate-on-scroll fade-up delay-1">
+          <span class="security-label">문서 원문 노출 방지</span>
+          <h3 class="security-card-title">문서 기반 답변 통제</h3>
+          <p class="security-card-desc">등록된 사내 문서를 기준으로 답변하고, 내부 문서 목록이나 검색 원문이 그대로 노출되지 않도록 설계했습니다.</p>
+          <span class="security-tag">내부 문서·RAG Chunk 비공개 검증</span>
+        </div>
+        <div class="security-card animate-on-scroll fade-up delay-2">
+          <span class="security-label">운영 모니터링/백업 체계</span>
+          <h3 class="security-card-title">운영 모니터링과 백업</h3>
+          <p class="security-card-desc">서비스 상태를 모니터링하고, 데이터 백업과 복구 리허설을 통해 운영 안정성을 점검합니다.</p>
+          <span class="security-tag">모니터링 · 백업 자동화 · 복구 검증</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TARGET -->
+  <section class="target" id="target">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">Target Organizations</p>
+      <h2 class="section-title animate-on-scroll fade-up">전담 HR이 없고, 온보딩이 한 명에게<br>몰리는 조직을 위해 만들었습니다.</h2>
+
+      <div class="target-cards">
+        <div class="target-card target-card-navy animate-on-scroll fade-up">
+          <div class="target-card-top">
+            <div class="target-icon target-icon-navy">30</div>
+            <span class="target-num target-num-navy">01</span>
+          </div>
+          <h3 class="target-card-title">30~100인 스타트업 및 중소기업</h3>
+        </div>
+        <div class="target-card target-card-yellow animate-on-scroll fade-up delay-1">
+          <div class="target-card-top">
+            <div class="target-icon target-icon-yellow">HR</div>
+            <span class="target-num target-num-yellow">02</span>
+          </div>
+          <h3 class="target-card-title">전담 HR 없음</h3>
+        </div>
+        <div class="target-card target-card-green animate-on-scroll fade-up delay-2">
+          <div class="target-card-top">
+            <div class="target-icon target-icon-green">&#8635;</div>
+            <span class="target-num target-num-green">03</span>
+          </div>
+          <h3 class="target-card-title">채용이 잦은 조직</h3>
+        </div>
+        <div class="target-card target-card-lightblue animate-on-scroll fade-up delay-3">
+          <div class="target-card-top">
+            <div class="target-icon target-icon-lightblue">DOC</div>
+            <span class="target-num target-num-lightblue">04</span>
+          </div>
+          <h3 class="target-card-title">규정이 문서화되지 않은 곳</h3>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="pricing" id="pricing">
+    <div class="container">
+      <p class="section-label animate-on-scroll fade-up">Pricing</p>
+      <h2 class="section-title animate-on-scroll fade-up">온보딩 중인 신입 수만큼만,<br>부담 없이 시작하세요</h2>
+      <p class="section-subtitle animate-on-scroll fade-up">신입 1인당 월 1만 원 이하. 수습 기간 동안 필요한 질문을 AI가 먼저 받아줍니다.</p>
+      <!-- 01 추천 플랜 -->
+      <div class="pricing-section animate-on-scroll fade-up">
+        <div class="pricing-section-header">
+          <span class="pricing-section-num">01</span>
+          <div class="pricing-section-rule"></div>
+          <span class="pricing-section-title">추천 플랜</span>
+        </div>
+        <div class="pricing-recommend">
+          <div>
+            <h3 class="pricing-title">수습 기간 3개월을 한 번에, 가장 합리적으로</h3>
+            <p class="pricing-desc">질문은 첫 달에 몰립니다. 월별 제한 없이, 수습 기간 전체에서 필요한 만큼 사용할 수 있도록 설계했습니다.</p>
+            <a href="https://withbuddy.itsdev.kr/" class="btn btn-primary-dark" target="_blank">시작하기</a>
+          </div>
+          <div class="pricing-recommend-card">
+            <div class="pricing-pack-card">
+              <div class="pricing-pack-header">
+                <h4 class="pricing-pack-name">Onboarding Pack</h4>
+                <span class="pricing-pack-badge">⭐ 추천 플랜</span>
+              </div>
+              <p class="pricing-pack-price">3개월 24,900원</p>
+              <div class="pricing-pack-features-grid">
+                <ul class="pricing-pack-features">
+                  <li>회사 기준 문서 30개</li>
+                  <li>3개월 통합 AI 크레딧</li>
+                  <li>Plus의 주요 기능 포함</li>
+                </ul>
+                <ul class="pricing-pack-features">
+                  <li>문서 보강 후보 TOP 5</li>
+                  <li>반복 질문 분석 리포트</li>
+                  <li>신입 계정 발급·수습 종료 자동 정리</li>
+                </ul>
+              </div>
+              <div class="pricing-pack-glow"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 02 왜 3개월 Pack인가요? -->
+      <div class="pricing-section animate-on-scroll fade-up">
+        <div class="pricing-section-header">
+          <span class="pricing-section-num">02</span>
+          <div class="pricing-section-rule"></div>
+          <span class="pricing-section-title">왜 3개월 Pack인가요?</span>
+        </div>
+        <div class="pricing-why">
+          <div>
+            <h3 class="pricing-title">신입의 질문은 첫 달에 몰립니다</h3>
+            <p class="pricing-desc">온보딩 질문은 매달 고르게 발생하지 않습니다. 입사 첫 달에 가장 많고, 적응할수록 줄어듭니다.<br>Onboarding Pack은 월별 제한 대신
+              <strong class="pricing-desc">3개월 통합 AI 크레딧</strong>을 제공해, 질문이 몰리는 시기에 신입이 더
+              편하게 물어볼 수 있도록 설계했습니다.</p>
+          </div>
+          <div class="pricing-why-right">
+            <div class="pricing-chart">
+              <div class="pricing-chart-row">
+                <div class="pricing-chart-label-group">
+                  <span class="pricing-chart-label">1개월차</span>
+                  <span class="pricing-chart-sub">질문 집중</span>
+                </div>
+                <div class="pricing-chart-bar-wrap">
+                  <div class="pricing-chart-bar pricing-chart-bar-1"></div>
+                </div>
+              </div>
+              <div class="pricing-chart-row">
+                <div class="pricing-chart-label-group">
+                  <span class="pricing-chart-label">2개월차</span>
+                  <span class="pricing-chart-sub">필요한 질문 위주</span>
+                </div>
+                <div class="pricing-chart-bar-wrap">
+                  <div class="pricing-chart-bar pricing-chart-bar-2"></div>
+                </div>
+              </div>
+              <div class="pricing-chart-row">
+                <div class="pricing-chart-label-group">
+                  <span class="pricing-chart-label">3개월차</span>
+                  <span class="pricing-chart-sub">적응 마무리</span>
+                </div>
+                <div class="pricing-chart-bar-wrap">
+                  <div class="pricing-chart-bar pricing-chart-bar-3"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 03 월간 플랜 -->
+      <div class="pricing-section animate-on-scroll fade-up">
+        <div class="pricing-section-header">
+          <span class="pricing-section-num">03</span>
+          <div class="pricing-section-rule"></div>
+          <span class="pricing-section-title">월간 플랜</span>
+        </div>
+        <div class="pricing-plans">
+          <div class="plan-card plan-basic animate-on-scroll fade-up">
+            <div class="plan-info">
+              <h4 class="plan-tier">Basic</h4>
+              <p class="plan-tagline">가볍게 시작하는 온보딩 Q&amp;A</p>
+            </div>
+            <div class="plan-price-group">
+              <p class="plan-price">월 5,900원</p>
+              <p class="plan-per">신입 1인 기준 (부가세 별도)</p>
+            </div>
+            <div class="plan-divider"></div>
+            <ul class="plan-features">
+              <li>✓ 회사 기준 문서 5개</li>
+              <li>✓ 기본 AI 크레딧</li>
+              <li>✓ 신입 계정 발급·자동 정리</li>
+              <li>✓ 질문 현황 대시보드</li>
+            </ul>
+            <p class="plan-note">신입이 규정·복지를 가끔 묻는 정도라면 충분해요.</p>
+            <a href="#cta" class="btn btn-plan btn-plan-blue btn-block">Basic 플랜 시작</a>
+          </div>
+          <div class="plan-card plan-plus animate-on-scroll fade-up delay-1">
+            <div class="plan-info">
+              <h4 class="plan-tier">Plus</h4>
+              <p class="plan-tagline">질문이 많은 달을 위한 여유 있는 플랜</p>
+            </div>
+            <div class="plan-price-group">
+              <p class="plan-price">월 8,900원</p>
+              <p class="plan-per">신입 1인 기준 (부가세 별도)</p>
+            </div>
+            <div class="plan-divider"></div>
+            <ul class="plan-features">
+              <li>✓ 회사 기준 문서 20개</li>
+              <li>✓ 넉넉한 AI 크레딧</li>
+              <li>✓ 문서 보강 후보 TOP 5</li>
+              <li>✓ 반복 질문 분석 리포트</li>
+            </ul>
+            <p class="plan-note">입사 첫 달처럼 질문이 몰리는 시기, 문서 운영까지 챙기고 싶다면.</p>
+            <a href="#cta" class="btn btn-plan btn-plan-blue btn-block">Plus 플랜 시작</a>
+          </div>
+          <div class="plan-card plan-enterprise animate-on-scroll fade-up delay-2">
+            <div class="plan-info">
+              <h4 class="plan-tier">Enterprise</h4>
+              <p class="plan-tagline">보안 요건, 전담 지원, 대규모 채용이 필요한 조직</p>
+            </div>
+            <div class="plan-price-group">
+              <p class="plan-price-enterprise"><span>별도 문의</span></p>
+              <p class="plan-per-enterprise">규모와 요구에 맞춰 협의</p>
+            </div>
+            <div class="plan-divider plan-divider-dark"></div>
+            <ul class="plan-features plan-features-enterprise">
+              <li>✓ 문서 수·AI 크레딧 협의</li>
+              <li>✓ 부서별 접근 권한 분리</li>
+              <li>✓ 사내 SSO·감사 기록 협의</li>
+              <li>✓ 전담 매니저 배정</li>
+            </ul>
+            <a href="#cta" class="btn btn-plan btn-plan-white btn-block">맞춤 플랜 문의하기</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 04 FAQ -->
+      <div class="pricing-section" id="faq">
+        <div class="pricing-section-header animate-on-scroll fade-up">
+          <span class="pricing-section-title">FAQ</span>
+          <div class="pricing-section-rule"></div>
+          <span class="pricing-section-num">04</span>
+        </div>
+        <h3 class="faq-heading animate-on-scroll fade-up">자주 묻는 질문</h3>
+        <div class="faq-list animate-on-scroll fade-up">
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              <span>Q1. 월간 플랜과 Onboarding Pack은 무엇이 다른가요?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>월간 플랜은 매월 갱신되는 구독 방식이고, Onboarding Pack은 수습 기간 3개월을 하나로 묶어 할인된 가격에 제공하는 패키지입니다. Pack은 3개월 통합 크레딧을 포함해
+                질문이 몰리는 첫 달에 집중 사용할 수 있습니다.</p>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              <span>Q2. 수습 기간이 끝난 신입 계정은 어떻게 되나요?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>수습 기간 종료일에 맞춰 신입 계정은 자동으로 비활성화됩니다. 관리자가 수동으로 연장하거나 즉시 정리할 수도 있습니다.</p>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              <span>Q3. 사내 규정 문서가 정리되어 있지 않아도 시작할 수 있나요?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>네, 표준 온보딩 템플릿을 제공하고 있어 내용을 채워 넣기만 하면 바로 시작할 수 있습니다. 기존 문서가 있다면 그대로 업로드해도 됩니다.</p>
+            </div>
+          </div>
+          <div class="faq-item faq-item-open">
+            <button class="faq-question" aria-expanded="true">
+              <span>Q4. AI가 잘못된 답변을 하면 어떻게 되나요?</span>
+              <span class="faq-icon">&minus;</span>
+            </button>
+            <div class="faq-answer faq-answer-open">
+              <p>위드버디는 등록된 사내 문서를 근거로만 답변하고, 모든 답변에 출처 문서를 함께 표시합니다. 문서에서 답을 찾지 못한 질문은 추측으로 답하지 않고 담당자 확인으로 연결되며, 해당 질문은
+                대시보드에 기록되어 문서 보강에 활용할 수 있습니다.</p>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              <span>Q5. 우리 회사의 문서와 데이터는 안전하게 관리되나요?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>WithBuddy는 AI 응답 보호, 문서 원문 노출 방지, 운영 모니터링 및 백업 체계를 갖추고 있습니다. 주요 AI 공격 시나리오에 대한 방어 검증을 완료했습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta" id="cta">
+    <div class="container cta-inner animate-on-scroll fade-up">
+      <h2 class="cta-title">신입의 반복 질문 응대,<br>이제 AI 동료에게 맡겨보세요.</h2>
+      <p class="cta-subtitle">30일 무료 파일럿으로 실제 효과를 먼저 확인하세요.</p>
+      <div class="cta-buttons">
+        <a href="https://withbuddy.itsdev.kr/" class="btn btn-white" target="_blank">시작하기</a>
+        <a href="#" class="btn btn-outline-white-cta">도입 문의하기</a>
+      </div>
+      <p class="cta-note">도입 상담 답변은 평균 1영업일 이내 · 계약 없이 파일럿 종료 가능 도입 문의 시 영업일 기준 1~2일 내 담당자가 연락드립니다.</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="footer-logo">
+            <img src="images/logo-icon.svg" alt="WithBuddy" width="24" height="24">
+            <img src="images/WithBuddy.svg" alt="WithBuddy" height="18">
+          </div>
+          <p class="footer-tagline">신입의 첫 질문 창구, 담당자의 시간을 되돌려주는 AI 온보딩 동료.</p>
+        </div>
+        <div class="footer-col">
+          <h4>서비스</h4>
+          <ul>
+            <li><a href="#solution">서비스 소개</a></li>
+            <li><a href="#how-it-works">사용 방법</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>리소스</h4>
+          <ul>
+            <li><a href="#faq">자주 묻는 질문</a></li>
+            <li><a href="#">도입 가이드</a></li>
+            <li><a href="#">표준 온보딩 템플릿 다운로드</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>회사</h4>
+          <ul>
+            <li><a href="#">팀 소개</a></li>
+            <li><a href="#">문의하기</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>연락처</h4>
+          <ul>
+            <li>이메일: withbuddy@gmail.com</li>
+            <li>도입 문의: withbuddy@gmail.com</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 팀 일단모여. All rights reserved.</p>
+        <p><a href="#">이용약관</a> · <a href="#">개인정보처리방침</a></p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scroll Navigation Buttons -->
+  <div class="scroll-nav-btns" id="scrollNavBtns">
+    <button class="scroll-nav-btn" id="scrollUpBtn" aria-label="위로 이동">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M10 4L4 12H16L10 4Z" fill="currentColor"/>
+      </svg>
+    </button>
+    <button class="scroll-nav-btn" id="scrollDownBtn" aria-label="아래로 이동">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M10 16L16 8H4L10 16Z" fill="currentColor"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- JS -->
+  <script src="js/nav.js"></script>
+  <script src="js/faq.js"></script>
+  <script src="js/animations.js"></script>
+  <script src="js/scroll-nav.js"></script>
+</body>
+
+</html>

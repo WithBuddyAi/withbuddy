@@ -1,0 +1,125 @@
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-block;
+  padding: 12px 28px;
+  border-radius: 12px;
+  font-size: 16px;
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: #336b97;
+  color: #ffffff;
+  margin-bottom: 40px;
+}
+
+.btn-primary:hover {
+  background: #2a5a80;
+  transform: translateY(-1px);
+}
+
+.btn-primary-dark {
+  display: inline-block;
+  padding: 22px 32px;
+  border-radius: 12px;
+  font-size: 24px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  background: #336b97;
+  color: #ffffff;
+  transition: all 0.3s ease;
+}
+
+.btn-primary-dark:hover {
+  background: #2a5a80;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(51, 107, 151, 0.4);
+}
+
+.btn-outline {
+  background: #ffffff;
+  color: #336b97;
+  border: 1.5px solid #336b97;
+  margin-bottom: 40px;
+}
+
+.btn-outline:hover {
+  background: #eaf6ff;
+  transform: translateY(-1px);
+}
+
+.btn-white {
+  background: #ffffff;
+  color: #1a3a52;
+  padding: 14px 32px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+
+.btn-white:hover {
+  background: #f0f0f0;
+  transform: translateY(-1px);
+}
+
+.btn-outline-white-cta {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  display: inline-block;
+  padding: 14px 32px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-outline-white-cta:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-plan {
+  display: block;
+  width: 100%;
+  padding: 16px 32px;
+  border-radius: 12px;
+  font-size: 22px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.btn-plan-blue {
+  background: #4791ca;
+  color: #ffffff;
+}
+
+.btn-plan-blue:hover {
+  background: #336b97;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(71, 145, 202, 0.4);
+}
+
+.btn-plan-white {
+  background: #ffffff;
+  color: #4791ca;
+}
+
+.btn-plan-white:hover {
+  background: #f0f4f8;
+  color: #336b97;
+  transform: translateY(-1px);
+}
+
+.btn-block {
+  display: block;
+  width: 100%;
+}
