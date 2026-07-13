@@ -1,0 +1,86 @@
+/* ===== SOLUTION ===== */
+.solution {
+  padding: 140px 0 80px;
+  background: linear-gradient(180deg, #f8f9fae3 0%, #ffffff 5%);
+  overflow: hidden;
+}
+
+.solution-items {
+  display: flex;
+  flex-direction: column;
+  gap: 80px;
+}
+
+.solution-item-left {
+  display: flex;
+  gap: 60px;
+  align-items: center;
+  justify-content: center;
+}
+
+.solution-item-right {
+  display: flex;
+  gap: 60px;
+  align-items: center;
+  justify-content: center;
+}
+
+.solution-text {
+  position: relative;
+}
+
+.solution-number-left {
+  display: block;
+  font-size: 160px;
+  font-weight: 900;
+  color: #2048671a;
+  line-height: 1;
+}
+
+.solution-number-right {
+  display: block;
+  font-size: 160px;
+  font-weight: 900;
+  color: #2048671a;
+  line-height: 1;
+  margin-left: 240px;
+}
+
+.solution-item-body-left {
+  margin-top: -90px;
+  margin-left: 110px;
+}
+
+.solution-item-body-right {
+  margin-top: -90px;
+}
+
+.solution-item-title {
+  font-size: 45px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.solution-bullets {
+  list-style: disc;
+  padding-left: 20px;
+}
+
+.solution-bullets li {
+  font-size: 16px;
+  color: #495057;
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+
+.solution-mockup-img {
+  width: 100%;
+}
+
+.solution-item-right .solution-text {
+  order: 2;
+}
+
+.solution-item-right .solution-mockup {
+  order: 1;
+}
