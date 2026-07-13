@@ -1,0 +1,98 @@
+/* ===== TARGET ===== */
+.target {
+  padding: 100px 0;
+  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
+}
+
+.target-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.target-card {
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 28px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.target-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.target-card-navy {
+  border-top: 4px solid #336b97;
+}
+.target-card-yellow {
+  border-top: 4px solid #ffd647;
+}
+.target-card-green {
+  border-top: 4px solid #059e7a;
+}
+.target-card-lightblue {
+  border-top: 4px solid #57a7e4;
+}
+
+.target-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.target-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.target-icon-navy {
+  background: #e5f2ff;
+  color: #336b97;
+}
+.target-icon-yellow {
+  background: #fff5c7;
+  color: #a87008;
+}
+.target-icon-green {
+  background: #e0faf0;
+  color: #059e7a;
+}
+.target-icon-lightblue {
+  background: #e5f2ff;
+  color: #57a7e4;
+}
+
+.target-num {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.target-num-navy {
+  color: #336b97;
+}
+.target-num-yellow {
+  color: #ffd647;
+}
+.target-num-green {
+  color: #059e7a;
+}
+.target-num-lightblue {
+  color: #57a7e4;
+}
+
+.target-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0e131a;
+}

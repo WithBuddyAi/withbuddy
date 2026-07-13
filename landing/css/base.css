@@ -1,0 +1,63 @@
+/* ===== RESET & BASE ===== */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Pretendard", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+ul {
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+.container {
+  margin: 0 auto;
+  padding: 0 160px;
+}
+
+/* ===== SECTION COMMON ===== */
+.section-label {
+  text-align: center;
+  color: #4791ca;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  text-align: center;
+  font-size: 50px;
+  font-weight: 600;
+  color: #204867;
+  line-height: 1.4;
+  margin-bottom: 24px;
+}
+
+.section-subtitle {
+  text-align: center;
+  font-size: 28px;
+  color: #495057;
+  line-height: 1.7;
+  margin-bottom: 80px;
+}

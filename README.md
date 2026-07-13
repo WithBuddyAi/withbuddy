@@ -2,7 +2,7 @@
 
 > 신입사원 온보딩을 돕는 AI 비서 서비스
 
-**최종 업데이트**: 2026-05-11
+**최종 업데이트**: 2026-07-13
 **버전**: MVP 1.0
 
 [![GitHub issues](https://img.shields.io/github/issues/WithBuddyAi/withbuddy)](https://github.com/WithBuddyAi/withbuddy/issues)
@@ -17,6 +17,7 @@
 | 구분 | 링크 | 
 |------|------|
 |서비스 접속 | https://withbuddy.itsdev.kr |
+|서비스 소개 (랜딩페이지) | https://withbuddy-landing.vercel.app |
 |API 명세 (Swagger) | https://api-wb.itsdev.kr/swagger-ui/index.html |
 
 ---
@@ -109,8 +110,9 @@ WithBuddy는 회사 문서를 학습해 신입의 자연어 질문에 즉시 답
 |------|------|
 | **Backend** | Java 21, Spring Boot 3.5+, MySQL 8.0, Redis, RabbitMQ, JWT, Flyway |
 | **Frontend** | React 18, JavaScript (ES6+), Vite, Tailwind CSS |
+| **Landing** | HTML5, CSS3, JavaScript (ES6+), Pretendard |
 | **AI** | Python 3.11, FastAPI, LangChain, LangGraph, ChromaDB, Claude Haiku 4.5, Gemini Embedding 2 |
-| **배포** | Oracle Cloud (Backend/AI/MySQL/Object Storage), Vercel (Frontend) |
+| **배포** | Oracle Cloud (Backend/AI/MySQL/Object Storage), Vercel (Frontend/Landing) |
 | **CI/CD** | GitHub Actions |
 
 ---
@@ -121,6 +123,7 @@ WithBuddy는 회사 문서를 학습해 신입의 자연어 질문에 즉시 답
 |------|----------|------------|---------------|-----------|
 | Backend | `backend/` | withbuddy | `com.withbuddy` | 8080 |
 | Frontend | `frontend/` | withbuddy-frontend | `VITE_*` env 사용 | 5173 |
+| Landing | `landing/` | withbuddy-landing | - | Vercel 정적 호스팅 |
 | AI | `ai/` | withbuddy-ai | `app.main:app` | 8000 |
 
 ---
@@ -172,7 +175,15 @@ npm run dev
 # http://localhost:5173
 ```
 
-**5. AI 서버 실행**
+**5. Landing 페이지 로컬 확인**
+```bash
+cd landing
+# 아무 로컬 서버로 실행 (예: VS Code Live Server, Python 등)
+python -m http.server 3000
+# http://localhost:3000
+```
+
+**6. AI 서버 실행**
 
 옵션 A. Docker Compose로 AI 서버만 실행
 ```bash
@@ -311,6 +322,34 @@ withbuddy/
 │  ├─ tailwind.config.js                            # Tailwind 설정
 │  ├─ vercel.json                                   # Vercel 배포 설정
 │  └─ README.md                                     # 프론트엔드 가이드
+│
+├─ landing/                                         # FE (서비스 소개 랜딩페이지)
+│  ├─ css/                                          # 섹션별 분리된 스타일시트 (18개)
+│  │  ├─ base.css                                   # 리셋, 공통 스타일
+│  │  ├─ buttons.css                                # 버튼 컴포넌트
+│  │  ├─ nav.css                                    # 네비게이션 바
+│  │  ├─ hero.css                                   # 히어로 섹션
+│  │  ├─ pain.css                                   # 페인포인트 섹션
+│  │  ├─ solution.css                               # 솔루션 섹션
+│  │  ├─ steps.css                                  # 사용 방법 섹션
+│  │  ├─ usecase.css                                # 유즈케이스 섹션
+│  │  ├─ admin.css                                  # 관리자 대시보드 섹션
+│  │  ├─ value.css                                  # 도입 효과 섹션
+│  │  ├─ security.css                               # 보안 섹션
+│  │  ├─ target.css                                 # 도입 대상 섹션
+│  │  ├─ pricing.css                                # 가격 정책 섹션
+│  │  ├─ faq.css                                    # FAQ 섹션
+│  │  ├─ cta.css                                    # CTA 섹션
+│  │  ├─ footer.css                                 # 푸터
+│  │  ├─ animations.css                             # 스크롤 애니메이션, 키프레임
+│  │  └─ responsive.css                             # 반응형 (1400/1000/768/480px)
+│  ├─ js/                                           # 기능별 분리된 스크립트 (4개)
+│  │  ├─ nav.js                                     # 햄버거 메뉴, 스크롤 그림자, 앵커 링크
+│  │  ├─ faq.js                                     # FAQ 아코디언
+│  │  ├─ animations.js                              # Intersection Observer, 카운터, 패럴랙스
+│  │  └─ scroll-nav.js                              # 최상단/최하단 이동 버튼
+│  ├─ images/                                       # 이미지 리소스 (SVG, PNG)
+│  └─ index.html                                    # 랜딩페이지 진입점
 │
 ├─ .postman/                                        # Postman 컬렉션/환경 파일
 ├─ .gitignore                                       # BE/FE/AI/CI  (지속 관리)
@@ -499,6 +538,7 @@ withbuddy/
 
 ## 변경 이력
 
+- 2026-07-13: 서비스 소개 랜딩페이지(`landing/`) 추가. 순수 HTML/CSS/JS 구성, 반응형(1400/1000/768/480px) 지원. Vercel 정적 호스팅 배포.
 - 2026-05-11: 5/8 SSH 보안 강화, 5/9 Cloudflare Tunnel 배포 전환, 5/10 보안 체크리스트 완비
 - 2026-05-06: PRD v4.0 기반으로 README 전면 개편. 데모 접속 링크, 테스트 계정, 핵심 가치 제안, 서비스 성공 지표, 기획 문서 섹션 추가.
 - 2026-04-20: `docs/architecture/Redis_RMQ_SSE.md` 추가에 따라 디렉토리 구조 및 문서 링크 반영. Redis 캐싱·RabbitMQ 메시징 상세 아키텍처 가이드 (v2.5).
