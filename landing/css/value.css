@@ -1,0 +1,98 @@
+/* ===== VALUE ===== */
+.value {
+  padding: 200px 0;
+  position: relative;
+  overflow: hidden;
+  background: url("../images/value-bg.svg") right center / cover no-repeat;
+}
+
+.value::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(270deg, #ffffff 45%, #e6f4ff29 95%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.value .container {
+  position: relative;
+  z-index: 1;
+}
+
+.value-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 120px;
+}
+
+.value-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 36px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.16);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.value-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.value-card-blue {
+  background: #eaf5ffb2;
+  border: 1px solid #dde8f2;
+}
+
+.value-card-pink {
+  background: #fff0ef;
+  border: 1px solid #dde8f2;
+}
+
+.value-card-white {
+  background: #ffffff;
+  border: 1px solid #dde8f2;
+}
+
+.value-number {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.value-number-blue {
+  color: #2f8fda;
+}
+
+.value-number-pink {
+  color: #f36b7f;
+}
+
+.value-subtitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #212529;
+  margin-bottom: 12px;
+}
+
+.value-desc {
+  font-size: 16px;
+  color: #495057;
+  line-height: 1.6;
+}
+
+.value-note {
+  text-align: center;
+}
+
+.value-note p {
+  font-size: 16px;
+  color: #868e96;
+  line-height: 1.6;
+}
