@@ -8,6 +8,7 @@ import useDesktop from "../hooks/useDesktop";
 import useLoginForm from "../hooks/useLoginForm";
 import useTurnstile from "../hooks/useTurnstile";
 import useTypingEffect from "../hooks/useTypingEffect";
+import LoginFooter from "../components/login/LoginFooter";
 
 function Login({ setUser }) {
   // Hooks
@@ -101,19 +102,13 @@ function Login({ setUser }) {
                 turnstileContainerRef={turnstileContainerRef}
                 isDesktop={true}
               />
-
-              <p className="text-[12px] text-[#868E96] text-center mt-[24px]">
-                © 2026 WithBuddy. A Builders League Project.
-              </p>
             </div>
           </div>
         )}
       </div>
 
-      {/* 모바일 footer */}
-      <footer className="text-[10px] text-[#6A7282] text-center pb-6 md:text-[12px] lg:hidden">
-        © 2026 WithBuddy. A Builders League Project.
-      </footer>
+      {/* 공통 footer */}
+      <LoginFooter />
     </div>
   );
 }
