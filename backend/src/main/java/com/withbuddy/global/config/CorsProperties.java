@@ -18,7 +18,8 @@ public class CorsProperties {
             "http://localhost:5173",
             "http://127.0.0.1:5173",
             "https://*.vercel.app",
-            "https://withbuddy.itsdev.kr"
+            "https://withbuddy.itsdev.kr",
+            "https://withbuddy.ai.kr"
     ));
 
     private List<String> allowedMethods = new ArrayList<>(List.of(
