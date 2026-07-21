@@ -1,0 +1,72 @@
+/* ===== HOW IT WORKS ===== */
+.how-it-works {
+  padding: 100px 0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 5%);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 64px;
+  margin-bottom: 48px;
+}
+
+.step-header {
+  display: flex;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.step-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-icon img {
+  width: 25px;
+  height: 25px;
+}
+
+.step-icon-svg {
+  background: #ffffff;
+  border: 1px solid #4791ca33;
+}
+
+.step-label {
+  font-size: 18px;
+  color: #1a3a52;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.step-desc {
+  font-size: 16px;
+  color: #204867b2;
+  line-height: 1.7;
+  margin-bottom: 4px;
+  max-width: 720px;
+}
+
+.step-mockup-img {
+  width: 100%;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.step-mockup-img:hover {
+  transform: translateY(-4px);
+}
+
+.steps-bottom-text {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 500;
+  color: #336b97;
+}

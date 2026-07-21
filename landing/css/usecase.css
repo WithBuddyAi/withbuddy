@@ -1,0 +1,75 @@
+/* ===== USE CASE ===== */
+.use-case {
+  padding: 100px 0;
+  background: linear-gradient(180deg, #f8f9fae3 0%, #ffffff 5%);
+}
+
+.usecase-flex {
+  display: flex;
+  gap: 50px;
+  align-items: center;
+  justify-content: center;
+}
+
+.usecase-column {
+  display: flex;
+  gap: 40px;
+  align-items: center;
+}
+
+.usecase-flex > .usecase-column:last-child {
+  flex-direction: row-reverse;
+}
+
+.usecase-column-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.usecase-column-title-left {
+  font-size: 20px;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 16px;
+  text-align: end;
+}
+
+.usecase-column-title-right {
+  font-size: 20px;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 16px;
+  text-align: start;
+}
+
+.usecase-card {
+  background: #ffffff;
+  border: 1px solid #336b9733;
+  border-radius: 18px;
+  padding: 16px 24px;
+  font-size: 15px;
+  color: #212529;
+  margin-bottom: 14px;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.usecase-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.usecase-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dot-inactive {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2048674d;
+}

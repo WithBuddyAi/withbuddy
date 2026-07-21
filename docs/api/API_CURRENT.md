@@ -45,6 +45,7 @@
 - `documents`
 - `flyway_schema_history`
 - `messaging_event_logs`
+- `no_result_question_patterns`
 - `onboarding_suggestions`
 - `unanswered_question_logs`
 - `user_activity_logs`

@@ -1,0 +1,110 @@
+/* ===== PAIN POINT ===== */
+.pain-point {
+  padding: 130px 0 100px 0;
+  background: linear-gradient(180deg, #eaf6ff 0%, #f8f9fa 5%);
+}
+
+.pain-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 48px;
+}
+
+.pain-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 32px 40px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.pain-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.pain-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #eaf6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.pain-card-title {
+  font-size: 20px;
+  font-weight: 500;
+  color: #0b1c30;
+  margin-bottom: 16px;
+}
+
+.pain-card-desc {
+  font-size: 16px;
+  color: #495057;
+  line-height: 1.6;
+}
+
+.pain-quotes {
+  display: flex;
+  justify-content: space-between;
+  gap: 100px;
+  margin: 0 310px;
+}
+
+.pain-quote {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.quote-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.quote-avatar-blue {
+  background: #4791ca;
+  color: #ffffff;
+}
+
+.quote-avatar-light {
+  background: #ffffff;
+  color: #336b97;
+  border: 1px solid #336b9799;
+}
+
+.quote-bubble {
+  padding: 16px 20px;
+  border-radius: 32px;
+  border-top-left-radius: 6px;
+  flex: 1;
+}
+
+.quote-bubble-white {
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+}
+
+.quote-bubble-blue {
+  background: linear-gradient(135deg, #4791ca, #6aaddf);
+  color: #ffffff;
+}
+
+.quote-text {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.6;
+}

@@ -1,0 +1,388 @@
+/* ===== PRICING ===== */
+.pricing {
+  padding: 100px 0 120px;
+  background: #ffffff;
+  position: relative;
+  overflow: hidden;
+}
+
+.pricing .container {
+  position: relative;
+  z-index: 1;
+}
+
+.pricing-section {
+  margin-top: 120px;
+}
+
+/* Section Header - 피그마: 텍스트 ── 라인 ── 번호 */
+.pricing-section-header {
+  display: flex;
+  align-items: center;
+  gap: 41px;
+  margin-bottom: 40px;
+}
+
+.pricing-section-num {
+  font-size: 24px;
+  font-weight: 500;
+  color: #336b97;
+}
+
+.pricing-section-rule {
+  width: 76px;
+  height: 3px;
+  background: #336b97;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.pricing-section-title {
+  font-size: 24px;
+  font-weight: 500;
+  color: #343a40;
+}
+
+/* ===== 01 추천 플랜 ===== */
+.pricing-recommend {
+  display: flex;
+  gap: 88px;
+  align-items: center;
+}
+
+.pricing-recommend-card {
+  flex-shrink: 0;
+}
+
+.pricing-pack-card {
+  background: #204867;
+  border-radius: 40px;
+  padding: 50px 60px 60px;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  width: 893px;
+  max-width: 100%;
+}
+
+.pricing-pack-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.pricing-pack-name {
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 44px;
+}
+
+.pricing-pack-badge {
+  background: #ffffff;
+  color: #204867;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  font-size: 18px;
+  line-height: 28px;
+}
+
+.pricing-pack-price {
+  font-size: 45px;
+  font-weight: 700;
+  margin-bottom: 32px;
+  line-height: 52px;
+}
+
+.pricing-pack-features-grid {
+  display: flex;
+  gap: 40px;
+}
+
+.pricing-pack-features {
+  list-style: disc;
+  padding-left: 33px;
+}
+
+.pricing-pack-features li {
+  font-size: 18px;
+  line-height: 28px;
+  padding: 4px 0;
+}
+
+.pricing-pack-glow {
+  position: absolute;
+  top: 0;
+  right: 100px;
+  width: 400px;
+  height: 400px;
+  background: rgba(158, 214, 255, 0.3);
+  filter: blur(100px);
+  border-radius: 50%;
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+
+.pricing-title {
+  font-size: 32px;
+  font-weight: 600;
+  color: #204867;
+  line-height: 44px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.pricing-desc {
+  font-size: 24px;
+  font-weight: 400;
+  color: #495057;
+  line-height: 36px;
+  margin-bottom: 32px;
+  text-align: left;
+}
+
+.pricing-desc strong {
+  font-weight: 700;
+}
+
+/* ===== 02 왜 3개월 Pack ===== */
+.pricing-why {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 64px;
+  align-items: start;
+}
+
+.pricing-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.pricing-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.pricing-chart-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 105px;
+  flex-shrink: 0;
+}
+
+.pricing-chart-label {
+  font-size: 22px;
+  font-weight: 600;
+  color: #111418;
+  line-height: 28px;
+}
+
+.pricing-chart-sub {
+  font-size: 16px;
+  font-weight: 400;
+  color: #495057;
+  line-height: 24px;
+}
+
+.pricing-chart-bar-wrap {
+  flex: 1;
+  height: 18px;
+  background: #ebf0f5;
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.pricing-chart-bar {
+  height: 100%;
+  border-radius: 9px;
+  transition: width 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.pricing-chart-bar-1 {
+  width: 100%;
+  background: #4791ca;
+}
+
+.pricing-chart-bar-2 {
+  width: 73.91%;
+  background: rgba(71, 145, 202, 0.7);
+}
+
+.pricing-chart-bar-3 {
+  width: 41.3%;
+  background: rgba(71, 145, 202, 0.3);
+}
+
+/* Chart bar animation */
+.pricing-chart-bar {
+  width: 0 !important;
+}
+
+.pricing-chart.animated .pricing-chart-bar-1 {
+  width: 100% !important;
+}
+
+.pricing-chart.animated .pricing-chart-bar-2 {
+  width: 73.91% !important;
+}
+
+.pricing-chart.animated .pricing-chart-bar-3 {
+  width: 41.3% !important;
+}
+
+/* ===== 03 월간 플랜 ===== */
+.pricing-plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 64px;
+  align-items: stretch;
+}
+
+.plan-card {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 28px;
+  padding: 40px 32px;
+  box-shadow: 0 12px 12px rgba(0, 0, 0, 0.07);
+  display: flex;
+  flex-direction: column;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.plan-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
+.plan-enterprise {
+  background: #0b1c30;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 8px 20px rgba(71, 145, 202, 0.7);
+  position: relative;
+  overflow: visible;
+}
+
+.plan-enterprise::after {
+  content: "";
+  position: absolute;
+  right: -150px;
+  bottom: 10px;
+  width: 150px;
+  height: 210px;
+  background: url("../images/section-pricing.svg") center / contain no-repeat;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.plan-enterprise:hover {
+  box-shadow: 0 16px 40px rgba(71, 145, 202, 0.8);
+}
+
+.plan-info {
+  margin-bottom: 24px;
+}
+
+.plan-tier {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0b1c30;
+  line-height: 32px;
+  margin-bottom: 12px;
+}
+
+.plan-enterprise .plan-tier {
+  color: #ffffff;
+}
+
+.plan-tagline {
+  font-size: 16px;
+  font-weight: 400;
+  color: #204867b2;
+  line-height: 24px;
+}
+
+.plan-enterprise .plan-tagline {
+  color: #ffffff;
+}
+
+.plan-price-group {
+  margin-bottom: 24px;
+}
+
+.plan-price {
+  font-size: 32px;
+  font-weight: 800;
+  color: #4791ca;
+  line-height: 40px;
+  margin-bottom: 10px;
+}
+
+.plan-enterprise .plan-price {
+  color: #ffffff;
+}
+
+.plan-price-enterprise {
+  margin-bottom: 12px;
+}
+
+.plan-price-enterprise span {
+  font-size: 32px;
+  font-weight: 800;
+  color: #9ed6ff;
+  line-height: 40px;
+}
+
+.plan-per {
+  font-size: 16px;
+  font-weight: 400;
+  color: #204867b2;
+  line-height: 24px;
+}
+
+.plan-per-enterprise {
+  font-size: 16px;
+  font-weight: 400;
+  color: #f7fbff;
+  line-height: 24px;
+}
+
+.plan-divider {
+  height: 1px;
+  background: #d9e2ec;
+  margin-bottom: 24px;
+}
+
+.plan-divider-dark {
+  background: #ffffff;
+}
+
+.plan-features {
+  margin-bottom: 36px;
+  flex: 1;
+}
+
+.plan-features li {
+  font-size: 16px;
+  font-weight: 400;
+  color: #495057;
+  line-height: 24px;
+  padding: 3px 0;
+}
+
+.plan-features-enterprise li {
+  color: #ffffff;
+}
+
+.plan-note {
+  font-size: 16px;
+  font-weight: 400;
+  color: #204867b2;
+  margin-bottom: 36px;
+  line-height: 24px;
+}

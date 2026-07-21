@@ -10,6 +10,7 @@ function DocMobileList({
   search,
   selectedType,
   onDeleteClick,
+  onDownload,
 }) {
   const getEmptyMessage = () => {
     if (search && selectedType) {
@@ -88,6 +89,7 @@ function DocMobileList({
             doc={doc}
             isSelected={selectedIds.includes(doc.documentId)}
             onSelect={() => handleSelect(doc.documentId)}
+            onDownload={() => onDownload(doc.documentId)}
           />
         ))
       )}

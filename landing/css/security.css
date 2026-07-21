@@ -1,0 +1,55 @@
+/* ===== SECURITY ===== */
+.security {
+  padding: 100px 0;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.security-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+}
+
+.security-card {
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 32px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.security-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.security-label {
+  display: block;
+  font-size: 16px;
+  color: #0b1c30;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.security-card-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #4791ca;
+  margin-bottom: 16px;
+}
+
+.security-card-desc {
+  font-size: 16px;
+  color: #1a3a52b2;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.security-tag {
+  display: inline-block;
+  font-size: 14px;
+  color: #495057;
+  border-radius: 6px;
+}
