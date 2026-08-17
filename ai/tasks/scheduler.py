@@ -50,27 +50,11 @@ async def _send_weekly_no_result_summary() -> None:
             logger.error("주간 no_result 요약 실패 (%s): %s", company_code, e)
 
 
-async def _keepalive_llm() -> None:
-    """LLM 콜드 스타트 방지 — 1시간마다 최소 호출로 연결 유지"""
-    try:
-        from core.llm import get_llm
-        await asyncio.to_thread(get_llm().invoke, "ping")
-        logger.debug("LLM keep-alive 완료")
-    except Exception as e:
-        logger.warning("LLM keep-alive 실패(무시): %s", e)
-
 _scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
 
 
 def start_scheduler() -> None:
     """스케줄러 시작 — FastAPI 앱 시작 시 호출"""
-    _scheduler.add_job(
-        _keepalive_llm,
-        "interval",
-        minutes=60,
-        id="llm_keepalive",
-        replace_existing=True,
-    )
     _scheduler.add_job(
         _send_weekly_no_result_summary,
         CronTrigger(
@@ -84,7 +68,7 @@ def start_scheduler() -> None:
         misfire_grace_time=300,
     )
     _scheduler.start()
-    logger.info("스케줄러 시작 — 평일 17:30 analytics / 월 09:00 미답변 요약 / 60분 LLM keep-alive 활성화")
+    logger.info("스케줄러 시작 — 월 09:00 미답변 요약 활성화")
 
 
 def stop_scheduler() -> None:
